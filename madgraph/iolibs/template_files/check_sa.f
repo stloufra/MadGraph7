@@ -170,7 +170,7 @@ c     (last zero avoid to update as, otherwise new value for as can be  provided
           DO J = I, N_COMB
              SOL= SOL + 1
              DO K =1, N_CHANGING
-                WRITE (*,*) 'particle', POS(K), 'has helicity', ALLOW_HEL((K-1)*N_COMB+I), ALLOW_HEL((K-1)*N_COMB+J)
+                WRITE (*,*) 'particle', POS(K), 'has helicity', ALLOW_HEL((I-1)*N_CHANGING+K), ALLOW_HEL((J-1)*N_CHANGING+K)
             ENDDO
              write(*,*) 'value is ',SOL , INTER(SOL)
           ENDDO
