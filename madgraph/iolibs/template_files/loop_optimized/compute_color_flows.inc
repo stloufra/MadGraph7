@@ -11,11 +11,11 @@ C Set of subroutines to project the Feynman diagrama amplitudes AMPL onto the co
       SUBROUTINE %(proc_prefix)sCOMPUTE_COLOR_FLOWS_DERIVED_QUANTITIES(HEL_MULT)
       IMPLICIT NONE
       INTEGER HEL_MULT      
-##if(MadEventOutput) {
+## if(MadEventOutput) {
         CALL %(proc_prefix)sCOMPUTE_AMPL2(HEL_MULT)
         CALL %(proc_prefix)sCOMPUTE_JAMP2(HEL_MULT)  
 ## }
-##if(LoopInduced and not MadEventOutput)
+## if(LoopInduced and not MadEventOutput) {
       INTEGER    NSQUAREDSO, NLOOPAMPSO
       PARAMETER (NSQUAREDSO=%(nSquaredSO)d, NLOOPAMPSO=%(nAmpSO)d)
       INTEGER NLOOPFLOWS
@@ -705,7 +705,7 @@ C
 c       INTEGER NGRAPHS
 c       PARAMETER (NGRAPHS=3)
        INTEGER NCOLOR
-       PARAMETER (NCOLOR=%(ncolor)i)
+       PARAMETER (NCOLOR=%(nLoopFlows)i)
        DOUBLE COMPLEX JAMPL_all(3, NLOOPFLOWS,NLOOPAMPSO,3*NEXTERNAL)
        INTEGER STORE_DENSITY
        DATA STORE_DENSITY /0/
@@ -717,7 +717,7 @@ C
 c
 c   local
 c
-    integer i,j,IHEL
+       integer i,j,IHEL
 
     STORE_DENSITY=0
     DO I = 1, N_COMB
