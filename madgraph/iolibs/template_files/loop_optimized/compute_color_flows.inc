@@ -18,8 +18,9 @@ C Set of subroutines to project the Feynman diagrama amplitudes AMPL onto the co
 ## if(LoopInduced and not MadEventOutput) {
       INTEGER    NSQUAREDSO, NLOOPAMPSO
       PARAMETER (NSQUAREDSO=%(nSquaredSO)d, NLOOPAMPSO=%(nAmpSO)d)
-      INTEGER NLOOPFLOWS
+      INTEGER NLOOPFLOWS, NEXTERNAL
       PARAMETER (NLOOPFLOWS=%(nLoopFlows)d)   
+      PARAMETER (NEXTERNAL=%(nexternal)i)
       DOUBLE COMPLEX JAMPL_all(3, NLOOPFLOWS,NLOOPAMPSO,3*NEXTERNAL)
       INTEGER STORE_DENSITY
       DATA STORE_DENSITY /0/
@@ -710,6 +711,8 @@ c       PARAMETER (NGRAPHS=3)
        INTEGER STORE_DENSITY
        DATA STORE_DENSITY /0/
        Double precision matelem
+       REAL*8 , ALLOCATABLE :: PREC_FOUND(:)
+       integer returncode
 C
 C    Common for density
 C
@@ -717,8 +720,10 @@ C
 c
 c   local
 c
-       integer i,j,IHEL
+       integer i,j,IHEL, n
+       integer get_hel_index
 
+       ALLOCATE(PREC_FOUND(0:NSQUAREDSO))
     STORE_DENSITY=0
     DO I = 1, N_COMB
         STORE_DENSITY=I
@@ -726,14 +731,11 @@ c
            NHEL(POS(N)) = ALLOW_HEL((I-1)*N_CHANGING+N)
            !determine the correct ihel
            IHEL = GET_HEL_INDEX(NHEL)
-           DO IHEL = 1, NCOMB
-           IHEL = GET_HEL_INDEX(NHEL)
-
-           call %(proc_prefix)sML5_0_SLOOPMATRIXHEL_THRES(P,IHEL, MATELEM,-1.0D0,PREC_FOUND, RETURNCODE)
-
+           call %(proc_prefix)sSLOOPMATRIXHEL_THRES(P,IHEL, MATELEM,-1.0D0,PREC_FOUND, RETURNCODE)
          ENDDO
        ENDDO
 
+       DEALLOCATE(PREC_FOUND)
 END SUBROUTINE
 ## }
 
@@ -748,6 +750,7 @@ c
     parameter (ncomb=%(ncomb)i)
     LOGICAL FOUND
     INTEGER I
+    INTEGER NHEL(NEXTERNAL)
     INTEGER HELC(NEXTERNAL,NCOMB)
     COMMON/ML5_0_HELCONFIGS/HELC
 c    
@@ -762,7 +765,7 @@ c
            endif   
         ENDDO
     ENDDO
-END SUBROUTINE
+END 
 
 ## if(LoopInduced and not MadEventOutput){
 SUBROUTINE %(proc_prefix)sCOMPUTE_INTER_FROM_JAMP(RES,HEL_MULT, JAMPL1, JAMPL2)
