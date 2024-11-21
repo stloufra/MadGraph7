@@ -736,6 +736,7 @@ c
        ENDDO
 
        DEALLOCATE(PREC_FOUND)
+       RETURN
 END SUBROUTINE
 ## }
 

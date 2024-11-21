@@ -70,6 +70,13 @@ C
       REAL*8 DOT
       EXTERNAL DOT
       
+      INTEGER NHEL(NEXTERNAL)
+      INTEGER, allocatable :: POS(:)
+      INTEGER N_CHANGING, N_COMB
+      INTEGER allocatable :: allow_hel(:) 
+      double complex, allocatable :: INTER(:)
+
+
 C 
 C     BEGIN CODE
 C
@@ -198,6 +205,29 @@ C
 C
 C        write the information on the four momenta 
 C
+
+C     YOU CAN EDIT THOSE NUMBERS
+      N_CHANGING =1
+      N_COMB=2
+
+      allocate( POS(N_CHANGING))
+      allocate( ALLOW_HEL(N_CHANGING*N_COMB))
+      allocate(INTER(N_CHANGING*N_COMB*(N_CHANGING*N_COMB+1)/2))
+
+c     THIS IS PROCESS SPECIFIC -> need to be tuned... 
+      NHEL(1) = 1
+      NHEL(2) = -1
+      NHEL(3) = 1
+      NHEL(4) = -1
+      ALLOW_HEL(1) = 1
+      ALLOW_HEL(2) = -1
+      POS(1) = 3
+
+
+
+      deallocate (POS)
+      deallocate(ALLOW_HEL)
+      deallocated(INTER)
       if (K.eq.NPSPOINTS) then
       write (*,*)
       write (*,*) " Phase space point:"
