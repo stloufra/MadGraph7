@@ -200,7 +200,7 @@ C
       INTEGER I,J
       COMPLEX*16 ZTEMP
       REAL*8 %(proc_prefix)sCF(NCOLOR,NCOLOR)
-      common /color_matrix/ %(proc_prefix)sCF
+      common /%(proc_prefix)scolor_matrix/ %(proc_prefix)sCF
       COMPLEX*16 AMP(NGRAPHS), JAMP(NCOLOR), TMP_JAMP(%(nb_temp_jamp)i)
       COMPLEX*16 W(20,NWAVEFUNCS)
       COMPLEX*16 DUM0,DUM1
@@ -336,7 +336,7 @@ C
       INTEGER I,J
       COMPLEX*16 ZTEMP
       REAL*8 %(proc_prefix)sCF(NCOLOR,NCOLOR)
-      COMMON /color_matrix/ %(proc_prefix)sCF
+      COMMON /%(proc_prefix)scolor_matrix/ %(proc_prefix)sCF
       COMPLEX*16 JAMP(NCOLOR), TMP_JAMP(%(nb_temp_jamp)i)
       COMPLEX*16 DUM0,DUM1
       DATA DUM0, DUM1/(0d0, 0d0), (1d0, 0d0)/
