@@ -7,6 +7,7 @@ from six.moves import map
 from six.moves import range
 from six.moves import zip
 import pickle
+import numpy as np
 
 ################################################################################
 #
@@ -4443,3 +4444,114 @@ class decay_all_events_density(decay_all_events_onshell):
         import sys
         with misc.stdchannel_redirected(sys.stdout, os.devnull):
             return super(decay_all_events_onshell,self).save_to_file(*args) 
+
+class DensityMatrix:
+    def __init__(self, array, nchanging, helicities):
+        self.map_density_matrix_ind = {}
+        self.dim = len(helicities)**nchanging
+        self.matrix = np.zeros((self.dim, self.dim), dtype=np.complex64)
+
+        self.fill_index_map()
+ 
+        # Fill matrix using elements from array
+        if len(array.shape) == 1:
+            for key, (position, is_in_array, pos_in_array) in self.map_density_matrix_ind.items():
+                i, j = position
+                #print(f"Trying to access {i},{j}")
+                #print(f"pos_in_array = {pos_in_array}")
+                #print(f"array[{pos_in_array}] = {array[pos_in_array]}")
+                self.matrix[i][j] = array[pos_in_array] if is_in_array else array[pos_in_array].conjugate()
+        # The matrix is already provided as input - use that
+        else:
+            self.matrix = array
+
+    def fill_index_map(self):
+        # Dictionary from elements of array to matrix
+        # 1st element: position in row, column in matrix
+        # 2nd element: True if element is in array, False if it’s conjugate (from another array position)
+        # 3rd element: index position in array
+        if self.dim == 1:
+            self.map_density_matrix_ind = {
+                (0, 0): ((0, 0), True, 0)
+            } 
+        elif self.dim == 2: # nchanging = 1 , helicites = [1,-1]
+            self.map_density_matrix_ind = {
+                (1, 1): ((0, 0), True, 0),
+                (1, -1): ((0, 1), True, 1),
+                (-1, 1): ((1, 0), False, 1),
+                (-1, -1): ((1, 1), True, 2)
+            } 
+        elif self.dim == 3:  # nchanging = 1 , helicites = [1,0,-1]
+            self.map_density_matrix_ind = {
+                (1, 1): ((0, 0), True, 0),
+                (1, 0): ((0, 1), True, 1),
+                (1, -1): ((0, 2), True, 2),
+                (0, 1): ((1, 0), False, 1),
+                (0, 0): ((1, 1), True, 3),
+                (0, -1): ((1, 2), True, 4),
+                (-1, 1): ((2, 0), False, 2),
+                (-1, 0): ((2, 1), False, 4),
+                (-1, -1): ((2, 2), True, 5)
+            }
+        elif self.dim == 4: # nchanging = 2 , helicites = [1,-1]
+            self.map_density_matrix_ind = {
+                (1, 1, 1, 1): ((0, 0), True, 0),
+                (1, 1, 1, -1): ((0, 1), True, 1),
+                (1, 1, -1, 1): ((0, 2), False, 1),
+                (1, 1, -1, -1): ((0, 3), True, 2),
+                (1, -1, 1, 1): ((1, 0), True, 3),
+                (1, -1, 1, -1): ((1, 1), True, 4),
+                (1, -1, -1, 1): ((1, 2), False, 4),
+                (1, -1, -1, -1): ((1, 3), True, 5),
+                (-1, 1, 1, 1): ((2, 0), False, 3),
+                (-1, 1, 1, -1): ((2, 1), False, 4),
+                (-1, 1, -1, 1): ((2, 2), True, 6),
+                (-1, 1, -1, -1): ((2, 3), False, 5),
+                (-1, -1, 1, 1): ((3, 0), True, 7),
+                (-1, -1, 1, -1): ((3, 1), True, 8),
+                (-1, -1, -1, 1): ((3, 2), False, 8),
+                (-1, -1, -1, -1): ((3, 3), True, 9)
+            }
+        else:
+            raise ValueError(f"Unsupported helicity combination {helicities}")
+
+    def get_element(self, label):
+        i, j = self.map_density_matrix_ind[label][0]
+        return self.matrix[i][j]
+
+    def __repr__(self):
+        return f"DensityMatrix:\n" + "\n".join(str(row) for row in self.matrix)
+
+    def tensor_product(self, other, nchanging, helicities):
+        if not isinstance(other, DensityMatrix):
+            raise TypeError("Tensor product is only supported between two DensityMatrix instances.")
+        
+        # Use np.kron for the tensor product
+        result_matrix = np.kron(self.matrix, other.matrix)
+        #print(f"result_matrix = {result_matrix}")
+        return DensityMatrix.from_matrix(result_matrix, nchanging, helicities)
+
+    @staticmethod
+    def from_matrix(matrix, nchanging, helicities):
+        dm = DensityMatrix(matrix, nchanging, helicities)
+        return dm
+    
+    def get_diag_indices(self):
+        return [(i, i) for i in range(self.matrix.ndim)]
+
+    def scalar_multiplication(self, other, diag=False):
+        if self.map_density_matrix_ind != other.map_density_matrix_ind:
+            raise TypeError("Non-compatible dimensions of production and decay spin-density matrices")
+
+        # Multiply the matrix elements of one matrix with the elements of the other matrix that have
+        # the same index
+        me = 0
+        for key, (position, is_in_array, pos_in_array) in self.map_density_matrix_ind.items():
+            if not diag:
+                me += self.get_element(key)*other.get_element(key) if is_in_array else \
+                      self.get_element(key).conjugate()*other.get_element(key).conjugate()
+            else:
+                me += self.get_element(key)*self.get_element(key) if is_in_array else 0
+        
+        return me
+       
