@@ -4514,6 +4514,63 @@ class DensityMatrix:
             }
         else:
             raise ValueError(f"Unsupported helicity combination {helicities}")
+        
+
+    @staticmethod
+    def get_map_density_matrix(allowed_hel, n_changing):
+
+        map_density = {}
+#c  FORTRAN CODE
+#c 576       DO I = 1, N_COMB
+#c 577         DO N = 1, N_CHANGING
+#c 578           NHEL(POS(N)) = ALLOW_HEL((I-1)*N_CHANGING+N)
+#c 579           CALL GET_AMP(P,NHEL,IC,AMP)
+#c 580           CALL GET_JAMP(AMP,JAMP(1,I))
+#c 581         ENDDO
+#c 582       ENDDO
+#c 584       SOL = 0
+#c 585       DO I = 1, N_COMB
+#c 586         DO J= I, N_COMB
+#c 587           SOL = SOL +1
+#c 588           CALL GET_INTER(JAMP(1,I), JAMP(1,J), INTER(SOL))
+#c 589         ENDDO
+#c 590       ENDDO
+
+        # set the index for the equivalen of the jamp
+        jamp_hel = []
+        n_comb = len(allowed_hel) // n_changing
+        for i in range(n_comb):
+            current_hel = []
+            for n in range(n_changing):
+                current_hel.append(allowed_hel[i*n_changing+n])
+            jamp_hel.append(current_hel)
+
+        # get the index for each solution
+        nb_sol = 0
+        for i in range(n_comb):
+            for j in range(i,n_comb):
+                curr_index = []
+                for n in range(n_changing):
+                    curr_index.append(allowed_hel[i*n_changing+n])
+                    curr_index.append(allowed_hel[j*n_changing+n])
+                map_density[tuple(curr_index)] = (True, nb_sol)
+                nb_sol +=1
+
+        # get the index for the complex conjugate
+        def conjugate_index(orig_index):
+            flip_index = []
+            for i in range(0, len(orig_index), 2):
+                hel1, hel2 = orig_index[i], orig_index[i+1]
+                flip_index += [hel2, hel1]
+            return tuple(flip_index)
+
+        # add the entry that need to be complex conjugate
+        for key in list(map_density.keys()):
+            if key != conjugate_index(key):
+                map_density[conjugate_index(key)] = (False, map_density[key][1])
+
+        return map_density
+
 
     def get_element(self, label):
         i, j = self.map_density_matrix_ind[label][0]
