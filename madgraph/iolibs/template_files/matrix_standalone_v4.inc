@@ -503,9 +503,9 @@ C ----------
       do I = 1, N_COMB
          do N = 1, N_CHANGING
             NHEL(POS(N)) = ALLOW_HEL((I-1)*N_CHANGING+N)
-            call %(proc_prefix)sGET_AMP(P,NHEL,IC,AMP)
-            call %(proc_prefix)sGET_JAMP(AMP,JAMP(1,I))
-          enddo
+         enddo
+         call %(proc_prefix)sGET_AMP(P,NHEL,IC,AMP)
+         call %(proc_prefix)sGET_JAMP(AMP,JAMP(1,I))
       enddo
 
     SOL = 0 
