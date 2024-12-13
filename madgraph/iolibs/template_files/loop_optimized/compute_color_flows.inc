@@ -710,7 +710,7 @@ c       PARAMETER (NGRAPHS=3)
        DOUBLE COMPLEX JAMPL_all(3, NLOOPFLOWS,NLOOPAMPSO,3*NEXTERNAL)
        INTEGER STORE_DENSITY
        DATA STORE_DENSITY /0/
-       Double precision matelem
+       Double precision matelem(20)
        REAL*8 , ALLOCATABLE :: PREC_FOUND(:)
        integer returncode
 C
@@ -729,10 +729,10 @@ c
         STORE_DENSITY=I
         DO N = 1, N_CHANGING
            NHEL(POS(N)) = ALLOW_HEL((I-1)*N_CHANGING+N)
-           !determine the correct ihel
-           IHEL = GET_HEL_INDEX(NHEL)
-           call %(proc_prefix)sSLOOPMATRIXHEL_THRES(P,IHEL, MATELEM,-1.0D0,PREC_FOUND, RETURNCODE)
-         ENDDO
+        enddo
+        !determine the correct ihel
+        IHEL = GET_HEL_INDEX(NHEL)
+        call %(proc_prefix)sSLOOPMATRIXHEL_THRES(P,IHEL, MATELEM,-1.0D0,PREC_FOUND, RETURNCODE)
        ENDDO
 
        DEALLOCATE(PREC_FOUND)
