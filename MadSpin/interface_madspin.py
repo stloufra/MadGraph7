@@ -1846,7 +1846,10 @@ class MadSpinInterface(extended_cmd.Cmd):
                                         helicities[0]) \
                if prod_density_cached is None else \
                prod_density_cached
-        
+        # Cache colour and denominators of decaying particles
+        prod_color = 1
+        prod_denominators = 1
+
         # Loop over decaying particles
         # decays is a dictionary containing the pdg of the decaying particle as key
         # and a list of Particles corresponding to the decay event
@@ -1862,10 +1865,11 @@ class MadSpinInterface(extended_cmd.Cmd):
                 width = decay_dict[pdg][0]
                 mass = decay_dict[pdg][1]
                 color = decay_dict[pdg][2]
+                prod_color *= color
 
 	            # propagator of the decaying particle on-shell
                 D = complex(0,mass * width)
-                D_D_conj = D*D.conjugate()
+                prod_denominators *= D*D.conjugate()
 
                 # decays[pdg] corresponds to a list of particles in the decay event
                 #for i,decay_event in enumerate(decay_event):
@@ -1925,7 +1929,7 @@ class MadSpinInterface(extended_cmd.Cmd):
         #    me += density_prod[k]*density_dec[k] \
         #        + density_prod[k].conjugate()*density_dec[k].conjugate()
         me = density_dec.scalar_multiplication(density_prod)
-        me = me.real/(iden_p*(color*D_D_conj)**nchanging) # need to change this for decay of different particles
+        me = me.real/(iden_p*prod_color*prod_denominators) # need to change this for decay of different particles
 
         # Get production and decay ME from diagonal elements of density matrix
         prod_diag = density_prod.scalar_multiplication(density_prod, diag_only=True).real/(iden_p)
