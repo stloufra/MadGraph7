@@ -4445,98 +4445,68 @@ class decay_all_events_density(decay_all_events_onshell):
         with misc.stdchannel_redirected(sys.stdout, os.devnull):
             return super(decay_all_events_onshell,self).save_to_file(*args) 
 
+# DensityMatrix is a numpy structured array
+# with the first element being a label indicating the helicity combination
+# and the second element being the value
 class DensityMatrix:
     def __init__(self, array, nchanging, helicities):
-        self.map_density_matrix_ind = {}
-        self.dim = len(helicities)**nchanging
-        self.matrix = np.zeros((self.dim, self.dim), dtype=np.complex64)
-
-        self.fill_index_map()
- 
-        # Fill matrix using elements from array
-        if len(array.shape) == 1:
-            for key, (position, is_in_array, pos_in_array) in self.map_density_matrix_ind.items():
-                i, j = position
-                #print(f"Trying to access {i},{j}")
-                #print(f"pos_in_array = {pos_in_array}")
-                #print(f"array[{pos_in_array}] = {array[pos_in_array]}")
-                self.matrix[i][j] = array[pos_in_array] if is_in_array else array[pos_in_array].conjugate()
-        # The matrix is already provided as input - use that
-        else:
+        self.nchanging = nchanging
+        self.allowed_hel = helicities
+        # Create the index map
+        self.map_density_matrix_ind = self.get_map_density_matrix(helicities, nchanging)
+        #print(f"helicities = {helicities}")
+        len_allowed_hel = len(next(iter(self.map_density_matrix_ind)))
+         # Create the structured array
+        dtype = [('helicities', 'i4', (len_allowed_hel)),  
+                 ('value', 'complex64')] 
+        self.matrix = np.empty(0, dtype=dtype)
+           
+        # If the array is already of the correct type set the matrix
+        # equal to it and return otherwise create the matrix
+        #print(f"array = {array}")
+        #print(f"array.dtype = {array.dtype}")
+        #print(f"dtype = {dtype}")
+        if isinstance(array, np.ndarray) and array.dtype == dtype:
+            #print("filling from array")
             self.matrix = array
-
-    def fill_index_map(self):
-        # Dictionary from elements of array to matrix
-        # 1st element: position in row, column in matrix
-        # 2nd element: True if element is in array, False if it’s conjugate (from another array position)
-        # 3rd element: index position in array
-        if self.dim == 1:
-            self.map_density_matrix_ind = {
-                (0, 0): ((0, 0), True, 0)
-            } 
-        elif self.dim == 2: # nchanging = 1 , helicites = [1,-1]
-            self.map_density_matrix_ind = {
-                (1, 1): ((0, 0), True, 0),
-                (1, -1): ((0, 1), True, 1),
-                (-1, 1): ((1, 0), False, 1),
-                (-1, -1): ((1, 1), True, 2)
-            } 
-        elif self.dim == 3:  # nchanging = 1 , helicites = [1,0,-1]
-            self.map_density_matrix_ind = {
-                (1, 1): ((0, 0), True, 0),
-                (1, 0): ((0, 1), True, 1),
-                (1, -1): ((0, 2), True, 2),
-                (0, 1): ((1, 0), False, 1),
-                (0, 0): ((1, 1), True, 3),
-                (0, -1): ((1, 2), True, 4),
-                (-1, 1): ((2, 0), False, 2),
-                (-1, 0): ((2, 1), False, 4),
-                (-1, -1): ((2, 2), True, 5)
-            }
-        elif self.dim == 4: # nchanging = 2 , helicites = [1,-1]
-            self.map_density_matrix_ind = {
-                (1, 1, 1, 1): ((0, 0), True, 0),
-                (1, 1, 1, -1): ((0, 1), True, 1),
-                (1, 1, -1, 1): ((0, 2), False, 1),
-                (1, 1, -1, -1): ((0, 3), True, 2),
-                (1, -1, 1, 1): ((1, 0), True, 3),
-                (1, -1, 1, -1): ((1, 1), True, 4),
-                (1, -1, -1, 1): ((1, 2), False, 4),
-                (1, -1, -1, -1): ((1, 3), True, 5),
-                (-1, 1, 1, 1): ((2, 0), False, 3),
-                (-1, 1, 1, -1): ((2, 1), False, 4),
-                (-1, 1, -1, 1): ((2, 2), True, 6),
-                (-1, 1, -1, -1): ((2, 3), False, 5),
-                (-1, -1, 1, 1): ((3, 0), True, 7),
-                (-1, -1, 1, -1): ((3, 1), True, 8),
-                (-1, -1, -1, 1): ((3, 2), False, 8),
-                (-1, -1, -1, -1): ((3, 3), True, 9)
-            }
         else:
-            raise ValueError(f"Unsupported helicity combination {helicities}")
+            #print("not filling from array")
+            # Fill matrix using elements from array
+            #print(f"Now filling density matrix elements")
+            for key, (is_in_array, pos_in_array) in self.map_density_matrix_ind.items():
+                #print(f"key = {key}")
+                #print(f"array[{pos_in_array}] = {array[pos_in_array]}")
+                new_element = np.array((key, array[pos_in_array]), dtype=dtype) if is_in_array \
+                              else np.array((key, array[pos_in_array].conjugate()), dtype=dtype)
+                self.matrix = np.append(self.matrix, new_element)
+            #print(f"Density matrix = {self.matrix}") 
         
-
+        # Find diagonal elements
+        self.diag_elements = self.get_diag_elements()
+        #print(f"diag_elements = {self.diag_elements}")
+        
     @staticmethod
     def get_map_density_matrix(allowed_hel, n_changing):
-
+        #print(f"Spyros from map: allowed_hel = {allowed_hel}")
+        #print(f"Spyros from map: n_changing = {n_changing}")
         map_density = {}
-#c  FORTRAN CODE
-#c 576       DO I = 1, N_COMB
-#c 577         DO N = 1, N_CHANGING
-#c 578           NHEL(POS(N)) = ALLOW_HEL((I-1)*N_CHANGING+N)
-#c 579           CALL GET_AMP(P,NHEL,IC,AMP)
-#c 580           CALL GET_JAMP(AMP,JAMP(1,I))
-#c 581         ENDDO
-#c 582       ENDDO
-#c 584       SOL = 0
-#c 585       DO I = 1, N_COMB
-#c 586         DO J= I, N_COMB
-#c 587           SOL = SOL +1
-#c 588           CALL GET_INTER(JAMP(1,I), JAMP(1,J), INTER(SOL))
-#c 589         ENDDO
-#c 590       ENDDO
+        #c  FORTRAN CODE
+        #c 576       DO I = 1, N_COMB
+        #c 577         DO N = 1, N_CHANGING
+        #c 578           NHEL(POS(N)) = ALLOW_HEL((I-1)*N_CHANGING+N)
+        #c 579           CALL GET_AMP(P,NHEL,IC,AMP)
+        #c 580           CALL GET_JAMP(AMP,JAMP(1,I))
+        #c 581         ENDDO
+        #c 582       ENDDO
+        #c 584       SOL = 0
+        #c 585       DO I = 1, N_COMB
+        #c 586         DO J= I, N_COMB
+        #c 587           SOL = SOL +1
+        #c 588           CALL GET_INTER(JAMP(1,I), JAMP(1,J), INTER(SOL))
+        #c 589         ENDDO
+        #c 590       ENDDO
 
-        # set the index for the equivalen of the jamp
+        # set the index for the equivalent of the jamp
         jamp_hel = []
         n_comb = len(allowed_hel) // n_changing
         for i in range(n_comb):
@@ -4568,47 +4538,61 @@ class DensityMatrix:
         for key in list(map_density.keys()):
             if key != conjugate_index(key):
                 map_density[conjugate_index(key)] = (False, map_density[key][1])
-
+        
+        #print(f"Spyros map_density = {map_density}")
         return map_density
 
-
-    def get_element(self, label):
-        i, j = self.map_density_matrix_ind[label][0]
-        return self.matrix[i][j]
-
-    def __repr__(self):
-        return f"DensityMatrix:\n" + "\n".join(str(row) for row in self.matrix)
-
-    def tensor_product(self, other, nchanging, helicities):
+    def get_helicities_for_tensor_product(self, helicities):
+        combinations = list(itertools.product(helicities, repeat=2))
+        return [item for sublist in combinations for item in sublist]
+            
+    def tensor_product(self, other):
         if not isinstance(other, DensityMatrix):
             raise TypeError("Tensor product is only supported between two DensityMatrix instances.")
-        
-        # Use np.kron for the tensor product
-        result_matrix = np.kron(self.matrix, other.matrix)
-        #print(f"result_matrix = {result_matrix}")
-        return DensityMatrix.from_matrix(result_matrix, nchanging, helicities)
+        #print(f"self.matrix[0] = {self.matrix[0]}")
+        #print(f"self.matrix[0]['helicities'] = {self.matrix[0]['helicities']}")
+        len_allowed_hel = len(self.matrix[0]['helicities'])*len(other.matrix[0]['helicities'])
+        dtype = [('helicities', 'i4', (len_allowed_hel)),
+                 ('value', 'complex64')]
+        result = np.empty(0, dtype=dtype)
+
+        for entry1 in self.matrix:
+            for entry2 in other.matrix:
+                new = np.array((tuple(entry1['helicities']) + tuple(entry2['helicities']), 
+                                entry1['value'] * entry2['value']), dtype=dtype)
+                result = np.append(result, new)
+        return DensityMatrix.from_matrix(result, 
+                                         self.nchanging+other.nchanging, 
+                                         self.get_helicities_for_tensor_product(self.allowed_hel))
 
     @staticmethod
     def from_matrix(matrix, nchanging, helicities):
         dm = DensityMatrix(matrix, nchanging, helicities)
         return dm
-    
-    def get_diag_indices(self):
-        return [(i, i) for i in range(self.matrix.ndim)]
 
-    def scalar_multiplication(self, other, diag=False):
+    def scalar_multiplication(self, other, diag_only=False):
+        #print(f"self.map_density_matrix_ind = {self.map_density_matrix_ind}")
+        #print(f"other.map_density_matrix_ind = {other.map_density_matrix_ind}")
         if self.map_density_matrix_ind != other.map_density_matrix_ind:
             raise TypeError("Non-compatible dimensions of production and decay spin-density matrices")
 
         # Multiply the matrix elements of one matrix with the elements of the other matrix that have
         # the same index
         me = 0
-        for key, (position, is_in_array, pos_in_array) in self.map_density_matrix_ind.items():
-            if not diag:
-                me += self.get_element(key)*other.get_element(key) if is_in_array else \
-                      self.get_element(key).conjugate()*other.get_element(key).conjugate()
-            else:
-                me += self.get_element(key)*self.get_element(key) if is_in_array else 0
+        for entry1 in self.matrix:
+            if diag_only and not list(entry1['helicities']) in self.diag_elements: continue
+            for entry2 in other.matrix:
+                if list(entry1['helicities']) == list(entry2['helicities']):
+                    me += entry1['value']*entry2['value']
         
         return me
-       
+    
+    def get_diag_elements(self):
+        helicities = self.matrix['helicities']
+        half_length = helicities.shape[1] // 2
+
+        # Extract diagonal elements
+        mask = np.all(helicities[:, :half_length] == helicities[:, half_length:], axis=1)
+
+        # Extract the matching helicities as lists
+        return helicities[mask].tolist()

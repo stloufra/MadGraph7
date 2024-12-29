@@ -1828,6 +1828,8 @@ class MadSpinInterface(extended_cmd.Cmd):
         # Number of helicity combinations to consider
         ncomb = len(allowed_hel_pairs)        
         
+        #print(f"allowed_hel = {allowed_hel}")
+
         # Get the density matrix for the production
 		# get_density gives the inters that already contain the sum over helicities
 		# density_1 = inter_1 = J_1^(3)*J_1^(3).conjugate + J_1^(4)*J_1^(4).conjugate
@@ -1835,6 +1837,7 @@ class MadSpinInterface(extended_cmd.Cmd):
 		# density_3 = inter_3 = J_2^(3)*J_2^(3).conjugate + J_2^(4)*J_2^(4).conjugate
 		# where subscripts indicate the helicity of the decaying particle 
 		# and superscripts the helicities of the rest of the particles
+        #print(f"Spyros get_density production")
         density_prod = self.get_density(production, 
                                         position, 
                                         nchanging, 
@@ -1888,6 +1891,7 @@ class MadSpinInterface(extended_cmd.Cmd):
             ##print(f"pos_in_dec = {pos_in_dec}")
             #print("------")
             #print(f"decay_event = {decay_event}")
+            #print(f"Spyros get_density decay")
             density_dec_tmp = self.get_density(decay_event, 
                                                position=[1], 
                                                nchanging=1, 
@@ -1898,9 +1902,9 @@ class MadSpinInterface(extended_cmd.Cmd):
                 density_dec = density_dec_tmp
             else:
                 #print("convolving")
-                density_dec = density_dec.tensor_product(density_dec_tmp, nchanging, helicities[0])
+                density_dec = density_dec.tensor_product(density_dec_tmp)
 
-            #print(f"density_dec = {density_dec}")
+            #print(f"density_dec = {density_dec.matrix}")
 
         #print(f"density_dec is of type {type(density_dec)}")
         # Call function to return indices of density matrix for prod*dec convolution
@@ -1921,13 +1925,13 @@ class MadSpinInterface(extended_cmd.Cmd):
         #    me += density_prod[k]*density_dec[k] \
         #        + density_prod[k].conjugate()*density_dec[k].conjugate()
         me = density_dec.scalar_multiplication(density_prod)
-        me = me.real/(iden_p*(color*D_D_conj)**nchanging)
+        me = me.real/(iden_p*(color*D_D_conj)**nchanging) # need to change this for decay of different particles
 
         # Get production and decay ME from diagonal elements of density matrix
-        prod_diag = density_prod.scalar_multiplication(density_prod, diag=True).real/(iden_p)
-        print(f"density_dec = {density_dec}")
-        dec_diag = density_dec.scalar_multiplication(density_dec, diag=True).real/(color*len(allowed_hel))
-        print(f"dec_diag = {dec_diag}")
+        prod_diag = density_prod.scalar_multiplication(density_prod, diag_only=True).real/(iden_p)
+        #print(f"density_dec = {density_dec}")
+        dec_diag = density_dec.scalar_multiplication(density_dec, diag_only=True).real/(color*len(allowed_hel))
+        #print(f"dec_diag = {dec_diag}")
         
         return me, density_prod, prod_diag, dec_diag
 
@@ -1966,8 +1970,8 @@ class MadSpinInterface(extended_cmd.Cmd):
                 P = rwgt_interface.ReweightInterface.invert_momenta(p)
                 density_array = self.all_density[pdir](P, position, nchanging, allow_hel, ncomb, event.aqcd)
                 # Convert array to a matrix
-                #print("creating spin density matrix")
-                density_matrix = madspin.DensityMatrix(density_array, nchanging, helicities)
+                #print(f"creating spin density matrix from {density_array}")
+                density_matrix = madspin.DensityMatrix(density_array, nchanging, allow_hel)
                 #print(density_matrix)
                 return density_matrix
         else : 
