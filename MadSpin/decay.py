@@ -4445,10 +4445,14 @@ class decay_all_events_density(decay_all_events_onshell):
         with misc.stdchannel_redirected(sys.stdout, os.devnull):
             return super(decay_all_events_onshell,self).save_to_file(*args) 
 
-# DensityMatrix is a numpy structured array
-# with the first element being a label indicating the helicity combination
-# and the second element being the value
 class DensityMatrix:
+    """
+    DensityMatrix is a numpy structured array
+    with the first element being a label indicating the helicity combination
+    and the second element being the value.
+    It corresponds to INTER = Sum_colors JAMP(h1)*JAMP(h2)
+    (eq 45 in Quentin's thesis)
+    """
     def __init__(self, array, nchanging, helicities):
         self.nchanging = nchanging
         self.allowed_hel = helicities
@@ -4570,9 +4574,12 @@ class DensityMatrix:
         dm = DensityMatrix(matrix, nchanging, helicities)
         return dm
 
-    def scalar_multiplication(self, other, diag_only=False):
+    def scalar_multiplication(self, other):
+        #print(f"--------- Scalar multiplication {diag_only} ---------")
         #print(f"self.map_density_matrix_ind = {self.map_density_matrix_ind}")
         #print(f"other.map_density_matrix_ind = {other.map_density_matrix_ind}")
+        #print(f"Matrix1 = {self.matrix}")
+        #print(f"Matrix2 = {other.matrix}")
         if self.map_density_matrix_ind != other.map_density_matrix_ind:
             raise TypeError("Non-compatible dimensions of production and decay spin-density matrices")
 
@@ -4580,13 +4587,19 @@ class DensityMatrix:
         # the same index
         me = 0
         for entry1 in self.matrix:
-            if diag_only and not list(entry1['helicities']) in self.diag_elements: continue
             for entry2 in other.matrix:
                 if list(entry1['helicities']) == list(entry2['helicities']):
+                    #print(f"multiplying {list(entry1['helicities'])} with {list(entry2['helicities'])}")
                     me += entry1['value']*entry2['value']
-        
         return me
     
+    def trace(self):
+        me = 0
+        for entry in self.matrix:
+            if not list(entry['helicities']) in self.diag_elements: continue
+            me += entry['value']
+        return me
+
     def get_diag_elements(self):
         helicities = self.matrix['helicities']
         half_length = helicities.shape[1] // 2
