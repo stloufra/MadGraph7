@@ -4453,11 +4453,14 @@ class DensityMatrix:
     It corresponds to INTER = Sum_colors JAMP(h1)*JAMP(h2)
     (eq 45 in Quentin's thesis)
     """
-    def __init__(self, array, nchanging, helicities):
+    def __init__(self, array, nchanging, all_helicity_combinations, particle_helicities):
         self.nchanging = nchanging
-        self.allowed_hel = helicities
+        self.all_helicity_combinations = all_helicity_combinations
+        self.particle_helicities = particle_helicities
+        self.dimension = len(particle_helicities)**nchanging
+        self.diag_elements = [i * (2 * self.dimension - i + 1) // 2 for i in range(self.dimension)]
         # Create the index map
-        self.map_density_matrix_ind = self.get_map_density_matrix(helicities, nchanging)
+        self.map_density_matrix_ind = self.get_map_density_matrix(all_helicity_combinations, nchanging)
         #print(f"helicities = {helicities}")
         len_allowed_hel = len(next(iter(self.map_density_matrix_ind)))
          # Create the structured array
@@ -4484,10 +4487,6 @@ class DensityMatrix:
                               else np.array((key, array[pos_in_array].conjugate()), dtype=dtype)
                 self.matrix = np.append(self.matrix, new_element)
             #print(f"Density matrix = {self.matrix}") 
-        
-        # Find diagonal elements
-        self.diag_elements = self.get_diag_elements()
-        #print(f"diag_elements = {self.diag_elements}")
         
     @staticmethod
     def get_map_density_matrix(allowed_hel, n_changing):
@@ -4567,19 +4566,20 @@ class DensityMatrix:
                 result = np.append(result, new)
         return DensityMatrix.from_matrix(result, 
                                          self.nchanging+other.nchanging, 
-                                         self.get_helicities_for_tensor_product(self.allowed_hel))
+                                         self.get_helicities_for_tensor_product(self.all_helicity_combinations),
+                                         self.particle_helicities)
 
     @staticmethod
-    def from_matrix(matrix, nchanging, helicities):
-        dm = DensityMatrix(matrix, nchanging, helicities)
+    def from_matrix(matrix, nchanging, all_helicity_combinations, particle_helicities):
+        dm = DensityMatrix(matrix, nchanging, all_helicity_combinations, particle_helicities)
         return dm
 
     def scalar_multiplication(self, other):
-        #print(f"--------- Scalar multiplication {diag_only} ---------")
-        #print(f"self.map_density_matrix_ind = {self.map_density_matrix_ind}")
-        #print(f"other.map_density_matrix_ind = {other.map_density_matrix_ind}")
-        #print(f"Matrix1 = {self.matrix}")
-        #print(f"Matrix2 = {other.matrix}")
+        print(f"--------- Scalar multiplication ---------")
+        print(f"self.map_density_matrix_ind = {self.map_density_matrix_ind}")
+        print(f"other.map_density_matrix_ind = {other.map_density_matrix_ind}")
+        print(f"Matrix1 = {self.matrix}")
+        print(f"Matrix2 = {other.matrix}")
         if self.map_density_matrix_ind != other.map_density_matrix_ind:
             raise TypeError("Non-compatible dimensions of production and decay spin-density matrices")
 
@@ -4595,17 +4595,8 @@ class DensityMatrix:
     
     def trace(self):
         me = 0
-        for entry in self.matrix:
-            if not list(entry['helicities']) in self.diag_elements: continue
-            me += entry['value']
+        #print(f"diag = {self.diag_elements}")
+        for i in self.diag_elements:
+            #print(f"trace for element {list(self.matrix[i]['helicities'])}")
+            me += self.matrix[i]['value']
         return me
-
-    def get_diag_elements(self):
-        helicities = self.matrix['helicities']
-        half_length = helicities.shape[1] // 2
-
-        # Extract diagonal elements
-        mask = np.all(helicities[:, :half_length] == helicities[:, half_length:], axis=1)
-
-        # Extract the matching helicities as lists
-        return helicities[mask].tolist()
