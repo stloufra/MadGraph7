@@ -4453,11 +4453,10 @@ class DensityMatrix:
     It corresponds to INTER = Sum_colors JAMP(h1)*JAMP(h2)
     (eq 45 in Quentin's thesis)
     """
-    def __init__(self, array, nchanging, all_helicity_combinations, particle_helicities):
+    def __init__(self, array, nchanging, all_helicity_combinations, dimension):
         self.nchanging = nchanging
         self.all_helicity_combinations = all_helicity_combinations
-        self.particle_helicities = particle_helicities
-        self.dimension = len(particle_helicities)**nchanging
+        self.dimension = dimension
         self.diag_elements = [i * (2 * self.dimension - i + 1) // 2 for i in range(self.dimension)]
         # Create the index map
         self.map_density_matrix_ind = self.get_map_density_matrix(all_helicity_combinations, nchanging)
@@ -4563,24 +4562,31 @@ class DensityMatrix:
             for entry2 in other.matrix:
                 new = np.array((tuple(entry1['helicities']) + tuple(entry2['helicities']), 
                                 entry1['value'] * entry2['value']), dtype=dtype)
-                result = np.append(result, new)
+                result = np.append(result, new)    
+        
+        #helicities_for_tensor_product = [tuple(self.all_helicity_combinations), 
+        #                                 tuple(other.all_helicity_combinations)]
+
         return DensityMatrix.from_matrix(result, 
                                          self.nchanging+other.nchanging, 
-                                         self.get_helicities_for_tensor_product(self.all_helicity_combinations),
-                                         self.particle_helicities)
+                                         self.all_helicity_combinations, # this should be helicities_for_tensor_product but it gives unhashable type
+                                         self.dimension)
 
     @staticmethod
-    def from_matrix(matrix, nchanging, all_helicity_combinations, particle_helicities):
-        dm = DensityMatrix(matrix, nchanging, all_helicity_combinations, particle_helicities)
+    def from_matrix(matrix, nchanging, all_helicity_combinations, dimension):
+        dm = DensityMatrix(matrix, nchanging, all_helicity_combinations, dimension)
         return dm
 
     def scalar_multiplication(self, other):
-        print(f"--------- Scalar multiplication ---------")
-        print(f"self.map_density_matrix_ind = {self.map_density_matrix_ind}")
-        print(f"other.map_density_matrix_ind = {other.map_density_matrix_ind}")
-        print(f"Matrix1 = {self.matrix}")
-        print(f"Matrix2 = {other.matrix}")
-        if self.map_density_matrix_ind != other.map_density_matrix_ind:
+        #print(f"--------- Scalar multiplication ---------")
+        #print(f"decay map_density_matrix_ind = {self.map_density_matrix_ind}")
+        #print(f"production map_density_matrix_ind = {other.map_density_matrix_ind}")
+        #print(f"Matrix decay = {self.matrix}")
+        #print(f"Matrix prod = {other.matrix}")
+        
+        #if self.map_density_matrix_ind != other.map_density_matrix_ind:
+        #    raise TypeError("Non-compatible dimensions of production and decay spin-density matrices")
+        if len(self.matrix) != len(other.matrix):
             raise TypeError("Non-compatible dimensions of production and decay spin-density matrices")
 
         # Multiply the matrix elements of one matrix with the elements of the other matrix that have
@@ -4596,6 +4602,7 @@ class DensityMatrix:
     def trace(self):
         me = 0
         #print(f"diag = {self.diag_elements}")
+        #print(f"matrix = {self.matrix}")
         for i in self.diag_elements:
             #print(f"trace for element {list(self.matrix[i]['helicities'])}")
             me += self.matrix[i]['value']

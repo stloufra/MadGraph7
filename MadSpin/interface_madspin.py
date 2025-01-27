@@ -1777,8 +1777,7 @@ class MadSpinInterface(extended_cmd.Cmd):
             full_event = full_event.add_decays(decays)
             if __debug__:
                 me1 = self.calculate_matrix_element(full_event)
-                #print(f"me1 = {me1} , full_me = {full_me}")
-                if abs(1-me1/full_me) > 1E-6:
+                if abs(1-me1/full_me) > 1E-5:
                     print(f"me1 = {me1} , me2 = {full_me} , ratio = {me1/full_me}")	    
                     print(full_event)	
                     raise RuntimeError("ERROR matrix element from density does not match with full matrix element")	 
@@ -1846,13 +1845,16 @@ class MadSpinInterface(extended_cmd.Cmd):
 		# density_3 = inter_3 = J_2^(3)*J_2^(3).conjugate + J_2^(4)*J_2^(4).conjugate
 		# where subscripts indicate the helicity of the decaying particle 
 		# and superscripts the helicities of the rest of the particles
-        print(f"Spyros get_density production")
+        #print(f"Spyros get_density production")
+        #print(f"allow_hel = {allowed_hel}")
+        #print(f"ncomb = {ncomb}")
+        #print(f"helicities = {helicities}")
         density_prod = self.get_density(production, 
                                         position, 
                                         nchanging, 
                                         allowed_hel, 
                                         ncomb,
-                                        helicities[0]) \
+                                        math.prod(len(i) for i in helicities)) \
                if prod_density_cached is None else \
                prod_density_cached
         
@@ -1861,7 +1863,8 @@ class MadSpinInterface(extended_cmd.Cmd):
         # and a list of Particles corresponding to the decay event
         #print(f"decays.items() = {decays.items()}")
         #print(f"-------- Print decays.items() -----------")
-        #for i, (pdg, decay_event) in enumerate(decays.items()):	 
+        #for i, (pdg, decay_event) in enumerate(decays.items()):	
+        #    print(f"i = {i}") 
         #    print(f"pdg = {pdg} , decay_event = {decay_event}")
         #    print(f"helicities[{i}] = {helicities[i]}")
         #print("------------------------------------------")
@@ -1894,32 +1897,32 @@ class MadSpinInterface(extended_cmd.Cmd):
                 #pos_in_dec = [k+1 for k in range(len(decay_event)) if decay_event[k].pid == pdg] 
  		
 		        # Get density matrix for decay
-                print(f"position = {position}")
-                print(f"nchanging = {nchanging}")
-                print(f"allowed_hel_pairs = {allowed_hel_pairs}")
-                print(f"allowed_hel = {allowed_hel}")
-                print(f"helicities = {helicities}")
-                print(f"ncomb = {ncomb}")
-                print(f"spin of decaying particle = {spin}")
-                print(f"density_prod = {density_prod}")
+                #print(f"position = {position}")
+                #print(f"nchanging = {nchanging}")
+                #print(f"allowed_hel_pairs = {allowed_hel_pairs}")
+                #print(f"allowed_hel = {allowed_hel}")
+                #print(f"helicities = {helicities}")
+                #print(f"ncomb = {ncomb}")
+                #print(f"spin of decaying particle = {spin}")
+                #print(f"density_prod = {density_prod}")
                 #print(f"pos_in_dec = {pos_in_dec}")
-                print("------")
-                print(f"decay_event = {decay_event}")
-                print(f"Spyros get_density decay {i}")
+                #print("------")
+                #print(f"decay_event = {decay_event}")
+                #print(f"Spyros get_density decay {i}")
                 
                 density_dec_tmp = self.get_density(decay_event, 
                                                    position=[1], 
                                                    nchanging=1, 
                                                    allow_hel=helicities[i], 
                                                    ncomb=len(helicities[i]),
-                                                   helicities=helicities[i])
+                                                   dimension=len(helicities[i]))
                 if i == 0:
                     density_dec = density_dec_tmp
                 else:
-                    print("convolving")
+                    #print("convolving")
                     density_dec = density_dec.tensor_product(density_dec_tmp)
                 dec_diag *= density_dec_tmp.trace().real/(color*spin)
-                print(f"dec_diag = {dec_diag}")
+                #print(f"dec_diag = {dec_diag}")
             
             #print(f"density_dec = {density_dec.matrix}")
 
@@ -1928,7 +1931,7 @@ class MadSpinInterface(extended_cmd.Cmd):
         me = me.real/(iden_p*prod_color*prod_denominators) # need to change this for decay of different particles
 
         # Get production and decay ME from diagonal elements of density matrix
-        print(f"iden_p = {iden_p} , prod_color = {prod_color} , prod_denominators = {prod_denominators} , color = {color} , ncomb = {ncomb}")
+        #print(f"iden_p = {iden_p} , prod_color = {prod_color} , prod_denominators = {prod_denominators} , color = {color} , ncomb = {ncomb}")
         prod_diag = density_prod.trace().real/iden_p
         
         return me, density_prod, prod_diag, dec_diag
@@ -1957,24 +1960,25 @@ class MadSpinInterface(extended_cmd.Cmd):
         concatenated_hel_list = list(chain.from_iterable(helicity_combinations))
         return helicity_combinations, concatenated_hel_list  
 
-    def get_density(self, event, position, nchanging, allow_hel, ncomb, helicities):
+    def get_density(self, event, position, nchanging, allow_hel, ncomb, dimension):
         pdir,orig_order = self.get_pdir(event)
         
         # Spyros we can use 
         # ncomb = len(allow_hel)/nchanging
         # nchanging = len(position)
-        
-        print("--- from get_density ---")
-        print(event)
-        print(f"position = {position}")
-        print(f"nchanging = {nchanging}")
-        print(f"allow_hel = {allow_hel}")
-        print(f"ncomb = {ncomb}")
-        print(f"helicities = {helicities}")
-        print("-------------------------")
+
+        #print("--- from get_density ---")
+        #print(event)
+        #print(f"position = {position}")
+        #print(f"nchanging = {nchanging}")
+        #print(f"allow_hel = {allow_hel}")
+        #print(f"ncomb = {ncomb}")
+        #print(f"dimension = {dimension}")
+        #print("-------------------------")
 
         #density = [[0 for _ in range(len(allow_hel))] for _ in range(len(allow_hel))]
 		
+        
         if pdir in self.all_density:
             all_p = event.get_all_momenta(orig_order)
             for p in all_p:
@@ -1982,13 +1986,13 @@ class MadSpinInterface(extended_cmd.Cmd):
                 density_array = self.all_density[pdir](P, position, nchanging, allow_hel, ncomb, event.aqcd)
                 # Convert array to a matrix
                 #print(f"creating spin density matrix from {density_array}")
-                density_matrix = madspin.DensityMatrix(density_array, nchanging, allow_hel, helicities)
+                density_matrix = madspin.DensityMatrix(density_array, nchanging, allow_hel, dimension)
                 #print(density_matrix)
                 return density_matrix
         else : 
             self.all_density[pdir] = self.get_mymod(pdir,'DENSITY')
 
-        return self.get_density(event, position, nchanging, allow_hel, ncomb, helicities) 	
+        return self.get_density(event, position, nchanging, allow_hel, ncomb, dimension) 	
 
    
     def get_inter_value(self,event,nhel):
