@@ -367,7 +367,7 @@ CF2PY INTENT(IN) :: JAMP_2
       INTEGER NCOLOR 
       PARAMETER (NCOLOR=%(ncolor)d)
       REAL*8 %(proc_prefix)sCF(NCOLOR,NCOLOR)
-      COMMON /color_matrix/ %(proc_prefix)sCF 
+      COMMON /%(proc_prefix)scolor_matrix/ %(proc_prefix)sCF 
       COMPLEX*16 JAMP_1(NCOLOR),JAMP_2(NCOLOR),ZTEMP,INTER
 
 C COLOR DATA
@@ -422,7 +422,7 @@ c LOCAL
 C
       INTEGER NHEL(NEXTERNAL,NB_NHEL),NTRY
 C     put in common block to expose this variable to python interface
-      COMMON/PROCESS_NHEL/NHEL
+      COMMON/%(proc_prefix)sPROCESS_NHEL/NHEL
 C
 C     include coupling definition to update the value of alphas
 C
