@@ -181,3 +181,124 @@ CF2PY integer, intent(in) :: new_value
         
     return 
     end
+
+C This function takes the number of a particle (in the generate command) and returns 
+C the angles needed to put this particle as a reference for the helicity basis
+      SUBROUTINE REFCHOICE(P, pNUMBER, PHI, THETA)
+      IMPLICIT NONE
+C     
+C     CONSTANT
+C     
+      DOUBLE PRECISION    EPSILON
+      PARAMETER (EPSILON=1D-10)
+
+CF2PY DOUBLE PRECISION, INTENT(OUT) :: PHI
+CF2PY DOUBLE PRECISION, INTENT(OUT) :: THETA
+CF2PY INTEGER, INTENT(IN) :: pNUMBER
+CF2PY DOUBLE PRECISION, INTENT(IN) :: P(0:3, *)
+C     
+C     ARGUMENT
+C     
+      REAL*8 P(0:3, *)
+      REAL*8 PREF(0:3)
+      INTEGER pNUMBER
+      DOUBLE PRECISION THETA, PHI
+
+c PREF is the 4-momentum of the particle with particle number = pNUMBER
+      PREF = P(:, pNUMBER)
+
+
+      IF (ABS(PREF(1)/PREF(0)) < EPSILON .AND. ABS(PREF(2)/PREF(0)) 
+     &< EPSILON .AND. ABS(PREF(3)/PREF(0)) < EPSILON ) THEN
+          WRITE(*,*) "The chosen particle is immobile. We cant use it",
+     &" as reference for the helicity basis"
+          STOP "Error when passing to helicity basis"
+      ENDIF
+
+c The angles phi and theta are calculated such that after rotation, 
+c pref = (E, 0, 0, p_k)
+      PHI = SIGN(1D0, PREF(2)) * DACOS(PREF(1)/DSQRT(PREF(1)**2 +
+     & PREF(2)**2))
+      THETA = DACOS(PREF(3)/DSQRT(PREF(1)**2 + PREF(2)**2 + PREF(3)**2))
+
+      END
+
+
+
+C This function takes a given 4-momentum and returns the angles needed to put 
+C this particle as a reference for the helicity basis
+      SUBROUTINE REFCHOICEP(PREF, PHI, THETA)
+      IMPLICIT NONE
+C     
+C     CONSTANT
+C     
+      DOUBLE PRECISION    EPSILON
+      PARAMETER (EPSILON=1D-10)
+
+CF2PY DOUBLE PRECISION, INTENT(OUT) :: PHI
+CF2PY DOUBLE PRECISION INTENT(OUT) :: THETA
+CF2PY DOUBLE PRECISION, INTENT(IN) :: PREF(0:3)
+C     
+C     ARGUMENT
+C     
+      REAL*8 PREF(0:3)
+      DOUBLE PRECISION THETA, PHI
+
+      IF (ABS(PREF(1)/PREF(0)) < EPSILON .AND. ABS(PREF(2)/PREF(0)) 
+     &< EPSILON .AND. ABS(PREF(3)/PREF(0)) < EPSILON ) THEN
+         WRITE(*,*) "The chosen particle is immobile. We cant use it",
+     & 		    " as reference for the helicity basis"
+         STOP "Error when passing to helicity basis"
+      ENDIF
+
+      PHI = SIGN(1D0, PREF(2)) * DACOS(PREF(1)/DSQRT(PREF(1)**2 +
+     & PREF(2)**2))
+      THETA = DACOS(PREF(3)/DSQRT(PREF(1)**2 + PREF(2)**2 + PREF(3)**2))
+      
+      END
+
+
+c This function takes angles PHI and THETA and rotates the 4-momenta of all external particles
+      SUBROUTINE ROTATIONP(P, PHI, THETA, NEXTERNAL, PROT)
+      IMPLICIT NONE
+C     
+C     CONSTANT
+C     
+      DOUBLE PRECISION    EPSILON
+      PARAMETER (EPSILON=1D-10)
+
+CF2PY DOUBLE PRECISION, INTENT(OUT) :: PROT(0:3, NEXTERNAL)
+CF2PY INTEGER, INTENT(IN) :: NEXTERNAL
+CF2PY DOUBLE PRECISION, INTENT(IN) :: PHI
+CF2PY DOUBLE PRECISION, INTENT(IN) :: THETA
+CF2PY DOUBLE PRECISION, INTENT(IN) :: P(0:3, NEXTERNAL)
+C     
+C     ARGUMENT
+C     
+      REAL*8 P(0:3, *)
+      REAL*8 PROT(0:3, *)
+      DOUBLE PRECISION THETA, PHI
+      INTEGER I, NEXTERNAL
+
+      DO I= 1, NEXTERNAL
+          PROT(0, I) = P(0, I)
+
+          PROT(1, I) = -DSIN(PHI)*P(1, I) + DCOS(PHI)*P(2, I) !p_n
+          IF (ABS(PROT(1, I)/PROT(0, I)) < EPSILON) THEN
+            PROT(1, I) = 0D0
+          ENDIF
+
+          PROT(2, I) = -DCOS(PHI)*DCOS(THETA)*P(1, I) - DSIN(PHI) ! p_r
+     & *DCOS(THETA)*P(2, I) + DSIN(THETA)*P(3, I)
+          IF (ABS(PROT(2, I)/PROT(0, I)) < EPSILON) THEN
+            PROT(2, I) = 0D0
+          ENDIF
+        
+          PROT(3, I) = DCOS(PHI)*DSIN(THETA)*P(1, I) + DSIN(PHI)*
+     & DSIN(THETA)*P(2, I) + DCOS(THETA)*P(3, I) !p_k
+          IF (ABS(PROT(3, I)/PROT(0, I)) < EPSILON) THEN
+            PROT(3, I) = 0D0
+          ENDIF
+      ENDDO
+      
+      END
