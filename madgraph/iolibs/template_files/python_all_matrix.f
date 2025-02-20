@@ -182,9 +182,10 @@ CF2PY integer, intent(in) :: new_value
     return 
     end
 
-C This function takes the number of a particle (in the generate command) and returns 
-C the angles needed to put this particle as a reference for the helicity basis
-      SUBROUTINE REFCHOICE(P, pNUMBER, PHI, THETA)
+C     This function takes the number of a particle (in the generate
+C     command) and returns the angles needed to put this particle as a 
+c     reference for the helicity basis.
+      SUBROUTINE REFCHOICE(P, PNUMBER, PHI, THETA)
       IMPLICIT NONE
 C     
 C     CONSTANT
@@ -201,32 +202,45 @@ C     ARGUMENT
 C     
       REAL*8 P(0:3, *)
       REAL*8 PREF(0:3)
-      INTEGER pNUMBER
+      INTEGER PNUMBER
       DOUBLE PRECISION THETA, PHI
 
-c PREF is the 4-momentum of the particle with particle number = pNUMBER
-      PREF = P(:, pNUMBER)
+C     PREF is the 4-momentum of the particle with particle number =
+C     pNUMBER
+      PREF = P(:, PNUMBER)
 
+C     The angles phi and theta are calculated such that after rotation, 
+C     pref = (E, 0, 0, p_k)
 
-      IF (ABS(PREF(1)/PREF(0)) < EPSILON .AND. ABS(PREF(2)/PREF(0)) 
-     &< EPSILON .AND. ABS(PREF(3)/PREF(0)) < EPSILON ) THEN
-          WRITE(*,*) "The chosen particle is immobile. We cant use it",
-     &" as reference for the helicity basis"
-          STOP "Error when passing to helicity basis"
+      IF (ABS(PREF(1)/PREF(0)) < EPSILON .AND. ABS(PREF(2)/PREF(0))
+     &< EPSILON) THEN
+c     If the particle is immobile then we can't do the rotation
+        IF (ABS(PREF(3)/PREF(0)) < EPSILON) THEN
+          WRITE(*,*) 'The chosen particle is immobile. We cant use it',
+     &    " as reference for the helicity basis"
+          STOP 'Error when passing to helicity basis'
+c If the particle has no tranverse momentum (we are already in the correct frame)
+        ELSE
+          PHI = 0D0
+          THETA = 0D0
+        ENDIF
+c If the momentum is anything else:
+      ELSE
+        PHI = SIGN(1D0, PREF(2)) * DACOS(PREF(1)/DSQRT(PREF(1)**2 +
+     &  PREF(2)**2))
+        THETA = DACOS(PREF(3)/DSQRT(PREF(1)**2 + PREF(2)**2 + 
+     &  PREF(3)**2))
+     
       ENDIF
 
-c The angles phi and theta are calculated such that after rotation, 
-c pref = (E, 0, 0, p_k)
-      PHI = SIGN(1D0, PREF(2)) * DACOS(PREF(1)/DSQRT(PREF(1)**2 +
-     & PREF(2)**2))
-      THETA = DACOS(PREF(3)/DSQRT(PREF(1)**2 + PREF(2)**2 + PREF(3)**2))
 
       END
 
 
 
-C This function takes a given 4-momentum and returns the angles needed to put 
-C this particle as a reference for the helicity basis
+C     This function takes a given 4-momentum and returns the angles
+C      needed to put 
+C     this particle as a reference for the helicity basis
       SUBROUTINE REFCHOICEP(PREF, PHI, THETA)
       IMPLICIT NONE
 C     
@@ -244,21 +258,35 @@ C
       REAL*8 PREF(0:3)
       DOUBLE PRECISION THETA, PHI
 
-      IF (ABS(PREF(1)/PREF(0)) < EPSILON .AND. ABS(PREF(2)/PREF(0)) 
-     &< EPSILON .AND. ABS(PREF(3)/PREF(0)) < EPSILON ) THEN
-         WRITE(*,*) "The chosen particle is immobile. We cant use it",
-     & 		    " as reference for the helicity basis"
-         STOP "Error when passing to helicity basis"
+C     The angles phi and theta are calculated such that after rotation, 
+C     pref = (E, 0, 0, p_k)
+
+      IF (ABS(PREF(1)/PREF(0)) < EPSILON .AND. ABS(PREF(2)/PREF(0))
+     &< EPSILON) THEN
+c     If the particle is immobile then we can't do the rotation
+        IF (ABS(PREF(3)/PREF(0)) < EPSILON) THEN
+          WRITE(*,*) 'The chosen particle is immobile. We cant use it',
+     &    " as reference for the helicity basis"
+          STOP 'Error when passing to helicity basis'
+c If the particle has no tranverse momentum (we are already in the correct frame)
+        ELSE
+          PHI = 0D0
+          THETA = 0D0
+        ENDIF
+c If the momentum is anything else:
+      ELSE
+        PHI = SIGN(1D0, PREF(2)) * DACOS(PREF(1)/DSQRT(PREF(1)**2 +
+     &  PREF(2)**2))
+        THETA = DACOS(PREF(3)/DSQRT(PREF(1)**2 + PREF(2)**2 + 
+     &  PREF(3)**2))
+     
       ENDIF
 
-      PHI = SIGN(1D0, PREF(2)) * DACOS(PREF(1)/DSQRT(PREF(1)**2 +
-     & PREF(2)**2))
-      THETA = DACOS(PREF(3)/DSQRT(PREF(1)**2 + PREF(2)**2 + PREF(3)**2))
-      
       END
 
 
-c This function takes angles PHI and THETA and rotates the 4-momenta of all external particles
+C     This function takes angles PHI and THETA and rotates the
+C      4-momenta of all external particles
       SUBROUTINE ROTATIONP(P, PHI, THETA, NEXTERNAL, PROT)
       IMPLICIT NONE
 C     
@@ -281,24 +309,24 @@ C
       INTEGER I, NEXTERNAL
 
       DO I= 1, NEXTERNAL
-          PROT(0, I) = P(0, I)
+        PROT(0, I) = P(0, I)
 
-          PROT(1, I) = -DSIN(PHI)*P(1, I) + DCOS(PHI)*P(2, I) !p_n
-          IF (ABS(PROT(1, I)/PROT(0, I)) < EPSILON) THEN
-            PROT(1, I) = 0D0
-          ENDIF
+        PROT(1, I) = -DSIN(PHI)*P(1, I) + DCOS(PHI)*P(2, I)  !p_n
+        IF (ABS(PROT(1, I)/PROT(0, I)) < EPSILON) THEN
+          PROT(1, I) = 0D0
+        ENDIF
 
-          PROT(2, I) = -DCOS(PHI)*DCOS(THETA)*P(1, I) - DSIN(PHI) ! p_r
+        PROT(2, I) = -DCOS(PHI)*DCOS(THETA)*P(1, I) - DSIN(PHI)  ! p_r
      & *DCOS(THETA)*P(2, I) + DSIN(THETA)*P(3, I)
-          IF (ABS(PROT(2, I)/PROT(0, I)) < EPSILON) THEN
-            PROT(2, I) = 0D0
-          ENDIF
-        
-          PROT(3, I) = DCOS(PHI)*DSIN(THETA)*P(1, I) + DSIN(PHI)*
+        IF (ABS(PROT(2, I)/PROT(0, I)) < EPSILON) THEN
+          PROT(2, I) = 0D0
+        ENDIF
+
+        PROT(3, I) = DCOS(PHI)*DSIN(THETA)*P(1, I) + DSIN(PHI)*
      & DSIN(THETA)*P(2, I) + DCOS(THETA)*P(3, I) !p_k
-          IF (ABS(PROT(3, I)/PROT(0, I)) < EPSILON) THEN
-            PROT(3, I) = 0D0
-          ENDIF
+        IF (ABS(PROT(3, I)/PROT(0, I)) < EPSILON) THEN
+          PROT(3, I) = 0D0
+        ENDIF
       ENDDO
-      
+
       END
