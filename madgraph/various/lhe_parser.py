@@ -1322,6 +1322,8 @@ class Event(list):
         self.reweight_data = {}
         self.matched_scale_data = None
         self.syscalc_data = {}
+        #Spin Information
+        self.density = []
         if text:
             self.parse(text)
 
@@ -1351,11 +1353,11 @@ class Event(list):
                     # return {'test': ' 1 and 2', 'line': '4', 'value': '3', 'error': '5'}
                 continue
             
-            elif 'first' == status:
+            elif 'first' == status: #Quand on entre dans cette ligne, il n'y a que la première ligne des particules qui apparait
                 if '<rwgt>' in line:
                     status = 'tag'
                 else:
-                    self.assign_scale_line(line)
+                    self.assign_scale_line(line) #lit la première ligne avec les informations globales sur le processus
                     status = 'part' 
                     continue
             if '<' in line:
@@ -1368,6 +1370,10 @@ class Event(list):
                 elif self.nexternal:
                     self.nexternal-=1
             else:
+                if '<density>' in line:
+                    temp = line.strip('<>density/').split()
+                    self.density = [complex(temp[o].strip(",")) for o in range(len(temp))]
+                    
                 if '</event>' in line:
                     line = line.replace('</event>','',1)
                 self.tag += '%s\n' % line
