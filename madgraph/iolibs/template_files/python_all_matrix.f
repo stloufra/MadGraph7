@@ -212,15 +212,17 @@ C     pNUMBER
 C     The angles phi and theta are calculated such that after rotation, 
 C     pref = (E, 0, 0, p_k)
 
-      IF (ABS(PREF(1)/PREF(0)) < EPSILON .AND. ABS(PREF(2)/PREF(0))
-     &< EPSILON) THEN
+      IF (ABS(PREF(1)/PREF(0)) < EPSILON .AND. ABS(PREF(2)/PREF(0)) < EPSILON) THEN
 c     If the particle is immobile then we can't do the rotation
         IF (ABS(PREF(3)/PREF(0)) < EPSILON) THEN
-          WRITE(*,*) 'The chosen particle is immobile. We cant use it',
+          WRITE(*,*) "The chosen particle is immobile. We cant use it",
      &    " as reference for the helicity basis"
-          STOP 'Error when passing to helicity basis'
+          STOP "Error when passing to helicity basis"
 c If the particle has no tranverse momentum (we are already in the correct frame)
-        ELSE
+        ELSE IF (PREF(3) < 0) THEN
+          PHI = 0D0
+          THETA = 4*ATAN(1D0)
+        ELSE IF (PREF(3) > 0) THEN
           PHI = 0D0
           THETA = 0D0
         ENDIF
@@ -261,15 +263,17 @@ C
 C     The angles phi and theta are calculated such that after rotation, 
 C     pref = (E, 0, 0, p_k)
 
-      IF (ABS(PREF(1)/PREF(0)) < EPSILON .AND. ABS(PREF(2)/PREF(0))
-     &< EPSILON) THEN
+      IF (ABS(PREF(1)/PREF(0)) < EPSILON .AND. ABS(PREF(2)/PREF(0)) < EPSILON) THEN
 c     If the particle is immobile then we can't do the rotation
         IF (ABS(PREF(3)/PREF(0)) < EPSILON) THEN
-          WRITE(*,*) 'The chosen particle is immobile. We cant use it',
+          WRITE(*,*) "The chosen particle is immobile. We cant use it",
      &    " as reference for the helicity basis"
-          STOP 'Error when passing to helicity basis'
+          STOP "Error when passing to helicity basis"
 c If the particle has no tranverse momentum (we are already in the correct frame)
-        ELSE
+        ELSE IF (PREF(3) < 0) THEN
+          PHI = 0D0
+          THETA = 4*ATAN(1D0)
+        ELSE IF (PREF(3) > 0) THEN
           PHI = 0D0
           THETA = 0D0
         ENDIF
@@ -286,9 +290,11 @@ c If the momentum is anything else:
 
 
 C     This function takes angles PHI and THETA and rotates the
-C      4-momenta of all external particles
+C     4-momenta of all external particles into the helicity referential 
       SUBROUTINE ROTATIONP(P, PHI, THETA, NEXTERNAL, PROT)
       IMPLICIT NONE
+C     The helicity referential is {n, r, k} so the components of P
+C     can change even if phi and theta are 0
 C     
 C     CONSTANT
 C     
@@ -316,8 +322,8 @@ C
           PROT(1, I) = 0D0
         ENDIF
 
-        PROT(2, I) = -DCOS(PHI)*DCOS(THETA)*P(1, I) - DSIN(PHI)  ! p_r
-     & *DCOS(THETA)*P(2, I) + DSIN(THETA)*P(3, I)
+        PROT(2, I) = -DCOS(PHI)*DCOS(THETA)*P(1, I) - DSIN(PHI)*  ! p_r
+     & DCOS(THETA)*P(2, I) + DSIN(THETA)*P(3, I)
         IF (ABS(PROT(2, I)/PROT(0, I)) < EPSILON) THEN
           PROT(2, I) = 0D0
         ENDIF
