@@ -887,7 +887,7 @@ class AskRun(cmd.ControlSwitch):
         if 'reweight' not in self.available_module:
             self.allowed_reweight = []
             return
-        self.allowed_reweight = ['OFF', 'ON']
+        self.allowed_reweight = ['OFF', 'ON', 'density']
         
         # check for plugin mode
         plugin_path = self.mother_interface.plugin_path
@@ -903,7 +903,15 @@ class AskRun(cmd.ControlSwitch):
             else:
                 self.switch['reweight'] = 'OFF'
         else:
-            self.switch['reweight'] = 'Not Avail.'        
+            self.switch['reweight'] = 'Not Avail.'      
+
+    def get_cardcmd_for_reweight(self, value):
+        """set some command to run before allowing the user to modify the cards."""
+        
+        if value in  ['density']:
+            return ["./Cards/density_card_default.dat"]
+        else:
+            return []  
 
 #===============================================================================
 # CheckValidForCmd
@@ -2650,7 +2658,7 @@ Beware that MG5aMC now changes your runtime options to a multi-core mode with on
                     self.boost_events()
                             
                                        
-                self.exec_cmd('reweight -from_cards', postcmd=False)            
+                self.exec_cmd('reweight --mode=%s -from_cards' %switch_mode['reweight'], postcmd=False)            
                 self.exec_cmd('decay_events -from_cards', postcmd=False)
                 if self.run_card['time_of_flight']>=0:
                     self.exec_cmd("add_time_of_flight --threshold=%s" % self.run_card['time_of_flight'] ,postcmd=False)
