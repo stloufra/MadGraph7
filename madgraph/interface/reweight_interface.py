@@ -2447,3 +2447,14 @@ class ReweightInterface(extended_cmd.Cmd):
 
 
         
+class DensityInterface(ReweightInterface):
+    """Basic interface for computing density matrix"""
+
+
+    def __init__(self, *args, **opts):
+        """init the class"""
+
+        misc.sprint('using density')        
+        ReweightInterface.__init__(self, *args, **opts)
+
+

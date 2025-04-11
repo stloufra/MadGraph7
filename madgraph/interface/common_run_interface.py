@@ -2074,23 +2074,7 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         
         if '-from_cards' in line and not os.path.exists(pjoin(self.me_dir, 'Cards', 'reweight_card.dat')):
             return
-        # option for multicore to avoid that all of them create the same directory
-        if '--multicore=create' in line:
-            multicore='create'
-        elif '--multicore=wait' in line:
-            multicore='wait'
-        else:
-            multicore=False
-            
-        # plugin option
-        plugin = False
-        if '--plugin=' in line:
-            plugin = [l.split('=',1)[1] for l in line.split() if '--plugin=' in l][0]
-        elif hasattr(self, 'switch') and self.switch['reweight'] not in ['ON','OFF']:
-            plugin=self.switch['reweight']
-            
-
-            
+        
         # Check that MG5 directory is present .
         if MADEVENT and not self.options['mg5_path']:
             raise self.InvalidCmd('''The module reweight requires that MG5 is installed on the system.
@@ -2102,6 +2086,33 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         except ImportError:
             raise self.ConfigurationError('''Can\'t load Reweight module.
             The variable mg5_path might not be correctly configured.''')
+
+        # plugin option
+        plugin = False
+        if '--mode=density' in line:
+            plugin='density'
+            line = line.replace('--mode=density', '')
+        elif '--mode=ON' in line:
+            line = line.replace('--mode=ON', '')
+        elif '--mode=OFF' in line:
+            return 
+        if '--plugin=' in line:
+            plugin = [l.split('=',1)[1] for l in line.split() if '--plugin=' in l][0]
+        elif hasattr(self, 'switch') and self.switch['reweight'] not in ['ON','OFF']:
+            plugin=self.switch['reweight']
+            
+        # option for multicore to avoid that all of them create the same directory
+        if '--multicore=create' in line:
+            multicore='create'
+        elif '--multicore=wait' in line:
+            multicore='wait'
+        else:
+            multicore=False
+            
+
+
+            
+
         
         if not '-from_cards' in line:
             self.keep_cards(['reweight_card.dat'], ignore=['*'])
@@ -2272,11 +2283,15 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         self.check_decay_events(args) 
         # args now alway content the path to the valid files
         rwgt_interface = reweight_interface.ReweightInterface 
-        if plugin:
+        misc.sprint(plugin, type(plugin))
+        if plugin == 'density':
+            rwgt_interface = reweight_interface.DensityInterface
+        elif plugin: 
             rwgt_interface = misc.from_plugin_import(self.plugin_path, 'new_reweight', 
                                         plugin, warning=False, 
-                                        info="Will use re-weighting from pluging %(plug)s")    
-        
+                                        info="Will use re-weighting from pluging %(plug)s")
+                
+
         reweight_cmd = rwgt_interface(args[0], mother=self)
         #reweight_cmd.use_rawinput = False
         #reweight_cmd.mother = self
