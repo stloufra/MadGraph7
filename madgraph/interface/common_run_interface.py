@@ -1196,6 +1196,7 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                     r'@MG5aMC\s*reconstruction_name', # MA5 hadronique
                     '@MG5aMC', # MA5 hadronique
                     'run_rivet_later', # Rivet
+                    'change particle_in_density_matrix' # density mode of reweight
                     ]
         
         
@@ -1245,6 +1246,8 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
             return 'pythia8_card.dat'
         elif 'run_rivet_later' in text:
             return 'rivet_card.dat'
+        elif 'change particle_in_density_matrix' in text:
+            return 'reweight_card.dat'
         elif 'launch' in text:
             # need to separate madspin/reweight.
             # decay/set can be in both...
@@ -7093,9 +7096,10 @@ class AskforEditCard(cmd.OneLinePathCompletion):
     def default(self, line):
         """Default action if line is not recognized"""
 
+        misc.sprint(line)
         # check if the line need to be modified by a trigger
         line = self.trigger(line)
-        
+        misc.sprint(line) 
         # splitting the line
         line = line.strip()
         args = line.split()
@@ -7128,10 +7132,9 @@ class AskforEditCard(cmd.OneLinePathCompletion):
                     os.write(fsock, line)
                 os.close(fsock)
                 self.copy_file(path, pathname=url)
-                os.remove(path)
-                
-                
+                os.remove(path)   
         else:
+            misc.sprint(line)
             self.value = line
 
         return line
