@@ -907,7 +907,8 @@ class AskRun(cmd.ControlSwitch):
 
     def get_cardcmd_for_reweight(self, value):
         """set some command to run before allowing the user to modify the cards."""
-        
+
+        misc.sprint('get_cardcmd_for_reweight', value) 
         if value in  ['density']:
             return ["./Cards/density_card_default.dat"]
         else:

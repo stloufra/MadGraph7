@@ -2458,3 +2458,32 @@ class DensityInterface(ReweightInterface):
         ReweightInterface.__init__(self, *args, **opts)
 
 
+
+
+    def do_change(self, line):
+
+        keyword = line.split()[0]
+
+        if hasattr(self, 'do_change_%s' % keyword):
+            return getattr(self, 'do_change_%s' % keyword)(line.split()[1:])
+        
+        return super().do_change(line)
+        
+        
+    def do_change_helicity_direction(self, line):
+        """ """
+
+    def do_change_particle_in_density_matrix(self, line):
+        """change the particle in the density matrix"""
+
+
+    def do_quit(self, line):
+        """exit the reweighting module"""
+        
+        self.run_cmd('launch')
+
+
+
+
+
+
