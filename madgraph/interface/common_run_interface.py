@@ -2245,9 +2245,9 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         self.check_decay_events(args) 
         # args now alway content the path to the valid files
         rwgt_interface = reweight_interface.ReweightInterface 
-        misc.sprint(plugin, type(plugin))
+        #misc.sprint(rwgt_interface.flag_density_matrix)
         if plugin == 'density':
-            rwgt_interface = reweight_interface.DensityInterface
+            rwgt_interface = reweight_interface.DensityInterface #every calculation for the density mode is done within this line.
         elif plugin: 
             rwgt_interface = misc.from_plugin_import(self.plugin_path, 'new_reweight', 
                                         plugin, warning=False, 
@@ -7096,10 +7096,8 @@ class AskforEditCard(cmd.OneLinePathCompletion):
     def default(self, line):
         """Default action if line is not recognized"""
 
-        misc.sprint(line)
         # check if the line need to be modified by a trigger
         line = self.trigger(line)
-        misc.sprint(line) 
         # splitting the line
         line = line.strip()
         args = line.split()
@@ -7134,7 +7132,6 @@ class AskforEditCard(cmd.OneLinePathCompletion):
                 self.copy_file(path, pathname=url)
                 os.remove(path)   
         else:
-            misc.sprint(line)
             self.value = line
 
         return line

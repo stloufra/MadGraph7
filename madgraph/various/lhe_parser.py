@@ -1371,8 +1371,8 @@ class Event(list):
                     self.nexternal-=1
             else:
                 if '<density>' in line:
-                    temp = line.strip('<>density/').split()
-                    self.density = [complex(temp[o].strip(",")) for o in range(len(temp))]
+                    temp = line.strip('<>density/[]').split()
+                    self.density = [complex(temp[o].strip(',()')) for o in range(len(temp))]
                     
                 if '</event>' in line:
                     line = line.replace('</event>','',1)
@@ -2280,6 +2280,7 @@ class Event(list):
 %(comments)s
 %(tag)s
 %(reweight)s
+%(density)s
 </event>
 """ 
         if event_id not in ['', None]:
@@ -2337,13 +2338,22 @@ class Event(list):
                 sys_str += template % replace
             sys_str += "</mgrwt>\n"
             reweight_str = sys_str + reweight_str
+
+        
+
+        if self.density == []: #if we are not in density mode
+            density_to_write = ''
+        else:
+            misc.sprint(self.density)
+            density_to_write = "<density>" + str(self.density) + "</density>"
         
         out = out % {'event_flag': event_flag,
                      'scale': scale_str, 
                       'particles': '\n'.join([str(p) for p in self]),
                       'tag': tag_str,
                       'comments': self.comment,
-                      'reweight': reweight_str}
+                      'reweight': reweight_str,
+                      'density': density_to_write}
         
         return re.sub('[\n]+', '\n', out)
 

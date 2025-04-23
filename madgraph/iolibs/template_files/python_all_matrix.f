@@ -185,7 +185,7 @@ CF2PY integer, intent(in) :: new_value
 C     This function takes the number of a particle (in the generate
 C     command) and returns the angles needed to put this particle as a 
 c     reference for the helicity basis.
-      SUBROUTINE REFCHOICE(P, PNUMBER, PHI, THETA)
+      SUBROUTINE REFCHOICE(P, PNUMBER, SIZEPN, PHI, THETA)
       IMPLICIT NONE
 C     
 C     CONSTANT
@@ -195,20 +195,24 @@ C
 
 CF2PY DOUBLE PRECISION, INTENT(OUT) :: PHI
 CF2PY DOUBLE PRECISION, INTENT(OUT) :: THETA
-CF2PY INTEGER, INTENT(IN) :: pNUMBER
+CF2PY INTEGER, INTENT(IN) :: pNUMBER(*)
+CF2PY INTEGER, INTENT(IN) :: SIZEPN
 CF2PY DOUBLE PRECISION, INTENT(IN) :: P(0:3, *)
 C     
 C     ARGUMENT
 C     
       REAL*8 P(0:3, *)
       REAL*8 PREF(0:3)
-      INTEGER PNUMBER
+      INTEGER PNUMBER(*), I, SIZEPN
       DOUBLE PRECISION THETA, PHI
 
 C     PREF is the 4-momentum of the particle with particle number =
 C     pNUMBER
-      PREF = P(:, PNUMBER)
-
+C We need to initialise PREF to 0
+      PREF = [0, 0, 0, 0]
+      DO I=1, SIZEPN
+        PREF = PREF + P(:, PNUMBER(I))
+      ENDDO
 C     The angles phi and theta are calculated such that after rotation, 
 C     pref = (E, 0, 0, p_k)
 
@@ -288,6 +292,8 @@ c If the momentum is anything else:
 
       END
 
+C This function needs to be able to take as input momenta of the form all_p = [p1, p2, ...],
+C where pi = [(), (), (), ()], where the () are tuples
 
 C     This function takes angles PHI and THETA and rotates the
 C     4-momenta of all external particles into the helicity referential 

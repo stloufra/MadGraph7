@@ -49,6 +49,7 @@ import madgraph.various.combine_plots as combine_plots
 import madgraph.various.cluster as cluster
 import madgraph.fks.fks_common as fks_common
 import madgraph.core.diagram_generation as diagram_generation
+import madgraph.various.Density_functions as dens
 
 import models.import_ufo as import_ufo
 import models.check_param_card as check_param_card 
@@ -129,6 +130,9 @@ class ReweightInterface(extended_cmd.Cmd):
         
         #all the cross-section for convenience
         self.all_cross_section = {}
+
+        #If we are using the DensityInterface
+        self.flag_density_matrix = False
             
     def do_import(self, inputfile, allow_madspin=False):
         """import the event file"""
@@ -476,6 +480,7 @@ class ReweightInterface(extended_cmd.Cmd):
     @misc.mute_logger()
     def do_launch(self, line):
         """end of the configuration launched the code"""
+        #misc.sprint(self.flag_density_matrix)
         args = self.split_arg(line)
         opts = self.check_launch(args)
         if opts['rwgt_name']:
@@ -483,6 +488,7 @@ class ReweightInterface(extended_cmd.Cmd):
         if opts['rwgt_info']:
             self.options['rwgt_info'] = opts['rwgt_info']
         model_line = self.banner.get('proc_card', 'full_model_line')
+
 
         if not self.has_standalone_dir:                           
             if self.rwgt_dir and os.path.exists(pjoin(self.rwgt_dir,'rw_me','rwgt.pkl')):
@@ -502,7 +508,7 @@ class ReweightInterface(extended_cmd.Cmd):
                 self.load_from_pickle(keep_name=True)
                 self.load_module()
             else:
-                self.create_standalone_directory()
+                self.create_standalone_directory() 
                 self.compile()
                 self.load_module()  
                 if self.multicore == 'create':
@@ -510,12 +516,11 @@ class ReweightInterface(extended_cmd.Cmd):
                     if not self.rwgt_dir:
                         self.rwgt_dir = self.me_dir
                     self.save_to_pickle()      
-
+        
         # get the mode of reweighting #LO/NLO/NLO_tree/...
-        type_rwgt = self.get_weight_names()
+        type_rwgt = self.get_weight_names() #type_rwgt = '' in my case
         # get iterator over param_card and the name associated to the current reweighting.
         param_card_iterator, tag_name = self.handle_param_card(model_line, args, type_rwgt)
-        
         if self.rwgt_dir:
             path_me =self.rwgt_dir
         else:
@@ -525,15 +530,16 @@ class ReweightInterface(extended_cmd.Cmd):
             rw_dir = pjoin(path_me, 'rw_me_%s' % self.nb_library)
         else:
             rw_dir = pjoin(path_me, 'rw_me')
-                
+        
         start = time.time()
         # initialize the collector for the various re-weighting
         cross, ratio, ratio_square,error = {},{},{}, {}
         for name in type_rwgt + ['orig']:
             cross[name], error[name] = 0.,0.
             ratio[name],ratio_square[name] = 0., 0.# to compute the variance and associate error
-
+        
         if self.output_type == "default":
+            
             output = open( self.lhe_input.path +'rw', 'w')
             #write the banner to the output file
             self.banner.write(output, close_tag=False)
@@ -560,10 +566,13 @@ class ReweightInterface(extended_cmd.Cmd):
                     logger.info('Event nb %s %s' % (event_nb, running_time))
             if (event_nb==10001): logger.info('reducing number of print status. Next status update in 10000 events')
             if (event_nb==100001): logger.info('reducing number of print status. Next status update in 100000 events')
-
-
                 
-            weight = self.calculate_weight(event)
+            weight = self.calculate_weight(event) #calculates the cross section or the density matrix
+            if self.flag_density_matrix:
+                event.density = str(weight['orig'].tolist()) #add the density information to the event for lhe_parser
+
+
+
             if not isinstance(weight, dict):
                 weight = {'':weight}
             
@@ -587,6 +596,7 @@ class ReweightInterface(extended_cmd.Cmd):
                         continue             
                     event.reweight_data['%s%s' % (tag_name,name)] = weight[name]
                     #write this event with weight
+                # misc.sprint(event)
                 output.write(str(event))
             else:
                 for i,name in enumerate(weight):
@@ -633,6 +643,7 @@ class ReweightInterface(extended_cmd.Cmd):
                     except Exception:
                         logger.error('fail to add systematics')
                         raise
+##################################################################################################################
         # add output information        
         if self.mother and hasattr(self.mother, 'results'):
             run_name = self.mother.run_name
@@ -727,7 +738,7 @@ class ReweightInterface(extended_cmd.Cmd):
                 rwdir_virt = rw_dir.replace('rw_me', 'rw_mevirt')
             with open(pjoin(rw_dir, 'Cards', 'param_card.dat'), 'w') as fsock:
                 fsock.write(self.banner['slha']) 
-            out, cmd = common_run_interface.CommonRunCmd.ask_edit_card_static(cards=['param_card.dat'],
+            out, cmd = common_run_interface.CommonRunCmd.ask_edit_card_static(cards=['param_card.dat'], #Cette commande appelle les cartes de nouveau
                                    ask=self.ask, pwd=rw_dir, first_cmd=self.stored_line,
                                    write_file=False, return_instance=True
                                    )
@@ -1031,7 +1042,7 @@ class ReweightInterface(extended_cmd.Cmd):
     def calculate_weight(self, event):
         """space defines where to find the calculator (in multicore)"""
         
-
+        #This block imports the PDF information and sends the calculation to the correct function
         if self.has_nlo and self.rwgt_mode != "LO":
             if not hasattr(self,'pdf'):
                 lhapdf = misc.import_python_lhapdf(self.mg5cmd.options['lhapdf'])
@@ -1042,8 +1053,16 @@ class ReweightInterface(extended_cmd.Cmd):
         event.parse_reweight()                    
         orig_wgt = event.wgt
         # LO reweighting    
+
+
         w_orig = self.calculate_matrix_element(event, 0)
         
+        if self.flag_density_matrix: #If we just want to calculate the density we exit the function here
+            return {'orig': w_orig}
+
+
+
+
         # reshuffle event for mass effect # external mass only
         # carefull that new_event can sometimes be = to event 
         # (i.e. change can be in place)
@@ -1068,7 +1087,6 @@ class ReweightInterface(extended_cmd.Cmd):
                 nhel = hel_dict[tuple(hel_order)]
             else:
                 nhel = 0
-            misc.sprint(nhel, Pdir, hel_dict)                        
             raise Exception("Invalid matrix element for original computation (weight=0)")
 
         return {'orig': orig_wgt, '': w_new/w_orig*orig_wgt*jac}
@@ -1245,14 +1263,15 @@ class ReweightInterface(extended_cmd.Cmd):
                                         ).read().replace('matrix2py', 'matrix%spy' % tag))
     
     def calculate_matrix_element(self, event, hypp_id, scale2=0):
-        """routine to return the matrix element"""
-        
+        """routine to return the matrix element or the density matrix"""
+
         if self.has_nlo:
             nb_retry, sleep = 10, 60 
         else:
             nb_retry, sleep = 5, 20 
         
         tag, order = event.get_tag_and_order()
+        #misc.sprint(self.keep_ordering) #I am not sure what is keep_ordering so I print it
         if self.keep_ordering:
             old_tag = tuple(tag)
             tag = (tag[0], tuple(order[1])) 
@@ -1276,17 +1295,19 @@ class ReweightInterface(extended_cmd.Cmd):
                     raise Exception
 
         base = os.path.basename(os.path.dirname(Pdir))
+
         if base == 'rw_me':
             moduletag = (base, 2+hypp_id)
         else:
             moduletag = (base, 2)
-        
+
         module = self.f2pylib[moduletag]
 
         if self.keep_ordering:
             all_p = [event.get_momenta(orig_order)]
         else:
             all_p = event.get_all_momenta(orig_order)
+
             if len(all_p) >1:
                 if self.helicity_reweighting:
                     logger.warning("due to ordering ambiguity, we flip off helicity per helicity reweighting.")
@@ -1296,18 +1317,227 @@ class ReweightInterface(extended_cmd.Cmd):
         
         hel_order = event.get_helicity(orig_order)
         if self.helicity_reweighting and 9 not in hel_order:
-            nhel = hel_dict[tuple(hel_order)]                
+            nhel = hel_dict[tuple(hel_order)]
         else:
             nhel = -1
+
+        pdg = list(orig_order[0])+list(orig_order[1])
+
+        all_p = self.boost_event_density(event, all_p, orig_order, hypp_id)
+        
+        if self.flag_density_matrix:
+                
+            refChoice = [0] * len(self.helicity_direction)
+
             
+            # for i in range(len(self.helicity_direction)):
+            #     for k in range(len(pdg)):
+            #         if self.helicity_direction[i] == pdg[k]:
+            #             refChoice[i] = k + 1 #+1 because fortran format
+    
+            #converts pdg-id choice into position indice
+            refChoice = [0] * len(self.helicity_direction)
+            is_particle_taken_refChoice = [0] * len(pdg)
+            compteur_refChoice = 0
+            for i in range(len(refChoice)):
+                for j in range(len(pdg)):
+                    if pdg[j] == self.helicity_direction[i] and is_particle_taken_refChoice[j] == 0:
+                        refChoice[compteur_refChoice] = j + 1 #+1 because fortran format
+                        is_particle_taken_refChoice[j] = 1
+                        compteur_refChoice += 1
+                        break #needed to put only one particle for each refChoice[i]
+            
+            #Rotation done in the case that len(all_p) > 1, not sure it is necessary ?
+            phi, theta = [0] * len(all_p), [0] * len(all_p)
+            for i in range(len(all_p)):
+                all_p[i] = self.invert_momenta(all_p[i])
+                phi[i], theta[i] = module.refchoice(all_p[i], refChoice, len(refChoice)) 
+                all_p[i] = module.rotationp(all_p[i], phi[i], theta[i], len(pdg))
+                all_p[i] = self.invert_momenta(all_p[i]) #put back into pyhton format
+                for j in range(len(all_p[i])):
+                    all_p[i][j] = tuple(all_p[i][j]) #we put the momenta back into tuples because it was structured like that initially
+
+            if self.options['identical_particle_in_prod_and_decay'] == 'crash':
+                if len(all_p) > 1:
+                    raise Exception("Ambiguous particle in production and decay. crash as requested by \'identical_particle_in_prod_and_decay\'")
+
+            status = []
+            for particle in event:
+                status.append(int(particle.status))
+
+
+###############################################################################################
+#This block does not depend on the event, it should be moved one tier up
+###############################################################################################
+            PDGs, _ = module.get_pdg_order()
+            PREFIX = module.get_prefix()
+            prefix_cor = []
+            All_PDGs = []
+            prefix_unique = []
+                
+            #Block to determine which sets of pdg-codes correspond to which prefix
+            for i in range(len(PREFIX)):
+                prefix_temp = PREFIX[i].decode('UTF-8').strip().lower()
+                prefix_cor.append(prefix_temp)
+                if prefix_temp not in prefix_unique:
+                    prefix_unique.append(prefix_temp)
+            for i in range(len(PDGs)):
+                All_PDGs.append(dens.permutations_PGD(PDGs[i], status))
+
+            #We take the card in the general folder, not in the reweight folder
+            Card_dir = os.path.join(self.me_dir, "Cards", "param_card.dat")
+
+            Initialise_allmatrix = getattr(module, 'initialise')
+            Initialise_allmatrix(Card_dir)
+            for i in range(len(prefix_unique)):
+                InitialiseMatrix = getattr(module, prefix_unique[i] + 'initialisemodel')
+                InitialiseMatrix(Card_dir)   
+
+
+            #converts pdg-id choice into position indice
+            pos_aux = self.particle_in_density_matrix
+            if not len(set(pdg)) == len(pdg): #if there are identical external particles
+                for i in range(len(pos_aux)):
+                    if pdg.count(pos_aux[i]) > 1:
+                        logger.warning("There might be several particles identical to the one chosen as input. The output can be ambiguous")
+                        break #is it correct to put a break here to get out of the for loop when one warning is printed ?
+            
+            #This block finds the first itteration of a pdg, there is therefore a ambiguity if the process has several identical particles. Could be upgraded.
+            pos = [0] * len(pos_aux)
+            is_particle_taken = [0] * len(pdg)
+            compteur_pos = 0
+            for i in range(len(pos_aux)):
+                for j in range(len(pdg)):
+                    if pdg[j] == pos_aux[i] and is_particle_taken[j] == 0:
+                        pos[compteur_pos] = j + 1 #+1 because fortran format
+                        is_particle_taken[j] = 1
+                        compteur_pos += 1
+                        break #needed to put only one particle for each pos_aux[i]
+            
+
+###############################################################################################
+###############################################################################################
+
+            #The prefix is defined for a given event
+            for k in range(len(All_PDGs)):
+                    if pdg in All_PDGs[k]:
+                        prefix = prefix_cor[k]
+
+            me_value = 0
+            for p in all_p:
+
+                # misc.sprint(p)
+                pinv = self.invert_momenta(p)
+                        
+                get_density = getattr(module, prefix + 'get_density')
+
+                new_value = get_density(pinv, pos, self.number_changing_helicities,
+                                         self.allowed_helicities, self.number_combinations,
+                                           event.aqcd)
+                        
+                new_value = dens.get_list_sliced(new_value, self.number_combinations)
+                new_value = dens.get_rho_normalised(new_value, self.number_combinations, epsilon=1e-10)
+
+
+                #I am not sure this block for loop is necessary or not
+                # for loop we have also the stability status code
+                if isinstance(new_value, tuple):
+                    new_value, code = new_value
+                    #if code points unstability -> returns 0
+                    hundred_value = (code % 1000) //100
+                    if hundred_value in [4]:
+                        new_value = 0.
+                if self.options["identical_particle_in_prod_and_decay"] == "average":
+                    me_value += new_value
+                elif self.options["identical_particle_in_prod_and_decay"] == "max":
+                    if abs(new_value) > abs(me_value):
+                        me_value = new_value
+                else: 
+                    raise Exception("not valid option")
+
+            if self.options["identical_particle_in_prod_and_decay"] == "average":
+                return me_value / len(all_p)        
+            else:
+                return new_value
+                
+        else:
+            me_value = 0
+            for p in all_p:
+                pold = list(p)
+                p = self.invert_momenta(p)
+                pdg = list(orig_order[0])+list(orig_order[1])
+                try:
+                    pid = event.ievent
+                except AttributeError:
+                    pid = -1
+                if not self.use_eventid:
+                    pid = -1
+                
+                if not scale2: 
+                    if hasattr(event, 'scale'):
+                        scale2 = event.scale**2
+                    else:
+                        scale2 = 0
+
+                with misc.chdir(Pdir): #we enter the directory Pdir
+                    with misc.stdchannel_redirected(sys.stdout, os.devnull):
+                        new_value = module.smatrixhel(pdg, pid, p, event.aqcd, scale2, nhel)
+
+                # for loop we have also the stability status code
+                if isinstance(new_value, tuple):
+                    new_value, code = new_value
+                    #if code points unstability -> returns 0
+                    hundred_value = (code % 1000) //100
+                    if hundred_value in [4]:
+                        new_value = 0.
+                if self.options["identical_particle_in_prod_and_decay"] == "average":
+                    me_value += new_value
+                elif self.options["identical_particle_in_prod_and_decay"] == "max":
+                    if abs(new_value) > abs(me_value):
+                        me_value = new_value
+                else: 
+                    raise Exception("not valid option")
+
+            if self.options["identical_particle_in_prod_and_decay"] == "average":
+                return me_value / len(all_p)        
+            else:
+                return me_value
+
+
+    def boost_event_density(self, event, all_p, orig_order, hypp_id):
         # For 2>N pass in the center of mass frame
         #   - required for helicity by helicity re-weighitng
         #   - Speed-up loop computation 
-        if (hypp_id == 0 and ('frame_id' in self.banner.run_card and self.banner.run_card['frame_id'] !=6)):
+        # Added the boost I need in my case, I let the other options as before
+        # misc.sprint(self.momenta_boost)
+        if self.flag_density_matrix == True:
+            if -1 in self.momenta_boost: #if we don't want to boost the system
+                return all_p
+            import copy
+            new_event = copy.deepcopy(event)
+            nb_ext = 0
+            pboost = lhe_parser.FourMomentum()
+            for p in new_event:
+                if p.status in [-1,1]:
+                    nb_ext += 1
+                    if p.pid in self.momenta_boost: #if the particle pid is in the option, we add it to the boost
+                        pboost += p 
+
+            new_event.boost(pboost) #ca boost en fait
+            if self.keep_ordering:
+                new_all_p = [new_event.get_momenta(orig_order)]
+            else:
+                new_all_p = new_event.get_all_momenta(orig_order)
+            if len(new_all_p) > 1:
+                logger.critical("due to ordering ambiguity, the boost used might not be consistent. please ensure that this is not an issue")
+
+            return new_all_p
+        
+        elif (hypp_id == 0 and ('frame_id' in self.banner.run_card and self.banner.run_card['frame_id'] !=6)):
             import copy
             new_event = copy.deepcopy(event)
             pboost = FourMomenta()
-            to_inc = bin(self.banner.run_card['frame_id'])[2:]
+            to_inc = bin(self.banner.run_card['frame_id'])[2:] #This is how the boost is chosen right now, I need to change it with my own version
             to_inc.reverse()
             nb_ext = 0
             for p in new_event:
@@ -1317,20 +1547,27 @@ class ReweightInterface(extended_cmd.Cmd):
                         pboost += p                    
             new_event.boost(pboost)
             if self.keep_ordering:
-                all_p = [new_event.get_momenta(orig_order)]
+                new_all_p = [new_event.get_momenta(orig_order)]
             else:
-                all_p = new_event.get_all_momenta(orig_order)
-            if len(all_p) > 1:
+                new_all_p = new_event.get_all_momenta(orig_order)
+            if len(new_all_p) > 1:
                 logger.critical("due to ordering ambiguity, the boost used might not be consistent. please ensure that this is not an issue")
+                
+            return new_all_p
+
         elif (hypp_id == 1 and self.boost_event):
             if self.boost_event is not True:
                 import copy
                 new_event = copy.deepcopy(event)
                 new_event.boost(self.boost_event)
                 if self.keep_ordering:
-                    all_p = [new_event.get_momenta(orig_order)]
+                    new_all_p = [new_event.get_momenta(orig_order)]
                 else:     
-                    all_p = new_event.get_all_momenta(orig_order)        
+                    new_all_p = new_event.get_all_momenta(orig_order)
+
+                return new_all_p
+            return all_p #if we arrive here, we should return the input no ?
+
         elif (hasattr(event[1], 'status') and event[1].status == -1) or \
            (event[1].px == event[1].py == 0.):
             p = all_p[0]
@@ -1339,54 +1576,9 @@ class ReweightInterface(extended_cmd.Cmd):
                 for i,thisp in enumerate(p):
                     p[i] = lhe_parser.FourMomentum(thisp).zboost(pboost).get_tuple()
                 assert p[0][1] == p[0][2] == 0 == p[1][2] == p[1][2] == 0 
-        
-
-        if self.options['identical_particle_in_prod_and_decay'] == 'crash':
-            if len(all_p) > 1:
-                raise Exception("Ambiguous particle in production and decay. crash as requested by \'identical_particle_in_prod_and_decay\'")
-
-        me_value = 0
-        for p in all_p:
-            pold = list(p)
-            p = self.invert_momenta(p)
-            pdg = list(orig_order[0])+list(orig_order[1])
-            try:
-                pid = event.ievent
-            except AttributeError:
-                pid = -1
-            if not self.use_eventid:
-                pid = -1
             
-            if not scale2: 
-                if hasattr(event, 'scale'):
-                    scale2 = event.scale**2
-                else:
-                    scale2 = 0
+            return all_p
 
-            with misc.chdir(Pdir):
-                with misc.stdchannel_redirected(sys.stdout, os.devnull):
-                    new_value = module.smatrixhel(pdg, pid, p, event.aqcd, scale2, nhel)
-
-            # for loop we have also the stability status code
-            if isinstance(new_value, tuple):
-                new_value, code = new_value
-                #if code points unstability -> returns 0
-                hundred_value = (code % 1000) //100
-                if hundred_value in [4]:
-                    new_value = 0.
-            if self.options["identical_particle_in_prod_and_decay"] == "average":
-                me_value += new_value
-            elif self.options["identical_particle_in_prod_and_decay"] == "max":
-                if abs(new_value) > abs(me_value):
-                    me_value = new_value
-            else: 
-                raise Exception("not valid option")
-
-        if self.options["identical_particle_in_prod_and_decay"] == "average":
-            return me_value / len(all_p)        
-        else:
-            return me_value
-    
     def terminate_fortran_executables(self, new_card_only=False):
         """routine to terminate all fortran executables"""
 
@@ -2092,36 +2284,153 @@ class DensityInterface(ReweightInterface):
     def __init__(self, *args, **opts):
         """init the class"""
 
-        misc.sprint('using density')        
+        logger.info('Using density mode for reweighting')
+        
+        self.flag_particle_in_density_matrix = False
+
+        self.helicity_direction = None #pid of the particle chosen as reference for the helicity frame
+        self.particle_in_density_matrix = None #pid of the particles selected for the study
+        self.momenta_boost = None #pid of the particles in whose center of mass frame the system will be boosted
+        self.allowed_helicities = None #basis of helicities
+        self.spins = None 
+        self.number_changing_helicities = None
+        self.number_combinations = None
+        self.new_param_card = False #Needed to not call ask_edit_card_static
+        
         ReweightInterface.__init__(self, *args, **opts)
+        self.flag_density_matrix = True
 
+        #This block imports the model, because I need it before do_launch() starts
+        mgcmd = self.mg5cmd
+        complex_mass = False   
+        has_cms = re.compile(r'''set\s+complex_mass_scheme\s*(True|T|1|true|$|;)''')
+        for line in self.banner.proc_card:
+            if line.startswith('set'):
+                mgcmd.exec_cmd(line, printcmd=False, precmd=False, postcmd=False)
+                if has_cms.search(line):
+                    complex_mass = True
+        data = {}
+        data['model_name'] = self.banner.get('proc_card', 'model')
 
+        info = self.banner.get('proc_card', 'full_model_line')
+        if '-modelname' in info:
+            data['mg_names'] = False
+        else:
+            data['mg_names'] = True
+        super().load_model(data['model_name'], data['mg_names'], complex_mass)
 
 
     def do_change(self, line):
-
+        """Method called to read the reweight card, redirects to the correct do_change_ method"""
         keyword = line.split()[0]
+        # misc.sprint("ENTERED DO CHANGE", keyword)
 
         if hasattr(self, 'do_change_%s' % keyword):
             return getattr(self, 'do_change_%s' % keyword)(line.split()[1:])
         
         return super().do_change(line)
         
-        
+
     def do_change_helicity_direction(self, line):
-        """ """
+        """Change the reference particle for the helicity frame, returns a list of pdg-codes"""
+        
+        for i in range(len(line)):
+            try:
+                line[i] = int(line[i].strip("[],()"))
+            except:
+                raise TypeError("The input for helicity_direction is in an incorrect form. Please write: helicity_direction [list of pdg-codes]")
+        self.helicity_direction = line
+
+
+    def do_change_boost_choice(self, line):
+        """change the momenta reference for the boost, returns a list of pdg-codes"""
+        for i in range(len(line)):
+            try:
+                line[i] = int(line[i].strip("[],()"))
+            except:
+                raise TypeError("The input for boost_choice is in an incorrect form. Please write: boost_choice [list of pdg-codes]")
+        self.momenta_boost = line
+
+
+    def do_change_order_helicities(self, line):
+        """change the order of the basis of helicities"""
+
+        for i in range(len(line)): 
+            line[i] = int(line[i].strip("[],()"))
+
+        #Let the user enter the allowed_helicities in the complex form ie. [+1, +1, +1, -1, -1, +1, -1, -1] for 2 qubits for instance
+        if len(line) == self.number_changing_helicities * self.number_combinations:
+            self.allowed_helicities = line
+        else: #this part deals with input of the form [basis for particle1] [basis for particle2] 
+            cutted_line = []
+            counter = 0
+            for i in range(len(self.spins)):
+                cutted_line.append(line[counter: counter + self.spins[i]])
+                counter += self.spins[i]
+            
+            allowed_hel = []
+            for i in range(len(cutted_line[0])):
+                for j in range(len(cutted_line[1])):
+                    allowed_hel.append(cutted_line[0][i])
+                    allowed_hel.append(cutted_line[1][j])
+                self.allowed_helicities = allowed_hel
+
 
     def do_change_particle_in_density_matrix(self, line):
-        """change the particle in the density matrix"""
+        """change the particle in the density matrix, calculates the number of particles changes,
+           their spins and the number of combinations"""
+        for i in range(len(line)):
+            try:
+                line[i] = int(line[i].strip("[],()"))
+            except:
+                TypeError("The input for particle_in_density_matrix is in an incorrect form. Please write: particle_in_density_matrix [list of pdg-codes]")
+        
+        self.particle_in_density_matrix = line
+        self.number_changing_helicities = len(line)
+
+        particles = self.model['particles']
+
+        self.spins = [] #list of spins degrees of freedom for each particle studied
+        for particle_id in line: #list on the pdg-code of the particles that we study
+            for n_particles_model in range(len(particles)):
+                if particles[n_particles_model]['pdg_code'] == particle_id or particles[n_particles_model]['pdg_code'] == -particle_id:
+                    self.spins.append(particles[n_particles_model]['spin'])
+
+        #Calculation of the number of helicity combinations
+        n_comb = 1
+        for i in range(len(self.spins)):
+            n_comb *= self.spins[i]
+        self.number_combinations = n_comb
+
+        #if the user didn't use the option or if it has not been read yet, fill it automatically here
+        if self.allowed_helicities == None: 
+            if self.number_combinations == 4:
+                self.allowed_helicities = [+1, +1, +1, -1, -1, +1, -1, -1]
+            elif self.number_combinations == 6 and self.spins[0] == 2:
+                self.allowed_helicities = [+1, +1, +1, 0, +1, -1, -1, +1, -1, 0, -1, -1]
+            elif self.number_combinations == 6 and self.spins[0] == 3:
+                self.allowed_helicities = [+1, +1, +1, -1, 0, +1, 0, -1, -1, +1, -1, -1]
+            elif self.number_combinations == 9:
+                self.allowed_helicities = [+1, +1, +1, 0, +1, -1, 0, +1, 0, 0, 0, -1, -1, +1, -1, 0, -1, -1]
+            else:
+                logger.error("Tried to use density mode selecting more than 2 particles or selecting a spin 0 or spin > 1 particle")
+        
+        self.flag_particle_in_density_matrix = True
 
 
     def do_quit(self, line):
         """exit the reweighting module"""
+        logger.info("helicity_direction = " + str(self.helicity_direction))
+        logger.info("particle_in_density_matrix = " + str(self.particle_in_density_matrix))
+        logger.info("momenta_boost = " + str(self.momenta_boost))
+        logger.info("allowed_helicities = " + str(self.allowed_helicities))
+        logger.info("spins = " + str(self.spins))
+        logger.info("number_changing_helicities = " + str(self.number_changing_helicities))
+        logger.info("number_combinations = " + str(self.number_combinations))
+        if self.flag_particle_in_density_matrix == False:
+            logger.error("Error: the reweight_card contains no option for the density mode")
+
         
-        self.run_cmd('launch')
-
-
-
-
+        self.run_cmd('launch --keep_card') #call the function do_launch()
 
 
