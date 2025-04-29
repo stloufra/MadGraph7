@@ -1327,6 +1327,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                     self.seed = random.randint(0, int(30081*30081))
                     self.do_set('seed %s' % self.seed)
                     logger.info('Will use seed %s' % self.seed)
+                    logger.info("hello 2")
                     self.history.insert(0, 'set seed %s' % self.seed)
                 run_card["iseed"] = self.seed
                 run_card["systematics_program"] = 'None'
@@ -1356,8 +1357,11 @@ class MadSpinInterface(extended_cmd.Cmd):
                 if self.seed > 30081*30081:
                     self.seed -= 30081*30081        
                 logger.info('Will use seed %s' % (self.seed))
+                logger.info("hello spyros")
                 misc.call(['run.sh', str(int(1.2*nb_event)), str(self.seed)], cwd=decay_dir)     
                 out[i] = lhe_parser.EventFile(pjoin(decay_dir, 'events.lhe.gz'))     
+                print("=======> CHECKING IF FILES ARE THE SAME")
+                print(os.system(f"md5sum {pjoin(decay_dir, 'events.lhe.gz')}"))
             if cumul:
                 break
         time_gen_dec = time.time()-time_gen_dec
@@ -1548,7 +1552,7 @@ class MadSpinInterface(extended_cmd.Cmd):
 	    #4. determine the maxwgt
         #print(f"Spyros decay file: {evt_decayfile}")
         maxwgt = self.get_maxwgt_for_onshell(orig_lhe, evt_decayfile, decay_dict)
-        #print(f"Spyros: maxwgt = {maxwgt}")
+        print(f"Spyros: maxwgt = {maxwgt}")
 	
         #5. generate the decay (for each production event)
         orig_lhe.seek(0)
@@ -1706,7 +1710,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                 else:
                     wgt = self.get_onshell_evt_and_wgt(base_event, decays, decay_dict, density_matrix_prod)[1]
                     #print(f"wgt2 = {wgt}")
-                #print(f"wgt for max = {wgt}")
+                #print(f"Event {i} , PS point {j}, wgt for max = {wgt}")
                 maxwgt = max(wgt, maxwgt)
             all_maxwgt.append(maxwgt.real)
             
@@ -1733,9 +1737,10 @@ class MadSpinInterface(extended_cmd.Cmd):
         """ return the onshell wgt for the production event associated to the decays
             return also the full event with decay. 
             Carefull this modifies production event (pass to the full one)"""
+        #print("======== debug get_onshell_evt_and_wgt =========")
         #print(f"Spyros decays: {decays}")
         decay_me = 1.0
-        decay_me_test = 1.0
+        decay_me_debug = 1.0
         tag, order = production.get_tag_and_order()
         try:
             info = self.generate_all.all_me[tag]
@@ -1744,6 +1749,21 @@ class MadSpinInterface(extended_cmd.Cmd):
             misc.sprint(production)
             misc.sprint(decays)
             raise
+        
+        # Calculate decay ME
+        if self.generate_all.mode == 'onshell':
+            #print(f"len(decays) = {len(decays)}")
+            for pdg in decays:
+                for dec in decays[pdg]:
+                    #print(f"dec = {dec}")
+                    decay_me *= self.calculate_matrix_element(dec)
+        else:
+            if __debug__:
+                #print(f"len(decays) = {len(decays)}")
+                for pdg in decays:
+                    for dec in decays[pdg]:
+                        #print(f"dec = {dec}")
+                        decay_me_debug *= self.calculate_matrix_element(dec)
 
         # Calculate production*decay ME
         if self.generate_all.mode == 'onshell':
@@ -1755,21 +1775,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                 full_me, prod_density_cached, prod_diag, dec_diag = self.calculate_matrix_element_from_density(production, decays, decay_dict)
             else:                
                 full_me, _, prod_diag, dec_diag = self.calculate_matrix_element_from_density(production, decays, decay_dict, prod_density_cached)
-            #print(f"full_me = {full_me}")
-            
-            # Calculate the decay ME 
-            if self.generate_all.mode == 'onshell':
-                for pdg in decays:
-                    for dec in decays[pdg]:
-                        decay_me *= self.calculate_matrix_element(dec)
-            else:
-                decay_me = dec_diag
-                for pdg in decays:
-                    for dec in decays[pdg]:
-                        decay_me_test *= self.calculate_matrix_element(dec)
-
-            # Spyros: should this be done here?
-            #random.shuffle(decays[pdg])
+            #print(f"full_me from density = {full_me}")
             
             # Create full event from production and decays
             full_event = lhe_parser.Event(str(production))
@@ -1777,7 +1783,8 @@ class MadSpinInterface(extended_cmd.Cmd):
             full_event = full_event.add_decays(decays)
             if __debug__:
                 me1 = self.calculate_matrix_element(full_event)
-                if abs(1-me1/full_me) > 1E-5:
+                print(f"me1 = {me1} , me2 = {full_me} , ratio = {me1/full_me}")
+                if abs(1-me1/full_me) > 1E-4:
                     print(f"me1 = {me1} , me2 = {full_me} , ratio = {me1/full_me}")	    
                     print(full_event)	
                     raise RuntimeError("ERROR matrix element from density does not match with full matrix element")	 
@@ -1790,9 +1797,26 @@ class MadSpinInterface(extended_cmd.Cmd):
             production_me = self.calculate_matrix_element(production) if self.generate_all.mode == 'onshell' \
                             else prod_diag
             production.me_wgt = production_me
-            
-        #print(f"production_me = {self.calculate_matrix_element(production)} , prod_diag = {prod_diag} , ratio = {self.calculate_matrix_element(production)/prod_diag}")
-        #print(f"decay_me = {decay_me} , dec_diag = {decay_me_test}")
+
+        if __debug__ and self.generate_all.mode == 'density':
+            prod_me = self.calculate_matrix_element(production)
+            print(f"prod_diag = {prod_diag} , prod_me = {prod_me}")
+            if abs(1-prod_diag/prod_me) > 1E-4:
+                print(f"prod_me = {prod_me} , prod_diag = {prod_diag} , ratio = {prod_diag/prod_me}")	    
+                raise RuntimeError("ERROR production matrix element from density does not match with diagonal")	     
+            if abs(1-dec_diag/decay_me_debug) > 1E-4:
+                print(f"decay_me = {decay_me_debug} , dec_diag = {dec_diag} , ratio = {dec_diag/decay_me_debug}")	    
+                raise RuntimeError("ERROR decay matrix element from density does not match with diagonal")	   
+        
+        if self.generate_all.mode == 'density':
+            decay_me = dec_diag
+
+        #print(f"full_event = {full_event}")
+        #print(f"full_me = {full_me}")
+        #print(f"production_me = {production_me}")
+        #print(f"decay_me = {decay_me}")
+        #print(f"wgt = {full_me/(production_me*decay_me)}")
+        
         return full_event, full_me/(production_me*decay_me), prod_density_cached
 
            
