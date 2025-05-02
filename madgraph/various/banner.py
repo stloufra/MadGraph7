@@ -133,6 +133,7 @@ class Banner(dict):
       'scalesfunctionalform':'',
       'montecarlomasses':'',
       'initrwgt':'',
+      'MGDensity':'',
       'madspin':'madspin_card.dat',
       'mgshowercard':'shower_card.dat',
       'pythia8':'pythia8_card.dat',

@@ -22,7 +22,7 @@ Lambda = [Lambda1, Lambda2, Lambda3, Lambda4, Lambda5, Lambda6, Lambda7, Lambda8
 
 
 #%%#############################Functions###############################
-def square_matrix(line_matrix: list[complex], epsilon=1e-10) -> list[complex]:
+def square_matrix(line_matrix: list[complex], epsilon = 1e-5) -> list[complex]:
         """
         This function converts a hermitian matrix expressed as a line into a typical matrix form.
         Caution : the definition of matrices in fortran and python are not the same.
@@ -44,12 +44,7 @@ def square_matrix(line_matrix: list[complex], epsilon=1e-10) -> list[complex]:
                                 matrix_square[i][k] = line_matrix[i*n + k - i*(i + 1)//2] #this line is just here because the diagonal elements should not be conjugated (they are real anyway)
                         else:
                                 matrix_square[i][k] = np.conjugate(matrix_square[k][i])
-                        
-                        if np.abs(matrix_square[i][k].real) < epsilon:
-                                matrix_square[i][k] = matrix_square[i][k].imag * 1j
-                        if np.abs(matrix_square[i][k].imag) < epsilon:
-                                matrix_square[i][k] = matrix_square[i][k].real
-                
+                                                                
         return matrix_square
 
 #%% from line first to colum first
@@ -122,13 +117,21 @@ def get_rho_normalised(rho: list[complex], n_comb: int, epsilon=1e-10) -> list[c
         return aux
 
 #%%Very simple function, just to make code nicer
-def get_list_sliced(list: list[complex], n_comb: int) -> list[complex]:
+def get_list_sliced(list: list[complex], n_comb: int, epsilon = 1e-10) -> list[complex]:
         """
         The fortran code defines list of length 99. This function removes 
-        the elements that are not relevant for a more practical use
+        the elements that are not relevant for a more practical use. 
+        Also we put a threshold on the values to eliminate numerrical errors
         """
         if isinstance(n_comb, int) :
-                return list[0: int(n_comb*(n_comb + 1)/2)]
+                list = list[0: int(n_comb*(n_comb + 1)/2)]
+                trace = get_trace(list, n_comb)
+                for i in range(len(list)):
+                        if abs(np.real(list[i]))/trace < epsilon:
+                                list[i] = list[i].imag
+                        elif abs(np.imag(list[i]))/trace < epsilon:
+                                list[i] = list[i].real
+                return list
         else:
                 return "Error: n_comb is not an integer"
        

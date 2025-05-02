@@ -50,7 +50,6 @@ import madgraph.various.combine_plots as combine_plots
 import madgraph.various.cluster as cluster
 import madgraph.fks.fks_common as fks_common
 import madgraph.core.diagram_generation as diagram_generation
-import madgraph.various.Density_functions as dens
 
 import models.import_ufo as import_ufo
 import models.check_param_card as check_param_card 
@@ -592,10 +591,18 @@ class ReweightInterface(extended_cmd.Cmd):
             ratio[name],ratio_square[name] = 0., 0.# to compute the variance and associate error
         
         if self.output_type == "default":
-            
+            if self.flag_density_matrix: #if density mode, we add a tag to the banner object containing density information and we delete the tag 'initrwgt'
+                self.banner['MGDensity'] = 'helicity_direction = ' + str(self.helicity_direction) + '\n' + \
+                                           'particle_in_density_matrix = ' + str(self.particle_in_density_matrix) + '\n' + \
+                                           'momenta_boost = ' + str(self.momenta_boost) + '\n' + \
+                                           'allowed_helicities = ' + str(self.allowed_helicities) + '\n' + \
+                                           'number_changing_helicities = ' + str(self.number_changing_helicities) + '\n' + \
+                                           'number_combinations = ' + str(self.number_combinations) + '\n'
+                self.banner.pop('initrwgt')
             output = open( self.lhe_input.path +'rw', 'w')
             #write the banner to the output file
             self.banner.write(output, close_tag=False)
+            
         else:
             output = {}
             if tag_name.isdigit():
@@ -626,11 +633,19 @@ class ReweightInterface(extended_cmd.Cmd):
                 weight = self.calculate_weight(event, sud_mod)
             else:
                 weight = self.calculate_weight(event)
-                if self.flag_density_matrix: #the density mode is not compatible with inc_sudakov for now
-                    event.density = str(weight['orig'].tolist()) #add the density information to the event for lhe_parser
+                if self.flag_density_matrix: #density mode not compatible with inc_sudakov for now
+                    import madgraph.various.Density_functions as dens
+                    density_matrix_to_print = dens.get_rho_normalised(weight['orig'], self.number_combinations).tolist()
+                    for elem in range(len(density_matrix_to_print)):
+                        if density_matrix_to_print[elem].imag == 0:
+                            density_matrix_to_print[elem] = float(density_matrix_to_print[elem].real)
+                    event.density = str(density_matrix_to_print) #add the density information to the event for lhe_parser
 
             if not isinstance(weight, dict):
                 weight = {'':weight}
+
+            if self.flag_density_matrix:
+                self.production_matrix += weight['orig'] * event.wgt
 
             for name in weight:
                 cross[name] += weight[name]
@@ -880,9 +895,9 @@ class ReweightInterface(extended_cmd.Cmd):
             self.mother.check_param_card(pjoin(rw_dir, 'Cards', 'param_card.dat'))
             new_card = open(pjoin(rw_dir, 'Cards', 'param_card.dat')).read()
 
-
+        #misc.sprint(self.banner)
         # Find new tag in the banner and add information if needed
-        if 'initrwgt' in self.banner and self.output_type == 'default': 
+        if 'initrwgt' in self.banner and self.output_type == 'default':
             if 'name=\'mg_reweighting\'' in self.banner['initrwgt']:
                 blockpat = re.compile(r'''<weightgroup name=\'mg_reweighting\'\s*weight_name_strategy=\'includeIdInWeightName\'>(?P<text>.*?)</weightgroup>''', re.I+re.M+re.S)
                 before, content, after = blockpat.split(self.banner['initrwgt'])
@@ -1615,61 +1630,353 @@ class ReweightInterface(extended_cmd.Cmd):
         else:
             nhel = -1
 
-        pdg = list(orig_order[0])+list(orig_order[1])
+        pdg = list(orig_order[0])+list(orig_order[1]) #my code should work if this is the order in the lhe file, see the order 'keep_ordering'
 
-        all_p = self.boost_event_density(event, all_p, orig_order, hypp_id)
+        #list_properties is the list of properties of the class FourMomentum that we can use to ordonate our particles
+        list_properties = [p for p in dir(lhe_parser.FourMomentum) if isinstance(getattr(lhe_parser.FourMomentum,p),property)]
         
+#######################BOOST BLOCK#############################
         if self.flag_density_matrix:
-                
-            refChoice = [0] * len(self.helicity_direction)
+            if self.momenta_boost[1] == '':
+                new_order_momenta = tuple([i for i in range(len(event))])
+            else:
+                found_property_boost = False
+                for prop in list_properties:
+                    if prop in self.momenta_boost[1]:
+                        found_property_boost = True
+                        information_lhe_order = []
+                        original_lhe_order = [i for i in range(len(event))]
+                        for i, p in enumerate(event):
+                            if pdg[i] in self.momenta_boost[0]:
+                                correct_p = lhe_parser.FourMomentum(p)
+                                information_lhe_order.append(getattr(correct_p, prop))
+                            else:
+                                information_lhe_order.append(float('NaN'))
 
+                        #Check if there are dupplicate in the list
+                        if len(set(information_lhe_order)) != len(information_lhe_order):
+                            logger.warning("Some particles in the boosting option have the same value for the chosen observable. Their ordering is random. Please ensure to choose an obsevarble that allows to discrimate all the identical particles.")
+                        
+                        information_lhe_order_momenta, new_order_momenta = zip(*sorted(zip(information_lhe_order, original_lhe_order), reverse=True)) #values of the observable ordered
+                        
+                        if len(self.momenta_boost[2]) > 0: #this block allows to take into account the choice of order by the user
+
+                            order_input_boost = self.momenta_boost[2]
+                            information_lhe_order_momenta_without_nan = [elem for elem in information_lhe_order_momenta if elem == elem]
+                            observable_order_momenta = []
+                            
+                            #This bloc reorders the values of the observarble according to the user's input
+                            for i in range(len(order_input_boost)):
+                                observable_order_momenta.append(information_lhe_order_momenta_without_nan[order_input_boost[i]])
+
+                            order_input_momenta_sorted = sorted(order_input_boost, reverse=True)
+                            for i in range(len(order_input_momenta_sorted)):
+                                information_lhe_order_momenta_without_nan.pop(order_input_momenta_sorted[i])
+
+                            for k in range(len(information_lhe_order_momenta_without_nan)):
+                                observable_order_momenta.append(information_lhe_order_momenta_without_nan[k])
+
+                            input_information_lhe_order_momenta = [0] * len(information_lhe_order_momenta)
+                            input_compteur_momenta = 0
+                            for i in range(len(information_lhe_order_momenta)):
+                                if information_lhe_order_momenta[i] == information_lhe_order_momenta[i]:
+                                    input_information_lhe_order_momenta[i] = observable_order_momenta[input_compteur_momenta]
+                                    input_compteur_momenta += 1
+                                else:
+                                    input_information_lhe_order_momenta[i] = float("NaN")
+                            
+                            order_input_boost = [0] * len(information_lhe_order_momenta)
+                            for i in range(len(input_information_lhe_order_momenta)):
+                                if input_information_lhe_order_momenta[i] != input_information_lhe_order_momenta[i]:
+                                    order_input_boost[i] = i
+                                else:
+                                    for j in range(len(information_lhe_order)):
+                                        if input_information_lhe_order_momenta[i] == information_lhe_order[j]:
+                                            order_input_boost[i] = j
+
+                            pos_aux_momenta = self.momenta_boost[0]
+
+                            boost_corrected = [0] * len(pos_aux_momenta)
+                            is_particle_taken_good_momenta = [0] * len(pdg)
+                            compteur_momenta_good = 0
+                            for i in range(len(pos_aux_momenta)):
+                                 for j in range(len(pdg)):
+                                    if pdg[order_input_boost[j]] == pos_aux_momenta[i] and is_particle_taken_good_momenta[j] == 0:
+                                        boost_corrected[compteur_momenta_good] = order_input_boost[j]  #no +1 because python format
+                                        is_particle_taken_good_momenta[j] = 1
+                                        compteur_momenta_good += 1
+                                        break
+                            #result of this block: boost_corrected
+
+                if not found_property_boost:
+                    new_order_momenta = tuple([i for i in range(len(event))])
+                    logger.warning("The observable given as input is not defined in the FourMomentum class. using default order.")
+
+            if len(self.momenta_boost[2]) == 0:
+                if -1 not in self.momenta_boost[0]:
+                    boost_corrected = [0] * len(self.momenta_boost[0])
+                    is_particle_taken_boost = [0] * len(pdg)
+                    compteur_boost = 0
+                    for i in range(len(boost_corrected)):
+                        for j in range(len(pdg)):
+                            if pdg[new_order_momenta[j]] == self.momenta_boost[0][i] and is_particle_taken_boost[j] == 0:
+                                boost_corrected[compteur_boost] = new_order_momenta[j] # no +1 because python format
+                                is_particle_taken_boost[j] = 1
+                                compteur_boost += 1
+                                break
+
+                    #result of this block: boost_corrected
+                    
+                else:
+                    boost_corrected = [-1]
             
-            # for i in range(len(self.helicity_direction)):
-            #     for k in range(len(pdg)):
-            #         if self.helicity_direction[i] == pdg[k]:
-            #             refChoice[i] = k + 1 #+1 because fortran format
-    
-            #converts pdg-id choice into position indice
-            refChoice = [0] * len(self.helicity_direction)
-            is_particle_taken_refChoice = [0] * len(pdg)
-            compteur_refChoice = 0
-            for i in range(len(refChoice)):
-                for j in range(len(pdg)):
-                    if pdg[j] == self.helicity_direction[i] and is_particle_taken_refChoice[j] == 0:
-                        refChoice[compteur_refChoice] = j + 1 #+1 because fortran format
-                        is_particle_taken_refChoice[j] = 1
-                        compteur_refChoice += 1
-                        break #needed to put only one particle for each refChoice[i]
-            
-            #Rotation done in the case that len(all_p) > 1, not sure it is necessary ?
-            phi, theta = [0] * len(all_p), [0] * len(all_p)
-            for i in range(len(all_p)):
-                all_p[i] = self.invert_momenta(all_p[i])
-                phi[i], theta[i] = module.refchoice(all_p[i], refChoice, len(refChoice)) 
-                all_p[i] = module.rotationp(all_p[i], phi[i], theta[i], len(pdg))
-                all_p[i] = self.invert_momenta(all_p[i]) #put back into pyhton format
-                for j in range(len(all_p[i])):
-                    all_p[i][j] = tuple(all_p[i][j]) #we put the momenta back into tuples because it was structured like that initially
+
+        #Here we call the boost function, there is a slight difference between the reweight/density mode that needs to separate it in 2 cases
+        if self.flag_density_matrix:
+            all_p = self.boost_event_density(event, all_p, orig_order, hypp_id, boost_corrected)
+        else:
+            all_p = self.boost_event_density(event, all_p, orig_order, hypp_id)
+
+#######################END BOOST BLOCK#############################
+
+
+#######################ROTATION CHOICE BLOCK#############################
+        if self.flag_density_matrix: #this big block allows to define the orders in which to chose the PDG-codes when there are several identical in the process
+            if self.helicity_direction[1] == '':
+                new_order_rot = tuple([i for i in range(len(event))])
+
+            else:
+                found_property_rot = False
+                for prop in list_properties:
+                    if prop in self.helicity_direction[1]:
+                        found_property_rot = True
+                        information_lhe_order = []
+                        original_lhe_order = [i for i in range(len(event))]
+                        for i, p in enumerate(event):
+                            if pdg[i] in self.helicity_direction[0]:
+                                correct_p = lhe_parser.FourMomentum(p)
+                                information_lhe_order.append(getattr(correct_p, prop))
+                            else:
+                                information_lhe_order.append(float('NaN'))
+
+                        if len(set(information_lhe_order)) != len(information_lhe_order):
+                            logger.warning("Some particles in the helicity direction option have the same value for the chosen observable. Their ordering is random. Please ensure to choose an obsevarble that allows to discrimate all the identical particles.")
+                        
+                        new_information_lhe_rot, new_order_rot = zip(*sorted(zip(information_lhe_order, original_lhe_order), reverse=True))
+
+                        if len(self.helicity_direction[2]) > 0: #this block allows to take into account the choice of order by the user
+
+                            order_input_rot = self.helicity_direction[2]
+                            information_lhe_order_without_nan_rot = [elem for elem in new_information_lhe_rot if elem == elem]
+                            observable_order_rot = []
+                            
+                            for i in range(len(order_input_rot)):
+                                observable_order_rot.append(information_lhe_order_without_nan_rot[order_input_rot[i]] )
+
+                            order_input_sorted_rot = sorted(order_input_rot, reverse=True)
+                            for i in range(len(order_input_sorted_rot)):
+                                information_lhe_order_without_nan_rot.pop(order_input_sorted_rot[i])
+
+                            for k in range(len(information_lhe_order_without_nan_rot)):
+                                observable_order_rot.append(information_lhe_order_without_nan_rot[k])
+
+                            input_information_lhe_order_rot = [0] * len(new_information_lhe_rot)
+                            input_compteur_rot = 0
+                            for i in range(len(new_information_lhe_rot)):
+                                if new_information_lhe_rot[i] == new_information_lhe_rot[i]:
+                                    input_information_lhe_order_rot[i] = observable_order_rot[input_compteur_rot]
+                                    input_compteur_rot += 1
+                                else:
+                                    input_information_lhe_order_rot[i] = float("NaN")
+                            
+                            good_order_rot = [0] * len(information_lhe_order)
+                            for i in range(len(input_information_lhe_order_rot)):
+                                if input_information_lhe_order_rot[i] != input_information_lhe_order_rot[i]:
+                                    good_order_rot[i] = i
+                                else:
+                                    for j in range(len(information_lhe_order)):
+                                        if input_information_lhe_order_rot[i] == information_lhe_order[j]:
+                                            good_order_rot[i] = j
+
+                            pos_aux = self.helicity_direction[0]
+                            pos_good_rot = [0] * len(pos_aux)
+                            is_particle_taken_good_rot = [0] * len(pdg)
+                            compteur_pos_good_rot = 0
+                            for i in range(len(pos_aux)):
+                                for j in range(len(pdg)):
+                                    if pdg[good_order_rot[j]] == pos_aux[i] and is_particle_taken_good_rot[j] == 0:
+                                        pos_good_rot[compteur_pos_good_rot] = good_order_rot[j] + 1 #+1 because fortran format
+                                        is_particle_taken_good_rot[j] = 1
+                                        compteur_pos_good_rot += 1
+                                        break
+                            refChoice_corrected = pos_good_rot
+
+                if not found_property_rot:
+                    new_order_rot = tuple([i for i in range(len(event))])
+                    logger.warning("The observable given as input is not defined in the FourMomentum class. Using default order.")
+
+            if len(self.helicity_direction[2]) == 0:
+                refChoice = [0] * len(self.helicity_direction[0])
+                if -1 in self.helicity_direction[0]: #all the angles are set to 0 and the rotation is done
+                    phi, theta = [0] * len(all_p), [0] * len(all_p)
+                    for i in range(len(all_p)):
+                        all_p[i] = self.invert_momenta(all_p[i])
+                        all_p[i] = module.rotationp(all_p[i], phi[i], theta[i], len(pdg))
+                        all_p[i] = self.invert_momenta(all_p[i])
+                        for j in range(len(all_p[i])):
+                            all_p[i][j] = tuple(all_p[i][j])
+                    refChoice_corrected = [-1]
+
+                else:
+                    is_particle_taken_refChoice = [0] * len(pdg)
+                    compteur_refChoice = 0
+                    input_pdg = self.helicity_direction[0]
+                    for i in range(len(refChoice)):
+                        for j in range(len(pdg)):
+                            if pdg[new_order_rot[j]] == input_pdg[i] and is_particle_taken_refChoice[new_order_rot[j]] == 0:
+                                refChoice[compteur_refChoice] = new_order_rot[j] + 1 #+1 because fortran format
+                                is_particle_taken_refChoice[new_order_rot[j]] = 1
+                                compteur_refChoice += 1
+                                break #needed to put only one particle for each refChoice[i]
+
+                    refChoice_corrected = refChoice
+
+            if -1 not in refChoice_corrected:    
+                pref = [0, 0, 0, 0]
+                phi, theta = [0] * len(all_p), [0] * len(all_p)
+                for i in range(len(all_p)):
+                    for j in range(len(refChoice_corrected)):
+                        for k in range(len(pref)):
+                            pref[k] += all_p[i][refChoice_corrected[j] - 1][k]
+                    phi[i], theta[i] = module.refchoicep(pref) 
+
+                    all_p[i] = self.invert_momenta(all_p[i]) #put in fortran format
+                    all_p[i] = module.rotationp(all_p[i], phi[i], theta[i], len(pdg))
+                    all_p[i] = self.invert_momenta(all_p[i]) #put back into pyhton format
+
+                    for j in range(len(all_p[i])):
+                        all_p[i][j] = tuple(all_p[i][j]) #we put the momenta back into tuples because it was structured like that initially
 
             if self.options['identical_particle_in_prod_and_decay'] == 'crash':
                 if len(all_p) > 1:
                     raise Exception("Ambiguous particle in production and decay. crash as requested by \'identical_particle_in_prod_and_decay\'")
+            
+#######################END ROTATION CHOICE BLOCK#############################
 
+
+#######################PARTICLE CHOICE BLOCK#############################
+        if self.flag_density_matrix:
+            if self.particle_in_density_matrix[1] == '':
+                new_order_pos = tuple([i for i in range(len(event))])
+                new_pdg_pos = [0] * len(pdg)
+                for k in range(len(pdg)):
+                    new_pdg_pos[k] = pdg[new_order_pos[k]]
+            else:
+                found_property = False
+                for prop in list_properties:
+                    if prop in self.particle_in_density_matrix[1]:
+                        found_property = True
+                        information_lhe_order = []
+                        original_lhe_order = [i for i in range(len(event))]
+                        for i, p in enumerate(event):
+                            if pdg[i] in self.particle_in_density_matrix[0]:
+                                correct_p = lhe_parser.FourMomentum(p)
+                                information_lhe_order.append(getattr(correct_p, prop))
+                            else:
+                                information_lhe_order.append(float('NaN'))
+
+                        if len(set(information_lhe_order)) != len(information_lhe_order):
+                            logger.warning("Some particles in the density matrix have the same value for the chosen observable. Their ordering is random. Please ensure to choose an obsevarble that allows to discrimate all the identical particles.")
+
+                        new_information_lhe_order, new_order_pos = zip(*sorted(zip(information_lhe_order, original_lhe_order), reverse=True))
+
+                        if len(self.particle_in_density_matrix[2]) > 0: #this block allows to take into account the choice of order by the user
+
+                            order_input = self.particle_in_density_matrix[2]
+                            information_lhe_order_without_nan = [elem for elem in new_information_lhe_order if elem == elem]
+                            observable_order = []
+                            
+                            #This bloc reorders the values of the obsevarble according to the user's input
+                            for i in range(len(order_input)):
+                                observable_order.append(information_lhe_order_without_nan[order_input[i]])
+
+                            #We need to order the input because of the pop method
+                            order_input_sorted = sorted(order_input, reverse=True)
+                            for i in range(len(order_input_sorted)):
+                                information_lhe_order_without_nan.pop(order_input_sorted[i])
+
+                            for k in range(len(information_lhe_order_without_nan)):
+                                observable_order.append(information_lhe_order_without_nan[k])
+
+                            input_information_lhe_order = [0] * len(new_information_lhe_order)
+                            input_compteur = 0
+                            for i in range(len(new_information_lhe_order)):
+                                if new_information_lhe_order[i] == new_information_lhe_order[i]:
+                                    input_information_lhe_order[i] = observable_order[input_compteur]
+                                    input_compteur += 1
+                                else:
+                                    input_information_lhe_order[i] = float("NaN")
+
+                            good_order = [0] * len(information_lhe_order)
+                            for i in range(len(input_information_lhe_order)):
+                                if input_information_lhe_order[i] != input_information_lhe_order[i]:
+                                    good_order[i] = i
+                                else:
+                                    for j in range(len(information_lhe_order)):
+                                        if input_information_lhe_order[i] == information_lhe_order[j]:
+                                            good_order[i] = j
+
+                            pos_aux = self.particle_in_density_matrix[0]
+
+                            pos_good = [0] * len(pos_aux)
+                            is_particle_taken_good = [0] * len(pdg)
+                            compteur_pos_good = 0
+                            for i in range(len(pos_aux)):
+                                for j in range(len(pdg)):
+                                    if pdg[good_order[j]] == pos_aux[i] and is_particle_taken_good[j] == 0:
+                                        pos_good[compteur_pos_good] = good_order[j] + 1 #+1 because fortran format
+                                        is_particle_taken_good[j] = 1
+                                        compteur_pos_good += 1
+                                        break
+                            pos_corrected = pos_good
+
+                if not found_property:
+                    new_order_pos = tuple([i for i in range(len(event))])
+
+            if len(self.particle_in_density_matrix[2]) == 0:
+                pos_aux = self.particle_in_density_matrix[0]
+
+                pos_new = [0] * len(pos_aux)
+                is_particle_taken_new = [0] * len(pdg)
+                compteur_pos_new = 0
+                for i in range(len(pos_aux)):
+                    for j in range(len(pdg)):
+                        if pdg[new_order_pos[j]] == pos_aux[i] and is_particle_taken_new[j] == 0:
+                            pos_new[compteur_pos_new] = new_order_pos[j] + 1 #+1 because fortran format
+                            is_particle_taken_new[j] = 1 ################Is it correct ?
+                            compteur_pos_new += 1
+                            break #needed to put only one particle for each pos_aux[i]
+
+                pos_corrected = pos_new 
+
+#######################END PARTICLE CHOICE BLOCK#############################
+
+        
+        if self.flag_density_matrix:
+            import madgraph.various.Density_functions as dens
+            
             status = []
             for particle in event:
                 status.append(int(particle.status))
 
 
-###############################################################################################
-#This block does not depend on the event, it should be moved one tier up
-###############################################################################################
             PDGs, _ = module.get_pdg_order()
             PREFIX = module.get_prefix()
             prefix_cor = []
             All_PDGs = []
             prefix_unique = []
                 
-            #Block to determine which sets of pdg-codes correspond to which prefix
+            #Block to determine which sets of pdg-codes corresponds to which prefix
             for i in range(len(PREFIX)):
                 prefix_temp = PREFIX[i].decode('UTF-8').strip().lower()
                 prefix_cor.append(prefix_temp)
@@ -1687,31 +1994,6 @@ class ReweightInterface(extended_cmd.Cmd):
                 InitialiseMatrix = getattr(module, prefix_unique[i] + 'initialisemodel')
                 InitialiseMatrix(Card_dir)   
 
-
-            #converts pdg-id choice into position indice
-            pos_aux = self.particle_in_density_matrix
-            if not len(set(pdg)) == len(pdg): #if there are identical external particles
-                for i in range(len(pos_aux)):
-                    if pdg.count(pos_aux[i]) > 1:
-                        logger.warning("There might be several particles identical to the one chosen as input. The output can be ambiguous")
-                        break #is it correct to put a break here to get out of the for loop when one warning is printed ?
-            
-            #This block finds the first itteration of a pdg, there is therefore a ambiguity if the process has several identical particles. Could be upgraded.
-            pos = [0] * len(pos_aux)
-            is_particle_taken = [0] * len(pdg)
-            compteur_pos = 0
-            for i in range(len(pos_aux)):
-                for j in range(len(pdg)):
-                    if pdg[j] == pos_aux[i] and is_particle_taken[j] == 0:
-                        pos[compteur_pos] = j + 1 #+1 because fortran format
-                        is_particle_taken[j] = 1
-                        compteur_pos += 1
-                        break #needed to put only one particle for each pos_aux[i]
-            
-
-###############################################################################################
-###############################################################################################
-
             #The prefix is defined for a given event
             for k in range(len(All_PDGs)):
                     if pdg in All_PDGs[k]:
@@ -1719,18 +2001,14 @@ class ReweightInterface(extended_cmd.Cmd):
 
             me_value = 0
             for p in all_p:
-
-                # misc.sprint(p)
                 pinv = self.invert_momenta(p)
-                        
                 get_density = getattr(module, prefix + 'get_density')
+                new_value = get_density(pinv, pos_corrected, self.number_changing_helicities,
+                                        self.allowed_helicities, self.number_combinations,
+                                        event.aqcd)
 
-                new_value = get_density(pinv, pos, self.number_changing_helicities,
-                                         self.allowed_helicities, self.number_combinations,
-                                           event.aqcd)
-                        
-                new_value = dens.get_list_sliced(new_value, self.number_combinations)
-                new_value = dens.get_rho_normalised(new_value, self.number_combinations, epsilon=1e-10)
+                new_value = dens.get_list_sliced(new_value, self.number_combinations, epsilon=1e-10) #new value is the production matrix, not the density matrix
+                #new_value = dens.get_rho_normalised(new_value, self.number_combinations, epsilon=1e-10)
 
 
                 #I am not sure this block for loop is necessary or not
@@ -1798,26 +2076,27 @@ class ReweightInterface(extended_cmd.Cmd):
                 return me_value
 
 
-    def boost_event_density(self, event, all_p, orig_order, hypp_id):
+    def boost_event_density(self, event, all_p, orig_order, hypp_id, boost_corrected=None):
         # For 2>N pass in the center of mass frame
         #   - required for helicity by helicity re-weighitng
         #   - Speed-up loop computation 
-        # Added the boost I need in my case, I let the other options as before
-        # misc.sprint(self.momenta_boost)
-        if self.flag_density_matrix == True:
-            if -1 in self.momenta_boost: #if we don't want to boost the system
+        # the option boost_corrected is only necessary for the density mode
+
+        if self.flag_density_matrix == True: #boost in the case of the density mode
+            if -1 in self.momenta_boost[0]: #if we don't want to boost the system
                 return all_p
             import copy
             new_event = copy.deepcopy(event)
             nb_ext = 0
             pboost = lhe_parser.FourMomentum()
-            for p in new_event:
-                if p.status in [-1,1]:
-                    nb_ext += 1
-                    if p.pid in self.momenta_boost: #if the particle pid is in the option, we add it to the boost
-                        pboost += p 
+            for p in new_event: 
+                for j in range(len(boost_corrected)):
+                    if nb_ext == boost_corrected[j]:
+                        pboost += p
+                nb_ext += 1
 
-            new_event.boost(pboost) #ca boost en fait
+
+            new_event.boost(pboost)
             if self.keep_ordering:
                 new_all_p = [new_event.get_momenta(orig_order)]
             else:
@@ -1920,18 +2199,35 @@ class ReweightInterface(extended_cmd.Cmd):
                     
         if not self.multicore == 'create':
             # No print of results for the multicore mode for the one printed on screen
-            if 'orig' not in self.all_cross_section:
-                logger.info('Original cross-section: %s +- %s pb' % (cross, error))
-            else: 
-                logger.info('Original cross-section: %s +- %s pb (cross-section from sum of weights: %s)' % (cross, error, self.all_cross_section['orig'][0]))
-            logger.info('Computed cross-section:')
-            keys = list(self.all_cross_section.keys())
-            keys.sort(key=lambda x: str(x))
-            for key in keys:
-                if key == 'orig':
-                    continue
-                logger.info('%s : %s +- %s pb' % (key[0] if not key[1] else '%s%s' % key,
-                    self.all_cross_section[key][0],self.all_cross_section[key][1] ))  
+            if self.flag_density_matrix:
+                import madgraph.various.Density_functions as dens
+                logger.info("Cross-section: %s +- %s pb" % (cross, error))
+                rho_avg = dens.get_rho_normalised(self.production_matrix, self.number_combinations, epsilon=1e-10)
+                # for elem in range(len(rho_avg)):
+                #     if rho_avg[elem].imag == 0:
+                #         rho_avg[elem] = float(rho_avg[elem].real)
+                # misc.sprint(rho_avg)
+                rho_avg_square = dens.square_matrix(rho_avg)
+
+                logger.info("Average density matrix:")
+                for i in range(len(rho_avg_square)):
+                    print("\t",list(rho_avg_square[i]))
+                #Ca fonctionne mais il faudrait améliorer la présentation
+            else:
+                if 'orig' not in self.all_cross_section:
+                    logger.info('Original cross-section: %s +- %s pb' % (cross, error))
+                else: 
+                    misc.sprint(self.all_cross_section)
+                    logger.info('Original cross-section: %s +- %s pb (cross-section from sum of weights: %s)' % (cross, error, self.all_cross_section['orig'][0]))
+                logger.info('Computed cross-section:')
+                keys = list(self.all_cross_section.keys())
+                keys.sort(key=lambda x: str(x))
+                for key in keys:
+                    if key == 'orig':
+                        continue
+                    logger.info('%s : %s +- %s pb' % (key[0] if not key[1] else '%s%s' % key,
+                        self.all_cross_section[key][0],self.all_cross_section[key][1] ))  
+
         self.terminate_fortran_executables()
 
         if self.rwgt_dir and self.multicore == False:
@@ -2658,7 +2954,6 @@ class ReweightInterface(extended_cmd.Cmd):
 class DensityInterface(ReweightInterface):
     """Basic interface for computing density matrix"""
 
-
     def __init__(self, *args, **opts):
         """init the class"""
 
@@ -2666,17 +2961,19 @@ class DensityInterface(ReweightInterface):
         
         self.flag_particle_in_density_matrix = False
 
-        self.helicity_direction = None #pid of the particle chosen as reference for the helicity frame
+        self.helicity_direction = [-1, '', []] #pid of the particle chosen as reference for the helicity frame
         self.particle_in_density_matrix = None #pid of the particles selected for the study
-        self.momenta_boost = None #pid of the particles in whose center of mass frame the system will be boosted
+        self.momenta_boost = [-1, '', []] #pid of the particles in whose center of mass frame the system will be boosted
         self.allowed_helicities = None #basis of helicities
         self.spins = None 
         self.number_changing_helicities = None
         self.number_combinations = None
         self.new_param_card = False #Needed to not call ask_edit_card_static
+        self.production_matrix = 0
         
         ReweightInterface.__init__(self, *args, **opts)
         self.flag_density_matrix = True
+        self.has_run = False
 
         #This block imports the model, because I need it before do_launch() starts
         mgcmd = self.mg5cmd
@@ -2701,7 +2998,6 @@ class DensityInterface(ReweightInterface):
     def do_change(self, line):
         """Method called to read the reweight card, redirects to the correct do_change_ method"""
         keyword = line.split()[0]
-        # misc.sprint("ENTERED DO CHANGE", keyword)
 
         if hasattr(self, 'do_change_%s' % keyword):
             return getattr(self, 'do_change_%s' % keyword)(line.split()[1:])
@@ -2709,25 +3005,94 @@ class DensityInterface(ReweightInterface):
         return super().do_change(line)
         
 
+    def find_arrays(self, input_text):
+        pattern = re.compile(r"\[[^\]]*\]", re.IGNORECASE)
+        return pattern.findall(input_text)
+
+    def find_observable(self, input_text): #we accepect input as "lambda p: p.observable()" or just "observable"
+        pattern = re.compile(r"lambda p: p\.[A-Za-z0-9]+", re.IGNORECASE)
+        output = pattern.findall(input_text)
+        if output == []:
+            pattern = re.compile(r"[A-Za-z]+", re.IGNORECASE)
+            output = pattern.findall(input_text)
+        return pattern.findall(input_text)
+
     def do_change_helicity_direction(self, line):
-        """Change the reference particle for the helicity frame, returns a list of pdg-codes"""
+        """Change the reference particle for the helicity frame, returns a list of pdg-codes.
+        The structure accepted is change helicitty_direction [list of pdg-codes] lambda p: p.pt()
+        where the lambda function is any parameter of a particle defined in a lhe file"""
         
-        for i in range(len(line)):
-            try:
-                line[i] = int(line[i].strip("[],()"))
-            except:
-                raise TypeError("The input for helicity_direction is in an incorrect form. Please write: helicity_direction [list of pdg-codes]")
-        self.helicity_direction = line
+        pdg_codes = []
+        lambda_function = ''
+        order_particles = []
+        reconstructed_line = ''
+
+        for i in range(len(line)): #we reconstruct the line to use regex on the line
+            reconstructed_line += str(line[i]) + ' '
+
+        observable = self.find_observable(reconstructed_line)
+        Arrays = self.find_arrays(reconstructed_line)
+
+        for i in range(len(Arrays)):
+            Arrays[i]  = [int(y) for y in Arrays[i].strip("[]").split(',') if y.strip()]
+        
+        pdg_codes = Arrays[0]
+        if len(Arrays) > 1:
+            order_particles = Arrays[1]
+        else:
+            order_particles = []
+        if len(observable) > 0:
+            lambda_function = observable[0]
+        else:
+            lambda_function = ''
+
+        #check if the number of ordering parameters is the same as the number of particles selected
+        if lambda_function == '' and len(order_particles) > 0:
+            logger.error("An order option is given when no observable is selected (helicity referential direction option), the order can not be computed. Please ensure to select an observable among the one defined in the class lhe_parser.FourMomentum")
+        if len(order_particles) > 0 and len(order_particles) != len(pdg_codes):
+            logger.error("The number of ordering parameters is not the same as the number of particles selected for the helicity referential direction. Please ensure you give the same number of parameters")
+
+        # We don't check what values are put in the arrays, if it is not correct, it will return an error later.
+
+        self.helicity_direction = (pdg_codes, lambda_function, order_particles)
 
 
     def do_change_boost_choice(self, line):
         """change the momenta reference for the boost, returns a list of pdg-codes"""
-        for i in range(len(line)):
-            try:
-                line[i] = int(line[i].strip("[],()"))
-            except:
-                raise TypeError("The input for boost_choice is in an incorrect form. Please write: boost_choice [list of pdg-codes]")
-        self.momenta_boost = line
+        
+        pdg_codes = []
+        lambda_function = ''
+        order_particles = []
+        reconstructed_line = ''
+
+        for i in range(len(line)): #we reconstruct the line to use regex on the line
+            reconstructed_line += str(line[i]) + ' '
+
+        observable = self.find_observable(reconstructed_line)
+        Arrays = self.find_arrays(reconstructed_line)
+        for i in range(len(Arrays)):
+            Arrays[i]  = [int(y) for y in Arrays[i].strip("[]").split(',') if y.strip()]
+        
+        pdg_codes = Arrays[0]
+        if len(Arrays) > 1:
+            order_particles = Arrays[1]
+        else:
+            order_particles = []
+        if len(observable) > 0:
+            lambda_function = observable[0]
+        else:
+            lambda_function = ''
+
+        #check if the number of ordering parameters is the same as the number of particles selected
+        if lambda_function == '' and len(order_particles) > 0:
+            logger.error("An order option is given when no observable is selected (boost option), the order can not be computed. Please ensure to select an observable among the one defined in the class lhe_parser.FourMomentum")
+        if len(order_particles) > 0 and len(order_particles) != len(pdg_codes):
+            logger.error("The number of ordering parameters is not the same as the number of particles selected for the boost. Please ensure you give the same number of parameters")
+
+        # We don't check what values are put in the arrays, if it is not correct, it will return an error later.
+        
+        self.momenta_boost = [pdg_codes, lambda_function, order_particles]
+
 
 
     def do_change_order_helicities(self, line):
@@ -2757,19 +3122,46 @@ class DensityInterface(ReweightInterface):
     def do_change_particle_in_density_matrix(self, line):
         """change the particle in the density matrix, calculates the number of particles changes,
            their spins and the number of combinations"""
-        for i in range(len(line)):
-            try:
-                line[i] = int(line[i].strip("[],()"))
-            except:
-                TypeError("The input for particle_in_density_matrix is in an incorrect form. Please write: particle_in_density_matrix [list of pdg-codes]")
         
-        self.particle_in_density_matrix = line
-        self.number_changing_helicities = len(line)
+        pdg_codes = []
+        lambda_function = ''
+        order_particles = []
+        reconstructed_line = ''
+
+        for i in range(len(line)): #we reconstruct the line to use regex on the line
+            reconstructed_line += str(line[i]) + ' '
+
+        observable = self.find_observable(reconstructed_line)
+        Arrays = self.find_arrays(reconstructed_line)
+        for i in range(len(Arrays)):
+            Arrays[i]  = [int(y) for y in Arrays[i].strip("[]").split(',') if y.strip()]
+        
+        pdg_codes = Arrays[0]
+        if len(Arrays) > 1:
+            order_particles = Arrays[1]
+        else:
+            order_particles = []
+        if len(observable) > 0:
+            lambda_function = observable[0]
+        else:
+            lambda_function = ''
+
+        #check if the number of ordering parameters is the same as the number of particles selected
+        if lambda_function == '' and len(order_particles) > 0:
+            logger.error("An order option is given when no observable is selected (particle in density matrix option), the order can not be computed. Please ensure to select an observable among the one defined in the class lhe_parser.FourMomentum")
+        if len(order_particles) > 0 and len(order_particles) != len(pdg_codes):
+            logger.error("The number of ordering parameters is not the same as the number of particles selected for the particles in density matrix. Please ensure you give the same number of parameters")
+
+        # We don't check what values are put in the arrays, if it is not correct, it will return an error later.
+
+        self.particle_in_density_matrix = (pdg_codes, lambda_function, order_particles) 
+
+        self.number_changing_helicities = len(pdg_codes)
 
         particles = self.model['particles']
 
         self.spins = [] #list of spins degrees of freedom for each particle studied
-        for particle_id in line: #list on the pdg-code of the particles that we study
+        for particle_id in pdg_codes: #list on the pdg-code of the particles that we study
             for n_particles_model in range(len(particles)):
                 if particles[n_particles_model]['pdg_code'] == particle_id or particles[n_particles_model]['pdg_code'] == -particle_id:
                     self.spins.append(particles[n_particles_model]['spin'])
@@ -2798,17 +3190,21 @@ class DensityInterface(ReweightInterface):
 
     def do_quit(self, line):
         """exit the reweighting module"""
-        logger.info("helicity_direction = " + str(self.helicity_direction))
-        logger.info("particle_in_density_matrix = " + str(self.particle_in_density_matrix))
-        logger.info("momenta_boost = " + str(self.momenta_boost))
-        logger.info("allowed_helicities = " + str(self.allowed_helicities))
-        logger.info("spins = " + str(self.spins))
-        logger.info("number_changing_helicities = " + str(self.number_changing_helicities))
-        logger.info("number_combinations = " + str(self.number_combinations))
+        #misc.sprint(self.has_run)
+        if self.has_run:
+            return super().do_quit(line)
+        
+        logger.info("helicity_direction = \t" + str(self.helicity_direction))
+        logger.info("particle_in_density_matrix = \t" + str(self.particle_in_density_matrix))
+        logger.info("momenta_boost = \t" + str(self.momenta_boost))
+        logger.info("allowed_helicities = \t" + str(self.allowed_helicities))
+        logger.info("spins = \t" + str(self.spins))
+        logger.info("number_changing_helicities = \t" + str(self.number_changing_helicities))
+        logger.info("number_combinations = \t" + str(self.number_combinations))
         if self.flag_particle_in_density_matrix == False:
             logger.error("Error: the reweight_card contains no option for the density mode")
 
-        
+        self.has_run = True
         self.run_cmd('launch --keep_card') #call the function do_launch()
 
 
