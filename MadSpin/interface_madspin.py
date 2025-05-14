@@ -79,6 +79,7 @@ class MadSpinOptions(banner.ConfigFile):
         self.add_param('frame_id', 6)
         self.add_param('global_order_coupling', '')
         self.add_param('identical_particle_in_prod_and_decay', 'average')
+        self.add_param('beampol', [0.5, 0.5], comment='beam polarization')
         
     ############################################################################
     ##  Special post-processing of the options                                ## 
@@ -258,8 +259,14 @@ class MadSpinInterface(extended_cmd.Cmd):
             if isinstance(run_card, banner.RunCardLO):
                 run_card.update_system_parameter_for_include()
                 self.options['frame_id'] = run_card['frame_id']
+                beampol = [.5,.5]
+                beampol[0] =  (-1./200)* run_card['polbeam1'] + 0.5
+                beampol[1] =  (-1./200)* run_card['polbeam2'] + 0.5
+                self.options['beampol'] = beampol
             else:
                 self.options['frame_id'] = 6
+                self.options['beampol'] = [.5,.5]
+
         else:
             if not self.options['Nevents_for_max_weight']:
                 self.options['Nevents_for_max_weight'] = 75

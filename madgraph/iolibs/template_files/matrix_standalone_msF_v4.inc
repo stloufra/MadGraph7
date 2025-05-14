@@ -16,6 +16,8 @@ C CONSTANTS
 C  
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=%(nexternal)d)
+      INTEGER    NINCOMING
+      PARAMETER (NINCOMING=%(nincoming)d)
       INTEGER                 NCOMB         
       PARAMETER (             NCOMB=%(ncomb)d)
 C  
@@ -32,11 +34,13 @@ C
       INTEGER NHEL(NEXTERNAL,NCOMB),NTRY
       REAL*8 T
       REAL*8 MATRIX
-      INTEGER IHEL,IDEN, I
+      INTEGER IHEL,IDEN,I,JJ
       INTEGER JC(NEXTERNAL)
       LOGICAL GOODHEL(NCOMB)
       DATA NTRY/0/
       DATA GOODHEL/NCOMB*.FALSE./
+      double precision beampol(2)
+      common /to_beampol/ beampol
 %(helicity_lines)s
 %(den_factor_line)s
 C ----------
@@ -51,6 +55,15 @@ C ----------
              IF (GOODHEL(IHEL) .OR. NTRY .LT. 100) THEN
                  T=MATRIX(P ,NHEL(1,IHEL),JC(1))            
                ANS=ANS+T
+C HANDLE POLARISED BEAM               
+              DO JJ=1,NINCOMING
+                IF(BEAMPOL(JJ).NE.1D0.AND.NHEL(JJ,IHEL).EQ.INT(SIGN(1D0,BEAMPOL(JJ)))) THEN
+                  T=T*ABS(BEAMPOL(JJ))
+                ELSE IF(BEAMPOL(JJ).NE.1D0)THEN
+                  T=T*(2D0-ABS(BEAMPOL(JJ)))
+                ENDIF
+              ENDDO
+
                  HELAMP(IHEL)=T
                IF (T .NE. 0D0) THEN
                    GOODHEL(IHEL)=.TRUE.

@@ -2344,7 +2344,7 @@ class decay_all_events(object):
             nb_mc_masses=len(indices_for_mc_masses)
 
             p, p_str=self.curr_event.give_momenta(event_map)
-            stdin_text=' %s %s %s %s %s \n' % ('2', self.options['BW_cut'], self.Ecollider, decay_me['max_weight'], self.options['frame_id'])
+            stdin_text=' %s %s %s %s %s %s %s \n' % ('2', self.options['BW_cut'], self.Ecollider, decay_me['max_weight'], self.options['frame_id'], self.options['beampol'][0], self.options['beampol'][1]) 
             stdin_text+=p_str
             # here I also need to specify the Monte Carlo Masses
             stdin_text+=" %s \n" % nb_mc_masses
@@ -3404,7 +3404,7 @@ class decay_all_events(object):
         """return the max. weight associated with me decay['path']"""
 
         p, p_str=self.curr_event.give_momenta(event_map)
-        std_in=" %s  %s %s %s %s \n" % ("1",BWcut, self.Ecollider, nbpoints, self.options['frame_id'])
+        std_in=" %s  %s %s %s %s %s %s \n" % ("1",BWcut, self.Ecollider, nbpoints, self.options['frame_id'], self.options['beampol'][0], self.options['beampol'][1])
         std_in+=p_str
         max_weight = self.loadfortran('maxweight',
                                path, std_in)
@@ -4128,7 +4128,7 @@ class decay_all_events(object):
                     external.terminate()
                     del external
                 elif mode=='full':
-                    stdin_text="5 0 0 0 0\n".encode()  # before closing, write down the seed 
+                    stdin_text="5 0 0 0 0 0 0\n".encode()  # before closing, write down the seed 
                     external = self.calculator[('full',path)]
                     try:
                         external.stdin.write(stdin_text)
