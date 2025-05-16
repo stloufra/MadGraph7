@@ -25,7 +25,6 @@ import shutil
 import sys
 import time
 import glob
-from turtle import pos
 import six
 from six.moves import range
 from itertools import filterfalse
