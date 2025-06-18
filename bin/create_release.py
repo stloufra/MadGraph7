@@ -260,8 +260,8 @@ for data in glob.glob(path.join(filepath, 'bin', '*')):
         else:
             os.rename(data, data.replace('compile.py','.compile.py'))
 
-os.remove(path.join(filepath, 'README.developer'))
-shutil.move(path.join(filepath, 'README.release'), path.join(filepath, 'README'))
+#os.remove(path.join(filepath, 'README.developer'))
+#shutil.move(path.join(filepath, 'README.release'), path.join(filepath, 'README'))
 
 
 # 1. Add information for the auto-update
@@ -276,8 +276,7 @@ if rev_nb and auto_update:
         p = subprocess.call("git tag  'L%s' " % int(rev_nb), shell=True)
     elif MG_branch == '3.x':
         p = subprocess.call("git tag  'r%s' " % int(rev_nb), shell=True)
-
-if (rev_nb and auto_update) or MG_branch == "LTS_2"
+if (rev_nb and auto_update) or MG_branch == "LTS_2":
     p = subprocess.call("git tag  'v%s' " % misc.get_pkg_info()['version'], shell=True)
     print('new tag added')
     answer = input('Do you want to push commit and tag? (y/n)')

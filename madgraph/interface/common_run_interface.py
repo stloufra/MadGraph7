@@ -23,6 +23,7 @@ from __future__ import absolute_import
 import ast
 import logging
 import math
+import copy
 import os
 import re
 import shutil
@@ -749,8 +750,8 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         else:
             self.ninitial = self.proc_characteristics['ninitial']
 
-    def make_make_all_html_results(self, folder_names = [], jobs=[]):
-        return sum_html.make_all_html_results(self, folder_names, jobs)
+    def make_make_all_html_results(self, folder_names = [], jobs=[], get_attr=None):
+        return sum_html.make_all_html_results(self, folder_names, jobs, get_attr)
 
 
     def write_RunWeb(self, me_dir):
@@ -766,13 +767,15 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         
     class RunWebHandling(object):
         
-        def __init__(self, me_dir, crashifpresent=True, warnifpresent=True):
+        def __init__(self, me_dir, crashifpresent=True, warnifpresent=True, force_run=False):
             """raise error if RunWeb already exists
             me_dir is the directory where the write RunWeb"""
             
             self.remove_run_web = True
             self.me_dir = me_dir
-            
+            if force_run:
+                self.remove_run_web = False
+                return            
             if crashifpresent or warnifpresent:
                 if os.path.exists(pjoin(me_dir, 'RunWeb')):
                     pid = open(pjoin(me_dir, 'RunWeb')).read()
@@ -1004,7 +1007,22 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                 #raise Exception, "%s %s %s" % (sys.path, os.path.exists(pjoin(self.me_dir,'bin','internal', 'ufomodel')), os.listdir(pjoin(self.me_dir,'bin','internal', 'ufomodel')))
                 import ufomodel as ufomodel
                 zero = ufomodel.parameters.ZERO
-                if self.proc_characteristics['nlo_mixed_expansion']:
+                no_width = []
+
+                if self.proc_characteristics['ew_sudakov']:
+                    # if the sudakov approximation is used, force all particle widths to zero
+                    # unless the complex mass scheme is used
+                    if not self.proc_characteristics['complex_mass_scheme']:
+                        no_width = [p for p in ufomodel.all_particles if p.width != zero]
+                        logger.info('''Setting all particle widths to zero (needed for EW Sudakov approximation).''','$MG:BOLD')
+                    # also, check that the model features the 'ntadpole' parameter, and set it to 1
+                    try:
+                        param_card['tadpole'].get(1).value = 1.
+                        logger.info('''Setting the value of ntadpole to 1 (needed for EW Sudakov approximation).''','$MG:BOLD')
+                    except KeyError:
+                        logger.warning('''The model has no 'ntadpole' parameter. The Sudakov approximation for EW corrections may give wrong results.''')
+
+                elif self.proc_characteristics['nlo_mixed_expansion']:
                     no_width = [p for p in ufomodel.all_particles
                             if (str(p.pdg_code) in pids or str(-p.pdg_code) in pids)
                             and p.width != zero]
@@ -1445,11 +1463,15 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                                              self.run_name, '%s_pts.dat' % tag)
                 for observable_name, data_path in [('djr',djr_path),
                                                    ('pt',pt_path)]:
-                    if not self.generate_Pythia8_HwU_plots(
+                    try:
+                        if not self.generate_Pythia8_HwU_plots(
                                     PY8_plots_root_path, merging_scale_name,
                                                      observable_name,data_path):
-                        return False
-
+                            return False
+                    except Exception as error:
+                        if os.path.exists(data_path):
+                            logger.info('plot information present in %s' % data_path)
+                        return True
         if mode == 'Pythia8':
             plot_files = glob.glob(pjoin(PY8_plots_root_path,'*.gnuplot'))
             if not misc.which('gnuplot'):
@@ -1946,12 +1968,16 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                 self.cluster.wait(os.path.dirname(output), update_status, update_first=update_status)
             except Exception:
                 self.cluster.remove()
+                for i in range(nb_submit):
+                    os.remove('%s/tmp_%s_%s' %(os.path.dirname(output),i,os.path.basename(output)))
                 old_run_mode = self.options['run_mode']
                 self.options['run_mode'] =0
+                out =False
                 try:
                     out = self.do_systematics(line)
                 finally:
                     self.options['run_mode']  =  old_run_mode
+                return out
             #collect the data
             all_cross = []
             for i in range(nb_submit):
@@ -1977,18 +2003,21 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                                        self.run_card['event_norm'] in ['unity']:
                 all_cross= [cross/nb_event for cross in all_cross]
                 
-            sys_obj = systematics.call_systematics([input, None] + opts, 
-                                         log=lambda x: logger.info(str(x)),
-                                         result=result_file,
-                                         running=False
-                                         )                    
+
+            sys_obj = systematics.call_systematics([input, None] + opts,
+                                        log=lambda x: logger.info(str(x)),
+                                        result=result_file,
+                                        running=False
+                                        )
+
             sys_obj.print_cross_sections(all_cross, nb_event, result_file)
-            
+
             #concatenate the output file
             subprocess.call(['cat']+\
                             ['./tmp_%s_%s' % (i, os.path.basename(output)) for i in range(nb_submit)],
                             stdout=open(output,'w'),
                             cwd=os.path.dirname(output))
+                
             for i in range(nb_submit):
                 os.remove('%s/tmp_%s_%s' %(os.path.dirname(output),i,os.path.basename(output)))
             #    os.remove('%s/log_sys_%s.txt' % (os.path.dirname(output),i))
@@ -2091,6 +2120,12 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
             # ensure that the run_card is present
             if not hasattr(self, 'run_card'):
                 self.run_card = banner_mod.RunCard(pjoin(self.me_dir, 'Cards', 'run_card.dat'))
+            # Below reads the run_card in the LHE file rather than the Cards/run_card
+            import madgraph.various.lhe_parser as lhe_parser
+            args_path = list(args)
+            self.check_decay_events(args_path) 
+            self.run_card = banner_mod.RunCard(lhe_parser.EventFile(args_path[0]).get_banner()['mgruncard'])
+
             
             # we want to run this in a separate shell to avoid hard f2py crash
             command =  [sys.executable]
@@ -2102,6 +2137,12 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                 command.append('--web')
             command.append('reweight')
             
+            ## TV: copy the event file as backup before starting reweighting
+            event_path = pjoin(self.me_dir, 'Events', self.run_name, 'events.lhe.gz')
+            event_path_backup = pjoin(self.me_dir, 'Events', self.run_name, 'events_orig.lhe.gz')
+            if os.path.exists(event_path) and not os.path.exists(event_path_backup):
+                shutil.copyfile(event_path, event_path_backup)
+
             #########   START SINGLE CORE MODE ############
             if self.options['nb_core']==1 or self.run_card['nevents'] < 101 or not check_multicore(self):
                 if self.run_name:
@@ -2217,7 +2258,7 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                         cross_sections[key] = value / (nb_event+1)
                 lhe.remove()
                 for key in cross_sections:
-                    if key == 'orig' or key.isdigit():
+                    if key == 'orig' or (key.isdigit() and not (key[0] == '2')):
                         continue
                     logger.info('%s : %s pb' % (key, cross_sections[key]))
                 return
@@ -3801,7 +3842,7 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         """return the information that need to be kept for the scan summary.
         Auto-width are automatically added."""
         
-        return {'cross': self.results.current['cross']}
+        return {'cross': self.results.current['cross'], 'error': self.results.current['error']}
 
 
     def add_error_log_in_html(self, errortype=None):
@@ -4120,9 +4161,7 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         path = pjoin(self.me_dir, 'Cards', 'madspin_card.dat')
 
         madspin_cmd.import_command_file(path)
-
-
-        if not madspin_cmd.me_run_name: 
+        if not madspin_cmd.me_run_name:
             # create a new run_name directory for this output
             i = 1
             while os.path.exists(pjoin(self.me_dir,'Events', '%s_decayed_%i' % (self.run_name,i))):
@@ -5083,7 +5122,8 @@ class AskforEditCard(cmd.OneLinePathCompletion):
         
         
         try:
-            self.run_card = banner_mod.RunCard(self.paths['run'], consistency='warning')
+            with misc.TMP_variable(banner_mod.RunCard, 'allow_scan', True):
+                self.run_card = banner_mod.RunCard(self.paths['run'], consistency='warning')
         except IOError:
             self.run_card = {}
         try:
@@ -5106,10 +5146,10 @@ class AskforEditCard(cmd.OneLinePathCompletion):
             self.special_shortcut.update(
                 {'ebeam':([float],['run_card ebeam1 %(0)s', 'run_card ebeam2 %(0)s']),
                 'lpp': ([int],['run_card lpp1 %(0)s', 'run_card lpp2 %(0)s' ]),
-                'lhc': ([int],['run_card lpp1 1', 'run_card lpp2 1', 'run_card ebeam1 %(0)s*1000/2', 'run_card ebeam2 %(0)s*1000/2']),
+                'lhc': ([float],['run_card lpp1 1', 'run_card lpp2 1', 'run_card ebeam1 %(0)s*1000/2', 'run_card ebeam2 %(0)s*1000/2']),
                 'lep': ([int],['run_card lpp1 0', 'run_card lpp2 0', 'run_card ebeam1 %(0)s/2', 'run_card ebeam2 %(0)s/2']),
                 'ilc': ([int],['run_card lpp1 0', 'run_card lpp2 0', 'run_card ebeam1 %(0)s/2', 'run_card ebeam2 %(0)s/2']),
-                'lcc': ([int],['run_card lpp1 1', 'run_card lpp2 1', 'run_card ebeam1 %(0)s*1000/2', 'run_card ebeam2 %(0)s*1000/2']),
+                'lcc': ([float],['run_card lpp1 1', 'run_card lpp2 1', 'run_card ebeam1 %(0)s*1000/2', 'run_card ebeam2 %(0)s*1000/2']),
                 'fixed_scale': ([float],['run_card fixed_fac_scale T', 'run_card fixed_ren_scale T', 'run_card scale %(0)s', 'run_card dsqrt_q2fact1 %(0)s' ,'run_card dsqrt_q2fact2 %(0)s']),
                 'no_parton_cut':([],['run_card nocut T']),
                 'cm_velocity':([float], [lambda self :self.set_CM_velocity]),
@@ -5780,21 +5820,28 @@ class AskforEditCard(cmd.OneLinePathCompletion):
         if args[0] in self.special_shortcut:
             targettypes , cmd = self.special_shortcut[args[0]]
             if len(args) != len(targettypes) +1:
-                logger.warning('shortcut %s requires %s argument' % (args[0], len(targettypes)))
-                if len(args) < len(targettypes) +1:
-                    return
+                if len(targettypes) == 1 and args[len(targettypes)].startswith('scan'):
+                    args = args[:len(targettypes)] + [' '.join(args[len(targettypes):])]
+                    targettypes = [str]
                 else:
-                    logger.warning('additional argument will be ignored')
+                    logger.warning('shortcut %s requires %s argument' % (args[0], len(targettypes)))
+                    if len(args) < len(targettypes) +1:
+                        return
+                    else:
+                        logger.warning('additional argument will be ignored')
             values ={}
             for i, argtype in enumerate(targettypes):           
                 try:  
-                    values = {str(i): banner_mod.ConfigFile.format_variable(args[i+1], argtype, args[0])}
+                    values[str(i)] = banner_mod.ConfigFile.format_variable(args[i+1], argtype, args[0])
                 except ValueError as e:
                     logger.warning("Wrong argument: The entry #%s should be of type %s.", i+1, argtype)
                     return
                 except InvalidCmd as e:
-                    logger.warning(str(e))
-                    return
+                    if isinstance(args[i+1], str) and args[i+1].startswith('scan'):
+                        values[str(i)] = args[i+1]
+                    else:
+                        logger.warning(str(e))
+                        return
             #else:
             #    logger.warning("too many argument for this command")
             #    return
@@ -6285,12 +6332,13 @@ class AskforEditCard(cmd.OneLinePathCompletion):
     
     def setR(self, name, value):
 
-        if self.mother_interface.inputfile:
-            self.run_card.set(name, value, user=True, raiseerror=True)
-        else:
-            self.run_card.set(name, value, user=True)
-        new_value = self.run_card.get(name)
-        logger.info('modify parameter %s of the run_card.dat to %s' % (name, new_value),'$MG:BOLD')        
+        with misc.TMP_variable(banner_mod.RunCard, 'allow_scan', True):
+            if self.mother_interface.inputfile:
+                self.run_card.set(name, value, user=True, raiseerror=True)
+            else:
+                self.run_card.set(name, value, user=True)
+            new_value = self.run_card.get(name)
+            logger.info('modify parameter %s of the run_card.dat to %s' % (name, new_value),'$MG:BOLD')        
 
 
     def setML(self, name, value, default=False):
@@ -6377,6 +6425,7 @@ class AskforEditCard(cmd.OneLinePathCompletion):
             
             proc_charac = self.mother_interface.proc_characteristics
             if proc_charac['grouped_matrix'] and \
+                  isinstance(self.run_card['lpp1'],int) and isinstance(self.run_card['lpp2'],int) and \
                   abs(self.run_card['lpp1']) == 1 == abs(self.run_card['lpp2']) and \
                   (self.run_card['nb_proton1'] != self.run_card['nb_proton2'] or
                  self.run_card['nb_neutron1'] != self.run_card['nb_neutron2'] or
@@ -6439,6 +6488,10 @@ class AskforEditCard(cmd.OneLinePathCompletion):
                         "As your process seems to be impacted by the issue,\n" +\
                       "You can NOT run with MLM matching/merging. Please check if merging outside MG5aMC are suitable or refrain to use merging with this model") 
             
+            if 'dressed_ee' in  proc_charac['limitations']:
+                if self.run_card['lpp1'] not in [0,1,-1] or self.run_card['lpp1'] not in [0,1,-1]:
+                    raise InvalidCmd("dressed lepton mode is not available for this process (see warning associated to the code generation to understand why)")
+            # 
             if 'fix_scale' in proc_charac['limitations']:
                 if not self.run_card['fixed_fac_scale'] or not self.run_card['fixed_ren_scale']:
                     raise InvalidCmd("Your model is identified as having not SM running of the strong coupling.\n"+\
@@ -6462,41 +6515,42 @@ class AskforEditCard(cmd.OneLinePathCompletion):
 
             # check that only quark/gluon/photon are in initial beam if lpp=+-1
             pdg_in_p = list(range(-6,7))+[21,22]
-            if (abs(self.run_card['lpp1'])==1 and any(pdg not in pdg_in_p for pdg in proc_charac['pdg_initial1'])) \
+            if isinstance(self.run_card['lpp1'],int) and isinstance(self.run_card['lpp2'],int):
+                if(abs(self.run_card['lpp1'])==1 and any(pdg not in pdg_in_p for pdg in proc_charac['pdg_initial1'])) \
                or (abs(self.run_card['lpp2'])==1 and any(pdg not in pdg_in_p for pdg in proc_charac['pdg_initial2'])):
-                if 'pythia_card.dat' in self.cards or 'pythia8_card.dat' in self.cards:
-                    path_to_remove = None
-                    if 'pythia_card.dat' in self.cards:
-                        path_to_remove = self.paths['pythia']
-                        card_to_remove = 'pythia_card.dat'
-                    elif 'pythia8_card.dat' in self.cards:
-                        path_to_remove = self.paths['pythia8']
-                        card_to_remove = 'pythia8_card.dat'
-                    if path_to_remove:
-                        if 'partonshower' in self.run_card['bypass_check']:
-                            logger.warning("forcing to keep parton-shower run while possibly not fully consistent... please be carefull")
-                        else:    
-                            logger.error('Parton-Shower are not yet ready for such proton component definition. Parton-shower will be switched off.')
-                            os.remove(path_to_remove)
-                            self.cards.remove(card_to_remove)
-                else:
-                    logger.info('Remember that Parton-Shower are not yet ready for such proton component definition (HW implementation in progress).', '$MG:BOLD' )
-            elif (abs(self.run_card['lpp1'])==3 and abs(self.run_card['lpp2'])==3):
-                if 'pythia8_card.dat' in self.cards:
-                    if self.run_card['pdlabel'] == 'isronlyll':
-                       if 'partonshower' not in self.run_card['bypass_check']:
-                            # force that QED shower is on?
-                            for param in ['TimeShower:QEDshowerByQ', 'TimeShower:QEDshowerByL', 'TimeShower:QEDshowerByGamma', 'SpaceShower:QEDshowerByQ', 'SpaceShower:QEDshowerByL']:
-                                if param not in self.PY8Card or \
-                                   (not self.PY8Card[param] and param.lower() not in self.PY8Card.user_set):
-                                    logger.warning('Activating QED shower: setting %s to True', param)
-                                    self.PY8Card[param] = True
-                    elif 'partonshower' in self.run_card['bypass_check']:
-                        logger.warning("forcing to keep parton-shower run while possibly not fully consistent... please be carefull")
+                    if 'pythia_card.dat' in self.cards or 'pythia8_card.dat' in self.cards:
+                        path_to_remove = None
+                        if 'pythia_card.dat' in self.cards:
+                            path_to_remove = self.paths['pythia']
+                            card_to_remove = 'pythia_card.dat'
+                        elif 'pythia8_card.dat' in self.cards:
+                            path_to_remove = self.paths['pythia8']
+                            card_to_remove = 'pythia8_card.dat'
+                        if path_to_remove:
+                            if 'partonshower' in self.run_card['bypass_check']:
+                                logger.warning("forcing to keep parton-shower run while possibly not fully consistent... please be carefull")
+                            else:    
+                                logger.error('Parton-Shower are not yet ready for such proton component definition. Parton-shower will be switched off.')
+                                os.remove(path_to_remove)
+                                self.cards.remove(card_to_remove)
                     else:
-                        logger.error('Parton-Shower are not yet ready for such proton component definition. Parton-shower will be switched off.')
-                        os.remove(self.paths['pythia8'])
-                        self.cards.remove('pythia8_card.dat')
+                        logger.info('Remember that Parton-Shower are not yet ready for such proton component definition (HW implementation in progress).', '$MG:BOLD' )
+                elif (abs(self.run_card['lpp1'])==3 and abs(self.run_card['lpp2'])==3):
+                    if 'pythia8_card.dat' in self.cards:
+                        if self.run_card['pdlabel'] == 'isronlyll':
+                           if 'partonshower' not in self.run_card['bypass_check']:
+                                # force that QED shower is on?
+                                for param in ['TimeShower:QEDshowerByQ', 'TimeShower:QEDshowerByL', 'TimeShower:QEDshowerByGamma', 'SpaceShower:QEDshowerByQ', 'SpaceShower:QEDshowerByL']:
+                                    if param not in self.PY8Card or \
+                                       (not self.PY8Card[param] and param.lower() not in self.PY8Card.user_set):
+                                        logger.warning('Activating QED shower: setting %s to True', param)
+                                        self.PY8Card[param] = True
+                        elif 'partonshower' in self.run_card['bypass_check']:
+                            logger.warning("forcing to keep parton-shower run while possibly not fully consistent... please be carefull")
+                        else:
+                            logger.error('Parton-Shower are not yet ready for such proton component definition. Parton-shower will be switched off.')
+                            os.remove(self.paths['pythia8'])
+                            self.cards.remove('pythia8_card.dat')
 
                  
         ########################################################################
@@ -6573,7 +6627,8 @@ class AskforEditCard(cmd.OneLinePathCompletion):
 
 
             #check relation between lepton PDF // dressed lepton collisions // ...
-            if abs(self.run_card['lpp1']) != 1  or  abs(self.run_card['lpp2']) != 1:
+            if isinstance(self.run_card['lpp1'],int) and isinstance(self.run_card['lpp2'],int) and \
+                abs(self.run_card['lpp1']) != 1  or  abs(self.run_card['lpp2']) != 1:
                 if abs(self.run_card['lpp1']) == abs(self.run_card['lpp2']) == 3:
                     # this can be dressed lepton or photon-flux
                     if proc_charac['pdg_initial1'] in [[11],[-11]] and  proc_charac['pdg_initial2'] in [[11],[-11]]:
@@ -7672,7 +7727,8 @@ You can also copy/paste, your event file here.''')
                 logger.error('Please re-open the file and fix the problem.')
                 logger.warning('using the \'set\' command without opening the file will discard all your manual change')
         elif path == self.paths['run']:
-            self.run_card = banner_mod.RunCard(path)
+            with misc.TMP_variable(banner_mod.RunCard, 'allow_scan', True):
+                self.run_card = banner_mod.RunCard(path)
         elif path == self.paths['shower']:
             self.shower_card = shower_card_mod.ShowerCard(path)
         elif path == self.paths['ML']:
@@ -7708,6 +7764,9 @@ def scanparamcardhandling(input_path=lambda obj: pjoin(obj.me_dir, 'Cards', 'par
                       iteratorclass=param_card_mod.ParamCardIterator,
                       summaryorder=lambda obj: lambda:None,
                       check_card=lambda obj: CommonRunCmd.static_check_param_card,
+                      run_card_scan=False,
+                      run_card_input= lambda obj: pjoin(obj.me_dir, 'Cards', 'run_card.dat'),
+                      run_card_iteratorclass=banner_mod.RunCardIterator,
                       ):
     """ This is a decorator for customizing/using scan over the param_card (or technically other)
     This should be use like this:
@@ -7757,7 +7816,60 @@ def scanparamcardhandling(input_path=lambda obj: pjoin(obj.me_dir, 'Cards', 'par
         def __exit__(self, ctype, value, traceback ):
             self.iterator.write(self.path)
     
-    def decorator(original_fct):
+    def scan_over_run_card(original_fct, obj, *args, **opts):
+
+        if isinstance(input_path, str):
+            card_path = run_card_input
+        else:
+            card_path = run_card_input(obj)
+
+        run_card_iterator = run_card_iteratorclass(card_path)
+        orig_card = copy.deepcopy(run_card_iterator.run_card)
+        if not run_card_iterator.run_card.scan_set:
+            return original_fct(obj, *args, **opts)
+        
+        
+        with restore_iterator(orig_card, card_path):
+            # this with statement ensure that the original card is restore
+            # whatever happens inside those block
+
+            if not hasattr(obj, 'allow_notification_center'):
+                obj.allow_notification_center = False
+            with misc.TMP_variable(obj, 'allow_notification_center', False):
+                orig_name = get_run_name(obj)
+                if not orig_name and args[1]:
+                    orig_name = args[1][0]
+                    args = (args[0], args[1][1:])
+                    #orig_name = "scan_%s" % len(obj.results)
+
+                try:
+                    os.mkdir(pjoin(obj.me_dir, 'Events', orig_name))
+                except Exception:
+                    pass
+                next_name = orig_name + "_00"
+
+                for i,card in enumerate(run_card_iterator):
+                    card.write(card_path)
+                    # still have to check for the auto-wdith
+                    #if i !=0:
+                    next_name = run_card_iterator.get_next_name(next_name)
+                    set_run_name(obj)(next_name)
+                    try:
+                        original_fct(obj, *args, **opts)
+                    except ignoreerror as error:
+                        run_card_iterator.store_entry(next_name, {'exception': error})
+                    else:
+                        run_card_iterator.store_entry(next_name, store_for_scan(obj)(), run_card_path=card_path)
+                        
+            #param_card_iterator.write(card_path) #-> this is done by the with statement
+            name = misc.get_scan_name(orig_name, next_name)
+            path = result_path(obj) % name 
+            logger.info("write scan results in %s" % path ,'$MG:BOLD')
+            order = summaryorder(obj)()
+            run_card_iterator.write_summary(path, order=order) 
+
+
+    def decorator(original_fct):        
         def new_fct(obj, *args, **opts):
             
             if isinstance(input_path, str):
@@ -7781,8 +7893,13 @@ def scanparamcardhandling(input_path=lambda obj: pjoin(obj.me_dir, 'Cards', 'par
             
             if not param_card_iterator:
                 #first run of the function
-                original_fct(obj, *args, **opts)
-                return
+                if run_card_scan:
+                    scan_over_run_card(original_fct, obj, *args, **opts)
+                    return
+                else:
+                    #first run of the function
+                    original_fct(obj, *args, **opts)
+                    return
             
             with restore_iterator(param_card_iterator, card_path):
                 # this with statement ensure that the original card is restore

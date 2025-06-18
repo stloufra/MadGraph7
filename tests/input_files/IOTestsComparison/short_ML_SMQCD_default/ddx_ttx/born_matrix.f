@@ -161,6 +161,7 @@ C      only three external particles.
      $       -1.AND.(.NOT.ML5_0_IS_BORN_HEL_SELECTED(IHEL))) THEN
               CYCLE
             ENDIF
+C           write (*,*) 'HEL = ',NHEL(:,IHEL)
             T=ML5_0_MATRIX(P ,NHEL(1,IHEL),JC(1))
             IF(POLARIZATIONS(0,0).EQ.
      $       -1.OR.ML5_0_IS_BORN_HEL_SELECTED(IHEL)) THEN
@@ -173,6 +174,9 @@ C      only three external particles.
         ENDIF
       ENDDO
       ANS=ANS/DBLE(IDEN)
+C     write (*,*) "Spyros: IDEN         = ", IDEN
+C     write (*,*) "Spyros: USERHEL      = ", USERHEL
+C     write (*,*) "Spyros: HELAVGFACTOR = ", HELAVGFACTOR
       IF(USERHEL.NE.-1) THEN
         ANS=ANS*HELAVGFACTOR
       ELSE
@@ -180,6 +184,9 @@ C      only three external particles.
           IF (POLARIZATIONS(J,0).NE.-1) THEN
             ANS=ANS*BEAMS_HELAVGFACTOR(J)
             ANS=ANS/POLARIZATIONS(J,0)
+C           write (*,*) "Spyros: InPart ", J, " BEAMS_HELAVGFACTOR =
+C            ", BEAMS_HELAVGFACTOR(J), ", POLARIZATION = ",
+C            POLARIZATIONS(J,0)  
           ENDIF
         ENDDO
       ENDIF
@@ -222,8 +229,10 @@ C     LOCAL VARIABLES
 C     
       INTEGER I,J
       COMPLEX*16 ZTEMP
-      REAL*8 ML5_0_CF(NCOLOR,NCOLOR)
-      COMMON /COLOR_MATRIX/ ML5_0_CF
+      INTEGER CF_INDEX
+      INTEGER ML5_0_CF(NCOLOR*(NCOLOR+1)/2)
+      INTEGER ML5_0_DENOM
+      COMMON /ML5_0_COLOR_MATRIX/ ML5_0_CF,ML5_0_DENOM
       COMPLEX*16 AMP(NGRAPHS), JAMP(NCOLOR), TMP_JAMP(0)
       COMPLEX*16 W(20,NWAVEFUNCS)
       COMPLEX*16 DUM0,DUM1
@@ -234,11 +243,10 @@ C
       INCLUDE 'coupl.inc'
 
 C     COLOR DATA
-      DATA (ML5_0_CF(I,  1),I=  1,  2) /9.000000000000000D+00
-     $ ,3.000000000000000D+00/
+      DATA ML5_0_DENOM/1/
+      DATA (ML5_0_CF(I),I=  1,  2) /9,6/
 C     1 T(2,1) T(3,4)
-      DATA (ML5_0_CF(I,  2),I=  1,  2) /3.000000000000000D+00
-     $ ,9.000000000000000D+00/
+      DATA (ML5_0_CF(I),I=  3,  3) /9/
 C     1 T(2,4) T(3,1)
 C     
 C     
@@ -246,8 +254,12 @@ C     ----------
 C     BEGIN CODE
 C     ----------
       CALL ML5_0_GET_AMP(P,NHEL,IC,AMP)
+C     WRITE (*,*) '  -> AMP = ', AMP
       CALL ML5_0_GET_JAMP(AMP,JAMP)
+C     WRITE (*,*) '  -> JAMP = ', JAMP
       CALL ML5_0_GET_MATRIX(JAMP,ML5_0_MATRIX)
+C     write (*,*) "  -> col.ave. |M|^2 for HEL=[", NHEL ,"] = ",
+C      ML5_0_MATRIX
 
 
 
@@ -382,8 +394,12 @@ C     LOCAL VARIABLES
 C     
       INTEGER I,J
       COMPLEX*16 ZTEMP
-      REAL*8 ML5_0_CF(NCOLOR,NCOLOR)
-      COMMON /COLOR_MATRIX/ ML5_0_CF
+
+      INTEGER CF_INDEX
+      INTEGER ML5_0_CF(NCOLOR*(NCOLOR+1)/2)
+      INTEGER ML5_0_DENOM
+      COMMON /ML5_0_COLOR_MATRIX/ ML5_0_CF,ML5_0_DENOM
+      INTEGER ML5_0_DENOM
       COMPLEX*16 JAMP(NCOLOR), TMP_JAMP(0)
       COMPLEX*16 DUM0,DUM1
       DATA DUM0, DUM1/(0D0, 0D0), (1D0, 0D0)/
@@ -393,12 +409,14 @@ C     COLOR DATA
 C     
 
       MATRIX = 0.D0
+      CF_INDEX = 0
       DO I = 1, NCOLOR
         ZTEMP = (0.D0,0.D0)
-        DO J = 1, NCOLOR
-          ZTEMP = ZTEMP + ML5_0_CF(J,I)*JAMP(J)
+        DO J = I, NCOLOR
+          CF_INDEX = CF_INDEX + 1
+          ZTEMP = ZTEMP + ML5_0_CF(CF_INDEX)*JAMP(J)
         ENDDO
-        MATRIX = MATRIX+ZTEMP*DCONJG(JAMP(I))
+        MATRIX = MATRIX+ZTEMP*DCONJG(JAMP(I))/ML5_0_DENOM
       ENDDO
       END
 
@@ -413,22 +431,173 @@ CF2PY INTENT(IN) :: JAMP_2
       INTEGER I,J
       INTEGER NCOLOR
       PARAMETER (NCOLOR=2)
-      REAL*8 ML5_0_CF(NCOLOR,NCOLOR)
-      COMMON /COLOR_MATRIX/ ML5_0_CF
+      INTEGER CF_INDEX
+      INTEGER ML5_0_CF(NCOLOR*(NCOLOR+1)/2)
+      INTEGER ML5_0_DENOM
+      COMMON /ML5_0_COLOR_MATRIX/ ML5_0_CF,ML5_0_DENOM
       COMPLEX*16 JAMP_1(NCOLOR),JAMP_2(NCOLOR),ZTEMP,INTER
 
 C     COLOR DATA
 C     
 
       INTER = (0.D0,0.D0)
+      CF_INDEX = 0
       DO I = 1, NCOLOR
         ZTEMP = DCONJG(JAMP_2(I))
-        DO J=1, NCOLOR
-          INTER = INTER + ML5_0_CF(J,I) * JAMP_1(J) * ZTEMP
+        DO J=I, NCOLOR
+          INTER = INTER + ML5_0_CF(CF_INDEX) * JAMP_1(J) * ZTEMP
+        ENDDO
+      ENDDO
+      INTER = INTER/ ML5_0_DENOM
+
+      END
+
+
+
+      SUBROUTINE  ML5_0_GET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL,
+     $  N_COMB, ALPHAS, INTER)
+C     P momenta
+C     NHEL base of helicity that are not changing
+C     POS(N_CHNGING): position of the changing helicity
+C     n_changing: number of changing helicity
+C     ALLOW_HEL(NCOMB, N_CHANGING): combination of helicity to
+C      consider (all jamp computed)
+C     INTER((NCOMB*NCOMB+1)/2: all interference term (not the
+C      symmetric one)
+      IMPLICIT NONE
+CF2PY INTENT(IN) :: P(0:3,4)
+CF2PY INTENT(IN) :: POS(N_CHANGING)
+CF2PY INTENT(IN) :: N_CHANGING
+CF2PY INTENT(IN) :: ALLOW_HEL(N_CHANGING*N_COMB)
+CF2PY INTENT(IN) :: N_COMB
+CF2PY INTENT(IN) :: ALPHAS
+CF2PY INTENT(OUT) :: INTER(N_COMB*(N_COMB+1)/2)
+C     
+C     
+C     ARGUMENTS
+C     
+      INTEGER    NEXTERNAL
+      PARAMETER (NEXTERNAL=4)
+      REAL*8 P(0:3,NEXTERNAL)
+      INTEGER THISNHEL(NEXTERNAL)
+      INTEGER N_CHANGING, N_COMB
+      INTEGER POS(*)
+      INTEGER ALLOW_HEL(*)
+      DOUBLE PRECISION ALPHAS
+      DOUBLE COMPLEX INTER(99)
+      DOUBLE COMPLEX TMP_INTER(99)
+      INTEGER NB_NHEL
+      PARAMETER (NB_NHEL=16)
+C     LOCAL
+      INTEGER I,IHEL,IPART
+      DOUBLE PRECISION PI
+C     
+      INTEGER NHEL(NEXTERNAL,NB_NHEL),NTRY
+C     put in common block to expose this variable to python interface
+      COMMON/ML5_0_PROCESS_NHEL/NHEL
+C     
+C     include coupling definition to update the value of alphas
+C     
+      INCLUDE 'coupl.inc'
+
+      DO I=1, N_COMB*(N_COMB+1)/2
+        INTER(I) = 0
+      ENDDO
+
+      IF (ALPHAS.NE.0D0) THEN
+        PI = 3.141592653589793D0
+        G = 2* DSQRT(ALPHAS*PI)
+        CALL UPDATE_AS_PARAM()
+      ENDIF
+
+      DO IHEL =1, NB_NHEL
+        THISNHEL(:) = NHEL(:, IHEL)
+        DO IPART=1,N_CHANGING
+          IF(THISNHEL(POS(IPART)).NE.ALLOW_HEL(IPART)) GOTO 10  !BYPASS COMPUTATION FOR HELICITY
+        ENDDO
+        TMP_INTER(:) = 0
+        CALL  ML5_0_GET_ALL_INTER(P, THISNHEL, POS, N_CHANGING,
+     $    ALLOW_HEL, N_COMB, TMP_INTER)
+        DO I = 1, N_COMB*(N_COMB+1)/2
+          INTER(I) = INTER(I) + TMP_INTER(I)
+        ENDDO
+ 10   ENDDO
+      RETURN
+      END
+
+
+      SUBROUTINE  ML5_0_GET_ALL_INTER(P, NHEL, POS, N_CHANGING,
+     $  ALLOW_HEL, N_COMB, INTER)
+C     P momenta
+C     NHEL base of helicity that are not changing
+C     POS(N_CHNGING): position of the changing helicity
+C     n_changing: number of changing helicity
+C     ALLOW_HEL(NCOMB, N_CHANGING): combination of helicity to
+C      consider (all jamp computed)
+C     INTER((NCOMB*NCOMB+1)/2: all interference term (not the
+C      symmetric one)
+      IMPLICIT NONE
+CF2PY INTENT(IN) :: P(0:3,4)
+CF2PY INTENT(IN) :: NHEL(4)
+CF2PY INTENT(IN) :: POS(N_CHANGING)
+CF2PY INTENT(IN) :: N_CHANGING
+CF2PY INTENT(IN) :: ALLOW_HEL(N_CHANGING*N_COMB)
+CF2PY INTENT(IN) :: N_COMB
+CF2PY INTENT(OUT) :: INTER(NCOMB*(NCOMB+1)/2)
+C     
+C     
+C     ARGUMENTS
+C     
+      INTEGER    NEXTERNAL
+      PARAMETER (NEXTERNAL=4)
+      REAL*8 P(0:3,NEXTERNAL)
+      INTEGER NHEL(NEXTERNAL)
+      INTEGER N_CHANGING, N_COMB
+      INTEGER POS(*)
+      INTEGER ALLOW_HEL(*)
+      DOUBLE COMPLEX INTER(99)
+C     
+C     Intermediate array
+C     
+      INTEGER    NGRAPHS
+      PARAMETER (NGRAPHS=1)
+      INTEGER    NCOLOR
+      PARAMETER (NCOLOR=2)
+      INTEGER IC(NEXTERNAL)
+
+      DOUBLE COMPLEX AMP(NGRAPHS)
+      DOUBLE COMPLEX JAMP(NCOLOR, 3*NEXTERNAL)
+C     
+C     LOCAL
+C     
+      INTEGER I,J,SOL,N
+
+C     ----------
+C     BEGIN CODE
+C     ----------
+      IC(:)=1
+      DO I = 1, N_COMB
+        DO N = 1, N_CHANGING
+          NHEL(POS(N)) = ALLOW_HEL((I-1)*N_CHANGING+N)
+        ENDDO
+        CALL ML5_0_GET_AMP(P,NHEL,IC,AMP)
+        CALL ML5_0_GET_JAMP(AMP,JAMP(1,I))
+      ENDDO
+
+      SOL = 0
+      DO I = 1, N_COMB
+        DO J= I, N_COMB
+          SOL = SOL +1
+          CALL ML5_0_GET_INTER(JAMP(1,I), JAMP(1,J), INTER(SOL))
         ENDDO
       ENDDO
 
+
+      RETURN
       END
+
+
+
 
 
       SUBROUTINE ML5_0_GET_VALUE(P, ALPHAS, NHEL ,ANS)

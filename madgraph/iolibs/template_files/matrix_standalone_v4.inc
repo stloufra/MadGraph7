@@ -199,8 +199,10 @@ C LOCAL VARIABLES
 C  
       INTEGER I,J
       COMPLEX*16 ZTEMP
-      REAL*8 %(proc_prefix)sCF(NCOLOR,NCOLOR)
-      common /%(proc_prefix)scolor_matrix/ %(proc_prefix)sCF
+      INTEGER CF_INDEX
+      INTEGER %(proc_prefix)sCF(NCOLOR*(NCOLOR+1)/2)
+      INTEGER %(proc_prefix)sDENOM
+      common /%(proc_prefix)scolor_matrix/ %(proc_prefix)sCF,%(proc_prefix)sDENOM
       COMPLEX*16 AMP(NGRAPHS), JAMP(NCOLOR), TMP_JAMP(%(nb_temp_jamp)i)
       COMPLEX*16 W(20,NWAVEFUNCS)
       COMPLEX*16 DUM0,DUM1
@@ -335,8 +337,12 @@ C LOCAL VARIABLES
 C  
       INTEGER I,J
       COMPLEX*16 ZTEMP
-      REAL*8 %(proc_prefix)sCF(NCOLOR,NCOLOR)
-      COMMON /%(proc_prefix)scolor_matrix/ %(proc_prefix)sCF
+      
+      INTEGER CF_INDEX
+      INTEGER %(proc_prefix)sCF(NCOLOR*(NCOLOR+1)/2)
+      INTEGER %(proc_prefix)sDENOM
+      common /%(proc_prefix)scolor_matrix/ %(proc_prefix)sCF,%(proc_prefix)sDENOM 
+      INTEGER %(proc_prefix)sDENOM
       COMPLEX*16 JAMP(NCOLOR), TMP_JAMP(%(nb_temp_jamp)i)
       COMPLEX*16 DUM0,DUM1
       DATA DUM0, DUM1/(0d0, 0d0), (1d0, 0d0)/
@@ -345,13 +351,15 @@ C
 C COLOR DATA
 C  
 
-      MATRIX = 0.D0 
+      MATRIX = 0.D0
+      CF_INDEX = 0 
       DO I = 1, NCOLOR
         ZTEMP = (0.D0,0.D0)
-        DO J = 1, NCOLOR
-          ZTEMP = ZTEMP + %(proc_prefix)sCF(J,I)*JAMP(J)
+        DO J = I, NCOLOR
+          CF_INDEX = CF_INDEX + 1 
+          ZTEMP = ZTEMP + %(proc_prefix)sCF(CF_INDEX)*JAMP(J)
         ENDDO
-        MATRIX = MATRIX+ZTEMP*DCONJG(JAMP(I))
+        MATRIX = MATRIX+ZTEMP*DCONJG(JAMP(I))/%(proc_prefix)sDENOM
       ENDDO
       END
 
@@ -366,20 +374,24 @@ CF2PY INTENT(IN) :: JAMP_2
       INTEGER I,J
       INTEGER NCOLOR 
       PARAMETER (NCOLOR=%(ncolor)d)
-      REAL*8 %(proc_prefix)sCF(NCOLOR,NCOLOR)
-      COMMON /%(proc_prefix)scolor_matrix/ %(proc_prefix)sCF 
+      INTEGER CF_INDEX
+      INTEGER %(proc_prefix)sCF(NCOLOR*(NCOLOR+1)/2)
+      INTEGER %(proc_prefix)sDENOM
+      common /%(proc_prefix)scolor_matrix/ %(proc_prefix)sCF,%(proc_prefix)sDENOM
       COMPLEX*16 JAMP_1(NCOLOR),JAMP_2(NCOLOR),ZTEMP,INTER
 
 C COLOR DATA
 C  
       
-      INTER = (0.D0,0.D0)  
+      INTER = (0.D0,0.D0)
+      CF_INDEX = 0  
       DO I = 1, NCOLOR 
         ZTEMP = DCONJG(JAMP_2(I))
-    DO J=1, NCOLOR
-          INTER = INTER + %(proc_prefix)sCF(J,I) * JAMP_1(J) * ZTEMP 
+         DO J=I, NCOLOR
+          INTER = INTER + %(proc_prefix)sCF(CF_INDEX) * JAMP_1(J) * ZTEMP 
         ENDDO 
       ENDDO
+      INTER = INTER/ %(proc_prefix)sDENOM
 
       END       
 
