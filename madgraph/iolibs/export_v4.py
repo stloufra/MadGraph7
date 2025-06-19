@@ -3058,6 +3058,7 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         # Extract ncolor
         ncolor = max(1, len(matrix_element.get('color_basis')))
         replace_dict['ncolor'] = ncolor
+        replace_dict['ncolortriang'] = ncolor * (ncolor + 1) // 2
 
         replace_dict['hel_avg_factor'] = matrix_element.get_hel_avg_factor()
         replace_dict['beamone_helavgfactor'], replace_dict['beamtwo_helavgfactor'] =\

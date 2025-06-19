@@ -200,7 +200,7 @@ C
       INTEGER I,J
       COMPLEX*16 ZTEMP
       INTEGER CF_INDEX
-      INTEGER %(proc_prefix)sCF(NCOLOR*(NCOLOR+1)/2)
+      INTEGER %(proc_prefix)sCF(%(ncolortriang)d)
       INTEGER %(proc_prefix)sDENOM
       common /%(proc_prefix)scolor_matrix/ %(proc_prefix)sCF,%(proc_prefix)sDENOM
       COMPLEX*16 AMP(NGRAPHS), JAMP(NCOLOR), TMP_JAMP(%(nb_temp_jamp)i)
