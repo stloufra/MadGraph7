@@ -387,6 +387,7 @@ C
       DO I = 1, NCOLOR 
         ZTEMP = DCONJG(JAMP_2(I))
          DO J=I, NCOLOR
+          CF_INDEX = CF_INDEX +1
           INTER = INTER + %(proc_prefix)sCF(CF_INDEX) * JAMP_1(J) * ZTEMP 
         ENDDO 
       ENDDO
