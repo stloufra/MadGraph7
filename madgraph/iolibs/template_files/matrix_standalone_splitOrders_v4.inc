@@ -1,3 +1,37 @@
+      
+      SUBROUTINE %(proc_prefix)sSMATRIXHEL(P,HEL,ANS_SUMMED)
+      IMPLICIT NONE
+C
+C CONSTANT
+C
+      INTEGER    NEXTERNAL
+      PARAMETER (NEXTERNAL=%(nexternal)d)
+      INTEGER                 NCOMB         
+      PARAMETER (             NCOMB=%(ncomb)d)
+      INTEGER NSQAMPSO
+      PARAMETER (NSQAMPSO=%(nSqAmpSplitOrders)d)
+C  
+C ARGUMENTS 
+C  
+      REAL*8 P(0:3,NEXTERNAL),ANS_SUMMED
+      INTEGER HEL
+CF2PY INTENT(OUT) :: ANS_SUMMED
+CF2PY INTENT(IN) ::HEL
+CF2PY INTENT(IN) :: P(0:3,NEXTERNAL)
+C
+C GLOBAL VARIABLES
+C
+      INTEGER USERHEL
+      COMMON/%(proc_prefix)sHELUSERCHOICE/USERHEL
+C ----------
+C BEGIN CODE
+C ----------
+      USERHEL=HEL
+      CALL %(proc_prefix)sSMATRIX(P,ANS_SUMMED)
+      USERHEL=-1
+
+      END
+
       SUBROUTINE %(proc_prefix)sSMATRIX(P,ANS_SUMMED)
 C
 C     Simple routine wrapper to provide the same interface for
@@ -14,178 +48,19 @@ C
 C ARGUMENTS 
 C 
       REAL*8 P(0:3,NEXTERNAL), ANS_SUMMED
+CF2PY INTENT(OUT) :: ANS_SUMMED
+CF2PY INTENT(IN) :: P(0:3,NEXTERNAL)
 C
 C VARIABLES
 C
       INTEGER I
-	  REAL*8 ANS(0:NSQAMPSO)
+      REAL*8 ANS(0:NSQAMPSO)
 C
 C BEGIN CODE
 C
-	  CALL %(proc_prefix)sSMATRIX_SPLITORDERS(P,ANS)
-	  ANS_SUMMED=ANS(0)
+      CALL %(proc_prefix)sSMATRIX_SPLITORDERS(P,ANS)
+      ANS_SUMMED=ANS(0)
 
-	  END
-
-      SUBROUTINE %(proc_prefix)sSMATRIXHEL(P,HEL,ANS)
-      IMPLICIT NONE
-C
-C CONSTANT
-C
-      INTEGER    NEXTERNAL
-      PARAMETER (NEXTERNAL=%(nexternal)d)
-      INTEGER                 NCOMB         
-      PARAMETER (             NCOMB=%(ncomb)d)
-C  
-C ARGUMENTS 
-C  
-      REAL*8 P(0:3,NEXTERNAL),ANS
-	  INTEGER HEL
-C
-C GLOBAL VARIABLES
-C
-      INTEGER USERHEL
-	  COMMON/%(proc_prefix)sHELUSERCHOICE/USERHEL
-C ----------
-C BEGIN CODE
-C ----------
-      USERHEL=HEL
-	  CALL %(proc_prefix)sSMATRIX(P,ANS)
-	  USERHEL=-1
-
-	  END
-
-      SUBROUTINE %(proc_prefix)sSMATRIX_SPLITORDERS(P,ANS)
-C  
-%(info_lines)s
-C 
-C MadGraph StandAlone Version
-C 
-C Returns amplitude squared summed/avg over colors
-c and helicities
-c for the point in phase space P(0:3,NEXTERNAL)
-C  
-%(process_lines)s
-C  
-      IMPLICIT NONE
-C  
-C CONSTANTS
-C  
-      INTEGER    NEXTERNAL
-      PARAMETER (NEXTERNAL=%(nexternal)d)
-	  INTEGER    NINITIAL 
-      PARAMETER (NINITIAL=%(nincoming)d)
-      INTEGER NPOLENTRIES
-      PARAMETER (NPOLENTRIES=(NEXTERNAL+1)*6)
-      INTEGER                 NCOMB         
-      PARAMETER (             NCOMB=%(ncomb)d)
-      INTEGER NSQAMPSO
-      PARAMETER (NSQAMPSO=%(nSqAmpSplitOrders)d)
-	  INTEGER HELAVGFACTOR
-	  PARAMETER (HELAVGFACTOR=%(hel_avg_factor)d)
-	  LOGICAL CHOSEN_SO_CONFIGS(NSQAMPSO)
-	  DATA CHOSEN_SO_CONFIGS/%(chosen_so_configs)s/
-	  COMMON/%(proc_prefix)sCHOSEN_BORN_SQSO/CHOSEN_SO_CONFIGS
-C  
-C ARGUMENTS 
-C  
-      REAL*8 P(0:3,NEXTERNAL),ANS(0:NSQAMPSO)
-C  
-C LOCAL VARIABLES 
-C
-      INTEGER NTRY
-      REAL*8 T(NSQAMPSO), BUFF
-      INTEGER IHEL,IDEN, I, J
-C     For a 1>N process, them BEAMTWO_HELAVGFACTOR would be set to 1.
-      INTEGER BEAMS_HELAVGFACTOR(2)
-	  DATA (BEAMS_HELAVGFACTOR(I),I=1,2)/%(beamone_helavgfactor)d,%(beamtwo_helavgfactor)d/
-      INTEGER JC(NEXTERNAL)
-      LOGICAL GOODHEL(NCOMB)
-      DATA NTRY/0/
-      DATA GOODHEL/NCOMB*.FALSE./
-%(den_factor_line)s
-C
-C GLOBAL VARIABLES
-C
-      INTEGER NHEL(NEXTERNAL,NCOMB)
-%(helicity_lines)s
-      COMMON/%(proc_prefix)sPROCESS_NHEL/NHEL
-      
-      INTEGER USERHEL
-	  DATA USERHEL/-1/	  	  
-	  COMMON/%(proc_prefix)sHELUSERCHOICE/USERHEL
-      
-	  INTEGER POLARIZATIONS(0:NEXTERNAL,0:5)
-      COMMON/%(proc_prefix)sBORN_BEAM_POL/POLARIZATIONS
-      DATA ((POLARIZATIONS(I,J),I=0,NEXTERNAL),J=0,5)/NPOLENTRIES*-1/
-
-C
-C     FUNCTIONS
-C
-      LOGICAL %(proc_prefix)sIS_BORN_HEL_SELECTED
-
-C ----------
-C BEGIN CODE
-C ----------
-      NTRY=NTRY+1
-      DO IHEL=1,NEXTERNAL
-         JC(IHEL) = +1
-      ENDDO
-	  DO I=1,NSQAMPSO
-      	ANS(I) = 0D0	  
-	  ENDDO
-C     When spin-2 particles are involved, the Helicity filtering is dangerous for the 2->1 topology.
-C     This is because depending on the MC setup the initial PS points have back-to-back initial states
-C     for which some of the spin-2 helicity configurations are zero. But they are no longer zero
-C     if the point is boosted on the z-axis. Remember that HELAS helicity amplitudes are no longer
-C     lorentz invariant with expternal spin-2 particles (only the helicity sum is).
-C     For this reason, we simply remove the filterin when there is only three external particles.
-      IF (NEXTERNAL.LE.3) THEN
-        DO IHEL=1,NCOMB
-		  GOODHEL(IHEL)=.TRUE.
-		ENDDO
-	  ENDIF
-      DO IHEL=1,NCOMB
-	     IF (USERHEL.EQ.-1.OR.USERHEL.EQ.IHEL) THEN
-           IF (GOODHEL(IHEL) .OR. NTRY .LT. 2 .OR.USERHEL.NE.-1) THEN
-              IF(NTRY.GE.2.AND.POLARIZATIONS(0,0).ne.-1.and.(.not.%(proc_prefix)sIS_BORN_HEL_SELECTED(IHEL))) THEN
-                CYCLE
-              ENDIF
-              CALL %(proc_prefix)sMATRIX(P ,NHEL(1,IHEL),JC(1), T)
-	 	      BUFF=0D0
-			  DO I=1,NSQAMPSO
-                IF(POLARIZATIONS(0,0).eq.-1.or.%(proc_prefix)sIS_BORN_HEL_SELECTED(IHEL)) THEN
-                  ANS(I)=ANS(I)+T(I)
-				ENDIF
-			    BUFF=BUFF+T(I)
-		      ENDDO
-              IF (BUFF .NE. 0D0 .AND. .NOT.    GOODHEL(IHEL)) THEN
-                GOODHEL(IHEL)=.TRUE.
-              ENDIF
-            ENDIF
-		  ENDIF
-       ENDDO
-	  ANS(0)=0.0d0
-	  DO I=1,NSQAMPSO
-        ANS(I)=ANS(I)/DBLE(IDEN)
-		IF (CHOSEN_SO_CONFIGS(I)) THEN
-		  ANS(0)=ANS(0)+ANS(I)
-		ENDIF
-	  ENDDO
-	  IF(USERHEL.NE.-1) THEN
-		DO I=0,NSQAMPSO
-          ANS(I)=ANS(I)*HELAVGFACTOR
-		ENDDO
-	  ELSE
-		DO J=1,NINITIAL
-		  IF (POLARIZATIONS(J,0).ne.-1) THEN
-		    DO I=0,NSQAMPSO
-              ANS(I)=ANS(I)*BEAMS_HELAVGFACTOR(J)
-              ANS(I)=ANS(I)/POLARIZATIONS(J,0)
-		    ENDDO
-		  ENDIF
-		ENDDO
-	  ENDIF
       END
 
       SUBROUTINE %(proc_prefix)sSMATRIXHEL_SPLITORDERS(P,HEL,ANS)
@@ -203,26 +78,178 @@ C
 C ARGUMENTS 
 C  
       REAL*8 P(0:3,NEXTERNAL),ANS(0:NSQAMPSO)
-	  INTEGER HEL
+      INTEGER HEL
+CF2PY INTENT(OUT) :: ANS
+CF2PY INTENT(IN) ::HEL
+CF2PY INTENT(IN) :: P(0:3,NEXTERNAL)
 C
 C GLOBAL VARIABLES
 C
       INTEGER USERHEL
-	  COMMON/%(proc_prefix)sHELUSERCHOICE/USERHEL
+      COMMON/%(proc_prefix)sHELUSERCHOICE/USERHEL
 C ----------
 C BEGIN CODE
 C ----------
       USERHEL=HEL
-	  CALL %(proc_prefix)sSMATRIX_SPLITORDERS(P,ANS)
-	  USERHEL=-1
+      CALL %(proc_prefix)sSMATRIX_SPLITORDERS(P,ANS)
+      USERHEL=-1
 
-	  END
+      END
+
+      SUBROUTINE %(proc_prefix)sSMATRIX_SPLITORDERS(P,ANS)
+C  
+%(info_lines)s
+C 
+C MadGraph5_aMC@NLO StandAlone Version
+C 
+C Returns amplitude squared summed/avg over colors
+c and helicities
+c for the point in phase space P(0:3,NEXTERNAL)
+C  
+%(process_lines)s
+C  
+      IMPLICIT NONE
+C  
+C CONSTANTS
+C  
+      INTEGER    NEXTERNAL
+      PARAMETER (NEXTERNAL=%(nexternal)d)
+      INTEGER    NINITIAL 
+      PARAMETER (NINITIAL=%(nincoming)d)
+      INTEGER NPOLENTRIES
+      PARAMETER (NPOLENTRIES=(NEXTERNAL+1)*6)
+      INTEGER                 NCOMB         
+      PARAMETER (             NCOMB=%(ncomb)d)
+      INTEGER NSQAMPSO
+      PARAMETER (NSQAMPSO=%(nSqAmpSplitOrders)d)
+      INTEGER HELAVGFACTOR
+      PARAMETER (HELAVGFACTOR=%(hel_avg_factor)d)
+      LOGICAL CHOSEN_SO_CONFIGS(NSQAMPSO)
+      DATA CHOSEN_SO_CONFIGS/%(chosen_so_configs)s/
+      COMMON/%(proc_prefix)sCHOSEN_BORN_SQSO/CHOSEN_SO_CONFIGS
+C  
+C ARGUMENTS 
+C  
+      REAL*8 P(0:3,NEXTERNAL),ANS(0:NSQAMPSO)
+CF2PY INTENT(OUT) :: ANS
+CF2PY INTENT(IN) :: P(0:3,NEXTERNAL)
+C  
+C LOCAL VARIABLES 
+C
+      INTEGER NTRY
+      REAL*8 T(NSQAMPSO), BUFF
+      INTEGER IHEL,IDEN, I, J
+C     For a 1>N process, them BEAMTWO_HELAVGFACTOR would be set to 1.
+      INTEGER BEAMS_HELAVGFACTOR(2)
+      DATA (BEAMS_HELAVGFACTOR(I),I=1,2)/%(beamone_helavgfactor)d,%(beamtwo_helavgfactor)d/
+      INTEGER JC(NEXTERNAL)
+      LOGICAL GOODHEL(NCOMB)
+      DATA NTRY/0/
+      DATA GOODHEL/NCOMB*.FALSE./
+%(den_factor_line)s
+C
+C GLOBAL VARIABLES
+C
+      INTEGER NHEL(NEXTERNAL,NCOMB)
+%(helicity_lines)s
+%(den_factor_line)s
+      COMMON/%(proc_prefix)sPROCESS_NHEL/NHEL
+      
+      INTEGER USERHEL
+      DATA USERHEL/-1/        
+      COMMON/%(proc_prefix)sHELUSERCHOICE/USERHEL
+      LOGICAL HELRESET
+      common/%(proc_prefix)shelreset/HELRESET
+      data HELRESET/.true./
+
+
+      INTEGER POLARIZATIONS(0:NEXTERNAL,0:5)
+      COMMON/%(proc_prefix)sBORN_BEAM_POL/POLARIZATIONS
+      DATA ((POLARIZATIONS(I,J),I=0,NEXTERNAL),J=0,5)/NPOLENTRIES*-1/
+
+C
+C     FUNCTIONS
+C
+      LOGICAL %(proc_prefix)sIS_BORN_HEL_SELECTED
+
+c----------
+c   Check if helreset mode is on
+c---------
+ if (HELRESET) then
+    NTRY = 0
+    do i=1,NCOMB
+       GOODHEL(I) = .false.
+    enddo
+    HELRESET = .false.
+ endif
+
+
+C ----------
+C BEGIN CODE
+C ----------
+      IF(USERHEL.EQ.-1) NTRY=NTRY+1
+      DO IHEL=1,NEXTERNAL
+         JC(IHEL) = +1
+      ENDDO
+      ANS(:) = 0d0
+C     When spin-2 particles are involved, the Helicity filtering is dangerous for the 2->1 topology.
+C     This is because depending on the MC setup the initial PS points have back-to-back initial states
+C     for which some of the spin-2 helicity configurations are zero. But they are no longer zero
+C     if the point is boosted on the z-axis. Remember that HELAS helicity amplitudes are no longer
+C     lorentz invariant with expternal spin-2 particles (only the helicity sum is).
+C     For this reason, we simply remove the filterin when there is only three external particles.
+      IF (NEXTERNAL.LE.3) THEN
+        GOODHEL(:) = .True.
+      ENDIF
+      DO IHEL=1,NCOMB
+         IF (USERHEL.EQ.-1.OR.USERHEL.EQ.IHEL) THEN
+           IF (GOODHEL(IHEL) .OR. NTRY .LT. 20 .OR.USERHEL.NE.-1) THEN
+              IF(NTRY.GE.2.AND.POLARIZATIONS(0,0).ne.-1.and.(.not.%(proc_prefix)sIS_BORN_HEL_SELECTED(IHEL))) THEN
+                CYCLE
+              ENDIF
+              CALL %(proc_prefix)sMATRIX(P ,NHEL(1,IHEL),JC(1), T)
+              BUFF=0D0
+              DO I=1,NSQAMPSO
+                IF(POLARIZATIONS(0,0).eq.-1.or.%(proc_prefix)sIS_BORN_HEL_SELECTED(IHEL)) THEN
+                  ANS(I)=ANS(I)+T(I)
+                ENDIF
+                BUFF=BUFF+T(I)
+              ENDDO
+              IF (BUFF .NE. 0D0 .AND. .NOT.    GOODHEL(IHEL)) THEN
+                GOODHEL(IHEL)=.TRUE.
+              ENDIF
+            ENDIF
+          ENDIF
+       ENDDO
+      ANS(0)=0.0d0
+      DO I=1,NSQAMPSO
+        ANS(I)=ANS(I)/DBLE(IDEN)
+        IF (CHOSEN_SO_CONFIGS(I)) THEN
+          ANS(0)=ANS(0)+ANS(I)
+        ENDIF
+      ENDDO
+      IF(USERHEL.NE.-1) THEN
+        DO I=0,NSQAMPSO
+          ANS(I)=ANS(I)*HELAVGFACTOR
+        ENDDO
+      ELSE
+        DO J=1,NINITIAL
+          IF (POLARIZATIONS(J,0).ne.-1) THEN
+            DO I=0,NSQAMPSO
+              ANS(I)=ANS(I)*BEAMS_HELAVGFACTOR(J)
+              ANS(I)=ANS(I)/POLARIZATIONS(J,0)
+            ENDDO
+          ENDIF
+        ENDDO
+      ENDIF
+      END
+
  
       SUBROUTINE %(proc_prefix)sMATRIX(P,NHEL,IC,RES)
 C  
 %(info_lines)s
 C
-C Returns amplitude squared summed/avg over colors
+C Returns amplitude squared -- no average over initial state/symmetry factor
 c for the point with external lines W(0:6,NEXTERNAL)
 C  
 %(process_lines)s
@@ -243,23 +270,24 @@ C
       PARAMETER (ZERO=0D0)
       COMPLEX*16 IMAG1
       PARAMETER (IMAG1=(0D0,1D0))
+      INTEGER DENOM
+      INTEGER CF(%(ncolortriang)d)
+      COMMON /%(proc_prefix)sCOLOR_MATRIX/ CF,DENOM
 C  
 C ARGUMENTS 
 C  
       REAL*8 P(0:3,NEXTERNAL)
       INTEGER NHEL(NEXTERNAL), IC(NEXTERNAL)
-	  REAL*8 RES(NSQAMPSO)
+      REAL*8 RES(NSQAMPSO)
 C  
 C LOCAL VARIABLES 
 C  
       INTEGER I,J,M,N
       COMPLEX*16 ZTEMP
-      INTEGER DENOM
-      INTEGER CF(NCOLOR*(NCOLOR+1)/2)
       COMPLEX*16 AMP(NGRAPHS)
       INTEGER CF_INDEX
-	  COMPLEX*16 JAMP(NCOLOR,NAMPSO)
-	  COMPLEX*16 TMP_JAMP(%(nb_temp_jamp)i)
+      COMPLEX*16 JAMP(NCOLOR,NAMPSO)
+      COMPLEX*16 TMP_JAMP(%(nb_temp_jamp)i)
       COMPLEX*16 W(20,NWAVEFUNCS)
       COMPLEX*16 DUM0,DUM1
       DATA DUM0, DUM1/(0d0, 0d0), (1d0, 0d0)/
@@ -271,6 +299,7 @@ C
 C GLOBAL VARIABLES
 C  
       include 'coupl.inc'
+%(global_variable)s
 C  
 C COLOR DATA
 C  
@@ -278,27 +307,350 @@ C
 C ----------
 C BEGIN CODE
 C ----------
-%(helas_calls)s
-%(jamp_lines)s
+       call %(proc_prefix)sGET_AMP(P,NHEL,IC,AMP)
+c      WRITE (*,*) '  -> AMP = ', AMP
+       call %(proc_prefix)sGET_JAMP(AMP,JAMP)
+c      WRITE (*,*) '  -> JAMP = ', JAMP
+       call %(proc_prefix)sGET_MATRIX(JAMP, RES)
+c      write (*,*) "  -> col.ave. |M|^2 for HEL=[", NHEL ,"] = ", %(proc_prefix)sMATRIX
 
-      RES = 0.D0 
-	  DO M = 1, NAMPSO
+ %(amp2_lines)s
+
+       END
+
+
+       SUBROUTINE %(proc_prefix)sGET_NHEL(IDEN_STAR,NHEL_STAR)
+C CONSTANTS
+C
+CF2PY INTENT(OUT) :: NHEL_STAR
+CF2PY INTENT(OUT) :: IDEN_STAR
+       INTEGER    NEXTERNAL
+       PARAMETER (NEXTERNAL=%(nexternal)d)
+       INTEGER                 NCOMB
+       PARAMETER (             NCOMB=%(ncomb)d)
+
+       INTEGER NHEL(NEXTERNAL,NCOMB),NHEL_STAR(NEXTERNAL,NCOMB)
+       INTEGER IDEN,IDEN_STAR
+
+ %(helicity_lines)s
+ %(den_factor_line)s
+       IDEN_STAR = IDEN
+       NHEL_STAR = NHEL
+       END
+
+
+SUBROUTINE %(proc_prefix)sGET_AMP(P,NHEL,IC,AMP)
+C
+%(process_lines)s
+C
+CF2PY INTENT(OUT) :: AMP
+CF2PY INTENT(IN) :: NHEL
+CF2PY INTENT(IN) :: P(0:3,NEXTERNAL)
+CF2PY INTENT(IN) :: IC
+
+      IMPLICIT NONE
+C
+C CONSTANTS
+C
+      INTEGER    NGRAPHS
+      PARAMETER (NGRAPHS=%(ngraphs)d)
+      INTEGER    NEXTERNAL
+      PARAMETER (NEXTERNAL=%(nexternal)d)
+      INTEGER    NWAVEFUNCS, NCOLOR
+      PARAMETER (NWAVEFUNCS=%(nwavefuncs)d, NCOLOR=%(ncolor)d)
+      REAL*8     ZERO
+      PARAMETER (ZERO=0D0)
+C
+C ARGUMENTS
+C
+      REAL*8 P(0:3,NEXTERNAL)
+      INTEGER NHEL(NEXTERNAL), IC(NEXTERNAL)
+C
+C LOCAL VARIABLES
+C
+      COMPLEX*16 AMP(NGRAPHS)
+      COMPLEX*16 W(20,NWAVEFUNCS)
+      COMPLEX*16 DUM0,DUM1
+      DATA DUM0, DUM1/(0d0, 0d0), (1d0, 0d0)/
+C
+C GLOBAL VARIABLES
+C
+      include 'coupl.inc'
+%(global_variable)s
+C
+C
+%(helas_calls)s
+%(amp2_lines)s
+END
+
+
+    SUBROUTINE %(proc_prefix)sGET_JAMP(AMP,JAMP)
+C
+%(process_lines)s
+C
+CF2PY INTENT(OUT) :: JAMP
+CF2PY INTENT(IN) :: AMP
+
+      IMPLICIT NONE
+C
+C CONSTANTS
+C
+      INTEGER    NGRAPHS
+      PARAMETER (NGRAPHS=%(ngraphs)d)
+      INTEGER    NCOLOR
+      PARAMETER ( NCOLOR=%(ncolor)d)
+      INTEGER NAMPSO, NSQAMPSO
+      PARAMETER (NAMPSO=%(nAmpSplitOrders)d, NSQAMPSO=%(nSqAmpSplitOrders)d)
+      COMPLEX*16 IMAG1
+      PARAMETER (IMAG1=(0D0,1D0))
+      COMPLEX*16 AMP(NGRAPHS), TMP_JAMP(%(nb_temp_jamp)i)
+      COMPLEX*16 JAMP(NCOLOR,NAMPSO)
+
+      JAMP(:,:) = 0d0
+%(jamp_lines)s
+      END
+
+      SUBROUTINE %(proc_prefix)sGET_MATRIX(JAMP, RES)
+C
+%(process_lines)s
+C
+      IMPLICIT NONE
+C
+C CONSTANTS
+C
+CF2PY INTENT(OUT) :: MATRIX
+CF2PY INTENT(IN) :: JAMP(NCOLOR,NAMPSO)
+
+
+      INTEGER    NCOLOR
+      PARAMETER (NCOLOR=%(ncolor)d)
+      INTEGER NAMPSO, NSQAMPSO
+      PARAMETER (NAMPSO=%(nAmpSplitOrders)d, NSQAMPSO=%(nSqAmpSplitOrders)d)
+      REAL*8     ZERO,RES(NSQAMPSO)
+      PARAMETER (ZERO=0D0)
+      INTEGER SQSOINDEX
+C
+C LOCAL VARIABLES
+C
+      INTEGER I,J,M,N
+      COMPLEX*16 ZTEMP
+
+      INTEGER CF_INDEX
+      INTEGER %(proc_prefix)sCF(NCOLOR*(NCOLOR+1)/2)
+      INTEGER %(proc_prefix)sDENOM
+      common /%(proc_prefix)scolor_matrix/ %(proc_prefix)sCF,%(proc_prefix)sDENOM
+      COMPLEX*16 JAMP(NCOLOR,NAMPSO), TMP_JAMP(%(nb_temp_jamp)i)
+      COMPLEX*16 DUM0,DUM1
+      DATA DUM0, DUM1/(0d0, 0d0), (1d0, 0d0)/
+C
+C COLOR DATA
+C
+
+     RES(:) = 0.D0 
+     DO M = 1, NAMPSO
+       CF_INDEX= 0
+       DO I = 1, NCOLOR
+         ZTEMP = (0.D0,0.D0)
+         DO J = I, NCOLOR
+             CF_INDEX = CF_INDEX +1
+             ZTEMP = ZTEMP + CF(CF_INDEX)*JAMP(J,M)
+         ENDDO
+         DO N = 1, NAMPSO
+           RES(%(proc_prefix)sSQSOINDEX(M,N)) = RES(%(proc_prefix)sSQSOINDEX(M,N)) + REAL(ZTEMP*DCONJG(JAMP(I,N)))
+         ENDDO
+       ENDDO
+     DO N = 1, NAMPSO
+        RES(%(proc_prefix)sSQSOINDEX(M,N)) = RES(%(proc_prefix)sSQSOINDEX(M,N))/DENOM
+     ENDDO
+     ENDDO
+     END
+
+      SUBROUTINE %(proc_prefix)sGET_INTER(JAMP_1,JAMP_2, INTER)
+      IMPLICIT NONE
+CF2PY INTENT(OUT) :: INTER(NSQAMPSO)
+CF2PY INTENT(IN) :: JAMP_1(NCOLOR,NAMPSO)
+CF2PY INTENT(IN) :: JAMP_2(NCOLOR,NAMPSO)
+
+       INTEGER NAMPSO, NSQAMPSO
+       PARAMETER (NAMPSO=%(nAmpSplitOrders)d, NSQAMPSO=%(nSqAmpSplitOrders)d)
+       INTEGER SQSOINDEX
+
+       INTEGER I,J,M,N
+       INTEGER NCOLOR
+       PARAMETER (NCOLOR=%(ncolor)d)
+       INTEGER CF_INDEX
+       INTEGER %(proc_prefix)sCF(NCOLOR*(NCOLOR+1)/2)
+       INTEGER %(proc_prefix)sDENOM
+       common /%(proc_prefix)scolor_matrix/ %(proc_prefix)sCF,%(proc_prefix)sDENOM
+       COMPLEX*16 JAMP_1(NCOLOR,NAMPSO),JAMP_2(NCOLOR,NAMPSO),ZTEMP,INTER(NSQAMPSO)
+C
+C COLOR DATA
+C
+
+      INTER(:) = 0.D0 
+      DO M = 1, NAMPSO
         CF_INDEX= 0
         DO I = 1, NCOLOR
           ZTEMP = (0.D0,0.D0)
           DO J = I, NCOLOR
               CF_INDEX = CF_INDEX +1
-              ZTEMP = ZTEMP + CF(CF_INDEX)*JAMP(J,M)
+              ZTEMP = ZTEMP + CF(CF_INDEX)*JAMP_1(J,M)
           ENDDO
-		  DO N = 1, NAMPSO
-            RES(%(proc_prefix)sSQSOINDEX(M,N)) = RES(%(proc_prefix)sSQSOINDEX(M,N)) + REAL(ZTEMP*DCONJG(JAMP(I,N)))
-		  ENDDO
+          DO N = 1, NAMPSO
+            INTER(%(proc_prefix)sSQSOINDEX(M,N)) = INTER(%(proc_prefix)sSQSOINDEX(M,N)) + REAL(ZTEMP*DCONJG(JAMP_2(I,N)))
+          ENDDO
         ENDDO
-      DO N = 1, NAMPSO
-         RES(%(proc_prefix)sSQSOINDEX(M,N)) = RES(%(proc_prefix)sSQSOINDEX(M,N))/DENOM
+        DO N = 1, NAMPSO
+         INTER(%(proc_prefix)sSQSOINDEX(M,N)) = INTER(%(proc_prefix)sSQSOINDEX(M,N))/DENOM
+        ENDDO
       ENDDO
-	  ENDDO
+      RETURN
       END
+
+     SUBROUTINE  %(proc_prefix)sGET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL, N_COMB, ALPHAS, INTER)
+c     P momenta
+c     NHEL base of helicity that are not changing
+c     POS(N_CHNGING): position of the changing helicity
+c     n_changing: number of changing helicity
+c     ALLOW_HEL(NCOMB, N_CHANGING): combination of helicity to consider (all jamp computed)
+c     INTER((NCOMB*NCOMB+1)/2i,NSQAMPSO) : all interference term (not the symmetric one)
+      implicit none
+CF2PY INTENT(IN) :: P(0:3,%(nexternal)d)
+CF2PY INTENT(IN) :: POS(N_CHANGING)
+CF2PY INTENT(IN) :: N_CHANGING
+CF2PY INTENT(IN) :: ALLOW_HEL(N_CHANGING*N_COMB)
+CF2PY INTENT(IN) :: N_COMB
+CF2PY INTENT(IN) :: ALPHAS
+CF2PY INTENT(OUT) :: INTER(NSQAMPSO, N_COMB*(N_COMB+1)/2)
+c
+
+      INTEGER NB_NHEL
+      INTEGER NAMPSO, NSQAMPSO
+      PARAMETER (NB_NHEL=%(ncomb)d)
+      PARAMETER (NAMPSO=%(nAmpSplitOrders)d, NSQAMPSO=%(nSqAmpSplitOrders)d)
+C
+C ARGUMENTS
+C
+      INTEGER    NEXTERNAL
+      PARAMETER (NEXTERNAL=%(nexternal)d)
+      REAL*8 P(0:3,NEXTERNAL)
+      INTEGER THISNHEL(NEXTERNAL)
+      INTEGER N_CHANGING, N_COMB
+      INTEGER POS(*)
+      INTEGER ALLOW_HEL(*)
+      DOUBLE PRECISION ALPHAS
+      DOUBLE COMPLEX INTER(NSQAMPSO,*)
+      DOUBLE COMPLEX TMP_INTER(NSQAMPSO,99)
+c LOCAL
+      INTEGER I,IHEL,IPART
+      INTEGER J
+      DOUBLE PRECISION PI
+C
+      INTEGER NHEL(NEXTERNAL,NB_NHEL),NTRY
+C     put in common block to expose this variable to python interface
+      COMMON/%(proc_prefix)sPROCESS_NHEL/NHEL
+C
+C     include coupling definition to update the value of alphas
+C
+      include 'coupl.inc'
+      do I = 1,  N_COMB*(N_COMB+1)/2
+        INTER(:,I) = 0d0
+      enddo
+
+      IF (ALPHAS.ne.0d0) then
+          pi = 3.141592653589793d0
+          G = 2* DSQRT(ALPHAS*pi)
+          call UPDATE_AS_PARAM()
+      ENDIF
+
+      DO IHEL =1, NB_NHEL
+        THISNHEL(:) = NHEL(:, IHEL)
+        DO IPART=1,N_CHANGING
+            if(THISNHEL(POS(IPART)).NE.ALLOW_HEL(IPART)) GOTO 10 !BYPASS COMPUTATION FOR HELICITY
+        ENDDO
+        TMP_INTER(:,:) = 0
+        call  %(proc_prefix)sGET_ALL_INTER(P, THISNHEL, POS, N_CHANGING, ALLOW_HEL, N_COMB, TMP_INTER)
+        do J =1, NSQAMPSO
+          do I = 1, N_COMB*(N_COMB+1)/2
+            INTER(J,I) = INTER(J,I) + TMP_INTER(J,I)
+          enddo
+        enddo
+ 10   enddo
+      return
+      end
+
+      SUBROUTINE  %(proc_prefix)sGET_ALL_INTER(P, NHEL, POS, N_CHANGING, ALLOW_HEL, N_COMB, INTER)
+c     P momenta
+c     NHEL base of helicity that are not changing
+c     POS(N_CHNGING): position of the changing helicity
+c     n_changing: number of changing helicity
+c     ALLOW_HEL(NCOMB, N_CHANGING): combination of helicity to consider (all jamp computed)
+c     INTER(NSO, (NCOMB*NCOMB+1)/2): all interference term (not the symmetric one)
+      implicit none
+CF2PY INTENT(IN) :: P(0:3,%(nexternal)d)
+CF2PY INTENT(IN) :: NHEL(%(nexternal)d)
+CF2PY INTENT(IN) :: POS(N_CHANGING)
+CF2PY INTENT(IN) :: N_CHANGING
+CF2PY INTENT(IN) :: ALLOW_HEL(N_CHANGING*N_COMB)
+CF2PY INTENT(IN) :: N_COMB
+CF2PY INTENT(OUT) :: INTER(NSQAMPSO,NCOMB*(NCOMB+1)/2)
+c
+C
+C ARGUMENTS
+C
+      INTEGER NAMPSO, NSQAMPSO
+      PARAMETER (NAMPSO=%(nAmpSplitOrders)d, NSQAMPSO=%(nSqAmpSplitOrders)d)
+      INTEGER    NEXTERNAL
+      PARAMETER (NEXTERNAL=%(nexternal)d)
+      REAL*8 P(0:3,NEXTERNAL)
+      INTEGER NHEL(NEXTERNAL)
+      INTEGER N_CHANGING, N_COMB
+      INTEGER POS(*)
+      INTEGER ALLOW_HEL(*)
+      DOUBLE COMPLEX INTER(NSQAMPSO,99)
+c
+c     Intermediate array
+c
+      INTEGER    NGRAPHS
+      PARAMETER (NGRAPHS=%(ngraphs)d)
+      INTEGER    NCOLOR
+      PARAMETER (NCOLOR=%(ncolor)d)
+      INTEGER IC(NEXTERNAL)
+
+      DOUBLE COMPLEX AMP(NGRAPHS)
+      DOUBLE COMPLEX JAMP(NCOLOR, NAMPSO, 3*NEXTERNAL)
+c
+c     LOCAL
+c
+      INTEGER I,J,SOL,N
+
+C ----------
+C BEGIN CODE
+C ----------
+      IC(:)=1
+      do I = 1, N_COMB
+         do N = 1, N_CHANGING
+            NHEL(POS(N)) = ALLOW_HEL((I-1)*N_CHANGING+N)
+         enddo
+         call %(proc_prefix)sGET_AMP(P,NHEL,IC,AMP)
+         call %(proc_prefix)sGET_JAMP(AMP,JAMP(1,1,I))
+      enddo
+
+     SOL = 0
+     DO I = 1, N_COMB
+        DO J= I, N_COMB
+          SOL = SOL +1
+          call %(proc_prefix)sGET_INTER(JAMP(1,1,I), JAMP(1,1,J), INTER(1,SOL))
+        ENDDO
+     ENDDO
+
+
+     RETURN
+     END
+
+
+
+
 
       SUBROUTINE %(proc_prefix)sGET_value(P, ALPHAS, NHEL ,ANS)
       IMPLICIT NONE   
