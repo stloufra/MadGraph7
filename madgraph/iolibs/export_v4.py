@@ -2724,6 +2724,8 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         params = self.get_model_parameter(self.model)
         parameter_setup =[]
         for key, var in params.items():
+            if not key or not var:
+                continue
             parameter_setup.append('        CASE ("%s")\n          %s = value' 
                                    % (key, var))
 
