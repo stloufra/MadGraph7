@@ -2688,8 +2688,10 @@ class Event(list):
         if self.density == []: #if we are not in density mode
             density_to_write = ''
         else:
-            misc.sprint(self.density)
-            density_to_write = "<density>" + str(self.density) + "</density>"
+            info_density = ''
+            for i in range(len(self.density)):
+                info_density += str(self.density[i]) + ' '
+            density_to_write = "<density> " + info_density + "</density>"
         
         out = out % {'event_flag': event_flag,
                      'scale': scale_str, 

@@ -271,8 +271,11 @@ C     pref = (E, 0, 0, p_k)
 c     If the particle is immobile then we can't do the rotation
         IF (ABS(PREF(3)/PREF(0)) < EPSILON) THEN
           WRITE(*,*) "The chosen particle is immobile. We cant use it",
-     &    " as reference for the helicity basis"
-          STOP "Error when passing to helicity basis"
+     &    " as reference for the helicity basis, using phi = theta = 0"
+c          STOP "Error when passing to helicity basis"
+c   We chose to put the angles to 0 to not stop the code
+          PHI = 0D0
+          THETA = 0D0
 c If the particle has no tranverse momentum (we are already in the correct frame)
         ELSE IF (PREF(3) < 0) THEN
           PHI = 0D0
