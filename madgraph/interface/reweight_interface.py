@@ -119,7 +119,7 @@ class ReweightInterface(extended_cmd.Cmd):
         self.exitted = False # Flag to know if do_quit was already called.
         self.keep_ordering = False
         self.use_eventid = False
-        if event_path: #the banner is initialised here
+        if event_path:
             logger.info("Extracting the banner ...")
             self.do_import(event_path, allow_madspin=allow_madspin)
             
@@ -544,7 +544,9 @@ class ReweightInterface(extended_cmd.Cmd):
                                            'momenta_boost = ' + str(self.momenta_boost) + '\n' + \
                                            'allowed_helicities = ' + str(self.allowed_helicities) + '\n' + \
                                            'number_changing_helicities = ' + str(self.number_changing_helicities) + '\n' + \
-                                           'number_combinations = ' + str(self.number_combinations) + '\n'
+                                           'number_combinations = ' + str(self.number_combinations) + '\n' + \
+                                           'axis_referential = ' + str(self.axis_referential) + '\n' + \
+                                           'symmetrise_initial_state' + str(self.symmetrise_initial_state)
                 self.banner.pop('initrwgt')
             output = open( self.lhe_input.path +'rw', 'w')
             #write the banner to the output file
@@ -583,7 +585,7 @@ class ReweightInterface(extended_cmd.Cmd):
                 for elem in range(len(density_matrix_to_print)):
                     if density_matrix_to_print[elem].imag == 0:
                         density_matrix_to_print[elem] = float(density_matrix_to_print[elem].real)
-                event.density = str(density_matrix_to_print) #add the density information to the event for lhe_parser
+                event.density = density_matrix_to_print #add the density information to the event for lhe_parser
 
 
 
@@ -710,8 +712,9 @@ class ReweightInterface(extended_cmd.Cmd):
             for name in cross:
                 if name == 'orig':
                     continue
-                logger.info('new cross-section is %s: %g pb (indicative error: %g pb)' %\
-                        ('(%s)' %name if name else '',cross[name], error[name]))
+                if not self.flag_density_matrix:
+                    logger.info('new cross-section is %s: %g pb (indicative error: %g pb)' %\
+                            ('(%s)' %name if name else '',cross[name], error[name]))
             
         self.terminate_fortran_executables(new_card_only=True)
         #store result
@@ -1549,18 +1552,40 @@ class ReweightInterface(extended_cmd.Cmd):
 
                     refChoice_corrected = refChoice
 
-            if -1 not in refChoice_corrected:    
+            if -1 not in refChoice_corrected:
                 pref = [0, 0, 0, 0]
                 phi, theta = [0] * len(all_p), [0] * len(all_p)
                 for i in range(len(all_p)):
                     for j in range(len(refChoice_corrected)):
                         for k in range(len(pref)):
                             pref[k] += all_p[i][refChoice_corrected[j] - 1][k]
-                    phi[i], theta[i] = module.refchoicep(pref) 
+                    phi[i], theta[i] = module.refchoicep(pref) #angles phi and theta are defined here
 
+                    #########
+                    #This block allows to choose which initial state particle is chosen as reference to define theta.
+                    #If its pz is > 0 the default definition is correct, if it is < 0, then we need to add pi
+
+                    if self.axis_referential:
+                        for k in range(len(self.axis_referential)):
+                            if self.axis_referential[k] in orig_order[0]: #check whether the pdg is in the initial state, if it is not we do not change anything
+
+                                for j in range(len(orig_order[0])):
+                                    if self.axis_referential[k] == orig_order[0][j]:
+                                        pz_axis_referential = all_p[i][j][3] #here we take the p_z of the chosen particle
+                                if pz_axis_referential < 0:
+                                    theta[i] += math.pi
+
+                    if self.symmetrise_initial_state: #if we want to calculate R(theta) + R(theta + pi)
+                        import copy
+                        all_p_bis = copy.deepcopy(all_p)
+                        all_p_bis[i] = self.invert_momenta(all_p_bis[i]) #put in fortran format
+                        all_p_bis[i] = module.rotationp(all_p_bis[i], phi[i], theta[i] + math.pi, len(pdg))
+                        all_p_bis[i] = self.invert_momenta(all_p_bis[i]) #put back into python format
+                
+                    #########
                     all_p[i] = self.invert_momenta(all_p[i]) #put in fortran format
                     all_p[i] = module.rotationp(all_p[i], phi[i], theta[i], len(pdg))
-                    all_p[i] = self.invert_momenta(all_p[i]) #put back into pyhton format
+                    all_p[i] = self.invert_momenta(all_p[i]) #put back into python format
 
                     for j in range(len(all_p[i])):
                         all_p[i][j] = tuple(all_p[i][j]) #we put the momenta back into tuples because it was structured like that initially
@@ -1672,6 +1697,7 @@ class ReweightInterface(extended_cmd.Cmd):
         
         if self.flag_density_matrix:
             import madgraph.various.Density_functions as dens
+            import numpy as np
             
             status = []
             for particle in event:
@@ -1686,10 +1712,9 @@ class ReweightInterface(extended_cmd.Cmd):
                 
             #Block to determine which sets of pdg-codes corresponds to which prefix
             for i in range(len(PREFIX)):
-                prefix_temp = PREFIX[i].decode('UTF-8').strip().lower()
-                prefix_cor.append(prefix_temp)
-                if prefix_temp not in prefix_unique:
-                    prefix_unique.append(prefix_temp)
+                prefix_cor.append(PREFIX[i].decode('UTF-8').strip().lower())
+                if prefix_cor[i] not in prefix_unique:
+                    prefix_unique.append(prefix_cor[i])
             for i in range(len(PDGs)):
                 All_PDGs.append(dens.permutations_PGD(PDGs[i], status))
 
@@ -1804,6 +1829,9 @@ class ReweightInterface(extended_cmd.Cmd):
                 nb_ext += 1
 
 
+            if abs(pboost.px/pboost.E) < 1e-10 and abs(pboost.py/pboost.E) < 1e-10 and abs(pboost.pz/pboost.E) < 1e-10:
+                #if we try to boost with with a 4-momentum like [M, 0, 0, 0], we return the momenta without any boost
+                return all_p
             new_event.boost(pboost)
             if self.keep_ordering:
                 new_all_p = [new_event.get_momenta(orig_order)]
@@ -1814,11 +1842,12 @@ class ReweightInterface(extended_cmd.Cmd):
 
             return new_all_p
         
-        elif (hypp_id == 0 and ('frame_id' in self.banner.run_card and self.banner.run_card['frame_id'] !=6)):
+        
+        if (hypp_id == 0 and ('frame_id' in self.banner.run_card and self.banner.run_card['frame_id'] !=6)):
             import copy
             new_event = copy.deepcopy(event)
             pboost = FourMomenta()
-            to_inc = bin(self.banner.run_card['frame_id'])[2:] #This is how the boost is chosen right now, I need to change it with my own version
+            to_inc = bin(self.banner.run_card['frame_id'])[2:]
             to_inc.reverse()
             nb_ext = 0
             for p in new_event:
@@ -1858,6 +1887,9 @@ class ReweightInterface(extended_cmd.Cmd):
                     p[i] = lhe_parser.FourMomentum(thisp).zboost(pboost).get_tuple()
                 assert p[0][1] == p[0][2] == 0 == p[1][2] == p[1][2] == 0 
             
+            return all_p
+        
+        else:
             return all_p
 
     def terminate_fortran_executables(self, new_card_only=False):
@@ -2594,6 +2626,8 @@ class DensityInterface(ReweightInterface):
         self.number_combinations = None
         self.new_param_card = False #Needed to not call ask_edit_card_static
         self.production_matrix = 0
+        self.axis_referential = None
+        self.symmetrise_initial_state = False
         
         ReweightInterface.__init__(self, *args, **opts)
         self.flag_density_matrix = True
@@ -2710,7 +2744,7 @@ class DensityInterface(ReweightInterface):
         #check if the number of ordering parameters is the same as the number of particles selected
         if lambda_function == '' and len(order_particles) > 0:
             logger.error("An order option is given when no observable is selected (boost option), the order can not be computed. Please ensure to select an observable among the one defined in the class lhe_parser.FourMomentum")
-        if len(order_particles) > 0 and len(order_particles) != len(pdg_codes):
+        if len(order_particles) > 0 and len(order_particles) != len(pdg_codes): #The code should work even if the two length are different but it is more clear like that for the user too
             logger.error("The number of ordering parameters is not the same as the number of particles selected for the boost. Please ensure you give the same number of parameters")
 
         # We don't check what values are put in the arrays, if it is not correct, it will return an error later.
@@ -2720,7 +2754,7 @@ class DensityInterface(ReweightInterface):
 
 
     def do_change_order_helicities(self, line):
-        """change the order of the basis of helicities"""
+        """Change the order of the basis of helicities. It accepts inputs for density matrices full and partial"""
 
         for i in range(len(line)): 
             line[i] = int(line[i].strip("[],()"))
@@ -2741,6 +2775,34 @@ class DensityInterface(ReweightInterface):
                     allowed_hel.append(cutted_line[0][i])
                     allowed_hel.append(cutted_line[1][j])
                 self.allowed_helicities = allowed_hel
+    
+    def do_change_symmetrise_initial_state(self, line):
+        """
+        Chooses whether the initial state should be symmetrised according to 2307.09675. For each event the production matrix calculated is
+        R = R(theta) + R(theta + pi)
+        """
+        for i in range(len(line)): 
+            line[i] = line[i].strip("[],()") 
+        if line[0] == 'True':
+            self.symmetrise_initial_state = True
+        elif line[0] == 'False':
+            self.symmetrise_initial_state = False
+        else:
+            logger.warning('Option symmetrise_initial_state not understood, set it to False. Please use the syntax: change symmetrise_initial_state True if you want to enable it.')
+            self.symmetrise_initial_state = False
+        
+        misc.sprint(self.symmetrise_initial_state )
+
+    def do_change_axis_referential(self, line):
+        """
+        Choses a particle in the initial state that is used as referential to define the production angle theta
+        It can be useful for non-symetric initial states like u u~.
+        It does accept only one pdg-code
+        """
+        for i in range(len(line)): 
+            line[i] = int(line[i].strip("[],()"))
+        self.axis_referential = line
+        misc.sprint(self.axis_referential)
 
 
     def do_change_particle_in_density_matrix(self, line):
@@ -2797,8 +2859,13 @@ class DensityInterface(ReweightInterface):
         self.number_combinations = n_comb
 
         #if the user didn't use the option or if it has not been read yet, fill it automatically here
+        #how to generalise to graviton ?
         if self.allowed_helicities == None: 
-            if self.number_combinations == 4:
+            if self.number_combinations == 2:
+                self.allowed_helicities = [+1, -1]
+            elif self.number_combinations == 3:
+                self.allowed_helicities = [+1, 0, -1]
+            elif self.number_combinations == 4:
                 self.allowed_helicities = [+1, +1, +1, -1, -1, +1, -1, -1]
             elif self.number_combinations == 6 and self.spins[0] == 2:
                 self.allowed_helicities = [+1, +1, +1, 0, +1, -1, -1, +1, -1, 0, -1, -1]
@@ -2818,6 +2885,9 @@ class DensityInterface(ReweightInterface):
         if self.has_run:
             return super().do_quit(line)
         
+        if self.particle_in_density_matrix == None:
+            logger.error("You have not chosen which particle to put in the density matrix, the density matrix computation can not be done. The command to specify the particles to take is 'change particle_in_density_matrix'.")
+
         logger.info("helicity_direction = \t" + str(self.helicity_direction))
         logger.info("particle_in_density_matrix = \t" + str(self.particle_in_density_matrix))
         logger.info("momenta_boost = \t" + str(self.momenta_boost))
@@ -2825,10 +2895,13 @@ class DensityInterface(ReweightInterface):
         logger.info("spins = \t" + str(self.spins))
         logger.info("number_changing_helicities = \t" + str(self.number_changing_helicities))
         logger.info("number_combinations = \t" + str(self.number_combinations))
+        logger.info("axis_referential = \t" + str(self.axis_referential))
+        logger.info("symmetrise_initial_state = \t" + str(self.symmetrise_initial_state))
+
         if self.flag_particle_in_density_matrix == False:
             logger.error("Error: the reweight_card contains no option for the density mode")
 
         self.has_run = True
-        self.run_cmd('launch --keep_card') #call the function do_launch()
+        self.run_cmd('launch --keep_card') #calls the function do_launch()
 
 

@@ -22,7 +22,7 @@ Lambda = [Lambda1, Lambda2, Lambda3, Lambda4, Lambda5, Lambda6, Lambda7, Lambda8
 
 
 #%%#############################Functions###############################
-def square_matrix(line_matrix: list[complex], epsilon = 1e-5) -> list[complex]:
+def square_matrix(line_matrix: list[complex]) -> list[complex]:
         """
         This function converts a hermitian matrix expressed as a line into a typical matrix form.
         Caution : the definition of matrices in fortran and python are not the same.
@@ -34,7 +34,7 @@ def square_matrix(line_matrix: list[complex], epsilon = 1e-5) -> list[complex]:
         else:
                 n = int(n)
 
-        matrix_square = np.zeros((n, n), dtype=np.complex_)
+        matrix_square = np.zeros((n, n), dtype=np.complex128)
 
         for i in range(n):
                 for k in range(n):
@@ -47,18 +47,6 @@ def square_matrix(line_matrix: list[complex], epsilon = 1e-5) -> list[complex]:
                                                                 
         return matrix_square
 
-#%% from line first to colum first
-def invert_momenta(p:list[float]) ->list[float]:
-        """
-        fortran/C-python do not order table in the same order, one should use this function on any momentum
-        from fortran that is used in python functions
-        """
-        new_p = []
-        for i in range(len(p[0])):  new_p.append([0]*len(p))
-        for i, onep in enumerate(p):
-            for j, x in enumerate(onep):
-                new_p[j][i] = x
-        return new_p
 
 #%% It should work but need to check twice
 def write_density_matrix(rho: list[complex], pos: list[int], allow_hel: list[int], epsilon=1e-10) -> None:
@@ -107,12 +95,12 @@ def get_rho_normalised(rho: list[complex], n_comb: int, epsilon=1e-10) -> list[c
         and normalises rho by its trace
         """
         trace = get_trace(rho, n_comb)
-        #Put a threshold, ça ne marche pas pour l'instant
         for i in range(len(rho)):
-                if abs(np.real(rho[i]))/trace < epsilon:
-                        rho[i] = rho[i].imag
-                elif abs(np.imag(rho[i]))/trace < epsilon:
-                        rho[i] = rho[i].real
+                if abs(rho[i].real / trace) < epsilon:
+                        rho[i] = 0. + rho[i].imag *1j
+                if abs(rho[i].imag / trace) < epsilon:
+                        rho[i] = rho[i].real + 0. *1j
+
         aux = np.array(rho) / trace
         return aux
 
@@ -127,10 +115,10 @@ def get_list_sliced(list: list[complex], n_comb: int, epsilon = 1e-10) -> list[c
                 list = list[0: int(n_comb*(n_comb + 1)/2)]
                 trace = get_trace(list, n_comb)
                 for i in range(len(list)):
-                        if abs(np.real(list[i]))/trace < epsilon:
-                                list[i] = list[i].imag
-                        elif abs(np.imag(list[i]))/trace < epsilon:
-                                list[i] = list[i].real
+                        if abs(list[i].real / trace) < epsilon:
+                                list[i] = 0. + list[i].imag *1j
+                        if abs(list[i].imag / trace) < epsilon:
+                                list[i] = list[i].real + 0. *1j
                 return list
         else:
                 return "Error: n_comb is not an integer"
@@ -148,7 +136,7 @@ def Get_Correlations(rho:list[complex], pdg_pos:list[int], epsilon=1e-10) -> lis
         scalar_pdg = [25, 37]
         if pdg_pos[0] in fermions_pdg: 
                 if pdg_pos[1] in fermions_pdg: #both particles are fermion
-                        C = np.zeros((3, 3), dtype=np.complex128)
+                        C = np.zeros((3, 3), dtype=float)
                         for i in range(3):
                                 for j in range(3):
                                         tensorprod = np.kron(sigma[i], sigma[j])
@@ -156,7 +144,7 @@ def Get_Correlations(rho:list[complex], pdg_pos:list[int], epsilon=1e-10) -> lis
                                         if np.abs(C[i][j]) < epsilon:
                                                 C[i][j] = 0.
                 elif pdg_pos[1] in boson_pdg: #1st particle fermion, 2nd massive boson
-                        C = np.zeros((3, 8), dtype=np.complex128)
+                        C = np.zeros((3, 8), dtype=float)
                         for i in range(3):
                                 for j in range(8):
                                         tensorprod = np.kron(sigma[i], Lambda[j])
@@ -170,7 +158,7 @@ def Get_Correlations(rho:list[complex], pdg_pos:list[int], epsilon=1e-10) -> lis
 
         elif pdg_pos[0] in boson_pdg:
                 if pdg_pos[1] in fermions_pdg: #1st particle massive boson, 2nd fermion
-                       C = np.zeros((8, 3), dtype=np.complex128)
+                       C = np.zeros((8, 3), dtype=float)
                        for i in range(8):
                                 for j in range(3):
                                         tensorprod = np.kron(Lambda[i], sigma[j])
@@ -178,7 +166,7 @@ def Get_Correlations(rho:list[complex], pdg_pos:list[int], epsilon=1e-10) -> lis
                                         if np.abs(C[i][j]) < epsilon:
                                                 C[i][j] = 0.
                 elif pdg_pos[1] in boson_pdg: #both particles are massive boson
-                        C = np.zeros((8, 8), dtype=np.complex128)
+                        C = np.zeros((8, 8), dtype=float)
                         for i in range(8):
                                 for j in range(8):
                                         tensorprod = np.kron(Lambda[i], Lambda[j]) #the tensor product is with Gell-Mann matrices
@@ -217,17 +205,17 @@ def Get_Polarisations(rho:list[complex], pdg_pos:list[int], epsilon=1e-10) -> li
                                 tensorprod1 = np.kron(sigma[i], Identity2)
                                 B1[i] = np.trace(np.dot(tensorprod1, rho))
                                 if np.abs(B1[i].real) < epsilon:
-                                        B1[i] = B1[i].imag*1j
+                                        B1[i] = 0. + B1[i].imag*1j
                                 if np.abs(B1[i].imag) < epsilon:
-                                        B1[i] = B1[i].real
+                                        B1[i] = B1[i].real + 0.*1j
                 elif pdg_pos[1] in boson_pdg == 24: #1st particle fermion, 2nd massive vector boson
                         for i in range(3):
                                 tensorprod1 = np.kron(sigma[i], Identity3)
                                 B1[i] = np.trace(np.dot(tensorprod1, rho))/2.
                                 if np.abs(B1[i].real) < epsilon:
-                                        B1[i] = B1[i].imag*1j
+                                        B1[i] = 0. + B1[i].imag*1j
                                 if np.abs(B1[i].imag) < epsilon:
-                                        B1[i] = B1[i].real
+                                        B1[i] = B1[i].real + 0.*1j
                 else:
                         raise ValueError("One of the particle chosen is either a scalar or not recognised")
 
@@ -238,18 +226,18 @@ def Get_Polarisations(rho:list[complex], pdg_pos:list[int], epsilon=1e-10) -> li
                                 tensorprod1 = np.kron(Lambda[i], Identity2)
                                 B1[i] = np.trace(np.dot(tensorprod1, rho))/2.
                                 if np.abs(B1[i].real) < epsilon:
-                                        B1[i] = B1[i].imag*1j
+                                        B1[i] = 0. + B1[i].imag*1j
                                 if np.abs(B1[i].imag) < epsilon:
-                                        B1[i] = B1[i].real
+                                        B1[i] = B1[i].real + 0.*1j
 
                 elif pdg_pos[1] in boson_pdg: #1st particle massive vector boson, 2nd massive vector boson
                         for i in range(8):
                                 tensorprod1 = np.kron(Lambda[i], Identity3)
                                 B1[i] = np.trace(np.dot(tensorprod1, rho))/2.
                                 if np.abs(B1[i].real) < epsilon:
-                                        B1[i] = B1[i].imag*1j
+                                        B1[i] = 0. + B1[i].imag*1j
                                 if np.abs(B1[i].imag) < epsilon:
-                                        B1[i] = B1[i].real
+                                        B1[i] = B1[i].real + 0.*1j
                 else:
                         raise ValueError("One of the particle chosen is either a scalar or not recognised")
         elif pdg_pos[0] in scalar_pdg: #scalar -> it has 1 spin state possible
@@ -266,17 +254,17 @@ def Get_Polarisations(rho:list[complex], pdg_pos:list[int], epsilon=1e-10) -> li
                                 tensorprod2 = np.kron(Identity2, sigma[i])
                                 B2[i] = np.trace(np.dot(tensorprod2, rho))
                                 if np.abs(B2[i].real) < epsilon:
-                                        B2[i] = B2[i].imag*1j
+                                        B2[i] = 0. + B2[i].imag*1j
                                 if np.abs(B2[i].imag) < epsilon:
-                                        B2[i] = B2[i].real
+                                        B2[i] = B2[i].real + 0.*1j
                 elif pdg_pos[0] in boson_pdg: #first particle massive vector boson, second fermion
                         for i in range(3):
                                 tensorprod2 = np.kron(Identity3, sigma[i])
                                 B2[i] = np.trace(np.dot(tensorprod2, rho))/2.
                                 if np.abs(B2[i].real) < epsilon:
-                                        B2[i] = B2[i].imag*1j
+                                        B2[i] = 0. + B2[i].imag*1j
                                 if np.abs(B2[i].imag) < epsilon:
-                                        B2[i] = B2[i].real
+                                        B2[i] = B2[i].real + 0.*1j
                 else:
                         raise ValueError("One of the particle chosen is either a scalar or not recognised")
                 
@@ -287,17 +275,17 @@ def Get_Polarisations(rho:list[complex], pdg_pos:list[int], epsilon=1e-10) -> li
                                 tensorprod2 = np.kron(Identity2, Lambda[i])
                                 B2[i] = np.trace(np.dot(tensorprod2, rho))/2.
                                 if np.abs(B2[i].real) < epsilon:
-                                        B2[i] = B2[i].imag*1j
+                                        B2[i] = 0. + B2[i].imag*1j
                                 if np.abs(B2[i].imag) < epsilon:
-                                        B2[i] = B2[i].real 
+                                        B2[i] = B2[i].real + 0.*1j
                 elif pdg_pos[0] in boson_pdg: #both particle massive vector boson
                         for i in range(8):
                                 tensorprod2 = np.kron(Identity3, Lambda[i])
                                 B2[i] = np.trace(np.dot(tensorprod2, rho))/2.
                                 if np.abs(B2[i].real) < epsilon:
-                                        B2[i] = B2[i].imag*1j
+                                        B2[i] = 0. + B2[i].imag*1j
                                 if np.abs(B2[i].imag) < epsilon:
-                                        B2[i] = B2[i].real 
+                                        B2[i] = B2[i].real +0.*1j
         elif pdg_pos[1] in scalar_pdg: #scalar -> it has 1 spin state possible
                 B2 = [1. + 0.*1j]
         else:
@@ -363,7 +351,7 @@ def Partial_Trace(rho:list[complex, complex], index, pdg_pos:list[int]) -> list[
 
 #the density matrix is composed of two systems of different dimensions, from rho itself we can't know which one is the first particle so we need to propagate the pdg-id codes
     elif rho.shape[0] == 6: #this case is the one for fermion-boson or boson-fermion
-        if abs(pdg_pos[0]) <= 22 and (abs(pdg_pos[1]) == 23 or abs(pdg_pos[1]) == 24): #fermion 1st particle
+        if abs(pdg_pos[0]) <= 22 and (abs(pdg_pos[1]) == 23 or abs(pdg_pos[1]) == 24): #fermion 1st particle, boson second particle
                 if index == 1:
                         n = 2
                         Basis = np.eye(n, dtype=int)
@@ -384,7 +372,7 @@ def Partial_Trace(rho:list[complex, complex], index, pdg_pos:list[int]) -> list[
                 else:
                         raise ValueError('The value of index is not correct')
                 
-        elif (abs(pdg_pos[0]) == 23 or abs(pdg_pos[0]) == 24) and abs(pdg_pos[1]) <= 22: #boson 1st particle
+        elif (abs(pdg_pos[0]) == 23 or abs(pdg_pos[0]) == 24) and abs(pdg_pos[1]) <= 22: #boson 1st particle, fermion second particle
                 if index == 1:
                         n = 3
                         Basis = np.eye(n, dtype=int)
@@ -407,41 +395,7 @@ def Partial_Trace(rho:list[complex, complex], index, pdg_pos:list[int]) -> list[
     
     return TracedRho
 
-def ConcLB2(Rho: list[complex, complex], pdg_pos= list[int])-> float:
-    """
-    Return the square of the lower bound of the concurrence for a system composed of a pair of qutrits.
-    See 2307.09675v2.
-    """
 
-    RA = Partial_Trace(Rho, 2, pdg_pos)
-    TrB = np.trace(RA)
-    RB = Partial_Trace(Rho, 1, pdg_pos)
-    TrA =  np.trace(RB)
-
-    RhoA = RA/TrA
-    RhoB = RB/TrB
-
-    aux1 = np.trace(Rho**2) - np.trace(RhoA**2)
-    aux2 = np.trace(Rho**2) - np.trace(RhoB**2)
-    return 2 * max(0, aux1, aux2)
-
-def ConcUB2(Rho: list[complex, complex], pdg_pos: list[int])-> float:
-    """
-    Return the square of the upper bound of the concurrence for a system composed of a pair of qutrits.
-    See 2307.09675v2.
-    """
-
-    RA = Partial_Trace(Rho, 2, pdg_pos)
-    TrB = np.trace(RA)
-    RB = Partial_Trace(Rho, 1, pdg_pos)
-    TrA =  np.trace(RB)
-
-    RhoA = RA/TrA
-    RhoB = RB/TrB
-
-    aux1 = 1 - np.trace(RhoA**2)
-    aux2 = 1 - np.trace(RhoB**2)
-    return 2 * min(aux1, aux2)
 
 #%% Rotation for p = p[E, px, py, pz]
 #it must be applied on momenta in the python format (so before invert_momenta)
@@ -473,6 +427,7 @@ def rotation(p: list[float], phi: float, theta: float, epsilon: float) ->list[fl
 def boost(p:list[float], q:float, m:float) -> list[float]:
         '''
         This function takes as argument the 4-momentum of a single particle and returns the 4-momentum boosted by q in an arbitrary direction.
+        It is taken as is from the aloha package ?
         Inputs
         p(0:3): four-momentum p in the q rest  frame
         q(0:3): four-momentum q in the boosted frame
@@ -505,16 +460,100 @@ def cut_matrix(square_matrix: list[complex]) -> list[complex]:
                                 square_matrix[i][j] = 0.
         return square_matrix
 
+def opp_momentum(p: list[float]) -> list[float]:
+    '''
+    Returns [p0, -p1, -p2, -p3]. Used along with the boost function.
+    p: 4-momentum
+    '''
+    return [p[0], -p[1], -p[2], -p[3]]
+
+def norm_momentum(p: list[float]) -> float:
+    return np.sqrt(p[0]**2 - p[1]**2 - p[2]**2 - p[3]**2)
+
+#%% from line first to colum first
+def invert_momenta(p:list[float]) ->list[float]:
+        """
+        fortran/C-python do not order table in the same order, one should use this function on any momentum
+        from fortran that is used in python functions
+        """
+        new_p = []
+        for i in range(len(p[0])):  new_p.append([0]*len(p))
+        for i, onep in enumerate(p):
+            for j, x in enumerate(onep):
+                new_p[j][i] = x
+        return new_p
+
+def plot_hist(x, y, z, limitx, limity, n_binx, n_biny):
+    """
+    x, y, z must be vectors of same length
+    The structure of the two matrices are : origin lower left, growing right and up
+    HOW SHOULD I MODIFY IT SO IT WORKS PROPERLY ?
+    """
+    binsx = np.linspace(limitx[0], limitx[1], n_binx + 1)
+    binsy = np.linspace(limity[0], limity[1], n_biny + 1)
+    Map = np.zeros((n_biny, n_binx))
+    N_Map = np.zeros((n_biny, n_binx))
+    for k in range(len(z)):
+            for i in range(len(binsx) - 1): #we need the -1 because we added +1 when defining binsx
+                    if x[k] >= binsx[i] and x[k] < binsx[i + 1]: #this means that the second index of Map is i
+                            for j in range(len(binsy) - 1):
+                                    if y[k] >= binsy[j] and y[k] < binsy[j + 1]: #this means that the first index of Map is j
+                                            Map[j][i] += z[k] #if x and y are in the correct bin, we add the value of z in the bin.
+                                            N_Map[j][i] += 1
+
+    Number_Events = len(z)
+    for i in range(len(Map)):
+          for j in range(len(Map[0])):
+                if N_Map[i][j] == 0:
+                      Map[i][j] = np.nan
+                else:
+                      Map[i][j] = Map[i][j]/ N_Map[i][j]
+                      N_Map[i][j] = N_Map[i][j]/Number_Events
+
+    return Map, N_Map
+                                
 #%%###########################End Functions#############################
 
 #%%########################QI OBSERVABLES###############################
-def Get_Purity(rho: list[list[complex]]) -> float:
+def Get_Purity(rho: list[complex, complex]) -> float:
         '''
         Takes as input a square matrix.
         Calculate the trace of the square of the density matrix. The quantum state is pure if Tr[rho^2] = 1.
         '''
         rho2 = np.dot(rho, rho)
         return np.trace(rho2)
+
+def ConcLB2(Rho: list[complex, complex], pdg_pos= list[int])-> float:
+    """
+    Return the square of the lower bound of the concurrence for a system composed of a pair of qutrits.
+    See 2307.09675v2.
+    """
+
+    RhoA = Partial_Trace(Rho, 2, pdg_pos)
+    RhoB = Partial_Trace(Rho, 1, pdg_pos)
+
+    if ((np.trace(RhoA) - 1) > 1e-10) or ((np.trace(RhoB) - 1) > 1e-10):
+        print('Warning: the traced-out density matrices have non unitary trace!')
+
+    aux1 = np.trace(np.dot(Rho, Rho)) - np.trace(np.dot(RhoA, RhoA))
+    aux2 = np.trace(np.dot(Rho, Rho)) - np.trace(np.dot(RhoB, RhoB))
+    return 2 * max(0, aux1, aux2)
+
+def ConcUB2(Rho: list[complex, complex], pdg_pos: list[int])-> float:
+    """
+    Return the square of the upper bound of the concurrence for a system composed of a pair of qutrits.
+    See 2307.09675v2.
+    """
+
+    RhoA = Partial_Trace(Rho, 2, pdg_pos)
+    RhoB = Partial_Trace(Rho, 1, pdg_pos)
+
+    if ((np.trace(RhoA) - 1) > 1e-10) or ((np.trace(RhoB) - 1) > 1e-10):
+        print('Warning: the traced-out density matrices have non unitary trace!')
+
+    aux1 = 1 - np.trace(np.dot(RhoA, RhoA))
+    aux2 = 1 - np.trace(np.dot(RhoB, RhoB))
+    return 2 * min(aux1, aux2)
 
 def Get_Bell_Test(CTC: list[list[float]]) -> tuple[float, bool]: #a tester
         '''
@@ -534,7 +573,7 @@ def Get_Concurrence(rho: list[list[complex]]) -> float: #a tester
         if len(rho) != 4:
                 raise ValueError('The length of the density matrix is not correct. This function only handles systems of 2 qubits!')
         
-        aux = np.kron(sigma2, sigma2)
+        aux = np.kron(sigma2, sigma2, dype=np.complex128)
         rho_tilde = np.dot(aux, np.dot(np.conjugate(rho), aux)) # rhotilde = aux * rho* * aux
         #print('rho tilde', rho_tilde)
         eigvals, eigvecs = la.eigh(np.array(rho)) # diagonalization formula: M = P D P^{-1}
@@ -563,12 +602,11 @@ def Get_Dcoef(C:list[list[float]]) -> tuple[float, float, float, float, bool]: #
         In MadGraph we use the momenta referential as: {n, r, k} with:
         k : top direction, r = (p - k cos(theta))/sin(theta), n = p x k/sin(theta)
         So C_nn = C[0][0], C_rr = C[1][1], C_kk = C[2][2]
-        -> check with the rotation and boost functions if it is correct
         """
         if len(C) != 3:
                 raise ValueError('The length of the correlation matrix is not correct. This function only handles systems of 2 qubits!')
 
-        Done = np.real((C[0][0] + C[2][2] + C[2][2])/3.) #D1 = (C_nn + C_rr + C_kk)/3
+        Done = np.real((C[0][0] + C[1][1] + C[2][2])/3.) #D1 = (C_nn + C_rr + C_kk)/3
         Dn = np.real((C[0][0] - C[1][1] - C[2][2])/3.) #Dn = -(-C_nn + C_rr + C_kk)/3
         Dr = np.real((-C[0][0] + C[1][1] - C[2][2])/3.) #Dr = -(C_nn - C_rr + C_kk)/3
         Dk = np.real((-C[0][0] - C[1][1] + C[2][2])/3.) #Dk = -(C_nn + C_rr - C_kk)/3
@@ -588,12 +626,49 @@ def Get_Concurrence_C(C: list[list[float]]) -> float:
 
         return max(0, -1 - 3*np.real(Dmin))/2
 
-# def Shannon_Entropy(p:float) -> float:
-#         return -p * np.log2(p) - (1 - p) * np.log2(1-p)
+def Shannon_Entropy(p:float) -> float:
+        return -p * np.log2(p) - (1 - p) * np.log2(1-p)
 
-# def Get_Ent_Form(Concurrence:float) -> float:
-#         E = Shannon_Entropy((1 + np.sqrt(1 - Concurrence**2))/2)
-#         return E
+def Get_Ent_Form(Concurrence:float) -> float:
+        E = Shannon_Entropy((1 + np.sqrt(1 - Concurrence**2))/2)
+        return E
+
+def get_Pauli_string(n:int) ->list[list[complex]]:
+        """Takes an integer n and returns all the Pauli strings for a system of n fermions"""
+        P1 = [Identity2]
+        for i in range(len(sigma)):
+                P1.append(sigma[i])
+        
+        Pauli_string = []
+
+        if n == 1:
+                Pauli_string = P1
+                return Pauli_string
+        else:
+                for elem1 in P1:
+                        for elem2 in get_Pauli_string(n-1):
+                                Pauli_string.append(np.kron(elem1, elem2))
+                return Pauli_string
+
+
+def Magic_Pure(rho: list[list[complex]], n: int) -> complex:
+        """Computes the quantity M2 for a density matrix which represents a pure state for a system of n qubits"""
+        Xi = 0
+        Pauli_strings = get_Pauli_string(n)
+        for P in Pauli_strings:
+                Xi += np.trace(np.dot(P, rho)) ** 4
+        return - np.log2(Xi / 2**n)
+
+def Magic_Mixed(rho: list[list[complex]], n: int) -> complex:
+        """Computes the quantity M2 for a density matrix which represents a mixed state for a system of n qubits"""
+        XiNum = 0
+        XiDenom = 0
+        Pauli_strings = get_Pauli_string(n)
+        for P in Pauli_strings:
+                XiNum += np.trace(np.dot(P, rho)) ** 4
+                XiDenom += np.trace(np.dot(P, rho)) ** 2
+        Magic = - np.log2(XiNum / XiDenom)
+        return Magic.real
 #########################END QI OBSERVABLES ############################
 def permutations_PGD(PDG:list[int], status:list[int])-> list[list[int]]:
         """
