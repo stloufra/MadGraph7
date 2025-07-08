@@ -2028,13 +2028,18 @@ class ReweightInterface(extended_cmd.Cmd):
 
         # 1. prepare the interface----------------------------------------------
         mgcmd = self.mg5cmd
-        complex_mass = False   
+        complex_mass = False  
+        ew_scherme = None 
         has_cms = re.compile(r'''set\s+complex_mass_scheme\s*(True|T|1|true|$|;)''')
+        has_ew = re.compile(r'''set\s+ew_scheme\s*(\w*)''')
         for line in self.banner.proc_card:
             if line.startswith('set'):
                 mgcmd.exec_cmd(line, printcmd=False, precmd=False, postcmd=False)
                 if has_cms.search(line):
                     complex_mass = True
+                if has_ew.search(line):
+                    ew_scherme = has_ew.search(line).group(1)
+                        raise self.InvalidCmd('Invalid EW scheme %s' % ew_scherme)
             elif line.startswith('define'):
                 try:
                     mgcmd.exec_cmd(line, printcmd=False, precmd=False, postcmd=False)
@@ -2045,7 +2050,7 @@ class ReweightInterface(extended_cmd.Cmd):
         if  not data['model_name'] and not second:
             raise self.InvalidCmd('Only UFO model can be loaded in this module.')
         elif data['model_name']:
-            self.load_model(data['model_name'], data['mg_names'], complex_mass)
+            self.load_model(data['model_name'], data['mg_names'], complex_mass, ew_scheme)
             modelpath = self.model.get('modelpath')
             if os.path.basename(modelpath) != mgcmd._curr_model['name']:
                 name, restrict = mgcmd._curr_model['name'].rsplit('-',1)
@@ -2326,7 +2331,7 @@ class ReweightInterface(extended_cmd.Cmd):
                 data[tag] = order, pdir, hel
              
              
-    def load_model(self, name, use_mg_default, complex_mass=False):
+    def load_model(self, name, use_mg_default, complex_mass=False, ew_scheme=None):
         """load the model"""
         
         loop = False
@@ -2343,6 +2348,8 @@ class ReweightInterface(extended_cmd.Cmd):
         
         self.model = base_model
         self.mg5cmd._curr_model = self.model
+        if ew_scheme:
+            self.model.change_electroweak_mode(ew_scheme)
         self.mg5cmd.process_model()
         
 
