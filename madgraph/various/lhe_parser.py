@@ -1353,11 +1353,11 @@ class Event(list):
                     # return {'test': ' 1 and 2', 'line': '4', 'value': '3', 'error': '5'}
                 continue
             
-            elif 'first' == status: #Quand on entre dans cette ligne, il n'y a que la première ligne des particules qui apparait
+            elif 'first' == status:
                 if '<rwgt>' in line:
                     status = 'tag'
                 else:
-                    self.assign_scale_line(line) #lit la première ligne avec les informations globales sur le processus
+                    self.assign_scale_line(line)
                     status = 'part' 
                     continue
             if '<' in line:
@@ -1527,7 +1527,7 @@ class Event(list):
                 return
             wgt = self.nloweight
             
-        data = {'total_wgt': wgt.total_wgt, #need to check name and meaning,
+        data = {'total_wgt': wgt.total_wgt,
                 'nb_wgt': wgt.nb_wgt,
                 'nb_event': wgt.nb_event,
                 'event': '\n'.join(p.__str__(mode='fortran') for p in wgt.momenta),
