@@ -2031,15 +2031,14 @@ class ReweightInterface(extended_cmd.Cmd):
         complex_mass = False  
         ew_scherme = None 
         has_cms = re.compile(r'''set\s+complex_mass_scheme\s*(True|T|1|true|$|;)''')
-        has_ew = re.compile(r'''set\s+ew_scheme\s*(\w*)''')
+        has_ew = re.compile(r'''set\s+EWscheme\s*(\w*)''')
         for line in self.banner.proc_card:
             if line.startswith('set'):
                 mgcmd.exec_cmd(line, printcmd=False, precmd=False, postcmd=False)
                 if has_cms.search(line):
                     complex_mass = True
-                if has_ew.search(line):
-                    ew_scherme = has_ew.search(line).group(1)
-                        raise self.InvalidCmd('Invalid EW scheme %s' % ew_scherme)
+                if has_ew.search(line, re.I):
+                    ew_scheme = has_ew.search(line).group(1)
             elif line.startswith('define'):
                 try:
                     mgcmd.exec_cmd(line, printcmd=False, precmd=False, postcmd=False)
