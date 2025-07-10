@@ -4238,9 +4238,12 @@ class decay_all_events_onshell(decay_all_events):
         
 
         # 4. compute the full matrix element -----------------------------------
-        commandline += self.get_full_matrix_command(processes)
-        misc.sprint(commandline)
-
+        if self.mode == "onshell" or (self.mode == "density" and self.options['density_debug']):
+            commandline += self.get_full_matrix_command(processes)
+            misc.sprint(commandline)
+            logger.critical("Full ME calculation") 
+        else:
+            logger.critical("Skipping full ME calculation")        
 
         # 5. add the decay information to the all_topology object --------------                        
 #        for matrix_element in mgcmd._curr_matrix_elements.get_matrix_elements():
@@ -4330,7 +4333,7 @@ class decay_all_events_onshell(decay_all_events):
         commandline=''
         for proc in processes:
             if '[' in proc:
-                new_proc = reweight_interface.ReweightInterface.get_LO_definition_from_NLO(proc, mgcmd._curr_model)
+                new_proc = reweight_interface.ReweightInterface.get_LO_definition_from_NLO(proc, self.mgcmd._curr_model)
             else:
                 new_proc = 'add process %s ;' % proc               
             commandline += self.adapt_production(new_proc)

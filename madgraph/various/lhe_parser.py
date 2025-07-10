@@ -1718,7 +1718,7 @@ class Event(list):
             assert max(abs(decay_particle.py-this_particle.py), abs(decay_particle.pz-this_particle.pz)) < thres,\
             "not boosted correctly %s %s %s %s" % (decay_particle.E, decay_particle.px,decay_particle.py,decay_particle.pz)  
             at_rest = False
-        else:           
+        else:     
             assert max(decay_particle.px, decay_particle.py, decay_particle.pz) < thres,\
             "not on rest particle %s %s %s %s" % (decay_particle.E, decay_particle.px,decay_particle.py,decay_particle.pz) 
         
@@ -1801,7 +1801,7 @@ class Event(list):
             if particle.status != 1:
                 continue
             if particle.pdg in pdg_to_decay and pdg_to_decay[particle.pdg]:
-                one_decay = pdg_to_decay[particle.pdg].pop()
+                one_decay = pdg_to_decay[particle.pdg].pop(0)
                 self.add_decay_to_particle(i, one_decay)
                 return self.add_decays(pdg_to_decay)
         return self
@@ -2734,7 +2734,6 @@ class Event(list):
               where identical particle does NOT have the same parent
               for easier development debug output allow to return internal variable for the unittest to check
         """  
-
 
         p = self.get_momenta(get_order, allow_reversed)
 

@@ -79,6 +79,8 @@ class MadSpinOptions(banner.ConfigFile):
         self.add_param('global_order_coupling', '')
         self.add_param('identical_particle_in_prod_and_decay', 'average')
         self.add_param('beampol', [0.5, 0.5], comment='beam polarization')
+        self.add_param('density_debug', False, comment='Turn on check against full ME calculation')
+        self.add_param('density_tolerance', 1E-4, comment='Tolerance for deviation between density and full ME')
         
     ############################################################################
     ##  Special post-processing of the options                                ## 
@@ -1452,6 +1454,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                     color = self.model.get_particle(particle.pdg).get('color')
                     spin = self.model.get_particle(particle.pdg).get('spin')
                     decay_dict[particle.pdg] = [width, mass, color, spin]
+        #print(f"to_decay = {to_decay}")
                 	
         with misc.MuteLogger(["madgraph", "madevent", "ALOHA", "cmdprint"], [50,50,50,50]):
             mg5 = self.mg5cmd
@@ -1685,7 +1688,7 @@ class MadSpinInterface(extended_cmd.Cmd):
     
     def get_maxwgt_for_onshell(self, orig_lhe, evt_decayfile, decay_dict):
         """determine the maximum weight for the onshell (or similar) strategy"""
-
+        #print(f"decay_dict = {decay_dict} - length = {len(decay_dict)}")
         # event_decay is a dict pdg -> list of event file (contain the decay)
                 
         if self.options['ms_dir'] and os.path.exists(pjoin(self.options['ms_dir'], 'max_wgt')):
@@ -1773,7 +1776,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                     #print(f"dec = {dec}")
                     decay_me *= self.calculate_matrix_element(dec)
         else:
-            if __debug__:
+            if self.options['density_debug']:
                 #print(f"len(decays) = {len(decays)}")
                 for pdg in decays:
                     for dec in decays[pdg]:
@@ -1795,12 +1798,13 @@ class MadSpinInterface(extended_cmd.Cmd):
             # Create full event from production and decays
             full_event = lhe_parser.Event(str(production))
             # CAUTION: the next line removes everything from decays dictionary
+            #print(f"before adding decays to full_event : {decays}")
             full_event = full_event.add_decays(decays)
-            if __debug__:
+            if self.options['density_debug']:
                 me1 = self.calculate_matrix_element(full_event)
-                print(f"me1 = {me1} , me2 = {full_me} , ratio = {me1/full_me}")
-                if abs(1-me1/full_me) > 1E-4:
-                    print(f"me1 = {me1} , me2 = {full_me} , ratio = {me1/full_me}")	    
+                #print(f"me1 = {me1} , me2 = {full_me} , ratio = {me1/full_me}")
+                if abs(1-me1/full_me) > self.options['density_tolerance']:
+                    print(f"full = {me1} , density = {full_me} , ratio = {me1/full_me}")	    
                     print(full_event)	
                     raise RuntimeError("ERROR matrix element from density does not match with full matrix element")	 
     
@@ -1813,13 +1817,13 @@ class MadSpinInterface(extended_cmd.Cmd):
                             else prod_diag
             production.me_wgt = production_me
 
-        if __debug__ and self.generate_all.mode == 'density':
+        if self.generate_all.mode == 'density' and self.options['density_debug']:
             prod_me = self.calculate_matrix_element(production)
-            print(f"prod_diag = {prod_diag} , prod_me = {prod_me}")
-            if abs(1-prod_diag/prod_me) > 1E-4:
+            #print(f"prod_diag = {prod_diag} , prod_me = {prod_me}")
+            if abs(1-prod_diag/prod_me) > self.options['density_tolerance']:
                 print(f"prod_me = {prod_me} , prod_diag = {prod_diag} , ratio = {prod_diag/prod_me}")	    
                 raise RuntimeError("ERROR production matrix element from density does not match with diagonal")	     
-            if abs(1-dec_diag/decay_me_debug) > 1E-4:
+            if abs(1-dec_diag/decay_me_debug) > self.options['density_tolerance']:
                 print(f"decay_me = {decay_me_debug} , dec_diag = {dec_diag} , ratio = {dec_diag/decay_me_debug}")	    
                 raise RuntimeError("ERROR decay matrix element from density does not match with diagonal")	   
         
@@ -1846,6 +1850,7 @@ class MadSpinInterface(extended_cmd.Cmd):
         
         # Find the particles that should decay
         init_part = [part for pdg in decays for part in production if part.pid == pdg and part.status == 1]
+        #print(f"Particles that should decay: init_part = {init_part}")
 
         # Spyros: this should later be removed for allowing more than one decays
         nchanging = len(init_part)
@@ -1907,34 +1912,53 @@ class MadSpinInterface(extended_cmd.Cmd):
         #    print(f"pdg = {pdg} , decay_event = {decay_event}")
         #    print(f"helicities[{i}] = {helicities[i]}")
         #print("------------------------------------------")
-        for i, (pdg, decay_event) in enumerate(decays.items()):	  
-            for _, decay_event in enumerate(decay_event):      
-                #print(f"decay_event = {decay_event}")
-	            # Get the color, mass, spin and width of decaying particle
-                width = decay_dict[pdg][0]
-                mass = decay_dict[pdg][1]
-                color = decay_dict[pdg][2]
-                spin = decay_dict[pdg][3]
-                prod_color *= color
+        #print(f"decay items : {decays.items()} , length = {len(decays.items())}")
+        # Keep an index of the decaying particle that is being processed
+        decaying_idx = 0
+        for pdg, decay_event in decays.items():	 
+            #print(f"Spyros count = {decaying_idx}") 
+            #print(f"decay_event = {decay_event}")
 
-	            # propagator of the decaying particle on-shell
-                D = complex(0,mass * width)
-                prod_denominators *= D*D.conjugate()
+            # If we have two decays of the same particle e.g. a pp > ZZ event either with
+            # Z > j j or Z > e+ e- get_decay_from_file puts the decays in the same dictionary element
+            # under the item with the key "23" and the decays dictionary ends up with 1 decay element
+            # instead of two. In that case decay_event will be a list with more than one elements
+            # (one element per Z decay)
+            Ndecays_sameid = len(decay_event)
+            
+            # In this case the symmetry factor is wrong so we need to turn off the ME check
+            # Spyros: remove this in production? Not needed since default will be False
+            #if Ndecays_sameid > 1: 
+            #    self.options['density_debug'] = False
+            
+	        # Get the color, mass, spin and width of decaying particle
+            width = decay_dict[pdg][0]
+            mass = decay_dict[pdg][1]
+            color = decay_dict[pdg][2]
+            spin = decay_dict[pdg][3]
+            prod_color *= color
+
+            # The rest of the operations need to be repeated if we have multiple 
+            # decays of the same particle so we need a loop over the decay_event blocks
+            for i_decay_event in range(Ndecays_sameid):
+                current_decay_event = decay_event[i_decay_event]
+                #print(f"Processing decay #{i_decay_event} of {pdg}")
+                #print(f"Current decay_event = {current_decay_event}")
 
                 # decays[pdg] corresponds to a list of particles in the decay event
                 #for i,decay_event in enumerate(decay_event):
                 #print(f"===> Loop decay {i}")
-                part = init_part[i]
+                part = init_part[decaying_idx+i_decay_event]
 		        # We need to boost all particles in the decay event using the momentum
 		        # of the decaying particle in the production event
                 # need (E,-P) for the boost
                 boost = -1 * lhe_parser.FourMomentum(part)
                 boost.E *= -1
-                decay_event.boost(boost)            
+                current_decay_event.boost(boost)         
 
 		        # Get helicities of decay event
                 #pos_in_dec = [k+1 for k in range(len(decay_event)) if decay_event[k].pid == pdg] 
- 		
+    
 		        # Get density matrix for decay
                 #print(f"position = {position}")
                 #print(f"nchanging = {nchanging}")
@@ -1947,24 +1971,32 @@ class MadSpinInterface(extended_cmd.Cmd):
                 #print(f"pos_in_dec = {pos_in_dec}")
                 #print("------")
                 #print(f"decay_event = {decay_event}")
-                #print(f"Spyros get_density decay {i}")
-                
-                density_dec_tmp = self.get_density(decay_event, 
+
+                density_dec_tmp = self.get_density(current_decay_event, 
                                                    position=[1], 
                                                    nchanging=1, 
-                                                   allow_hel=helicities[i], 
-                                                   ncomb=len(helicities[i]),
-                                                   dimension=len(helicities[i]))
-                if i == 0:
+                                                   allow_hel=helicities[decaying_idx+i_decay_event], 
+                                                   ncomb=len(helicities[decaying_idx+i_decay_event]),
+                                                   dimension=len(helicities[decaying_idx+i_decay_event]))
+                if decaying_idx == 0 and i_decay_event == 0:
+                    #print("first pass")
                     density_dec = density_dec_tmp
                 else:
                     #print("convolving")
                     density_dec = density_dec.tensor_product(density_dec_tmp)
                 dec_diag *= density_dec_tmp.trace().real/(color*spin)
                 #print(f"dec_diag = {dec_diag}")
-            
-            #print(f"density_dec = {density_dec.matrix}")
 
+	            # propagator of the decaying particle on-shell
+                D = complex(0,mass * width)
+                prod_denominators *= D*D.conjugate()
+
+            # Move to next decay and update the index
+            decaying_idx += Ndecays_sameid
+            
+        #print(f"density_dec = {density_dec.matrix} - length = {len(density_dec.matrix)}")
+        #print(f"density_prod = {density_prod.matrix} - length = {len(density_prod.matrix)}")
+        
 		# Get the full ME from the production and decay density matrices
         me = density_dec.scalar_multiplication(density_prod)
         me = me.real/(iden_p*prod_color*prod_denominators) # need to change this for decay of different particles
@@ -2163,7 +2195,12 @@ class MadSpinInterface(extended_cmd.Cmd):
                 raise Exception("Ambiguous particle in production and decay. crash as requested by 'identical_particle_in_prod_and_decay'")
             out = 0
             for p in all_p:
+                #print(f"Before : {p}")
                 p = rwgt_interface.ReweightInterface.invert_momenta(p)
+                #print(f"After : {p}")
+                #print(event[0])
+                #print(event[0].color1)
+                #print(event.aqcd)
                 if event[0].color1 == 599 and event.aqcd==0:
                     new_value = self.all_f2py[pdir](p, 0.113, 0)
                 else:       
