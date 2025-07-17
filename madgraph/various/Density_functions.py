@@ -1,6 +1,7 @@
 import numpy as np
 from numpy import linalg as la
 from itertools import permutations
+from typing import Union
 
 #%% Global variables
 Identity2 = np.array([[1, 0], [0, 1]])
@@ -303,7 +304,7 @@ def spin_expectation(Polarisation: list[float]) -> list[float]:
         
         return np.real(spin_exp)
 
-def spinspin_expectation(Correlation: list[float]) -> list[float] | str:
+def spinspin_expectation(Correlation: list[float]) -> Union[list[float], str]:
         if len(Correlation) == 8:
                 spin_exp = [[0., 0., 0.], [0., 0., 0.], [0., 0., 0.]]
 
@@ -521,7 +522,8 @@ def Get_Purity(rho: list[complex, complex]) -> float:
         Calculate the trace of the square of the density matrix. The quantum state is pure if Tr[rho^2] = 1.
         '''
         rho2 = np.dot(rho, rho)
-        return np.trace(rho2)
+        P = np.trace(rho2)
+        return P.real
 
 def ConcLB2(Rho: list[complex, complex], pdg_pos= list[int])-> float:
     """
@@ -537,7 +539,9 @@ def ConcLB2(Rho: list[complex, complex], pdg_pos= list[int])-> float:
 
     aux1 = np.trace(np.dot(Rho, Rho)) - np.trace(np.dot(RhoA, RhoA))
     aux2 = np.trace(np.dot(Rho, Rho)) - np.trace(np.dot(RhoB, RhoB))
-    return 2 * max(0, aux1, aux2)
+    ConcLB2 = 2 * max(0, aux1, aux2)
+
+    return ConcLB2.real
 
 def ConcUB2(Rho: list[complex, complex], pdg_pos: list[int])-> float:
     """
@@ -553,7 +557,8 @@ def ConcUB2(Rho: list[complex, complex], pdg_pos: list[int])-> float:
 
     aux1 = 1 - np.trace(np.dot(RhoA, RhoA))
     aux2 = 1 - np.trace(np.dot(RhoB, RhoB))
-    return 2 * min(aux1, aux2)
+    ConcUB2 = 2 * min(aux1, aux2)
+    return ConcUB2.real
 
 def Get_Bell_Test(CTC: list[list[float]]) -> tuple[float, bool]: #a tester
         '''
