@@ -4799,6 +4799,20 @@ class HelasMatrixElement(base_objects.PhysicsObject):
                                   wf.get('pdg_code')].get_helicity_states(allow_reverse)
             for wf in self.get_external_wavefunctions()]
         return itertools.product(*hel_per_part)
+    
+    def get_helicity_per_particle(self):
+        """give the allowed helicity for each external particle"""
+        
+        if not self.get('processes'):
+            return None
+
+        process = self.get('processes')[0]
+        model = process.get('model')
+        hel_per_part = [ wf.get('polarization') if wf.get('polarization') 
+                        else model.get('particle_dict')[\
+                                  wf.get('pdg_code')].get_helicity_states()
+            for wf in self.get_external_wavefunctions()]
+        return hel_per_part
 
 
 

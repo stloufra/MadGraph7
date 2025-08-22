@@ -2540,9 +2540,7 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
             shutil.copy(pjoin(self.mgme_dir, 'madgraph', 'iolibs', 'template_files', 'makefile_sa_f_sp'), 
                     pjoin(self.dir_path, 'SubProcesses', 'makefileP'))
         
-        if self.format == 'standalone':
-            shutil.copy(pjoin(self.mgme_dir, 'madgraph', 'iolibs', 'template_files', 'check_sa.f'), 
-                    pjoin(self.dir_path, 'SubProcesses', 'check_sa.f'))
+
                         
         # Add file in Source
         shutil.copy(pjoin(temp_dir, 'Source', 'make_opts'), 
@@ -2938,16 +2936,14 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
                          matrix_element.get('processes')[0].nice_string())
             plot.draw()
 
-        linkfiles = ['check_sa.f', 'coupl.inc']
 
-        if proc_prefix and os.path.exists(pjoin(dirpath, '..', 'check_sa.f')):
-            text = open(pjoin(dirpath, '..', 'check_sa.f')).read()
-            pat = re.compile('smatrix', re.I)
-            new_text, n  = re.subn(pat, '%ssmatrix' % proc_prefix, text)
-            with open(pjoin(dirpath, 'check_sa.f'),'w') as f:
-                f.write(new_text)
-            linkfiles.pop(0)
+        filename = pjoin(dirpath, 'check_sa.f')
+        self.write_check_sa(writers.FortranWriter(filename),
+                           matrix_element,
+                           proc_prefix=proc_prefix)        
 
+
+        linkfiles = ['coupl.inc']
         for file in linkfiles:
             ln('../%s' % file, cwd=dirpath)
         ln('../makefileP', name='makefile', cwd=dirpath)
@@ -2957,6 +2953,52 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         if not calls:
             calls = 0
         return calls
+
+    #===========================================================================
+    # write_nexternal_madspin   
+    #===========================================================================
+    def write_check_sa(self, writer, matrix_element, proc_prefix=''):
+        
+        # set replace_dict like if no density matrix
+        replace_dict = {'prefix': proc_prefix,
+                        'use_density': '.false.',
+                        'dens_nchanging': '1',
+                        'dens_ncomb': '2',
+                        'dens_pos': 'if(nincoming.eq.2) then \n POS(1) = 3 \n else POS(1) =1 \n endif',
+                        'dens_allow_hel': 'ALLOW_HEL(1) = +1 \n ALLOW_HEL(2) = -1'}
+
+        if 'density' in self.cmd_options:
+            replace_dict['use_density'] = '.true.'
+            changing = [int(i) for i in self.cmd_options['density'].split(',')]
+            replace_dict['dens_nchanging'] = len(changing)
+            replace_dict['dens_pos'] = '\n        '.join(
+                   ['POS(%s) = %i' % (i+1, pos) for i,pos in enumerate(changing)])
+            get_helicity_per_particle = matrix_element.get_helicity_per_particle()
+            changing_hels = [get_helicity_per_particle[pos-1] for pos in changing]
+            replace_dict['dens_ncomb'] = math.prod([len(hel) for hel in changing_hels])
+
+            misc.sprint(replace_dict)
+
+
+            i = 0 
+            replace_dict['dens_allow_hel'] = ''
+            for comb in  itertools.product(*changing_hels):
+                misc.sprint(comb)
+                for h in comb:
+                    misc.sprint(i,h)
+                    i += 1
+                    replace_dict['dens_allow_hel'] += ' ALLOW_HEL(%i) = %i\n       ' % (i, h)
+
+        misc.sprint(replace_dict)
+
+        fsock =  open(pjoin(self.mgme_dir, 'madgraph', 'iolibs', 'template_files', 'check_sa.f'), 'r')
+        text = fsock.read()
+        fsock.close()
+        text = text % replace_dict
+        writer.write(text)
+        writer.close()
+
+
 
 
     #===========================================================================
