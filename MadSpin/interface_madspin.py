@@ -1817,7 +1817,7 @@ class MadSpinInterface(extended_cmd.Cmd):
             print(f"full event 2 = {full_event}")
             if self.options['density_debug']:
                 me1 = self.calculate_matrix_element(full_event)
-                #print(f"me1 = {me1} , me2 = {full_me} , ratio = {me1/full_me}")
+                print(f"me1 = {me1} , me2 = {full_me} , ratio = {me1/full_me}")
                 if abs(1-me1/full_me) > self.options['density_tolerance']:
                     print(f"full = {me1} , density = {full_me} , ratio = {me1/full_me}")	    
                     print(full_event)	
@@ -1878,9 +1878,12 @@ class MadSpinInterface(extended_cmd.Cmd):
         prod_denominators = 1
         
         # Dictionary of allowed helicities
+        # ATTENTION: There is an ambiguity when comparing with check_sa since
+        # the top and antitop helicities are treated differently in python 
+        # (top = [1,-1], antitop=[-1,1])
         hel_dict = {1: [0],
                     2: [1, -1],
-                    3: [1, 0, -1]}
+                    3: [-1, 0, 1]}
         
         # Spyros: to be seen if this is needed
         density_dec = [[0]*nchanging]
@@ -1946,7 +1949,7 @@ class MadSpinInterface(extended_cmd.Cmd):
             # Spyros: remove this in production? Not needed since default will be False
             #if Ndecays_sameid > 1: 
             #    self.options['density_debug'] = False
-            
+
 	        # Get the color, mass, spin and width of decaying particle
             width = decay_dict[pdg][0]
             mass = decay_dict[pdg][1]
@@ -1988,6 +1991,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                                                    allow_hel=helicities[decaying_idx+i_decay_event], 
                                                    ncomb=len(helicities[decaying_idx+i_decay_event]),
                                                    dimension=len(helicities[decaying_idx+i_decay_event]))
+
                 if decaying_idx == 0 and i_decay_event == 0:
                     #print("first pass")
                     density_dec = density_dec_tmp
@@ -2013,7 +2017,10 @@ class MadSpinInterface(extended_cmd.Cmd):
 		# Get the full ME from the production and decay density matrices
         me = density_dec.scalar_multiplication(density_prod)
         print(f"scalar multiplication dec*prod = {me}")
-        me = me.real/(iden_p*prod_color*prod_denominators) # need to change this for decay of different particles
+        denominator = iden_p * prod_color * prod_denominators * Ndecays_sameid
+        print(f"denominator = {denominator}")
+        me = me.real / denominator
+        print(f"me = {me}")
 
         # Get production and decay ME from diagonal elements of density matrix
         print(f"iden_p = {iden_p} , prod_color = {prod_color} , prod_denominators = {prod_denominators} , color = {color} , ncomb = {ncomb}")
@@ -2052,14 +2059,14 @@ class MadSpinInterface(extended_cmd.Cmd):
         # ncomb = len(allow_hel)/nchanging
         # nchanging = len(position)
 
-        #print("--- from get_density ---")
+        print("--- from get_density ---")
         #print(event)
         #print(f"position = {position}")
         #print(f"nchanging = {nchanging}")
-        #print(f"allow_hel = {allow_hel}")
+        print(f"allow_hel = {allow_hel}")
         #print(f"ncomb = {ncomb}")
         #print(f"dimension = {dimension}")
-        #print("-------------------------")
+        print("-------------------------")
 
         #density = [[0 for _ in range(len(allow_hel))] for _ in range(len(allow_hel))]
 		
