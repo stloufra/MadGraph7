@@ -991,28 +991,30 @@ class TestCmdShell2(unittest.TestCase,
         prod_dec1 = madspin.DensityMatrix(all_dens[2], 1, [-1,0,1], 3) 
         prod_dec2 = madspin.DensityMatrix(all_dens[3], 1, [-1,0,1], 3)  
 
-        self.assertAlmostEqual(prod_dec1.trace()/3., all_me[2],4)
-        self.assertAlmostEqual(prod_dec2.trace()/3., all_me[3],4)
-        self.assertAlmostEqual(prod_dens.trace()/9./4./2., all_me[0],4)  #9 color , 4 spin, 2 symmetry factor (ZZ)
+        self.assertAlmostEqual(prod_dec1.trace()/3./all_me[2],1,4)
+        self.assertAlmostEqual(prod_dec2.trace()/3./all_me[3],1,4)
+        self.assertAlmostEqual(prod_dens.trace()/9./4./2./all_me[0], 1,4)  #9 color , 4 spin, 2 symmetry factor (ZZ)
 
 
-        prod_dec =prod_dec1.tensor_product(prod_dec2)
-        prod_dec_sym =prod_dec2.tensor_product(prod_dec1) 
+        prod_dec = prod_dec1.tensor_product(prod_dec1)
+        self.assertNotEqual(str(prod_dec1), str(prod_dec2))
+        #prod_dec_sym =prod_dec2.tensor_product(prod_dec1) 
         mZ= 91.18800
         WZ = 2.44140
         nb_hel = 3*3
         symfact = 2 # 2 Z identical particles in the final state
         nb_spin = 2*2
         matrix = prod_dens.scalar_multiplication(prod_dec)/mZ**4/WZ**4/nb_hel/symfact/nb_spin
-        matrix_sym = prod_dens.scalar_multiplication(prod_dec_sym)/mZ**4/WZ**4/nb_hel/symfact/nb_spin 
+        #matrix_sym = prod_dens.scalar_multiplication(prod_dec_sym)/mZ**4/WZ**4/nb_hel/symfact/nb_spin 
 
         misc.sprint(matrix/all_me[1], all_me[1]/matrix)
-        misc.sprint(matrix_sym/all_me[1], all_me[1]/matrix_sym) 
-        self.assertAlmostEqual(matrix, all_me[1],4)
+        #misc.sprint(matrix_sym/all_me[1], all_me[1]/matrix_sym) 
+        misc.sprint(matrix, all_me[1], )
+        self.assertAlmostEqual(matrix/all_me[1], 1,places=5)
 
 
 
-
+        raise Exception("stop here for debug")
    
         ############################################################################
         # Check convolution of density matrix with decay matrix 
@@ -1149,16 +1151,20 @@ class TestCmdShell2(unittest.TestCase,
         """edit the check.f file to include the momenta p"""
         misc.sprint(dir)
         text = []
+        done = False
         for line in open(os.path.join(dir, 'check_sa.f'), 'r'):
             if 'CALL GET_MOMENTA(SQRTS,PMASS,P)' in line:
                 for i in range(len(p)):
                     real_p = lhe_parser.FourMomentum(p[i])
                     misc.sprint(real_p)
+                    done = True
                     for j in range(4):
                         text.append('        p(%s,%s) = %e\n' % (j, i+1, real_p[j]))
             else:
                 text.append(line)
 
+        #if not done:
+        #    raise Exception('Could not find place to insert momenta in check_sa.f')
 
         checkf = os.path.join(dir, 'check_sa.f')
         open(checkf, 'w').write('\n'.join(text))
