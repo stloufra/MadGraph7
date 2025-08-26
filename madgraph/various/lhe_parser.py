@@ -3065,6 +3065,9 @@ class FourMomentum(object):
     def get_tuple(self):
         return (self.E, self.px, self.py,self.pz)
     
+    def __getitem__(self, item):
+         return getattr(self, {0:'E', 1:'px',2:'py',3:'pz'}[item])
+    
     def boost(self, mom):
         """mom 4-momenta is suppose to be given in the rest frame of this 4-momenta.
         the output is the 4-momenta in the frame of this 4-momenta

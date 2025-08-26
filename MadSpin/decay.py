@@ -4471,8 +4471,8 @@ class DensityMatrix:
         self.diag_elements = [i * (2 * self.dimension - i + 1) // 2 for i in range(self.dimension)]
         # Create the index map
         self.map_density_matrix_ind = self.get_map_density_matrix(all_helicity_combinations, nchanging)
-        #print(f"helicities = {helicities}")
         len_allowed_hel = len(next(iter(self.map_density_matrix_ind)))
+        misc.sprint(len_allowed_hel)
          # Create the structured array
         dtype = [('helicities', 'i4', (len_allowed_hel)),  
                  ('value', 'complex64')] 
@@ -4496,7 +4496,6 @@ class DensityMatrix:
                 new_element = np.array((key, array[pos_in_array]), dtype=dtype) if is_in_array \
                               else np.array((key, array[pos_in_array].conjugate()), dtype=dtype)
                 self.matrix = np.append(self.matrix, new_element)
-            #print(f"Density matrix = {self.matrix}") 
         
     @staticmethod
     def get_map_density_matrix(allowed_hel, n_changing):
@@ -4518,10 +4517,12 @@ class DensityMatrix:
         #c 588           CALL GET_INTER(JAMP(1,I), JAMP(1,J), INTER(SOL))
         #c 589         ENDDO
         #c 590       ENDDO
-
+        #print(f"Spyros allowed_hel = {allowed_hel}")
+        #print(f"Spyros n_changing = {n_changing}")
         # set the index for the equivalent of the jamp
         jamp_hel = []
         n_comb = len(allowed_hel) // n_changing
+
         for i in range(n_comb):
             current_hel = []
             for n in range(n_changing):
@@ -4552,7 +4553,6 @@ class DensityMatrix:
             if key != conjugate_index(key):
                 map_density[conjugate_index(key)] = (False, map_density[key][1])
         
-        #print(f"Spyros map_density = {map_density}")
         return map_density
 
     def get_helicities_for_tensor_product(self, helicities):
@@ -4598,6 +4598,7 @@ class DensityMatrix:
         #if self.map_density_matrix_ind != other.map_density_matrix_ind:
         #    raise TypeError("Non-compatible dimensions of production and decay spin-density matrices")
         if len(self.matrix) != len(other.matrix):
+            misc.sprint(len(self.matrix), len(other.matrix))
             raise TypeError("Non-compatible dimensions of production and decay spin-density matrices")
 
         # Multiply the matrix elements of one matrix with the elements of the other matrix that have

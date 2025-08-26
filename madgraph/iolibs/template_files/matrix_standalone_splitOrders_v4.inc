@@ -507,7 +507,7 @@ C
       RETURN
       END
 
-     SUBROUTINE  %(proc_prefix)sGET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL, N_COMB, ALPHAS, INTER)
+     SUBROUTINE  %(proc_prefix)sGET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL, N_COMB, ALPHAS, INTER_SUM)
 c     P momenta
 c     NHEL base of helicity that are not changing
 c     POS(N_CHNGING): position of the changing helicity
@@ -521,7 +521,7 @@ CF2PY INTENT(IN) :: N_CHANGING
 CF2PY INTENT(IN) :: ALLOW_HEL(N_CHANGING*N_COMB)
 CF2PY INTENT(IN) :: N_COMB
 CF2PY INTENT(IN) :: ALPHAS
-CF2PY INTENT(OUT) :: INTER(NSQAMPSO, N_COMB*(N_COMB+1)/2)
+CF2PY INTENT(OUT) :: INTER_SUM(N_COMB*(N_COMB+1)/2)
 c
 
       INTEGER NB_NHEL
@@ -539,13 +539,18 @@ C
       INTEGER POS(*)
       INTEGER ALLOW_HEL(*)
       DOUBLE PRECISION ALPHAS
-      DOUBLE COMPLEX INTER(NSQAMPSO,*)
+      DOUBLE COMPLEX INTER_SUM(*)
       DOUBLE COMPLEX TMP_INTER(NSQAMPSO,99)
 c LOCAL
       INTEGER I,IHEL,IPART
       INTEGER J
       DOUBLE PRECISION PI
 C
+C     GLOBAL
+C
+      LOGICAL CHOSEN_SO_CONFIGS(NSQAMPSO)
+      COMMON/%(proc_prefix)sCHOSEN_BORN_SQSO/CHOSEN_SO_CONFIGS
+
       INTEGER NHEL(NEXTERNAL,NB_NHEL),NTRY
 C     put in common block to expose this variable to python interface
       COMMON/%(proc_prefix)sPROCESS_NHEL/NHEL
@@ -554,7 +559,7 @@ C     include coupling definition to update the value of alphas
 C
       include 'coupl.inc'
       do I = 1,  N_COMB*(N_COMB+1)/2
-        INTER(:,I) = 0d0
+        INTER_SUM(I) = 0d0
       enddo
 
       IF (ALPHAS.ne.0d0) then
@@ -571,13 +576,17 @@ C
         TMP_INTER(:,:) = 0
         call  %(proc_prefix)sGET_ALL_INTER(P, THISNHEL, POS, N_CHANGING, ALLOW_HEL, N_COMB, TMP_INTER)
         do J =1, NSQAMPSO
-          do I = 1, N_COMB*(N_COMB+1)/2
-            INTER(J,I) = INTER(J,I) + TMP_INTER(J,I)
-          enddo
+          IF (CHOSEN_SO_CONFIGS(J)) THEN
+            do I = 1, N_COMB*(N_COMB+1)/2
+              INTER_SUM(I) = INTER_SUM(I) + TMP_INTER(J,I)
+            enddo
+          endif
         enddo
  10   enddo
       return
       end
+
+
 
       SUBROUTINE  %(proc_prefix)sGET_ALL_INTER(P, NHEL, POS, N_CHANGING, ALLOW_HEL, N_COMB, INTER)
 c     P momenta

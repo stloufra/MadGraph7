@@ -33,6 +33,7 @@ import madgraph.interface.launch_ext_program as launch_ext
 import madgraph.iolibs.files as files
 import madgraph.core.diagram_generation as diagram_generation
 import madgraph.various.misc as misc
+import madgraph.various.lhe_parser as lhe_parser
 _file_path = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0]
 _pickle_path =os.path.join(_file_path, 'input_files')
 
@@ -674,6 +675,494 @@ class TestCmdShell2(unittest.TestCase,
             self.assertEqual(original[i], new[i])
 
          
+    def test_standalone_density(self):
+        """test that standalone density is working"""
+
+        if os.path.isdir(self.out_dir):
+            shutil.rmtree(self.out_dir)
+
+        self.do('generate p p > j t t~ ')
+        self.do('output standalone %s --density=4,5 -f' % self.out_dir)
+        devnull = open(os.devnull,'w')
+    
+        logfile = os.path.join(self.out_dir,'SubProcesses', 'P0_gg_gttx',
+                               'check_sa.log')
+        # Check that check_sa.f compiles
+        subprocess.call(['make'],
+                        stdout=devnull, stderr=devnull, 
+                        cwd=os.path.join(self.out_dir, 'SubProcesses',
+                                         'P0_gg_gttx'))
+        
+        subprocess.call(['./check'],
+                        stdout=open(logfile, 'w'), stderr=subprocess.STDOUT,
+                        cwd=os.path.join(self.out_dir, 'SubProcesses',
+                                         'P0_gg_gttx'))
+    
+        log_output = open(logfile, 'r').read()
+        me_re = re.compile(r'Matrix element\s*=\s*(?P<value>[\d\.eE\+-]+)\s*GeV',
+                           re.IGNORECASE)
+        me_groups = me_re.search(log_output)    
+        self.assertTrue(me_groups)
+        self.assertAlmostEqual(float(me_groups.group('value')), 0.0004188716594531423, 5)
+
+        # check density matrix
+        #
+        #particle 3 has helicity -1 -1
+        #particle 4 has helicity 1 1
+        #value is 1 (2.78194898230116219E-011,0.0000000000000000)
+        me_re = re.compile(r'particle\s+4\s+has\s+helicity\s+([\+\-]?\d)\s*([\+\-]?\d)\s*'
+                           r'particle\s+5\s+has\s+helicity\s+([\+\-]?\d)\s*([\+\-]?\d)\s*'
+                           r'value is\s+\d+\s*\(([\d\.eE\+-]+),([\d\.eE\+-]+)\)', re.MULTILINE)
+        all_matches = me_re.findall(log_output)
+        sol = {}
+        for match in all_matches:
+            sol[(int(match[0]), int(match[1]), int(match[2]), int(match[3]))] = (float(match[4]), float(match[5]))
+
+        original_sol = {(-1, -1, 1, 1): (0.02827952274928987, 0.0), (-1, -1, 1, -1): (-0.0041892876162345, -0.0041923830983622255), (-1, 1, 1, 1): (0.000469685615962711, 0.0006142055733429721), (-1, 1, 1, -1): (-0.01784029173125566, -0.00794999696313525), (-1, -1, -1, -1): (0.02532739017396033, 0.0), (-1, 1, -1, 1): (-0.00028182588524174187, 0.0024162264334765746), (-1, 1, -1, -1): (-0.00048593945847553023, -0.0006039982074415239), (1, 1, 1, 1): (0.025301510150454294, 0.0), (1, 1, 1, -1): (0.004212401136919661, 0.0042167644618831875), (1, 1, -1, -1): (0.028322721746299958, 0.0)}
+
+        for key in original_sol:
+            self.assertIn(key, sol)
+            self.assertAlmostEqual(original_sol[key][0], sol[key][0])
+            self.assertAlmostEqual(original_sol[key][1], sol[key][1])
+
+        ########################################################################
+        ### check case with polarization vectors
+        ########################################################################
+        self.do('generate u u~ > z{0} z{T} g')
+        self.do('output standalone %s --density=3,4,5 -f ' % self.out_dir)
+        devnull = open(os.devnull,'w')
+    
+        logfile = os.path.join(self.out_dir,'SubProcesses', 'P0_uux_z0zTg',
+                               'check_sa.log')
+        # Check that check_sa.f compiles
+        subprocess.call(['make'],
+                        stdout=devnull, stderr=devnull, 
+                        cwd=os.path.join(self.out_dir, 'SubProcesses',
+                                         'P0_uux_z0zTg'))
+        
+        subprocess.call(['./check'],
+                        stdout=open(logfile, 'w'), stderr=subprocess.STDOUT,
+                        cwd=os.path.join(self.out_dir, 'SubProcesses',
+                                         'P0_uux_z0zTg'))
+    
+        log_output = open(logfile, 'r').read()
+        me_re = re.compile(r'Matrix element\s*=\s*(?P<value>[\d\.eE\+-]+)\s*GeV',
+                           re.IGNORECASE)
+        me_groups = me_re.search(log_output)    
+        self.assertTrue(me_groups)
+        self.assertAlmostEqual(float(me_groups.group('value')), 3.140334500813846e-08, 5)
+
+        # check density matrix
+        #
+        #particle 3 has helicity -1 -1
+        #particle 4 has helicity 1 1
+        #value is 1 (2.78194898230116219E-011,0.0000000000000000)
+        me_re = re.compile(r'particle\s+3\s+has\s+helicity\s+([\+\-]?\d)\s*([\+\-]?\d)\s*'
+                           r'particle\s+4\s+has\s+helicity\s+([\+\-]?\d)\s*([\+\-]?\d)\s*'
+                           r'particle\s+5\s+has\s+helicity\s+([\+\-]?\d)\s*([\+\-]?\d)\s*'
+                           r'value is\s+\d+\s*\(([\d\.eE\+-]+),([\d\.eE\+-]+)\)', re.MULTILINE)
+        all_matches = me_re.findall(log_output)
+        sol = {}
+        for match in all_matches:
+            sol[(int(match[0]), int(match[1]), int(match[2]), int(match[3]), int(match[4]),int(match[5]))] = (float(match[6]), float(match[7]))
+            self.assertTrue(len(match), 8)
+            self.assertEqual(int(match[0]), int(match[1]))
+            self.assertEqual(int(match[0]), 0)
+            self.assertIn(int(match[2]), [-1,1])
+            self.assertIn(int(match[3]), [-1,1])
+
+        self.assertEqual(len(sol), 10)
+        original_sol =  {(0, 0, 1, 1, -1, -1): (3.4001167694559294e-07, 0.0), (0, 0, 1, 1, -1, 1): (-3.1461674759236455e-07, 4.8545818497513406e-09), (0, 0, 1, -1, -1, -1): (-3.069602710730949e-07, 4.832171908212019e-09), (0, 0, 1, -1, -1, 1): (2.7270589345996334e-07, -2.0762612868036477e-08), (0, 0, 1, 1, 1, 1): (2.914827381801457e-07, 0.0), (0, 0, 1, -1, 1, -1): (2.8446952890247865e-07, -7.217171184019204e-11), (0, 0, 1, -1, 1, 1): (-2.5326248092821595e-07, 1.519703606636158e-08), (0, 0, -1, -1, -1, -1): (2.7764709546297174e-07, 0.0), (0, 0, -1, -1, -1, 1): (-2.4727978606009926e-07, 1.4752928639145769e-08), (0, 0, -1, -1, 1, 1): (2.2137890970427402e-07, 0.0)}
+        for key in original_sol:
+            
+            self.assertIn(key, sol)
+            self.assertAlmostEqual(original_sol[key][0], sol[key][0])
+            self.assertAlmostEqual(original_sol[key][1], sol[key][1])
+
+        ########################################################################
+        ### check Z > t t~ case
+        ######################################################################## 
+        self.do('generate z > b b~')
+        self.do('output standalone %s --density=1 -f ' % self.out_dir)
+        devnull = open(os.devnull,'w')
+    
+        logfile = os.path.join(self.out_dir,'SubProcesses', 'P0_z_bbx',
+                               'check_sa.log')
+        # Check that check_sa.f compiles
+        subprocess.call(['make'],
+                        stdout=devnull, stderr=devnull, 
+                        cwd=os.path.join(self.out_dir, 'SubProcesses',
+                                         'P0_z_bbx'))
+        
+        subprocess.call(['./check'],
+                        stdout=open(logfile, 'w'), stderr=subprocess.STDOUT,
+                        cwd=os.path.join(self.out_dir, 'SubProcesses',
+                                         'P0_z_bbx'))
+    
+        log_output = open(logfile, 'r').read()
+        me_re = re.compile(r'Matrix element\s*=\s*(?P<value>[\d\.eE\+-]+)\s*GeV',
+                           re.IGNORECASE)
+        me_groups = me_re.search(log_output) 
+        self.assertTrue(me_groups)
+        self.assertAlmostEqual(float(me_groups.group('value')), 1696.1593018147787, 5)
+
+        # check density matrix
+        #
+        #particle 3 has helicity -1 -1
+        #particle 4 has helicity 1 1
+        #value is 1 (2.78194898230116219E-011,0.0000000000000000)
+        me_re = re.compile(
+                           r'particle\s+1\s+has\s+helicity\s+([\+\-]?\d)\s*([\+\-]?\d)\s*'
+                           r'value is\s+\d+\s*\(([\d\.eE\+-]+),([\d\.eE\+-]+)\)', re.MULTILINE)
+        all_matches = me_re.findall(log_output)
+        sol = {}
+        for match in all_matches:
+            sol[(int(match[0]), int(match[1]))] = (float(match[2]), float(match[3]))
+
+
+        self.assertEqual(len(sol), 6)
+        original_sol =  {(-1, -1): (520.1204099513759, 0.0), (-1, 0): (-217.2395066557355, 871.1782252029083), (-1, 1): (-939.258737149777, -499.49184104989456), (0, 0): (2136.628541206853, 0.0), (0, 1): (-534.1281427839928, 2141.9713873632077), (1, 1): (2431.7289542861076, 0.0)}
+        for key in original_sol:
+            
+            self.assertIn(key, sol)
+            self.assertAlmostEqual(original_sol[key][0], sol[key][0])
+            self.assertAlmostEqual(original_sol[key][1], sol[key][1])
+
+
+        ########################################################################
+        ### check case with interference computation
+        ######################################################################## 
+        self.do('generate u u~ > t t~ QCD^2==2')
+        self.do('output standalone %s --density=3,4 -f ' % self.out_dir)
+        devnull = open(os.devnull,'w')
+    
+        logfile = os.path.join(self.out_dir,'SubProcesses', 'P0_uux_ttx',
+                               'check_sa.log')
+        # Check that check_sa.f compiles
+        subprocess.call(['make'],
+                        stdout=devnull, stderr=devnull, 
+                        cwd=os.path.join(self.out_dir, 'SubProcesses',
+                                         'P0_uux_ttx'))
+        
+        subprocess.call(['./check'],
+                        stdout=open(logfile, 'w'), stderr=subprocess.STDOUT,
+                        cwd=os.path.join(self.out_dir, 'SubProcesses',
+                                         'P0_uux_ttx'))
+    
+        log_output = open(logfile, 'r').read()
+        me_re = re.compile(r'Matrix element\s*=\s*(?P<value>[\d\.eE\+-]+)\s*GeV',
+                           re.IGNORECASE)
+        me_groups = me_re.search(log_output) 
+        self.assertTrue(me_groups)
+        self.assertAlmostEqual(float(me_groups.group('value')), 0, 5)
+
+        # check density matrix
+        #
+        #particle 3 has helicity -1 -1
+        #particle 4 has helicity 1 1
+        #value is 1 (2.78194898230116219E-011,0.0000000000000000)
+        me_re = re.compile(
+                           r'particle\s+3\s+has\s+helicity\s+([\+\-]?\d)\s*([\+\-]?\d)\s*'
+                           r'particle\s+4\s+has\s+helicity\s+([\+\-]?\d)\s*([\+\-]?\d)\s*'
+                           r'value is\s+\d+\s*\(([\d\.eE\+-]+),([\d\.eE\+-]+)\)', re.MULTILINE)
+        all_matches = me_re.findall(log_output)
+        sol = {}
+        for match in all_matches:
+            sol[(int(match[0]), int(match[1]), int(match[2]), int(match[3]))] = (float(match[4]), float(match[5]))
+            self.assertTrue(len(match), 6)
+            self.assertIn(int(match[0]), [-1,1])
+            self.assertIn(int(match[1]), [-1,1])
+            self.assertIn(int(match[2]), [-1,1])
+            self.assertIn(int(match[3]), [-1,1])
+
+
+        self.assertEqual(len(sol), 10)
+        original_sol = sol =  {(-1, -1, 1, 1): (-5.551115123125783e-17, 0.0), (-1, -1, 1, -1): (0.00926133766116009, 0.0), (-1, 1, 1, 1): (-0.009292545047075378, 0.0), (-1, 1, 1, -1): (0.09884700885130696, 0.0), (-1, -1, -1, -1): (-1.6479873021779667e-17, 0.0), (-1, 1, -1, 1): (5.415404411525035e-07, 0.0), (-1, 1, -1, -1): (-0.012877349160785171, 0.0), (1, 1, 1, 1): (-1.734723475976807e-17, 0.0), (1, 1, 1, -1): (0.012880402732054583, 0.0), (1, 1, -1, -1): (-4.85722573273506e-17, 0.0)}
+        for key in original_sol:
+
+            self.assertIn(key, sol)
+            self.assertAlmostEqual(original_sol[key][0] if abs(original_sol[key][0]) > 1e-12 else 0, sol[key][0])
+            self.assertAlmostEqual(original_sol[key][1] if abs(original_sol[key][1]) > 1e-12 else 0, sol[key][1])
+
+    def test_standalone_density_tmp(self):
+        ############################################################################
+        # Check convolution of density matrix with decay matrix 
+        # reproduces the full matrix-element
+        # testing case u u~ > z z, z > e+ e-
+        ############################################################################
+        self.do('generate u u~ > z z')
+        self.do('output standalone %s_prod --density=3,4 -f ' % self.out_dir)
+        self.do('generate u u~ > z z, z > e+ e-')
+        self.do('output standalone %s_full -f ' % self.out_dir) 
+        self.do('generate z > e+ e- --standalone') # --standalone allow mix 2>1 and 2>2 processes
+        self.do('output standalone %s_dec1 --density=1 -f ' % self.out_dir)
+        self.do('output standalone %s_dec2 --density=1 -f ' % self.out_dir)
+        # Read a test event for u u~ > z z, z > e+ e-
+        text_lhe = """<event>
+          8      1 +9.3742000e+00 9.47120700e+01 7.54677100e-03 1.29182600e-01
+        -1 -1    0    0    0  501 -0.0000000000e+00 +0.0000000000e+00 +2.9573272973e+01 2.9573272973e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
+        1 -1    0    0  501    0 +0.0000000000e+00 -0.0000000000e+00 -3.1517472072e+02 3.1517472072e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       23  2    1    2    0    0 -2.1281935632e+01 +1.4219874445e+01 -1.0938041178e+02 1.4468742668e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
+       23  2    1    2    0    0 +2.1281935632e+01 -1.4219874445e+01 -1.7622103597e+02 2.0006056702e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
+      -11  1    3    3    0    0 -2.3913658500e+01 -2.5175464738e+01 -7.6385381990e+00 3.5552979530e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
+       11  1    3    3    0    0 +2.6317228690e+00 +3.9395339183e+01 -1.0174187358e+02 1.0913444714e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+      -11  1    4    4    0    0 -5.3058986557e+00 -4.9901564188e+01 -9.5949709558e+01 1.0828049424e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       11  1    4    4    0    0 +2.6587834287e+01 +3.5681689743e+01 -8.0271326406e+01 9.1780072772e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
+       </event>"""
+
+
+        
+        Event = lhe_parser.Event()
+        Event.parse(text_lhe.split('\n')) 
+        # get the associate momenta for each matrix-element
+        production_p = [Event[0], Event[1], Event[2], Event[3]]
+        full_p = [Event[0], Event[1], Event[4], Event[5], Event[6], Event[7]]
+        decay_z1 = [Event[2], Event[4], Event[5]]
+        decay_z2 = [Event[3], Event[6], Event[7]]
+        all_p = [production_p, full_p, decay_z1, decay_z2]
+
+
+        all_me = []
+        all_dens = []
+        all_index= []
+        # compiles the three directories:
+        for i, (mdir, Pdir) in enumerate([(self.out_dir+'_prod', 'P0_uux_zz'), 
+                                 (self.out_dir+'_full', 'P0_uux_zz_z_epem_z_epem'), 
+                                 (self.out_dir+'_dec1', 'P0_z_epem'),
+                                 (self.out_dir+'_dec2', 'P0_z_epem')]):
+            p = all_p[i]
+            self.edit_p_in_standalone(os.path.join(mdir, 'SubProcesses', Pdir), p)
+            devnull = open(os.devnull,'w')
+            subprocess.call(['make'],
+                            stdout=devnull, stderr=devnull, 
+                            cwd=os.path.join(mdir, 'SubProcesses',
+                                             Pdir)) 
+            self.assertTrue(os.path.exists(os.path.join(mdir,
+                                                        'SubProcesses', Pdir,
+                                                        'check')))
+            #compute the matrix-element
+            logfile = os.path.join(mdir,'SubProcesses', Pdir,
+                                   'check.log')
+            subprocess.call('./check', 
+                            stdout=open(logfile, 'w'), stderr=subprocess.STDOUT,
+                            cwd=os.path.join(mdir, 'SubProcesses',
+                                             Pdir), shell=True)
+            log_output = open(logfile, 'r').read()
+            misc.sprint(log_output)
+            me_re = re.compile(r'Matrix element\s*=\s*(?P<value>[\d\.eE\+-]+)\s*GeV',
+                               re.IGNORECASE)
+            me_groups = me_re.findall(log_output) 
+            dens_re =re.compile(r'value is\s+\d+\s*\(([\d\.eE\+-]+),([\d\.eE\+-]+)\)')
+            density = dens_re.findall(log_output)
+
+            hel_index = re.compile(
+                           r'particle\s+\d\s+has\s+helicity\s+([\+\-]?\d)\s*([\+\-]?\d)\s*')
+            index = hel_index.findall(log_output)
+    
+            if len(index) == len(density):
+                all_index.append([[int(x[0]), int(x[1])] for x in index])
+            else:
+                curr_index = []
+                for i in range(len(all_p), 2):
+                    i1 = index[2*i]
+                    i2 = index[2*i+1]
+                    curr_index.append([[int(i1[0]), int(i1[1]), int(i2[0]), int(i2[1])]])
+              
+                all_index.append(curr_index)
+
+            
+            all_me.append(float(me_groups[0]))
+            all_dens.append([complex(float(x[0]), float(x[1])) for x in density])
+
+        import MadSpin.decay as madspin
+        self.assertEqual(all_dens[1], []) 
+
+        import numpy as np
+        # array, nchanging, all_helicity_combinations, dimension):
+        allow_hel = [-1,-1,   -1,0,   -1,1, 
+                        0,-1,  0,0,   0,1, 
+                        1,-1,  1,0,   1,1]
+        
+        #allow_hel = [-1,-1,-1,0,0,0,1,1,1,
+        #             -1,0,1,-1,0,1,-1,0,1]
+
+        misc.sprint(all_index[0])
+        prod_dens = madspin.DensityMatrix(all_dens[0], 2, allow_hel, 9) 
+        prod_dec1 = madspin.DensityMatrix(all_dens[2], 1, [-1,0,1], 3) 
+        prod_dec2 = madspin.DensityMatrix(all_dens[3], 1, [-1,0,1], 3)  
+
+        self.assertAlmostEqual(prod_dec1.trace()/3., all_me[2],4)
+        self.assertAlmostEqual(prod_dec2.trace()/3., all_me[3],4)
+        self.assertAlmostEqual(prod_dens.trace()/9./4./2., all_me[0],4)  #9 color , 4 spin, 2 symmetry factor (ZZ)
+
+
+        prod_dec =prod_dec1.tensor_product(prod_dec2)
+        prod_dec_sym =prod_dec2.tensor_product(prod_dec1) 
+        mZ= 91.18800
+        WZ = 2.44140
+        nb_hel = 3*3
+        symfact = 2 # 2 Z identical particles in the final state
+        nb_spin = 2*2
+        matrix = prod_dens.scalar_multiplication(prod_dec)/mZ**4/WZ**4/nb_hel/symfact/nb_spin
+        matrix_sym = prod_dens.scalar_multiplication(prod_dec_sym)/mZ**4/WZ**4/nb_hel/symfact/nb_spin 
+
+        misc.sprint(matrix/all_me[1], all_me[1]/matrix)
+        misc.sprint(matrix_sym/all_me[1], all_me[1]/matrix_sym) 
+        self.assertAlmostEqual(matrix, all_me[1],4)
+
+
+
+
+   
+        ############################################################################
+        # Check convolution of density matrix with decay matrix 
+        # reproduces the full matrix-element
+        # testing case u u~ > z z, z > e+ e-
+        ############################################################################
+        self.do('generate d d~ > z z')
+        self.do('output standalone %s_prod --density=3,4 -f ' % self.out_dir)
+        self.do('generate d d~ > z z, z > e+ e-')
+        self.do('output standalone %s_full -f ' % self.out_dir) 
+        self.do('generate z > e+ e- --standalone') # --standalone allow mix 2>1 and 2>2 processes
+        self.do('output standalone %s_dec1 --density=1 -f ' % self.out_dir)
+        self.do('output standalone %s_dec2 --density=1 -f ' % self.out_dir)
+        # Read a test event for u u~ > z z, z > e+ e-
+        text_lhe = """ <event>
+ 8      1 +9.3182000e+00 9.58106800e+01 7.54677100e-03 1.28936100e-01
+       -2 -1    0    0    0  501 -0.0000000000e+00 +0.0000000000e+00 +1.3133897947e+02 1.3133897947e+02 0.0000000000e+00 0.0000e+00 1.0000e+00
+        2 -1    0    0  501    0 +0.0000000000e+00 -0.0000000000e+00 -1.8928771624e+02 1.8928771624e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       23  2    1    2    0    0 +2.7856507549e+01 +9.4048216813e+00 -1.5629560828e+02 1.8332485973e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
+       23  2    1    2    0    0 -2.7856507549e+01 -9.4048216813e+00 +9.8346871509e+01 1.3730183598e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
+      -11  1    3    3    0    0 +4.1207329404e+01 +1.3210392522e+01 -2.2428975695e+01 4.8740305887e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
+       11  1    3    3    0    0 -1.3350821855e+01 -3.8055708401e+00 -1.3386663259e+02 1.3458455385e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+      -11  1    4    4    0    0 -5.7647128134e+01 -2.1962673907e+01 +7.6540783391e+01 9.8305859181e+01 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       11  1    4    4    0    0 +2.9790620585e+01 +1.2557852226e+01 +2.1806088117e+01 3.8995976798e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
+       </event>"""
+
+
+        
+        Event = lhe_parser.Event()
+        Event.parse(text_lhe.split('\n')) 
+        # get the associate momenta for each matrix-element
+        production_p = [Event[0], Event[1], Event[2], Event[3]]
+        full_p = [Event[0], Event[1], Event[4], Event[5], Event[6], Event[7]]
+        decay_z1 = [Event[2], Event[4], Event[5]]
+        decay_z2 = [Event[3], Event[6], Event[7]]
+        all_p = [production_p, full_p, decay_z1, decay_z2]
+
+
+        all_me = []
+        all_dens = []
+        all_index= []
+        # compiles the three directories:
+        for i, (mdir, Pdir) in enumerate([(self.out_dir+'_prod', 'P0_ddx_zz'), 
+                                 (self.out_dir+'_full', 'P0_ddx_zz_z_epem_z_epem'), 
+                                 (self.out_dir+'_dec1', 'P0_z_epem'),
+                                 (self.out_dir+'_dec2', 'P0_z_epem')]):
+            p = all_p[i]
+            self.edit_p_in_standalone(os.path.join(mdir, 'SubProcesses', Pdir), p)
+            devnull = open(os.devnull,'w')
+            subprocess.call(['make'],
+                            stdout=devnull, stderr=devnull, 
+                            cwd=os.path.join(mdir, 'SubProcesses',
+                                             Pdir)) 
+            self.assertTrue(os.path.exists(os.path.join(mdir,
+                                                        'SubProcesses', Pdir,
+                                                        'check')))
+            #compute the matrix-element
+            logfile = os.path.join(mdir,'SubProcesses', Pdir,
+                                   'check.log')
+            subprocess.call('./check', 
+                            stdout=open(logfile, 'w'), stderr=subprocess.STDOUT,
+                            cwd=os.path.join(mdir, 'SubProcesses',
+                                             Pdir), shell=True)
+            log_output = open(logfile, 'r').read()
+            misc.sprint(log_output)
+            me_re = re.compile(r'Matrix element\s*=\s*(?P<value>[\d\.eE\+-]+)\s*GeV',
+                               re.IGNORECASE)
+            me_groups = me_re.findall(log_output) 
+            dens_re =re.compile(r'value is\s+\d+\s*\(([\d\.eE\+-]+),([\d\.eE\+-]+)\)')
+            density = dens_re.findall(log_output)
+
+            hel_index = re.compile(
+                           r'particle\s+\d\s+has\s+helicity\s+([\+\-]?\d)\s*([\+\-]?\d)\s*')
+            index = hel_index.findall(log_output)
+    
+            if len(index) == len(density):
+                all_index.append([[int(x[0]), int(x[1])] for x in index])
+            else:
+                curr_index = []
+                for i in range(len(all_p), 2):
+                    i1 = index[2*i]
+                    i2 = index[2*i+1]
+                    curr_index.append([[int(i1[0]), int(i1[1]), int(i2[0]), int(i2[1])]])
+              
+                all_index.append(curr_index)
+
+            
+            all_me.append(float(me_groups[0]))
+            all_dens.append([complex(float(x[0]), float(x[1])) for x in density])
+
+        import MadSpin.decay as madspin
+        self.assertEqual(all_dens[1], []) 
+
+        import numpy as np
+        # array, nchanging, all_helicity_combinations, dimension):
+        allow_hel = [-1,-1,   -1,0,   -1,1, 
+                      0,-1,    0,0,    0,1, 
+                      1,-1,    1,0,    1,1] #double checked with fortran code.
+        
+
+        misc.sprint(all_index[0])
+        prod_dens = madspin.DensityMatrix(all_dens[0], 2, allow_hel, 9) 
+        prod_dec1 = madspin.DensityMatrix(all_dens[2], 1, [-1,0,1], 3) 
+        prod_dec2 = madspin.DensityMatrix(all_dens[3], 1, [-1,0,1], 3)
+
+
+        #consistency of the matrix-element and the density matrix
+
+        self.assertAlmostEqual(prod_dec1.trace()/3., all_me[2],4)
+        self.assertAlmostEqual(prod_dec2.trace()/3., all_me[3],4)
+        self.assertAlmostEqual(prod_dens.trace()/9./4./2., all_me[0],4)  #9 color , 4 spin, 2 symmetry factor (ZZ)
+
+        prod_dec =prod_dec1.tensor_product(prod_dec2)
+        prod_dec_sym =prod_dec2.tensor_product(prod_dec1) 
+        mZ= 91.18800
+        WZ = 2.44140
+        nb_hel = 3*3
+        symfact = 2 # 2 Z identical particles in the final state
+        nb_spin = 2*2
+        matrix = prod_dens.scalar_multiplication(prod_dec)/mZ**4/WZ**4/nb_hel/symfact/nb_spin
+        #matrix_sym = prod_dens.scalar_multiplication(prod_dec_sym)/mZ**4/WZ**4/nb_hel/symfact/nb_spin
+
+        #misc.sprint(matrix, matrix_sym, all_me[1])
+        #misc.sprint(matrix/all_me[1], matrix_sym/all_me[1])
+
+
+        self.assertAlmostEqual(matrix, all_me[1],4)
+        #self.assertAlmostEqual(matrix_sym, all_me[1],4)
+
+
+
+
+    def edit_p_in_standalone(self, dir, p):
+        """edit the check.f file to include the momenta p"""
+        misc.sprint(dir)
+        text = []
+        for line in open(os.path.join(dir, 'check_sa.f'), 'r'):
+            if 'CALL GET_MOMENTA(SQRTS,PMASS,P)' in line:
+                for i in range(len(p)):
+                    real_p = lhe_parser.FourMomentum(p[i])
+                    misc.sprint(real_p)
+                    for j in range(4):
+                        text.append('        p(%s,%s) = %e\n' % (j, i+1, real_p[j]))
+            else:
+                text.append(line)
+
+
+        checkf = os.path.join(dir, 'check_sa.f')
+        open(checkf, 'w').write('\n'.join(text))
+
         
     def test_v4_heft(self):
         """Test standalone directory for UFO HEFT model"""

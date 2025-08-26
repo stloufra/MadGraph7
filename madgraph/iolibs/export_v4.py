@@ -2954,52 +2954,6 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
             calls = 0
         return calls
 
-    #===========================================================================
-    # write_nexternal_madspin   
-    #===========================================================================
-    def write_check_sa(self, writer, matrix_element, proc_prefix=''):
-        
-        # set replace_dict like if no density matrix
-        replace_dict = {'prefix': proc_prefix,
-                        'use_density': '.false.',
-                        'dens_nchanging': '1',
-                        'dens_ncomb': '2',
-                        'dens_pos': 'if(nincoming.eq.2) then \n POS(1) = 3 \n else POS(1) =1 \n endif',
-                        'dens_allow_hel': 'ALLOW_HEL(1) = +1 \n ALLOW_HEL(2) = -1'}
-
-        if 'density' in self.cmd_options:
-            replace_dict['use_density'] = '.true.'
-            changing = [int(i) for i in self.cmd_options['density'].split(',')]
-            replace_dict['dens_nchanging'] = len(changing)
-            replace_dict['dens_pos'] = '\n        '.join(
-                   ['POS(%s) = %i' % (i+1, pos) for i,pos in enumerate(changing)])
-            get_helicity_per_particle = matrix_element.get_helicity_per_particle()
-            changing_hels = [get_helicity_per_particle[pos-1] for pos in changing]
-            replace_dict['dens_ncomb'] = math.prod([len(hel) for hel in changing_hels])
-
-            misc.sprint(replace_dict)
-
-
-            i = 0 
-            replace_dict['dens_allow_hel'] = ''
-            for comb in  itertools.product(*changing_hels):
-                misc.sprint(comb)
-                for h in comb:
-                    misc.sprint(i,h)
-                    i += 1
-                    replace_dict['dens_allow_hel'] += ' ALLOW_HEL(%i) = %i\n       ' % (i, h)
-
-        misc.sprint(replace_dict)
-
-        fsock =  open(pjoin(self.mgme_dir, 'madgraph', 'iolibs', 'template_files', 'check_sa.f'), 'r')
-        text = fsock.read()
-        fsock.close()
-        text = text % replace_dict
-        writer.write(text)
-        writer.close()
-
-
-
 
     #===========================================================================
     # write_source_makefile
@@ -3209,6 +3163,51 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
             replace_dict['return_value'] = len([call for call in helas_calls if call.find('#') != 0])
             return replace_dict # for subclass update
 
+    #===========================================================================
+    # write_check_sa   
+    #===========================================================================
+    def write_check_sa(self, writer, matrix_element, proc_prefix=''):
+        
+        # set replace_dict like if no density matrix
+        replace_dict = {'prefix': proc_prefix,
+                        'use_density': '.false.',
+                        'dens_nchanging': 1,
+                        'dens_ncomb': 2,
+                    'dens_pos': 'if(nincoming.eq.2) then \n       POS(1) = 3 \n        else \n       POS(1) =1 \n        endif',
+                        'dens_allow_hel': 'ALLOW_HEL(1) = +1 \n       ALLOW_HEL(2) = -1'}
+
+        if 'density' in self.cmd_options:
+            replace_dict['use_density'] = '.true.'
+            changing = [int(i) for i in self.cmd_options['density'].split(',')]
+            replace_dict['dens_nchanging'] = len(changing)
+            replace_dict['dens_pos'] = '\n        '.join(
+                   ['POS(%s) = %i' % (i+1, pos) for i,pos in enumerate(changing)])
+            get_helicity_per_particle = matrix_element.get_helicity_per_particle()
+            changing_hels = [get_helicity_per_particle[pos-1] for pos in changing]
+            replace_dict['dens_ncomb'] = math.prod([len(hel) for hel in changing_hels])
+
+
+
+            i = 0 
+            replace_dict['dens_allow_hel'] = ''
+            for comb in  itertools.product(*changing_hels):
+                for h in comb:
+                    i += 1
+                    replace_dict['dens_allow_hel'] += ' ALLOW_HEL(%i) = %i\n       ' % (i, h)
+
+
+        fsock =  open(pjoin(self.mgme_dir, 'madgraph', 'iolibs', 'template_files', 'check_sa.f'), 'r')
+        text = fsock.read()
+        fsock.close()
+        text = text % replace_dict
+        writer.write(text)
+        writer.close()
+
+
+
+    #===========================================================================
+    # write_check_sa_splitOrders
+    #===========================================================================
     def write_check_sa_splitOrders(self,squared_orders, split_orders, nexternal,
                                                 nincoming, proc_prefix, writer):
         """ Write out a more advanced version of the check_sa drivers that
@@ -4208,7 +4207,6 @@ class ProcessExporterFortranME(ProcessExporterFortran):
 
         if opt and isinstance(opt['output_options'], dict) and \
                                        'vector_size' in opt['output_options']:
-            misc.sprint(opt['output_options']['vector_size'])
             self.opt['vector_size'] = banner_mod.ConfigFile.format_variable(
                   opt['output_options']['vector_size'], int, 'vector_size')
         else:
