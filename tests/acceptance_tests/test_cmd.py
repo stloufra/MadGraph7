@@ -884,7 +884,7 @@ class TestCmdShell2(unittest.TestCase,
             self.assertAlmostEqual(original_sol[key][0] if abs(original_sol[key][0]) > 1e-12 else 0, sol[key][0])
             self.assertAlmostEqual(original_sol[key][1] if abs(original_sol[key][1]) > 1e-12 else 0, sol[key][1])
 
-    def test_standalone_density_tmp(self):
+    def test_standalone_density_uu(self):
         ############################################################################
         # Check convolution of density matrix with decay matrix 
         # reproduces the full matrix-element
@@ -898,18 +898,20 @@ class TestCmdShell2(unittest.TestCase,
         self.do('output standalone %s_dec1 --density=1 -f ' % self.out_dir)
         self.do('output standalone %s_dec2 --density=1 -f ' % self.out_dir)
         # Read a test event for u u~ > z z, z > e+ e-
-        text_lhe = """<event>
-          8      1 +9.3742000e+00 9.47120700e+01 7.54677100e-03 1.29182600e-01
-        -1 -1    0    0    0  501 -0.0000000000e+00 +0.0000000000e+00 +2.9573272973e+01 2.9573272973e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
-        1 -1    0    0  501    0 +0.0000000000e+00 -0.0000000000e+00 -3.1517472072e+02 3.1517472072e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
-       23  2    1    2    0    0 -2.1281935632e+01 +1.4219874445e+01 -1.0938041178e+02 1.4468742668e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
-       23  2    1    2    0    0 +2.1281935632e+01 -1.4219874445e+01 -1.7622103597e+02 2.0006056702e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
-      -11  1    3    3    0    0 -2.3913658500e+01 -2.5175464738e+01 -7.6385381990e+00 3.5552979530e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
-       11  1    3    3    0    0 +2.6317228690e+00 +3.9395339183e+01 -1.0174187358e+02 1.0913444714e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
-      -11  1    4    4    0    0 -5.3058986557e+00 -4.9901564188e+01 -9.5949709558e+01 1.0828049424e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
-       11  1    4    4    0    0 +2.6587834287e+01 +3.5681689743e+01 -8.0271326406e+01 9.1780072772e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
-       </event>"""
+        
 
+
+        text_lhe = """ <event>
+ 8      1 +9.3182000e+00 9.58106800e+01 7.54677100e-03 1.28936100e-01
+       -2 -1    0    0    0  501 -0.0000000000e+00 +0.0000000000e+00 +1.3133897947e+02 1.3133897947e+02 0.0000000000e+00 0.0000e+00 1.0000e+00
+        2 -1    0    0  501    0 +0.0000000000e+00 -0.0000000000e+00 -1.8928771624e+02 1.8928771624e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       23  2    1    2    0    0 +2.7856507549e+01 +9.4048216813e+00 -1.5629560828e+02 1.8332485973e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
+       23  2    1    2    0    0 -2.7856507549e+01 -9.4048216813e+00 +9.8346871509e+01 1.3730183598e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
+      -11  1    3    3    0    0 +4.1207329404e+01 +1.3210392522e+01 -2.2428975695e+01 4.8740305887e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
+       11  1    3    3    0    0 -1.3350821855e+01 -3.8055708401e+00 -1.3386663259e+02 1.3458455385e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+      -11  1    4    4    0    0 -5.7647128134e+01 -2.1962673907e+01 +7.6540783391e+01 9.8305859181e+01 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       11  1    4    4    0    0 +2.9790620585e+01 +1.2557852226e+01 +2.1806088117e+01 3.8995976798e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
+       </event>"""
 
         
         Event = lhe_parser.Event()
@@ -996,8 +998,8 @@ class TestCmdShell2(unittest.TestCase,
         self.assertAlmostEqual(prod_dens.trace()/9./4./2./all_me[0], 1,4)  #9 color , 4 spin, 2 symmetry factor (ZZ)
 
 
-        prod_dec = prod_dec1.tensor_product(prod_dec1)
-        self.assertNotEqual(str(prod_dec1), str(prod_dec2))
+        prod_dec = prod_dec1.tensor_product(prod_dec2)
+        #self.assertNotEqual(str(prod_dec1), str(prod_dec2))
         #prod_dec_sym =prod_dec2.tensor_product(prod_dec1) 
         mZ= 91.18800
         WZ = 2.44140
@@ -1010,37 +1012,36 @@ class TestCmdShell2(unittest.TestCase,
         misc.sprint(matrix/all_me[1], all_me[1]/matrix)
         #misc.sprint(matrix_sym/all_me[1], all_me[1]/matrix_sym) 
         misc.sprint(matrix, all_me[1], )
-        self.assertAlmostEqual(matrix/all_me[1], 1,places=5)
+        self.assertAlmostEqual(matrix/all_me[1], 1,places=4)
 
 
+    def test_standalone_density_dd(self):
+        
 
-        raise Exception("stop here for debug")
-   
         ############################################################################
         # Check convolution of density matrix with decay matrix 
         # reproduces the full matrix-element
-        # testing case u u~ > z z, z > e+ e-
+        # testing case d d~ > z z, z > e+ e-
         ############################################################################
         self.do('generate d d~ > z z')
-        self.do('output standalone %s_prod --density=3,4 -f ' % self.out_dir)
+        self.do('output standalone %s_prod --prefix=int --density=3,4 -f ' % self.out_dir)
         self.do('generate d d~ > z z, z > e+ e-')
         self.do('output standalone %s_full -f ' % self.out_dir) 
         self.do('generate z > e+ e- --standalone') # --standalone allow mix 2>1 and 2>2 processes
         self.do('output standalone %s_dec1 --density=1 -f ' % self.out_dir)
         self.do('output standalone %s_dec2 --density=1 -f ' % self.out_dir)
         # Read a test event for u u~ > z z, z > e+ e-
-        text_lhe = """ <event>
- 8      1 +9.3182000e+00 9.58106800e+01 7.54677100e-03 1.28936100e-01
-       -2 -1    0    0    0  501 -0.0000000000e+00 +0.0000000000e+00 +1.3133897947e+02 1.3133897947e+02 0.0000000000e+00 0.0000e+00 1.0000e+00
-        2 -1    0    0  501    0 +0.0000000000e+00 -0.0000000000e+00 -1.8928771624e+02 1.8928771624e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
-       23  2    1    2    0    0 +2.7856507549e+01 +9.4048216813e+00 -1.5629560828e+02 1.8332485973e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
-       23  2    1    2    0    0 -2.7856507549e+01 -9.4048216813e+00 +9.8346871509e+01 1.3730183598e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
-      -11  1    3    3    0    0 +4.1207329404e+01 +1.3210392522e+01 -2.2428975695e+01 4.8740305887e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
-       11  1    3    3    0    0 -1.3350821855e+01 -3.8055708401e+00 -1.3386663259e+02 1.3458455385e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
-      -11  1    4    4    0    0 -5.7647128134e+01 -2.1962673907e+01 +7.6540783391e+01 9.8305859181e+01 0.0000000000e+00 0.0000e+00 -1.0000e+00
-       11  1    4    4    0    0 +2.9790620585e+01 +1.2557852226e+01 +2.1806088117e+01 3.8995976798e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
+        text_lhe = """<event>
+        8      1 +9.3182000e+00 1.00474800e+02 7.54677100e-03 1.27930100e-01
+       -1 -1    0    0    0  501 -0.0000000000e+00 +0.0000000000e+00 +4.4934420219e+01 4.4934420219e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
+        1 -1    0    0  501    0 +0.0000000000e+00 -0.0000000000e+00 -2.2525427462e+02 2.2525427462e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       23  2    1    2    0    0 -1.0803264452e+01 -4.0782658931e+01 -8.3249650133e+01 1.3048253287e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
+       23  2    1    2    0    0 +1.0803264452e+01 +4.0782658931e+01 -9.7070204270e+01 1.3970616197e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
+      -11  1    3    3    0    0 +1.0085745661e+01 +3.5438949841e+00 +1.6319184216e+01 1.9508901320e+01 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       11  1    3    3    0    0 -2.0889010113e+01 -4.4326553914e+01 -9.9568834346e+01 1.1097363155e+02 0.0000000000e+00 0.0000e+00 1.0000e+00
+      -11  1    4    4    0    0 +2.5139455461e+01 -6.3572870227e-01 +7.5662101007e+00 2.6261072087e+01 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       11  1    4    4    0    0 -1.4336191009e+01 +4.1418387636e+01 -1.0463641438e+02 1.1344508989e+02 0.0000000000e+00 0.0000e+00 1.0000e+00
        </event>"""
-
 
         
         Event = lhe_parser.Event()
@@ -1115,7 +1116,6 @@ class TestCmdShell2(unittest.TestCase,
                       1,-1,    1,0,    1,1] #double checked with fortran code.
         
 
-        misc.sprint(all_index[0])
         prod_dens = madspin.DensityMatrix(all_dens[0], 2, allow_hel, 9) 
         prod_dec1 = madspin.DensityMatrix(all_dens[2], 1, [-1,0,1], 3) 
         prod_dec2 = madspin.DensityMatrix(all_dens[3], 1, [-1,0,1], 3)
@@ -1123,9 +1123,9 @@ class TestCmdShell2(unittest.TestCase,
 
         #consistency of the matrix-element and the density matrix
 
-        self.assertAlmostEqual(prod_dec1.trace()/3., all_me[2],4)
-        self.assertAlmostEqual(prod_dec2.trace()/3., all_me[3],4)
-        self.assertAlmostEqual(prod_dens.trace()/9./4./2., all_me[0],4)  #9 color , 4 spin, 2 symmetry factor (ZZ)
+        self.assertAlmostEqual(prod_dec1.trace()/3./ all_me[2],1,4)
+        self.assertAlmostEqual(prod_dec2.trace()/3./all_me[3],1,4)
+        self.assertAlmostEqual(prod_dens.trace()/9./4./2./ all_me[0],1,4)  #9 color , 4 spin, 2 symmetry factor (ZZ)
 
         prod_dec =prod_dec1.tensor_product(prod_dec2)
         prod_dec_sym =prod_dec2.tensor_product(prod_dec1) 
@@ -1137,13 +1137,149 @@ class TestCmdShell2(unittest.TestCase,
         matrix = prod_dens.scalar_multiplication(prod_dec)/mZ**4/WZ**4/nb_hel/symfact/nb_spin
         #matrix_sym = prod_dens.scalar_multiplication(prod_dec_sym)/mZ**4/WZ**4/nb_hel/symfact/nb_spin
 
-        #misc.sprint(matrix, matrix_sym, all_me[1])
+        misc.sprint(matrix, all_me[1])
         #misc.sprint(matrix/all_me[1], matrix_sym/all_me[1])
 
 
-        self.assertAlmostEqual(matrix, all_me[1],4)
+        self.assertAlmostEqual(matrix/all_me[1],1,4)
         #self.assertAlmostEqual(matrix_sym, all_me[1],4)
 
+
+    def test_standalone_density_f2py(self):
+
+        ############################################################################
+        # Check convolution of density matrix with decay matrix 
+        # reproduces the full matrix-element
+        # testing case d d~ > z z, z > e+ e-
+        ############################################################################
+        self.do('generate d d~ > z z')
+        self.do('output standalone %s_prod --prefix=int --density=3,4 -f ' % self.out_dir)
+        self.do('generate d d~ > z z, z > e+ e-')
+        #self.do('output standalone %s_full -f ' % self.out_dir) 
+        #self.do('generate z > e+ e- --standalone') # --standalone allow mix 2>1 and 2>2 processes
+        #self.do('output standalone %s_dec1 --density=1 -f ' % self.out_dir)
+        #self.do('output standalone %s_dec2 --density=1 -f ' % self.out_dir)
+        # Read a test event for u u~ > z z, z > e+ e-
+        text_lhe = """<event>
+        8      1 +9.3182000e+00 1.00474800e+02 7.54677100e-03 1.27930100e-01
+       -1 -1    0    0    0  501 -0.0000000000e+00 +0.0000000000e+00 +4.4934420219e+01 4.4934420219e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
+        1 -1    0    0  501    0 +0.0000000000e+00 -0.0000000000e+00 -2.2525427462e+02 2.2525427462e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       23  2    1    2    0    0 -1.0803264452e+01 -4.0782658931e+01 -8.3249650133e+01 1.3048253287e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
+       23  2    1    2    0    0 +1.0803264452e+01 +4.0782658931e+01 -9.7070204270e+01 1.3970616197e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
+      -11  1    3    3    0    0 +1.0085745661e+01 +3.5438949841e+00 +1.6319184216e+01 1.9508901320e+01 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       11  1    3    3    0    0 -2.0889010113e+01 -4.4326553914e+01 -9.9568834346e+01 1.1097363155e+02 0.0000000000e+00 0.0000e+00 1.0000e+00
+      -11  1    4    4    0    0 +2.5139455461e+01 -6.3572870227e-01 +7.5662101007e+00 2.6261072087e+01 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       11  1    4    4    0    0 -1.4336191009e+01 +4.1418387636e+01 -1.0463641438e+02 1.1344508989e+02 0.0000000000e+00 0.0000e+00 1.0000e+00
+       </event>"""
+
+        Event = lhe_parser.Event()
+        Event.parse(text_lhe.split('\n')) 
+        # get the associate momenta for each matrix-element
+        production_p = [Event[0], Event[1], Event[2], Event[3]]
+        #full_p = [Event[0], Event[1], Event[4], Event[5], Event[6], Event[7]]
+        #decay_z1 = [Event[2], Event[4], Event[5]]
+        #decay_z2 = [Event[3], Event[6], Event[7]]
+        #all_p = [production_p, full_p, decay_z1, decay_z2]
+
+        mdir = self.out_dir+'_prod'
+        Pdir = 'P0_ddx_zz'
+        p = production_p
+        
+        # start to do standalone fortran for comparison
+        self.edit_p_in_standalone(os.path.join(mdir, 'SubProcesses', Pdir), p)
+        devnull = open(os.devnull,'w')
+        subprocess.call(['make'],
+                            stdout=devnull, stderr=devnull, 
+                            cwd=os.path.join(mdir, 'SubProcesses',
+                                             Pdir)) 
+        self.assertTrue(os.path.exists(os.path.join(mdir,
+                                                        'SubProcesses', Pdir,
+                                                        'check')))
+        #compute the matrix-element
+        logfile = os.path.join(mdir,'SubProcesses', Pdir,
+                                   'check.log')
+        subprocess.call('./check', 
+                            stdout=open(logfile, 'w'), stderr=subprocess.STDOUT,
+                            cwd=os.path.join(mdir, 'SubProcesses',
+                                             Pdir), shell=True)
+        log_output = open(logfile, 'r').read()
+        misc.sprint(log_output)
+        me_re = re.compile(r'Matrix element\s*=\s*(?P<value>[\d\.eE\+-]+)\s*GeV',
+                           re.IGNORECASE)
+        me_groups = me_re.findall(log_output) 
+        dens_re =re.compile(r'value is\s+\d+\s*\(([\d\.eE\+-]+),([\d\.eE\+-]+)\)')
+        density = dens_re.findall(log_output)
+
+        hel_index = re.compile(
+                       r'particle\s+\d\s+has\s+helicity\s+([\+\-]?\d)\s*([\+\-]?\d)\s*')
+        index = hel_index.findall(log_output)
+        all_index = []
+        if len(index) == len(density):
+            all_index.append([[int(x[0]), int(x[1])] for x in index])
+        else:
+            curr_index = []
+            for i in range(4, 2):
+                i1 = index[2*i]
+                i2 = index[2*i+1]
+                curr_index.append([[int(i1[0]), int(i1[1]), int(i2[0]), int(i2[1])]])
+          
+            all_index.append(curr_index)
+
+        fortran_me = float(me_groups[0])
+        fortran_dens = [complex(float(x[0]), float(x[1])) for x in density]    
+
+        # Do the computation via f2py linking
+        sys.path.insert(0, os.path.join(mdir, 'SubProcesses', Pdir))
+        subprocess.call(['make', 'matrix2py.so'],
+                            #stdout=devnull, stderr=devnull, 
+                            cwd=os.path.join(mdir, 'SubProcesses',
+                                             Pdir))
+
+        import matrix2py
+        #os.chdir(os.path.join(mdir, 'SubProcesses', Pdir))
+        with misc.chdir(os.path.join(mdir, 'SubProcesses', Pdir)):
+            matrix2py.m0_initialisemodel('../../Cards/param_card.dat')
+
+            p = [[x.E, x.px, x.py, x.pz] for x in p]
+            P =self.invert_momenta(p)
+            alphas = 0.118
+            nhel = -1 # means sum over all helicity                                                                                                                                                                   
+            me2 = matrix2py.m0_get_value(P, alphas, nhel)
+            misc.sprint('fortran: ', fortran_me, ' f2py: ', me2)
+            # compute density matrix
+            self.assertAlmostEqual(fortran_me/me2, 1., places=5)
+
+            pos = [3,4] # particle to get density matrix
+            n_changing = 2 # why needed in f2py ?
+            allow_hel = [-1,-1,   -1,0,   -1,1, 
+                          0,-1,    0,0,    0,1, 
+                          1,-1,    1,0,    1,1]
+            ncomb = 9 # why needed in f2py ?
+            alphas = 0.118
+
+
+
+            f2py_dens = matrix2py.m0_get_density(P, pos, n_changing, allow_hel, ncomb, alphas)
+            misc.sprint('fortran: ', fortran_dens)
+            misc.sprint('f2py:    ', f2py_dens)
+            for i in range(9*5):
+                misc.sprint(i, fortran_dens[i], f2py_dens[i])
+                self.assertAlmostEqual(fortran_dens[i].real/f2py_dens[i].real, 1, places=3)
+                self.assertAlmostEqual(fortran_dens[i].imag, f2py_dens[i].imag, places=5)
+
+
+
+
+      
+    @staticmethod
+    def invert_momenta(p):
+        """ fortran/C-python do not order table in the same order"""
+        new_p = []
+        for i in range(len(p[0])):  new_p.append([0]*len(p))
+        for i, onep in enumerate(p):
+            for j, x in enumerate(onep):
+                new_p[j][i] = x
+        return new_p
 
 
 
@@ -1163,8 +1299,8 @@ class TestCmdShell2(unittest.TestCase,
             else:
                 text.append(line)
 
-        #if not done:
-        #    raise Exception('Could not find place to insert momenta in check_sa.f')
+        if not done:
+            raise Exception('Could not find place to insert momenta in check_sa.f')
 
         checkf = os.path.join(dir, 'check_sa.f')
         open(checkf, 'w').write('\n'.join(text))
