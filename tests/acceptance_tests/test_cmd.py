@@ -1255,9 +1255,7 @@ class TestCmdShell2(unittest.TestCase,
                           0,-1,    0,0,    0,1, 
                           1,-1,    1,0,    1,1]
             ncomb = 9 # why needed in f2py ?
-            alphas = 0.118
-
-
+            alphas = 0.118 # no impact for ZZ
 
             f2py_dens = matrix2py.m0_get_density(P, pos, n_changing, allow_hel, ncomb, alphas)
             misc.sprint('fortran: ', fortran_dens)
@@ -1266,7 +1264,13 @@ class TestCmdShell2(unittest.TestCase,
                 misc.sprint(i, fortran_dens[i], f2py_dens[i])
                 self.assertAlmostEqual(fortran_dens[i].real/f2py_dens[i].real, 1, places=3)
                 self.assertAlmostEqual(fortran_dens[i].imag, f2py_dens[i].imag, places=5)
+            import MadSpin.decay as madspin
+            density_matrix = madspin.DensityMatrix(f2py_dens, n_changing, allow_hel, ncomb)
+            self.assertAlmostEqual(density_matrix.trace()/9./4./2./fortran_me, 1,4)  #9 color , 4 spin, 2 symmetry factor (
+            misc.sprint(density_matrix.matrix[1], fortran_dens[1])
 
+
+            
 
 
 

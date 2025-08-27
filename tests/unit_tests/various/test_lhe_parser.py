@@ -85,6 +85,25 @@ class TestEvent(unittest.TestCase):
         self.assertIn((3,4,5,6), out)
         self.assertIn((4,3,6,5), out)
   
+    def test_all_momenta_for_zz(self):      
+        """ test that for u u~ >  z z only one ordering is returned"""                     
+
+        text_lhe = """<event>
+        84      1 +9.3182000e+00 1.00474800e+02 7.54677100e-03 1.27930100e-01
+       -1 -1    0    0    0  501 -0.0000000000e+00 +0.0000000000e+00 +4.4934420219e+01 4.4934420219e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
+        1 -1    0    0  501    0 +0.0000000000e+00 -0.0000000000e+00 -2.2525427462e+02 2.2525427462e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       23  1    1    2    0    0 -1.0803264452e+01 -4.0782658931e+01 -8.3249650133e+01 1.3048253287e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
+       23  1    1    2    0    0 +1.0803264452e+01 +4.0782658931e+01 -9.7070204270e+01 1.3970616197e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
+       </event>"""
+
+        Event = lhe_parser.Event()
+        Event.parse(text_lhe.split('\n'))
+        all_p = Event.get_all_momenta(([-1,1],[23,23]),debug_output=False)
+        self.assertEqual(len(all_p), 1)
+        self.assertEqual(len(all_p[0]), 4)
+        # check that particle are in the correct order    
+        self.assertEqual(all_p[0][0][3], 44.934420219, )
+        self.assertEqual(all_p[0][3][3], -9.7070204270e+01)       
 
     def test_event_property(self):
         """
