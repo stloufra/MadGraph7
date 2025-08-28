@@ -4231,7 +4231,7 @@ class decay_all_events_onshell(decay_all_events):
 
 
         commandline = self.get_production_command(processes)
-        misc.sprint(commandline)
+        #misc.sprint(commandline)
         # 3. Create all_ME + topology objects ----------------------------------
 #        matrix_elements = mgcmd._curr_matrix_elements.get_matrix_elements()
 #        self.all_ME.adding_me(matrix_elements, pjoin(path_me,'production_me'))
@@ -4240,7 +4240,7 @@ class decay_all_events_onshell(decay_all_events):
         # 4. compute the full matrix element -----------------------------------
         if self.mode == "onshell" or (self.mode == "density" and self.options['density_debug']):
             commandline += self.get_full_matrix_command(processes)
-            misc.sprint(commandline)
+            #misc.sprint(commandline)
             logger.critical("Full ME calculation") 
         else:
             logger.critical("Skipping full ME calculation")        
@@ -4438,7 +4438,7 @@ class decay_all_events_density(decay_all_events_onshell):
 
     def adapt_production(self, line):
         to_decay = list(self.mscmd.list_branches.keys())
-        misc.sprint(to_decay)
+        #misc.sprint(to_decay)
         return line
 
     #def get_full_matrix_command(self, processes): 
@@ -4472,7 +4472,7 @@ class DensityMatrix:
         # Create the index map
         self.map_density_matrix_ind = self.get_map_density_matrix(all_helicity_combinations, nchanging)
         len_allowed_hel = len(next(iter(self.map_density_matrix_ind)))
-        misc.sprint(len_allowed_hel)
+        #misc.sprint(len_allowed_hel)
          # Create the structured array
         dtype = [('helicities', 'i4', (len_allowed_hel)),  
                  ('value', 'complex64')] 

@@ -130,7 +130,7 @@ class MadSpinOptions(banner.ConfigFile):
             logger.warning('Not all functionalities of MadSpin handle this mode correctly (only onshell mode so far).')
 
     ############################################################################
-    def post_identical_in_prod_and_decay(self, value, change_userdefine, raiseerror):
+    def post_identical_particle_in_prod_and_decay(self, value, change_userdefine, raiseerror):
         """ special handling for set fixed_order """
         if value not in ["crash", 'average', 'max', 'first']:
             raise Exception("value %s not supported for this parameter identical_in_prod_and_decay")
@@ -1475,7 +1475,7 @@ class MadSpinInterface(extended_cmd.Cmd):
             raise Exception(msg)
 
         self.options['seed'] = self.seed
-        print(f"from run onshell seed = {self.seed}")
+        #print(f"from run onshell seed = {self.seed}")
         
         text = '%s\n' % '\n'.join([ line for line in self.history if line])
         self.banner.add_text('madspin' , text)
@@ -1494,7 +1494,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                 mg5.exec_cmd("import model %s" % modelpath)      
             evt_decayfile = {}
             br = 1.
-            print(f"to_decay = {to_decay}")
+            #print(f"to_decay = {to_decay}")
             for pdg, nb_needed in to_decay.items():
                 # muliply by expected effeciency of generation
                 spin = self.model.get_particle(pdg).get('spin')
@@ -1506,12 +1506,12 @@ class MadSpinInterface(extended_cmd.Cmd):
                 totwidth = self.banner.get('param_card', 'decay', abs(pdg)).value
 				
                 #check if a splitting is needed
-                print(f"nb_needed = {nb_needed} , nb_event = {nb_event}, nb_mult = {nb_needed//nb_event}")
-                print(f"nb_needed1 = {int(efficiency*nb_needed) + nevents_for_max}")
-                print(f"nb_needed2 = {int(efficiency*nb_needed) +nevents_for_max *(nb_needed//nb_event)}")
+                #print(f"nb_needed = {nb_needed} , nb_event = {nb_event}, nb_mult = {nb_needed//nb_event}")
+                #print(f"nb_needed1 = {int(efficiency*nb_needed) + nevents_for_max}")
+                #print(f"nb_needed2 = {int(efficiency*nb_needed) +nevents_for_max *(nb_needed//nb_event)}")
                 if nb_needed == nb_event:
                     nb_needed = int(efficiency*nb_needed) + nevents_for_max
-                    print(f"1: nb_needed = {nb_needed}")
+                    #print(f"1: nb_needed = {nb_needed}")
                     evt_decayfile[pdg], pwidth = self.generate_events(pdg, nb_needed, mg5, output_width=True)
                     if pwidth > 1.01*totwidth:
                         logger.warning('partial width (%s) larger than total width (%s) --from param_card--', pwidth, totwidth)
@@ -1521,13 +1521,13 @@ class MadSpinInterface(extended_cmd.Cmd):
                 elif nb_needed %  nb_event == 0:
                     nb_mult = nb_needed // nb_event
                     nb_needed = int(efficiency*nb_needed) + nevents_for_max*nb_mult
-                    print(f"2: nb_needed = {nb_needed} , nb_event = {nb_event}")
+                    #print(f"2: nb_needed = {nb_needed} , nb_event = {nb_event}")
                     part = self.model.get_particle(pdg)
                     name = part.get_name()
                     if name not in self.list_branches:
                         continue
                     elif len(self.list_branches[name]) == nb_mult:
-                        print(f"Spyros : {nb_event}")
+                        #print(f"Spyros : {nb_event}")
                         evt_decayfile[pdg], pwidth = self.generate_events(pdg, nb_event, mg5, output_width=True)
                         if pwidth > 1.01*totwidth:
                             logger.warning('partial width (%s) larger than total width (%s) --from param_card--')
@@ -1536,7 +1536,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                         br *= pwidth / totwidth**nb_mult
                         br *= math.factorial(nb_mult)
                     else:
-                        print(f"Spyros 2 : {nb_needed}")
+                        #print(f"Spyros 2 : {nb_needed}")
                         evt_decayfile[pdg],pwidth = self.generate_events(pdg, nb_needed, mg5, cumul=True, output_width=True)
                         if pwidth > 1.01*totwidth:
                             logger.warning('partial width (%s) larger than total width (%s) --from param_card--')
@@ -1739,7 +1739,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                 else:
                     wgt = self.get_onshell_evt_and_wgt(base_event, decays, decay_dict, density_matrix_prod)[1]
                     #print(f"wgt2 = {wgt}")
-                print(f"Event {i} , PS point {j}, wgt for max = {wgt}")
+                #print(f"Event {i} , PS point {j}, wgt for max = {wgt}")
                 maxwgt = max(wgt, maxwgt)
             all_maxwgt.append(maxwgt.real)
         print(f"all_maxwgt = {all_maxwgt}")
@@ -1766,8 +1766,8 @@ class MadSpinInterface(extended_cmd.Cmd):
         """ return the onshell wgt for the production event associated to the decays
             return also the full event with decay. 
             Carefull this modifies production event (pass to the full one)"""
-        print("\n\n\n\n\n======== debug get_onshell_evt_and_wgt =========")
-        print(f"Spyros decays: {decays}")
+        #print("\n\n\n\n\n======== debug get_onshell_evt_and_wgt =========")
+        #print(f"Spyros decays: {decays}")
         decay_me = 1.0
         decay_me_debug = 1.0
         tag, order = production.get_tag_and_order()
@@ -1798,9 +1798,9 @@ class MadSpinInterface(extended_cmd.Cmd):
         if self.generate_all.mode == 'onshell':
             full_event = lhe_parser.Event(str(production))
             full_event = full_event.add_decays(decays)
-            print(f"full_event = {full_event}")
+            #print(f"full_event = {full_event}")
             full_me = self.calculate_matrix_element(full_event)
-            print(f"full_me = {full_me}")
+            #print(f"full_me = {full_me}")
         else:
             if prod_density_cached is None:
                 full_me, prod_density_cached, prod_diag, dec_diag = self.calculate_matrix_element_from_density(production, decays, decay_dict)
@@ -1814,13 +1814,16 @@ class MadSpinInterface(extended_cmd.Cmd):
             #print(f"full event 1 = {full_event}")            
             # CAUTION: the next line removes everything from decays dictionary
             full_event = full_event.add_decays(decays)
-            print(f"full event 2 = {full_event}")
+            #print(f"full event 2 = {full_event}")
             if self.options['density_debug']:
                 me1 = self.calculate_matrix_element(full_event)
-                print(f"me1 = {me1} , me2 = {full_me} , ratio = {me1/full_me}")
+                #print(f"me1 = {me1} , me2 = {full_me} , ratio = {me1/full_me}")
                 if abs(1-me1/full_me) > self.options['density_tolerance']:
                     print(f"full = {me1} , density = {full_me} , ratio = {me1/full_me}")	    
-                    print(full_event)	
+                    print(full_event)
+                    print(production)
+                    print(decays)
+
                     print("ERROR matrix element from density does not match with full matrix element")	
                     raise RuntimeError("ERROR matrix element from density does not match with full matrix element")	 
     
@@ -1847,10 +1850,10 @@ class MadSpinInterface(extended_cmd.Cmd):
             decay_me = dec_diag
 
         #print(f"full_event = {full_event}")
-        print(f"full_me = {full_me}")
-        print(f"production_me = {production_me}")
-        print(f"decay_me = {decay_me}")
-        print(f"wgt = {full_me/(production_me*decay_me)}")
+        #print(f"full_me = {full_me}")
+        #print(f"production_me = {production_me}")
+        #print(f"decay_me = {decay_me}")
+        #print(f"wgt = {full_me/(production_me*decay_me)}")
         
         return full_event, full_me/(production_me*decay_me), prod_density_cached
 
@@ -2011,19 +2014,19 @@ class MadSpinInterface(extended_cmd.Cmd):
             # Move to NEXT PARTICLE that decays and update the index
             decaying_idx += Ndecays_sameid
             
-        print(f"density_dec = {density_dec.matrix} - length = {len(density_dec.matrix)}")
-        print(f"density_prod = {density_prod.matrix} - length = {len(density_prod.matrix)}")
+        #print(f"density_dec = {density_dec.matrix} - length = {len(density_dec.matrix)}")
+        #print(f"density_prod = {density_prod.matrix} - length = {len(density_prod.matrix)}")
         
 		# Get the full ME from the production and decay density matrices
         me = density_dec.scalar_multiplication(density_prod)
-        print(f"scalar multiplication dec*prod = {me}")
-        denominator = iden_p * prod_color * prod_denominators * Ndecays_sameid
-        print(f"denominator = {denominator}")
+        #print(f"scalar multiplication dec*prod = {me}")
+        denominator = iden_p * prod_color * prod_denominators #* Ndecays_sameid
+        #print(f"denominator = {denominator}")
         me = me.real / denominator
-        print(f"me = {me}")
+        #print(f"me = {me}")
 
         # Get production and decay ME from diagonal elements of density matrix
-        print(f"iden_p = {iden_p} , prod_color = {prod_color} , prod_denominators = {prod_denominators} , color = {color} , ncomb = {ncomb}")
+        #print(f"iden_p = {iden_p} , prod_color = {prod_color} , prod_denominators = {prod_denominators} , color = {color} , ncomb = {ncomb}")
         prod_diag = density_prod.trace().real/iden_p
         
         return me, density_prod, prod_diag, dec_diag
@@ -2059,14 +2062,14 @@ class MadSpinInterface(extended_cmd.Cmd):
         # ncomb = len(allow_hel)/nchanging
         # nchanging = len(position)
 
-        print("--- from get_density ---")
+        #print("--- from get_density ---")
         #print(event)
         #print(f"position = {position}")
         #print(f"nchanging = {nchanging}")
-        print(f"allow_hel = {allow_hel}")
+        #print(f"allow_hel = {allow_hel}")
         #print(f"ncomb = {ncomb}")
         #print(f"dimension = {dimension}")
-        print("-------------------------")
+        #print("-------------------------")
 
         #density = [[0 for _ in range(len(allow_hel))] for _ in range(len(allow_hel))]
 		
