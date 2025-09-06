@@ -638,10 +638,10 @@ class ReweightInterface(extended_cmd.Cmd):
                 if self.flag_density_matrix: #density mode not compatible with inc_sudakov for now
                     import madgraph.various.Density_functions as dens
                     density_matrix_to_print = dens.get_rho_normalised(weight['orig'], self.number_combinations).tolist()
-                    for elem in range(len(density_matrix_to_print)):
-                        if density_matrix_to_print[elem].imag == 0:
-                            density_matrix_to_print[elem] = float(density_matrix_to_print[elem].real)
-                    event.density = str(density_matrix_to_print) #add the density information to the event for lhe_parser
+                    # for elem in range(len(density_matrix_to_print)):
+                    #     if density_matrix_to_print[elem].imag == 0:
+                    #         density_matrix_to_print[elem] = float(density_matrix_to_print[elem].real)
+                    event.density = density_matrix_to_print #add the density information to the event for lhe_parser
 
             if not isinstance(weight, dict):
                 weight = {'':weight}
@@ -1864,17 +1864,21 @@ class ReweightInterface(extended_cmd.Cmd):
                                 for j in range(len(orig_order[0])):
                                     if self.axis_referential[k] == orig_order[0][j]:
                                         pz_axis_referential = all_p[i][j][3] #here we take the p_z of the chosen particle
+                                        break #we quit the loop once we found which particle in the initial state is in axis_referential
                                 if pz_axis_referential < 0:
                                     theta[i] += math.pi
-
+                
+                    #########
                     if self.symmetrise_initial_state: #if we want to calculate R(theta) + R(theta + pi)
                         import copy
                         all_p_bis = copy.deepcopy(all_p)
-                        all_p_bis[i] = self.invert_momenta(all_p_bis[i]) #put in fortran format
-                        all_p_bis[i] = module.rotationp(all_p_bis[i], phi[i], theta[i] + math.pi, len(pdg))
-                        all_p_bis[i] = self.invert_momenta(all_p_bis[i]) #put back into python format
-                
-                    #########
+                        all_p_bis[i] = self.invert_momenta(all_p_bis[i])
+                        all_p_bis[i] = module.rotationp(all_p_bis[i], phi[i], theta[i] + math.pi, len(pdg)) #we add pi to theta for the symetrisation
+                        all_p_bis[i] = self.invert_momenta(all_p_bis[i]) 
+
+                        for j in range(len(all_p[i])):
+                            all_p_bis[i][j] = tuple(all_p_bis[i][j])
+
                     all_p[i] = self.invert_momenta(all_p[i]) #put in fortran format
                     all_p[i] = module.rotationp(all_p[i], phi[i], theta[i], len(pdg))
                     all_p[i] = self.invert_momenta(all_p[i]) #put back into python format
@@ -1885,9 +1889,8 @@ class ReweightInterface(extended_cmd.Cmd):
             if self.options['identical_particle_in_prod_and_decay'] == 'crash':
                 if len(all_p) > 1:
                     raise Exception("Ambiguous particle in production and decay. crash as requested by \'identical_particle_in_prod_and_decay\'")
-            
-#######################END ROTATION CHOICE BLOCK#############################
 
+#######################END ROTATION CHOICE BLOCK#############################
 
 #######################PARTICLE CHOICE BLOCK#############################
         if self.flag_density_matrix:
@@ -1984,6 +1987,7 @@ class ReweightInterface(extended_cmd.Cmd):
 
                 pos_corrected = pos_new 
 
+#        misc.sprint("position in the order of pdg of the particles in rho", pos_corrected)
 #######################END PARTICLE CHOICE BLOCK#############################
 
         
@@ -2025,18 +2029,31 @@ class ReweightInterface(extended_cmd.Cmd):
                         prefix = prefix_cor[k]
 
             me_value = 0
-            for p in all_p:
-                pinv = self.invert_momenta(p)
-                get_density = getattr(module, prefix + 'get_density')
-                new_value = get_density(pinv, pos_corrected, self.number_changing_helicities,
-                                        self.allowed_helicities, self.number_combinations,
-                                        event.aqcd)
+            get_density = getattr(module, prefix + 'get_density')
+            transfer_density = getattr(module, prefix + 'transfer_density')
+            for i in range(len(all_p)):
+                pinv = self.invert_momenta(all_p[i])
+                production_matrix = get_density(pinv, pos_corrected, self.number_changing_helicities,
+                                                self.allowed_helicities, self.number_combinations,
+                                                event.aqcd)
+                real_production, imag_production = transfer_density(production_matrix) #necessary because the transfer from fortran to python does not always work correctly with complex numbers
+                production_matrix_cor = np.array(real_production) + np.array(imag_production)*1j
+                
+                if self.symmetrise_initial_state:
+                    pinv_bis = self.invert_momenta(all_p_bis[i])
+                    production_matrix_bis = get_density(pinv_bis, pos_corrected, self.number_changing_helicities,
+                                                        self.allowed_helicities, self.number_combinations,
+                                                        event.aqcd)
+                    real_production_bis, imag_production_bis = transfer_density(production_matrix_bis) 
+                    production_matrix_cor_bis = np.array(real_production_bis) + np.array(imag_production_bis)*1j
+                #event.aqcd can be also fixed.
+ 
+                if self.symmetrise_initial_state:
+                    new_value = dens.get_list_sliced(production_matrix_cor + production_matrix_cor_bis, self.number_combinations, epsilon=1e-10) #new value is the production matrix, not the density matrix
+                else:
+                    new_value = dens.get_list_sliced(production_matrix_cor, self.number_combinations, epsilon=1e-10) #new value is the production matrix, not the density matrix
 
-                new_value = dens.get_list_sliced(new_value, self.number_combinations, epsilon=1e-10) #new value is the production matrix, not the density matrix
-                #new_value = dens.get_rho_normalised(new_value, self.number_combinations, epsilon=1e-10)
 
-
-                #I am not sure this block for loop is necessary or not
                 # for loop we have also the stability status code
                 if isinstance(new_value, tuple):
                     new_value, code = new_value
@@ -2490,11 +2507,7 @@ class ReweightInterface(extended_cmd.Cmd):
 
                     data['id2path'][(tag,'V')] = [order, Pdir, hel_dict]
 
-
-    @misc.mute_logger()
-    def create_standalone_directory(self, second=False):
-        """generate the various directory for the weight evaluation"""
-                
+    def load_interface_model(self, second=False):
         data={}
         if not second:
             data['paths'] = ['rw_me', 'rw_mevirt']
@@ -2509,7 +2522,7 @@ class ReweightInterface(extended_cmd.Cmd):
             data['processes'] = [line[9:].strip() for line in self.banner.proc_card
                     if line.startswith('generate')]
             data['processes'] += [' '.join(line.split()[2:]) for line in self.banner.proc_card
-                      if re.search(r'^\s*add\s+process', line)]  
+                        if re.search(r'^\s*add\s+process', line)]  
             #object_collector
             #self.id_to_path = {}
             #data['id2path'] = self.id_to_path
@@ -2541,8 +2554,8 @@ class ReweightInterface(extended_cmd.Cmd):
                 data['processes'] = [line[9:].strip() for line in self.banner.proc_card
                                 if line.startswith('generate')]
                 data['processes'] += [' '.join(line.split()[2:]) 
-                                      for line in self.banner.proc_card
-                                      if re.search(r'^\s*add\s+process', line)]
+                                        for line in self.banner.proc_card
+                                        if re.search(r'^\s*add\s+process', line)]
             #object_collector
             #self.id_to_path_second = {}   
             #data['id2path'] = self.id_to_path_second 
@@ -2566,7 +2579,7 @@ class ReweightInterface(extended_cmd.Cmd):
         # 1. prepare the interface----------------------------------------------
         mgcmd = self.mg5cmd
         complex_mass = False  
-        ew_scherme = None 
+        ew_scheme = None 
         has_cms = re.compile(r'''set\s+complex_mass_scheme\s*(True|T|1|true|$|;)''')
         has_ew = re.compile(r'''set\s+EWscheme\s*(\w*)''')
         for line in self.banner.proc_card:
@@ -2574,7 +2587,7 @@ class ReweightInterface(extended_cmd.Cmd):
                 mgcmd.exec_cmd(line, printcmd=False, precmd=False, postcmd=False)
                 if has_cms.search(line):
                     complex_mass = True
-                if has_ew.search(line, re.I):
+                if has_ew.search(line):
                     ew_scheme = has_ew.search(line).group(1)
             elif line.startswith('define'):
                 try:
@@ -2604,6 +2617,13 @@ class ReweightInterface(extended_cmd.Cmd):
                     mgcmd.exec_cmd("define %s = %s" % (name, content))
                 except madgraph.InvalidCmd:
                     pass
+        return path_me, data, mgcmd
+
+    @misc.mute_logger()
+    def create_standalone_directory(self, second=False):
+        """generate the various directory for the weight evaluation"""
+    ############################## def load_interface            
+        path_me, data, mgcmd = self.load_interface_model(second)
         if  second and 'tree_path' in self.dedicated_path:
             files.ln(self.dedicated_path['tree_path'], path_me,name=data['paths'][0])
             if 'virtual_path' in self.dedicated_path:
@@ -2993,9 +3013,9 @@ class DensityInterface(ReweightInterface):
         
         self.flag_particle_in_density_matrix = False
 
-        self.helicity_direction = [-1, '', []] #pid of the particle chosen as reference for the helicity frame
+        self.helicity_direction = [[-1], '', []] #pid of the particle chosen as reference for the helicity frame
         self.particle_in_density_matrix = None #pid of the particles selected for the study
-        self.momenta_boost = [-1, '', []] #pid of the particles in whose center of mass frame the system will be boosted
+        self.momenta_boost = [[-1], '', []] #pid of the particles in whose center of mass frame the system will be boosted
         self.allowed_helicities = None #basis of helicities
         self.spins = None 
         self.number_changing_helicities = None
@@ -3009,25 +3029,7 @@ class DensityInterface(ReweightInterface):
         self.flag_density_matrix = True
         self.has_run = False
 
-        #This block imports the model, because I need it before do_launch() starts
-        mgcmd = self.mg5cmd
-        complex_mass = False   
-        has_cms = re.compile(r'''set\s+complex_mass_scheme\s*(True|T|1|true|$|;)''')
-        for line in self.banner.proc_card:
-            if line.startswith('set'):
-                mgcmd.exec_cmd(line, printcmd=False, precmd=False, postcmd=False)
-                if has_cms.search(line):
-                    complex_mass = True
-        data = {}
-        data['model_name'] = self.banner.get('proc_card', 'model')
-
-        info = self.banner.get('proc_card', 'full_model_line')
-        if '-modelname' in info:
-            data['mg_names'] = False
-        else:
-            data['mg_names'] = True
-        super().load_model(data['model_name'], data['mg_names'], complex_mass)
-
+        path_me, data, mgcmd = super().load_interface_model(second=False)
 
     def do_change(self, line):
         """Method called to read the reweight card, redirects to the correct do_change_ method"""
@@ -3167,7 +3169,6 @@ class DensityInterface(ReweightInterface):
             logger.warning('Option symmetrise_initial_state not understood, set it to False. Please use the syntax: change symmetrise_initial_state True if you want to enable it.')
             self.symmetrise_initial_state = False
         
-        misc.sprint(self.symmetrise_initial_state )
 
     def do_change_axis_referential(self, line):
         """
@@ -3178,7 +3179,6 @@ class DensityInterface(ReweightInterface):
         for i in range(len(line)): 
             line[i] = int(line[i].strip("[],()"))
         self.axis_referential = line
-        misc.sprint(self.axis_referential)
 
 
     def do_change_particle_in_density_matrix(self, line):
