@@ -1394,7 +1394,7 @@ class Event(list):
                     temp = line.strip('<>density/[]').split()
                     self.density = [complex(temp[o].strip(',()')) for o in range(len(temp))]
                     
-                if line.endswith('</event>'):
+                if '</event>' in line:
                     line = line.replace('</event>','',1)
                 tags.append(line) 
         self.tag += "\n".join(tags)

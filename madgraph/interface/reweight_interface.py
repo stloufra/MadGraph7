@@ -513,18 +513,38 @@ class ReweightInterface(extended_cmd.Cmd):
             self.options['rwgt_info'] = opts['rwgt_info']
         model_line = self.banner.get('proc_card', 'full_model_line')
 
-        # TV: Load model: needed for the combine_ij function: maybe not needed everyt time??? 
-        model = self.banner.get('proc_card', 'model')
-        self.load_model( model, True, False)
 
-        if not self.has_standalone_dir:
-            out = self.setup_f2py_interface()
-            if out:
-                return
-
-        # get the mode of reweighting #LO/NLO/NLO_tree/...
-        type_rwgt = self.get_weight_names()
+        if not self.has_standalone_dir:                           
+            if self.rwgt_dir and os.path.exists(pjoin(self.rwgt_dir,'rw_me','rwgt.pkl')):
+                self.load_from_pickle()
+                if opts['rwgt_name']:
+                    self.options['rwgt_name'] = opts['rwgt_name']
+                if not self.rwgt_dir:
+                    self.me_dir = self.rwgt_dir
+                self.load_module()       # load the fortran information from the f2py module
+            elif self.multicore == 'wait':
+                i=0
+                while not os.path.exists(pjoin(self.me_dir,'rw_me','rwgt.pkl')):
+                    time.sleep(10+i)
+                    i+=5
+                if not self.rwgt_dir:
+                    self.rwgt_dir = self.me_dir
+                self.load_from_pickle(keep_name=True)
+                self.load_module()
+            else:
+                self.create_standalone_directory() 
+                self.compile()
+                self.load_module()  
+                if self.multicore == 'create':
+                    self.load_module()
+                    if not self.rwgt_dir:
+                        self.rwgt_dir = self.me_dir
+                    self.save_to_pickle()      
         
+        # get the mode of reweighting #LO/NLO/NLO_tree/...
+        type_rwgt = self.get_weight_names() #type_rwgt = '' in my case
+        # get iterator over param_card and the name associated to the current reweighting.
+        param_card_iterator, tag_name = self.handle_param_card(model_line, args, type_rwgt)
         if self.rwgt_dir:
             path_me =self.rwgt_dir
         else:
@@ -580,7 +600,6 @@ class ReweightInterface(extended_cmd.Cmd):
             rw_dir = pjoin(path_me, 'rw_me_%s' % self.nb_library)
         else:
             rw_dir = pjoin(path_me, 'rw_me')
-
 
          
         start = time.time()
@@ -1583,6 +1602,7 @@ class ReweightInterface(extended_cmd.Cmd):
             nb_retry, sleep = 5, 20 
         
         tag, order = event.get_tag_and_order()
+        #misc.sprint(self.keep_ordering) #I am not sure what is keep_ordering so I print it
         if self.keep_ordering:
             old_tag = tuple(tag)
             tag = (tag[0], tuple(order[1])) 
@@ -1987,7 +2007,6 @@ class ReweightInterface(extended_cmd.Cmd):
 
                 pos_corrected = pos_new 
 
-#        misc.sprint("position in the order of pdg of the particles in rho", pos_corrected)
 #######################END PARTICLE CHOICE BLOCK#############################
 
         
@@ -2197,6 +2216,7 @@ class ReweightInterface(extended_cmd.Cmd):
             
             return all_p
         
+        ############This bloc of code needs to be checked if it is needed
         else:
             return all_p
 
@@ -2223,7 +2243,7 @@ class ReweightInterface(extended_cmd.Cmd):
             return me_value / len(all_p)        
         else:
             return me_value
-
+    ##############
     def terminate_fortran_executables(self, new_card_only=False):
         """routine to terminate all fortran executables"""
 
@@ -3029,7 +3049,25 @@ class DensityInterface(ReweightInterface):
         self.flag_density_matrix = True
         self.has_run = False
 
-        path_me, data, mgcmd = super().load_interface_model(second=False)
+        #This block imports the model, because I need it before do_launch() starts
+        mgcmd = self.mg5cmd
+        complex_mass = False   
+        has_cms = re.compile(r'''set\s+complex_mass_scheme\s*(True|T|1|true|$|;)''')
+        for line in self.banner.proc_card:
+            if line.startswith('set'):
+                mgcmd.exec_cmd(line, printcmd=False, precmd=False, postcmd=False)
+                if has_cms.search(line):
+                    complex_mass = True
+        data = {}
+        data['model_name'] = self.banner.get('proc_card', 'model')
+
+        info = self.banner.get('proc_card', 'full_model_line')
+        if '-modelname' in info:
+            data['mg_names'] = False
+        else:
+            data['mg_names'] = True
+        super().load_model(data['model_name'], data['mg_names'], complex_mass)
+
 
     def do_change(self, line):
         """Method called to read the reweight card, redirects to the correct do_change_ method"""
