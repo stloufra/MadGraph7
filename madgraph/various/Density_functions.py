@@ -666,6 +666,10 @@ def Get_Purity(rho: list[complex, complex]) -> float:
         Purity = np.trace(rho2)
         return Purity.real
 
+def Get_Normalised_Purity(rho: list[complex, complex]) -> float:
+      d = len(rho)
+      return (Get_Purity(rho) - 1/d) * (d / (d - 1))
+
 def ConcLB2(Rho: list[complex, complex], pdg_pos= list[int])-> float:
     """
     Input:  rho -> density matrix in matrix format
@@ -780,12 +784,14 @@ def Get_Concurrence_C(C: list[list[float]]) -> float:
 
         return max(0, -1 - 3*np.real(Dmin))/2
 
-def Shannon_Entropy(p:float) -> float:
-        return -p * np.log2(p) - (1 - p) * np.log2(1-p)
+def Shannon_Entropy(x:Union[list[float], float]) -> Union[list[float], float]:
+        if isinstance(x, list):
+                x = np.array(x)
+        return - x * np.log2(x) - (1 - x) * np.log2(1 - x)
 
-def Get_Ent_Form(Concurrence:float) -> float:
-        E = Shannon_Entropy((1 + np.sqrt(1 - Concurrence**2))/2)
-        return E
+def Get_Entanglement_Formation(rho:list[complex, complex]) -> float:
+        concurrence = Get_Concurrence(rho)
+        return Shannon_Entropy((1 + np.sqrt(1 - concurrence**2))/2)
 
 def get_Pauli_string(n:int) ->list[list[complex, complex]]:
         """
