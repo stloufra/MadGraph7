@@ -7,7 +7,6 @@ from six.moves import map
 from six.moves import range
 from six.moves import zip
 import pickle
-import numpy as np
 
 ################################################################################
 #
@@ -4464,6 +4463,7 @@ class DensityMatrix:
     It corresponds to INTER = Sum_colors JAMP(h1)*JAMP(h2)
     (eq 45 in Quentin's thesis)
     """
+    import numpy as np
     def __init__(self, array, nchanging, all_helicity_combinations, dimension):
         self.nchanging = nchanging
         self.all_helicity_combinations = all_helicity_combinations
@@ -4476,14 +4476,14 @@ class DensityMatrix:
          # Create the structured array
         dtype = [('helicities', 'i4', (len_allowed_hel)),  
                  ('value', 'complex64')] 
-        self.matrix = np.empty(0, dtype=dtype)
+        self.matrix = self.np.empty(0, dtype=dtype)
            
         # If the array is already of the correct type set the matrix
         # equal to it and return otherwise create the matrix
         #print(f"array = {array}")
         #print(f"array.dtype = {array.dtype}")
         #print(f"dtype = {dtype}")
-        if isinstance(array, np.ndarray) and array.dtype == dtype:
+        if isinstance(array, self.np.ndarray) and array.dtype == dtype:
             #print("filling from array")
             self.matrix = array
         else:
@@ -4493,9 +4493,9 @@ class DensityMatrix:
             for key, (is_in_array, pos_in_array) in self.map_density_matrix_ind.items():
                 #print(f"key = {key}")
                 #print(f"array[{pos_in_array}] = {array[pos_in_array]}")
-                new_element = np.array((key, array[pos_in_array]), dtype=dtype) if is_in_array \
-                              else np.array((key, array[pos_in_array].conjugate()), dtype=dtype)
-                self.matrix = np.append(self.matrix, new_element)
+                new_element = self.np.array((key, array[pos_in_array]), dtype=dtype) if is_in_array \
+                              else self.np.array((key, array[pos_in_array].conjugate()), dtype=dtype)
+                self.matrix = self.np.append(self.matrix, new_element)
         
     @staticmethod
     def get_map_density_matrix(allowed_hel, n_changing):
@@ -4567,13 +4567,13 @@ class DensityMatrix:
         len_allowed_hel = len(self.matrix[0]['helicities'])*len(other.matrix[0]['helicities'])
         dtype = [('helicities', 'i4', (len_allowed_hel)),
                  ('value', 'complex64')]
-        result = np.empty(0, dtype=dtype)
+        result = self.np.empty(0, dtype=dtype)
 
         for entry1 in self.matrix:
             for entry2 in other.matrix:
-                new = np.array((tuple(entry1['helicities']) + tuple(entry2['helicities']), 
+                new = self.np.array((tuple(entry1['helicities']) + tuple(entry2['helicities']), 
                                 entry1['value'] * entry2['value']), dtype=dtype)
-                result = np.append(result, new)    
+                result = self.np.append(result, new)    
         
         #helicities_for_tensor_product = [tuple(self.all_helicity_combinations), 
         #                                 tuple(other.all_helicity_combinations)]

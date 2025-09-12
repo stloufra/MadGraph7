@@ -916,10 +916,11 @@ def Negativity(rho:list[complex, complex], pdg_pos:list[int]) -> tuple[float, fl
         aux = np.dot(np.transpose(np.conjugate(rho_TB)), rho_TB)
 
         eigvals, eigvecs = la.eigh(aux) # diagonalization formula: M = P D P^{-1}
-        sqrt_rho = np.dot(eigvecs, np.dot(np.sqrt(np.diag(eigvals)), la.inv(eigvecs)))
+        # sqrt_rho = np.dot(eigvecs, np.dot(np.sqrt(np.diag(eigvals)), la.inv(eigvecs)))
+        norm_trace = np.sum(np.sqrt(eigvals))
 
-        Negativity = (np.trace(sqrt_rho) - 1)/2.
-        Log_Negativity = np.log2(np.trace(sqrt_rho))
+        Negativity = (norm_trace - 1)/2.
+        Log_Negativity = np.log2(norm_trace)
         return Negativity.real, Log_Negativity.real
 
 def shift_clock(d: int) -> tuple[list[complex, complex], list[float, float]]:
