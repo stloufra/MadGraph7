@@ -440,6 +440,7 @@ C     include coupling definition to update the value of alphas
 C
       include 'coupl.inc'
 
+
       DO I=1, N_COMB*(N_COMB+1)/2
         INTER(I) = 0
       enddo

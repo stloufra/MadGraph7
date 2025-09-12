@@ -2607,7 +2607,7 @@ class ReweightInterface(extended_cmd.Cmd):
                 mgcmd.exec_cmd(line, printcmd=False, precmd=False, postcmd=False)
                 if has_cms.search(line):
                     complex_mass = True
-                if has_ew.search(line):
+                if has_ew.search(line, re.I):
                     ew_scheme = has_ew.search(line).group(1)
             elif line.startswith('define'):
                 try:

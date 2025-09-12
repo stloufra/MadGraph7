@@ -91,13 +91,15 @@ c
 c     
 c     Now we can call the matrix element!
 c
-      CALL SMATRIX(P,MATELEM)
+      CALL %(prefix)sSMATRIX(P,MATELEM)
 c
 
       write (*,*) "Matrix element = ", MATELEM, " GeV^",-(2*nexternal-8)    
       write (*,*) "-----------------------------------------------------------------------------"
 
-      call get_density_matrix(P)
+      if (%(use_density)s)then
+          call get_density_matrix(P)
+      endif
 cc
 cc      Copy down here (or read in) the four momenta as a string. 
 cc      
@@ -123,7 +125,7 @@ c         write (*,'(i2,1x,5e15.7)') i, P(0,i),P(1,i),P(2,i),P(3,i),
 c     .dsqrt(dabs(DOT(p(0,i),p(0,i))))
 c      enddo
 c
-c      CALL SMATRIX(P,MATELEM)
+c      CALL %(prefix)sSMATRIX(P,MATELEM)
 c
 c      write (*,*) "-------------------------------------------------"
 c      write (*,*) "Matrix element = ", MATELEM, " GeV^",-(2*nexternal-8)   
@@ -138,9 +140,9 @@ C---  integer nexternal ! number particles (incoming+outgoing) in the me
        REAL*8 P(0:3,NEXTERNAL)   ! four momenta. Energy is the zeroth component.
        INTEGER NHEL(NEXTERNAL)
        INTEGER N_CHANGING  ! might need changing
-       PARAMETER (N_CHANGING=1)
+       PARAMETER (N_CHANGING=%(dens_nchanging)i)
        INTEGER N_COMB
-       PARAMETER (N_COMB=2) ! total number of different helicity  combination to consider 
+       PARAMETER (N_COMB=%(dens_ncomb)i) ! total number of different helicity  combination to consider 
        INTEGER POS(N_CHANGING)
        INTEGER ALLOW_HEL(N_CHANGING*N_COMB)
        DOUBLE COMPLEX INTER((N_COMB*(N_COMB+1))/2)
@@ -148,14 +150,10 @@ C---  integer nexternal ! number particles (incoming+outgoing) in the me
        INTEGER I,J, SOL
        INTEGER K
 
-       if(nincoming.eq.2) then
-            POS(1) = 3
-       else
-           POS(1) = 1
-       endif
-c      density matrix helicity index value for particle 1 
-       ALLOW_HEL(1) = +1
-       ALLOW_HEL(2) = -1
+       %(dens_pos)s
+
+c      density matrix helicity index value for particle  
+       %(dens_allow_hel)s
 c        ALLOW_HEL(3) = +1
 c        ALLOW_HEL(4) = -1
 c        ALLOW_HEL(5) = -1
@@ -163,7 +161,7 @@ c        ALLOW_HEL(6) = +1
 c        ALLOW_HEL(7) = -1
 c        ALLOW_HEL(8) = -1
 c     (last zero avoid to update as, otherwise new value for as can be  provided
-       call GET_DENSITY(P,  POS, N_CHANGING, ALLOW_HEL, N_COMB, 0d0, INTER)
+       call %(prefix)sGET_DENSITY(P,  POS, N_CHANGING, ALLOW_HEL, N_COMB, 0d0, INTER)
        
        SOL=0
        DO I=1, N_COMB

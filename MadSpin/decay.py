@@ -4231,16 +4231,19 @@ class decay_all_events_onshell(decay_all_events):
 
 
         commandline = self.get_production_command(processes)
-        misc.sprint(commandline)
+        #misc.sprint(commandline)
         # 3. Create all_ME + topology objects ----------------------------------
 #        matrix_elements = mgcmd._curr_matrix_elements.get_matrix_elements()
 #        self.all_ME.adding_me(matrix_elements, pjoin(path_me,'production_me'))
         
 
         # 4. compute the full matrix element -----------------------------------
-        commandline += self.get_full_matrix_command(processes)
-        misc.sprint(commandline)
-
+        if self.mode == "onshell" or (self.mode == "density" and self.options['density_debug']):
+            commandline += self.get_full_matrix_command(processes)
+            #misc.sprint(commandline)
+            logger.critical("Full ME calculation") 
+        else:
+            logger.critical("Skipping full ME calculation")        
 
         # 5. add the decay information to the all_topology object --------------                        
 #        for matrix_element in mgcmd._curr_matrix_elements.get_matrix_elements():
@@ -4330,7 +4333,7 @@ class decay_all_events_onshell(decay_all_events):
         commandline=''
         for proc in processes:
             if '[' in proc:
-                new_proc = reweight_interface.ReweightInterface.get_LO_definition_from_NLO(proc, mgcmd._curr_model)
+                new_proc = reweight_interface.ReweightInterface.get_LO_definition_from_NLO(proc, self.mgcmd._curr_model)
             else:
                 new_proc = 'add process %s ;' % proc               
             commandline += self.adapt_production(new_proc)
@@ -4435,7 +4438,7 @@ class decay_all_events_density(decay_all_events_onshell):
 
     def adapt_production(self, line):
         to_decay = list(self.mscmd.list_branches.keys())
-        misc.sprint(to_decay)
+        #misc.sprint(to_decay)
         return line
 
     #def get_full_matrix_command(self, processes): 
@@ -4468,8 +4471,8 @@ class DensityMatrix:
         self.diag_elements = [i * (2 * self.dimension - i + 1) // 2 for i in range(self.dimension)]
         # Create the index map
         self.map_density_matrix_ind = self.get_map_density_matrix(all_helicity_combinations, nchanging)
-        #print(f"helicities = {helicities}")
         len_allowed_hel = len(next(iter(self.map_density_matrix_ind)))
+        #misc.sprint(len_allowed_hel)
          # Create the structured array
         dtype = [('helicities', 'i4', (len_allowed_hel)),  
                  ('value', 'complex64')] 
@@ -4493,7 +4496,6 @@ class DensityMatrix:
                 new_element = np.array((key, array[pos_in_array]), dtype=dtype) if is_in_array \
                               else np.array((key, array[pos_in_array].conjugate()), dtype=dtype)
                 self.matrix = np.append(self.matrix, new_element)
-            #print(f"Density matrix = {self.matrix}") 
         
     @staticmethod
     def get_map_density_matrix(allowed_hel, n_changing):
@@ -4515,10 +4517,12 @@ class DensityMatrix:
         #c 588           CALL GET_INTER(JAMP(1,I), JAMP(1,J), INTER(SOL))
         #c 589         ENDDO
         #c 590       ENDDO
-
+        #print(f"Spyros allowed_hel = {allowed_hel}")
+        #print(f"Spyros n_changing = {n_changing}")
         # set the index for the equivalent of the jamp
         jamp_hel = []
         n_comb = len(allowed_hel) // n_changing
+
         for i in range(n_comb):
             current_hel = []
             for n in range(n_changing):
@@ -4549,7 +4553,6 @@ class DensityMatrix:
             if key != conjugate_index(key):
                 map_density[conjugate_index(key)] = (False, map_density[key][1])
         
-        #print(f"Spyros map_density = {map_density}")
         return map_density
 
     def get_helicities_for_tensor_product(self, helicities):
@@ -4595,6 +4598,7 @@ class DensityMatrix:
         #if self.map_density_matrix_ind != other.map_density_matrix_ind:
         #    raise TypeError("Non-compatible dimensions of production and decay spin-density matrices")
         if len(self.matrix) != len(other.matrix):
+            misc.sprint(len(self.matrix), len(other.matrix))
             raise TypeError("Non-compatible dimensions of production and decay spin-density matrices")
 
         # Multiply the matrix elements of one matrix with the elements of the other matrix that have
