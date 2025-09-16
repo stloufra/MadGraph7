@@ -130,6 +130,88 @@ class TestEvent(unittest.TestCase):
 
 
 
+    def test_identical_final_state(self):
+        """ test that two event can be identified as identical even if the final state
+        is the same and that symmetry factor is correctly computed."""
+
+
+        z_ee_1 = lhe_parser.Event() 
+        z_ee_1.parse("""<event>    
+        3      1 +9.3182000e+00 1.00474800e+02 7.54677100e-03 1.27930100e-01
+        24 -1    0    0  501    0 +0.0000000000e+00 +0.0000000000e+00 +4.4934420219e+01 4.4934420219e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
+        11 1    1    1    0  501 +0.0000000000e+00 -0.0000000000e+00 -2.2525427462e+02 2.2525427462e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+        -11 1    1    1    0    0 -1.0803264452e+01 -4.0782658931e+01 -8.3249650133e+01 1.3048253287e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
+        </event>
+        """.split('\n'))
+
+        z_ee_2 = lhe_parser.Event()
+        z_ee_2.parse("""<event>    
+        3      1 +9.3182000e+00 1.00474800e+02 7.54677100e-03 1.27930100e-01
+        24 -1    0    0  501    0 +0.0000000000e+00 +0.0000000000e+00 +4.4934420219e+01 4.4934420219e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
+        -11 1    1    1    0  501 +0.0000000000e+00 -0.0000000000e+00 -2.2525427462e+02 2.2525427462e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+        11 1    1    1    0    0 -1.0803264452e+01 -4.0782658931e+01 -8.3249650133e+01 1.3048253287e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
+        </event>
+        """.split('\n'))
+
+
+        z_ee_3 = lhe_parser.Event() 
+        z_ee_3.parse("""<event>
+        3      1 +9.3182000e+00 1.00474800e+02 7.54677100e-03 1.27930100e-01
+        24 -1    0    0  501    0 +0.0000000000e+00 +0.0000000000e+00 +4.4934420219e+01 4.4934420219e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
+        11 1    1    1    0  501 +0.0000000000e+00 -0.0000000000e+00 -2.2525427462e+02 2.2525427462e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+        -11 1    1    1    0    0 -2.0803264452e+01 -4.0782658931e+01 -8.3249650133e+01 1.3048253287e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
+        </event>
+        """.split('\n'))
+
+        z_mu_1 = lhe_parser.Event()
+        z_mu_1.parse("""<event>
+         3      1 +9.3182000e+00 1.00474800e+02 7.54677100e-03 1.27930100e-01
+        24 -1    0    0  501    0 +0.0000000000e+00 +0.0000000000e+00 +4.4934420219e+01 4.4934420219e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
+        13 1    1    1    0  501 +0.0000000000e+00 -0.0000000000e+00 -2.2525427462e+02 2.2525427462e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+        -13 1    1    1    0    0 -1.0803264452e+01 -4.0782658931e+01 -8.3249650133e+01 1.3048253287e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
+        </event>
+        """.split('\n'))
+
+        z_mu_2 = lhe_parser.Event()
+        z_mu_2.parse("""<event>
+         3      1 +9.3182000e+00 1.00474800e+02 7.54677100e-03 1.27930100e-01
+        24 -1    0    0  501    0 +0.0000000000e+00 +0.0000000000e+00 +4.4934420219e+01 4.4934420219e+01 0.0000000000e+00 0.0000e+00 1.0000e+00
+        -13 1    1    1    0  501 +0.0000000000e+00 -0.0000000000e+00 -2.2525427462e+02 2.2525427462e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+        13 1    1    1    0    0 -1.0803264452e+01 -4.0782658931e+01 -8.3249650133e+01 1.3048253287e+02 9.1188000000e+01 0.0000e+00 0.0000e+00
+        </event>
+        """.split('\n'))        
+
+        #check each pair
+        self.assertTrue(z_ee_1.has_same_final_state(z_ee_2))
+        self.assertTrue(z_ee_2.has_same_final_state(z_ee_1))
+        self.assertTrue(z_ee_1.has_same_final_state(z_ee_1))
+        self.assertTrue(z_ee_2.has_same_final_state(z_ee_2))
+        self.assertFalse(z_ee_1.has_same_final_state(z_mu_1))
+        self.assertFalse(z_ee_1.has_same_final_state(z_mu_2))
+        self.assertFalse(z_ee_2.has_same_final_state(z_mu_1))
+        self.assertFalse(z_ee_2.has_same_final_state(z_mu_2))   
+        self.assertTrue(z_ee_1.has_same_final_state(z_ee_3))
+        self.assertTrue(z_ee_2.has_same_final_state(z_ee_3))
+        self.assertTrue(z_ee_3.has_same_final_state(z_ee_1))
+        self.assertTrue(z_ee_3.has_same_final_state(z_ee_2))
+        self.assertTrue(z_ee_3.has_same_final_state(z_ee_3))
+        self.assertFalse(z_ee_3.has_same_final_state(z_mu_1))
+        self.assertFalse(z_ee_3.has_same_final_state(z_mu_2))
+        self.assertTrue(z_mu_1.has_same_final_state(z_mu_2))
+        self.assertTrue(z_mu_1.has_same_final_state(z_mu_1))
+        self.assertTrue(z_mu_2.has_same_final_state(z_mu_2))
+
+        # check symmetry factor
+        self.assertEqual(z_ee_1.get_sym_factor_with([z_ee_2]),2)
+        self.assertEqual(z_ee_1.get_sym_factor_with([z_mu_1]),1)
+        self.assertEqual(z_ee_1.get_sym_factor_with([z_ee_2, z_ee_3]),6)
+        self.assertEqual(z_ee_1.get_sym_factor_with([z_ee_2, z_mu_1]),2)
+        self.assertEqual(z_ee_1.get_sym_factor_with([z_ee_2, z_ee_3, z_mu_1]),6)
+        self.assertEqual(z_ee_1.get_sym_factor_with([z_ee_2, z_ee_3, z_mu_1, z_mu_2]), 12)
+        self.assertEqual(z_ee_1.get_sym_factor_with([]),1)
+
+
+
 
     def test_event_property(self):
         """

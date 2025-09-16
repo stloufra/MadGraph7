@@ -2927,7 +2927,44 @@ class Event(list):
         format_line = ' '.join([format]*4) + ' \n'
         out = [format_line % one for one in out]
         out = ''.join(out).replace('e','d')
-        return out    
+        return out   
+
+
+    def  get_sym_factor_with(self, event_list):
+        """return the symmetry factor of the event with respect to a list of event
+           WARNING: no check on the initial state is done."""
+        
+        all_events = [self] + event_list
+        done = []
+
+        global_factor = 1
+        for i, event in enumerate(all_events):
+            nb_iden = 1
+            factor =1 
+            for j, event2 in enumerate(all_events[i+1:],start=i+1):
+                if j in done:
+                    continue
+                if event.has_same_final_state(event2):
+                    done.append(j)
+                    nb_iden += 1
+                    factor *= nb_iden
+            global_factor *= factor
+        return global_factor
+
+    def has_same_final_state(self, other):
+        """return True if the two event have the same final state (up to permutation)
+        """
+        
+        if other is None:
+            return False
+        
+        self_final = [p.pid for p in self if p.status == 1]
+        other_final = [p.pid for p in other if p.status == 1]
+        if len(self_final) != len(other_final):
+            return False
+        self_final.sort()
+        other_final.sort()
+        return self_final == other_final
 
 class FourMomentum(object):
     """a convenient object for 4-momenta operation"""
