@@ -907,12 +907,23 @@ class AskRun(cmd.ControlSwitch):
 
     def get_cardcmd_for_reweight(self, value):
         """set some command to run before allowing the user to modify the cards."""
-
-        misc.sprint('get_cardcmd_for_reweight', value) 
+        content_rwgt_card = open(pjoin(self.me_dir, "Cards", "reweight_card.dat"), "r") #content of reweight_card.dat
         if value in  ['density']:
-            return ["./Cards/density_card_default.dat"]
+            if 'change particle_in_density_matrix' in content_rwgt_card.read():
+                content_rwgt_card.close()
+                return ["./Cards/reweight_card.dat"] #if reweight_card.dat has information for density matrices, we keep it
+            else:
+                content_rwgt_card.close()
+                return ["./Cards/density_card_default.dat"] #else we overwrite it with density_card_default.dat
+        elif value in ['ON']:
+            if 'change particle_in_density_matrix' in content_rwgt_card.read():
+                content_rwgt_card.close()
+                return ["./Cards/reweight_card_default.dat"] #if reweight_card.dat has information for density matrices, we overwrite it with the default because it is reweight mode
+            else:
+                content_rwgt_card.close()
+                return ["./Cards/reweight_card.dat"] #else we keep the current reweight_card.dat
         else:
-            return []  
+            return 
 
 #===============================================================================
 # CheckValidForCmd
