@@ -1,0 +1,24 @@
+#*************************************************************************
+#                          Reweight Density Module                       *
+#                      Adding density matrix to LO event                 *
+#                                                                        *
+#*************************************************************************
+#          
+#   1) the value of alpha_s will be used from the event so the value in
+#      the param_card is not taken into account.
+#      event generation runs are needed.
+#
+#************************************************************************
+# ENTER YOUR COMMANDS BELOW. 
+#************************************************************************
+
+
+change boost lambda p : p.pid in [24,-24] # define the frame to the WW restframe
+change helicity_direction lambda p : p.pid == 24 # choose the "z" direction for the helicity computation
+change particle_in_density_matrix lambda p : p.pid in [24,-24]
+change helicity_fermion_order = [-1,1]
+change helicity_vector_order = [-1,1,0]
+change filter_helicity lambda h: True
+
+
+
