@@ -2029,7 +2029,7 @@ class ReweightInterface(extended_cmd.Cmd):
         # 1. prepare the interface----------------------------------------------
         mgcmd = self.mg5cmd
         complex_mass = False  
-        ew_scherme = None 
+        ew_scheme = None 
         has_cms = re.compile(r'''set\s+complex_mass_scheme\s*(True|T|1|true|$|;)''')
         has_ew = re.compile(r'''set\s+EWscheme\s*(\w*)''')
         for line in self.banner.proc_card:
