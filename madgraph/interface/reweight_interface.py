@@ -542,7 +542,7 @@ class ReweightInterface(extended_cmd.Cmd):
                     self.save_to_pickle()      
         
         # get the mode of reweighting #LO/NLO/NLO_tree/...
-        type_rwgt = self.get_weight_names() #type_rwgt = '' in my case
+        type_rwgt = self.get_weight_names() 
         # get iterator over param_card and the name associated to the current reweighting.
         param_card_iterator, tag_name = self.handle_param_card(model_line, args, type_rwgt)
         if self.rwgt_dir:
@@ -3171,9 +3171,12 @@ class DensityInterface(ReweightInterface):
 
     def do_change_order_helicities(self, line):
         """Change the order of the basis of helicities. It accepts inputs for density matrices full and partial"""
-
-        for i in range(len(line)): 
-            line[i] = int(line[i].strip("[],()"))
+        for i in range(len(line)):
+            aux = line[i].strip("[],()")
+            if aux != 'None':
+                line[i] = int(aux)
+            else:
+                return #if "change order_helicities None" is the option, we do not change the default value 
 
         #Let the user enter the allowed_helicities in the complex form ie. [+1, +1, +1, -1, -1, +1, -1, -1] for 2 qubits for instance
         if len(line) == self.number_changing_helicities * self.number_combinations:
@@ -3214,8 +3217,12 @@ class DensityInterface(ReweightInterface):
         It can be useful for non-symetric initial states like u u~.
         It does accept only one pdg-code
         """
-        for i in range(len(line)): 
-            line[i] = int(line[i].strip("[],()"))
+        for i in range(len(line)):
+            aux = line[i].strip("[],()")
+            if aux != 'None':
+                line[i] = int(aux)
+            else:
+                return #if "change axis_referential None" is the option, we do not change the default value 
         self.axis_referential = line
 
 
