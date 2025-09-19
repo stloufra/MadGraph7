@@ -7,7 +7,6 @@ from six.moves import map
 from six.moves import range
 from six.moves import zip
 import pickle
-import numpy as np
 
 ################################################################################
 #
@@ -4476,7 +4475,9 @@ class DensityMatrix:
          # Create the structured array
         dtype = [('helicities', 'i4', (len_allowed_hel)),  
                  ('value', 'complex64')] 
+        import numpy as np
         self.matrix = np.empty(0, dtype=dtype)
+
            
         # If the array is already of the correct type set the matrix
         # equal to it and return otherwise create the matrix
@@ -4567,6 +4568,7 @@ class DensityMatrix:
         len_allowed_hel = len(self.matrix[0]['helicities'])*len(other.matrix[0]['helicities'])
         dtype = [('helicities', 'i4', (len_allowed_hel)),
                  ('value', 'complex64')]
+        import numpy as np
         result = np.empty(0, dtype=dtype)
 
         for entry1 in self.matrix:
