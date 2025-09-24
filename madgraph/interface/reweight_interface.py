@@ -961,8 +961,10 @@ class ReweightInterface(extended_cmd.Cmd):
         s_orig = self.banner['slha']
         self.orig_param_card_text = s_orig
         s_new = new_card
-        self.new_param_card = check_param_card.ParamCard(s_new.splitlines())
-        
+        if self.flag_density_matrix: #for the density mode we don't use rw_me/Cards/param_card.dat
+            self.new_param_card = check_param_card.ParamCard(s_orig.splitlines())
+        else:
+            self.new_param_card = check_param_card.ParamCard(s_new.splitlines())
         #define tag for the run
         if self.options['rwgt_name']:
             tag = self.options['rwgt_name']
@@ -977,7 +979,7 @@ class ReweightInterface(extended_cmd.Cmd):
             old_param = check_param_card.ParamCard(s_orig.splitlines())
             new_param =  self.new_param_card
             card_diff = old_param.create_diff(new_param)
-            if card_diff == '' and not self.second_process:
+            if card_diff == '' and not self.second_process and not self.flag_density_matrix: #if we are in the density mode, the param_card are not modified, warning useless
                     logger.warning(' REWEIGHTING: original card and new card are identical.')
             try:
                 if old_param['sminputs'].get(3)- new_param['sminputs'].get(3) > 1e-3 * new_param['sminputs'].get(3):
@@ -2013,6 +2015,14 @@ class ReweightInterface(extended_cmd.Cmd):
         if self.flag_density_matrix:
             import madgraph.various.Density_functions as dens
             import numpy as np
+
+            ##Check if all parameters are loaded properly
+            # misc.sprint(self.helicity_direction)
+            # misc.sprint(self.particle_in_density_matrix)
+            # misc.sprint(self.momenta_boost)
+            # misc.sprint(self.allowed_helicities)
+            # misc.sprint(self.axis_referential)
+            # misc.sprint(self.symmetrise_initial_state)
             
             status = []
             for particle in event:
@@ -3036,14 +3046,14 @@ class DensityInterface(ReweightInterface):
         self.helicity_direction = [[-1], '', []] #pid of the particle chosen as reference for the helicity frame
         self.particle_in_density_matrix = None #pid of the particles selected for the study
         self.momenta_boost = [[-1], '', []] #pid of the particles in whose center of mass frame the system will be boosted
-        self.allowed_helicities = None #basis of helicities
+        self.allowed_helicities = [-1] #basis of helicities
+        self.axis_referential = [-1]
+        self.symmetrise_initial_state = False
         self.spins = None 
         self.number_changing_helicities = None
         self.number_combinations = None
         self.new_param_card = False #Needed to not call ask_edit_card_static
         self.production_matrix = 0
-        self.axis_referential = None
-        self.symmetrise_initial_state = False
         
         ReweightInterface.__init__(self, *args, **opts)
         self.flag_density_matrix = True
@@ -3171,6 +3181,10 @@ class DensityInterface(ReweightInterface):
 
     def do_change_order_helicities(self, line):
         """Change the order of the basis of helicities. It accepts inputs for density matrices full and partial"""
+
+        if len(line) == 1 and line[0] == '[-1]': # if order_helicitites [-1], we take the default value
+            return
+        
         for i in range(len(line)):
             aux = line[i].strip("[],()")
             if aux != 'None':
@@ -3281,7 +3295,7 @@ class DensityInterface(ReweightInterface):
 
         #if the user didn't use the option or if it has not been read yet, fill it automatically here
         #how to generalise to graviton ?
-        if self.allowed_helicities == None: 
+        if self.allowed_helicities == None or self.allowed_helicities == [-1]: #if allowed_helicities is in default value
             if self.number_combinations == 2:
                 self.allowed_helicities = [+1, -1]
             elif self.number_combinations == 3:

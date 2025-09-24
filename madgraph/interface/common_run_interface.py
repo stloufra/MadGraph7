@@ -4903,9 +4903,9 @@ class AskforEditCard(cmd.OneLinePathCompletion):
     """
 
     all_card_name = ['param_card', 'run_card', 'pythia_card', 'pythia8_card', 'fo_analysis_card'
-                     'madweight_card', 'MadLoopParams', 'shower_card', 'rivet_card']
+                     'madweight_card', 'MadLoopParams', 'shower_card', 'rivet_card', 'reweight_card']
     to_init_card = ['param', 'run', 'madweight', 'madloop', 'fo_analysis',
-                    'shower', 'pythia8','delphes','madspin', 'rivet']
+                    'shower', 'pythia8','delphes','madspin', 'rivet', 'reweight']
     special_shortcut = {}
     special_shortcut_help = {}
     
@@ -4935,6 +4935,7 @@ class AskforEditCard(cmd.OneLinePathCompletion):
         self.has_delphes = False
         self.has_rivet = False
         self.has_fo_card = False
+        self.has_density = False
         self.paths = {}
         self.update_block = []
 
@@ -4977,6 +4978,8 @@ class AskforEditCard(cmd.OneLinePathCompletion):
         self.paths['madanalysis5_parton_default'] = pjoin(self.me_dir,'Cards','madanalysis5_parton_card_default.dat')
         self.paths['madanalysis5_hadron_default'] = pjoin(self.me_dir,'Cards','madanalysis5_hadron_card_default.dat')
         self.paths['FO_analyse'] = pjoin(self.me_dir,'Cards', 'FO_analyse_card.dat')
+        self.paths['reweight_default'] = pjoin(self.me_dir, 'Cards', 'density_card_default.dat') #this works only for density mode, generalise it to normal reweight ?
+        self.paths['reweight'] = pjoin(self.me_dir, 'Cards', 'reweight_card.dat')
 
 
      
@@ -5340,6 +5343,18 @@ class AskforEditCard(cmd.OneLinePathCompletion):
         self.fo_card_def = FO_analyse_card.FOAnalyseCard(self.paths['FO_analyse_default'])
         return list(self.fo_card.string_vars)
 
+    def init_reweight(self, cards):
+        self.has_density = False
+        is_valid_path = self.get_path('reweight', cards)
+        if not is_valid_path:
+            return []
+        self.has_density = True
+        self.reweight_card = banner_mod.DensityCard(self.paths['reweight'])
+        self.reweight_card_default = banner_mod.DensityCard(self.paths['reweight_default'])
+
+        self.reweight_vars = [k.lower() for k in self.reweight_card.keys()]
+        #we define here the reweight_card for the density mode as a dictionnary. And we read it off the default cards
+        return []
 
     def set_CM_velocity(self, line):
         """compute sqrts from the velocity in the center of mass frame"""
@@ -5602,6 +5617,8 @@ class AskforEditCard(cmd.OneLinePathCompletion):
                 allowed['rivet_card'] = ''
             if self.has_fo_card:
                 allowed['fo_card'] = ''
+            if self.has_density:
+                allowed['reweight_card'] = ''
         
         elif len(args) == 2:
             if args[1] == 'run_card':
@@ -5628,6 +5645,8 @@ class AskforEditCard(cmd.OneLinePathCompletion):
                 allowed = {'rivet_card':'default'}
             elif args[1] == 'fo_card':
                 allowed = {'fo_card':'default'} 
+            elif args[1] == 'reweight_card':
+                allowed = {'reweight_card': 'default'}
             else:
                 allowed = {'value':''}
 
@@ -5635,8 +5654,8 @@ class AskforEditCard(cmd.OneLinePathCompletion):
             start = 1
             if args[1] in  ['run_card', 'param_card', 'MadWeight_card', 'shower_card', 
                             'MadLoop_card','pythia8_card','delphes_card','plot_card',
-                            'fo_card',
-                            'madanalysis5_parton_card','madanalysis5_hadron_card', 'rivet_card']:
+                            'fo_card', 'madanalysis5_parton_card','madanalysis5_hadron_card',
+                            'rivet_card', 'reweight_card']:
                 start = 2
 
             if args[-1] in list(self.pname2block.keys()):
@@ -5675,6 +5694,8 @@ class AskforEditCard(cmd.OneLinePathCompletion):
                 categories.append('rivet_card')
             if self.has_fo_card:
                 categories.append('fo_card')
+            if self.has_density:
+                categories.append('reweight_card')
 
             possibilities['category of parameter (optional)'] = \
                           self.list_completion(text, categories)
@@ -5719,6 +5740,12 @@ class AskforEditCard(cmd.OneLinePathCompletion):
             if allowed['rivet_card'] == 'default':
                 opts.append('default')
             possibilities['Rivet Card'] = self.list_completion(text, opts)
+        
+        if 'reweight_card' in list(allowed.keys()):
+            opts = self.reweight_vars
+            if allowed['reweight_card'] == 'default':
+                opts.append('default')
+            possibilities['Reweight Card'] = self.list_completion(text, opts)
 
         if 'shower_card' in list(allowed.keys()):
             opts = self.shower_vars + [k for k in self.shower_card.keys() if k !='comment']
@@ -5817,7 +5844,7 @@ class AskforEditCard(cmd.OneLinePathCompletion):
          
     def do_set(self, line):
         """ edit the value of one parameter in the card"""
-        
+
 
         args = self.split_arg(line)
         
@@ -5953,6 +5980,12 @@ class AskforEditCard(cmd.OneLinePathCompletion):
                 return
             args[0] = 'rivet_card'
 
+        if args[0] == 'reweight_card':
+            if not self.has_density:
+                logger.warning('Invalid Command: No Reweight card defined')
+                return
+            args[0] = 'reweight_card'
+
         if args[0] == 'delphes_card':
             if not self.has_delphes:
                 logger.warning('Invalid Command: No Delphes card defined.')
@@ -5969,7 +6002,8 @@ class AskforEditCard(cmd.OneLinePathCompletion):
                 return
 
         if args[0] in ['run_card', 'param_card', 'MadWeight_card', 'shower_card', 'fo_card',
-                       'delphes_card','madanalysis5_hadron_card','madanalysis5_parton_card','rivet_card']:
+                       'delphes_card','madanalysis5_hadron_card','madanalysis5_parton_card',
+                       'rivet_card', 'reweight_card']:
 
             if args[1] == 'default':
                 logger.info('replace %s by the default card' % args[0],'$MG:BOLD')
@@ -5980,7 +6014,8 @@ class AskforEditCard(cmd.OneLinePathCompletion):
                     self.run_card = banner_mod.RunCard(self.paths['run'])
                 elif args[0] == 'shower_card':
                     self.shower_card = shower_card_mod.ShowerCard(self.paths['shower'])
-                return
+                elif args[0] == 'reweight_card':
+                    self.reweight_card = banner_mod.DensityCard(self.paths['reweight_default'])
             else:
                 card = args[0]
             start=1
@@ -6302,7 +6337,26 @@ class AskforEditCard(cmd.OneLinePathCompletion):
                 value = args[start+1]
                 default = False 
             self.fo_card[args[start]] = value
-            self.modified_card.add('fo_card') 
+            self.modified_card.add('fo_card')
+
+        # Density Parameter -----------------------------------------------------
+        elif self.has_density and (card in ['', 'reweight_card'])\
+             and args[start].lower() in [k.lower() for k in self.reweight_card.keys()]:
+
+            if args[start] in self.conflict and card == '':
+                text = 'ambiguous name (present in more than one card). Please specify which card to edit'
+                logger.warning(text)
+                return
+            if args[start+1] == 'default':
+                value = self.reweight_card_default[args[start]]
+                default = True
+            else:
+                value = args[start +1:]
+                value = ' '.join(value)
+                default = False
+            
+            self.setReweight(args[start], value, default=default)
+            self.reweight_card.write(self.paths['reweight']) #we write over the reweight_card with the new information
 
         #INVALID --------------------------------------------------------------
         else:      
@@ -6389,6 +6443,16 @@ class AskforEditCard(cmd.OneLinePathCompletion):
         logger.info('modify parameter %s of the rivet_card.dat to %s' % (name, value), '$MG:BOLD')
         if default and name.lower() in self.rivet_card.user_set:
             self.rivet_card.user_set.remove(name.lower())
+    
+    def setReweight(self, name, value, default):
+        try:
+            self.reweight_card.set(name, value, user=True)
+        except Exception as error:
+            logger.warning("Fail to change parameter. Please Retry. Reason: %s." % error)
+            return
+        logger.info('modify parameter %s of the reweight_card.dat to %s' % (name, value), '$MG:BOLD')
+        if default and name.lower() in self.reweight_card.user_set:
+            self.reweight_card.user_set.remove(name.lower())
 
     def setP(self, block, lhaid, value):
         if isinstance(value, str):

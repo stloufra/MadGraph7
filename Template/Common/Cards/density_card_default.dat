@@ -22,11 +22,10 @@
 # ENTER YOUR COMMANDS BELOW. 
 #************************************************************************
 
-
 #Default values:
 change helicity_direction [-1] 
 change particle_in_density_matrix [6, -6] 
 change boost_choice [-1]
-change order_helicities None
-change axis_referential None
+change order_helicities [-1]
+change axis_referential [-1]
 change symmetrise_initial_state False
