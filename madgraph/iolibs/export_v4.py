@@ -3854,6 +3854,7 @@ class ProcessExporterFortranMW(ProcessExporterFortran):
         # Extract ncolor
         ncolor = max(1, len(matrix_element.get('color_basis')))
         replace_dict['ncolor'] = ncolor
+        replace_dict['proc_prefix'] = '' # Not used in MW
 
         # Extract color data lines
         color_data_lines = self.get_color_data_lines(matrix_element)
