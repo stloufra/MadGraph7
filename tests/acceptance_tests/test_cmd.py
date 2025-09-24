@@ -1597,8 +1597,9 @@ class TestCmdShell2(unittest.TestCase,
         open(checkf, 'w').write('\n'.join(text))
 
         
-    def test_v4_heft(self):
+    def notest_v4_heft(self):
         """Test standalone directory for UFO HEFT model"""
+        ##v4 not supported anymore
 
         if os.path.isdir(self.out_dir):
             shutil.rmtree(self.out_dir)

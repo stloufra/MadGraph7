@@ -2479,11 +2479,16 @@ class decay_all_events(object):
             frameid = self.options['frame_id']
         except KeyError:
             frameid = 6
-        stdin_text=' %s %s %s %s %s\n' % ('2', self.options['BW_cut'], self.Ecollider, 1.0, frameid)
+        try:
+            beampol = self.options['beampol']
+        except KeyError:
+            beampol = (0.5,0.5)
+
+        stdin_text=' %s %s %s %s %s %s %s\n' % ('2', self.options['BW_cut'], self.Ecollider, 1.0, frameid, beampol[0], beampol[1])
         stdin_text+=p_str
         # here I also need to specify the Monte Carlo Masses
         stdin_text+=" %s \n" % nb_mc_masses
-        
+ 
         mepath = self.all_ME[production_tag]['path']
         decay = self.all_ME[production_tag]['decays'][0]
         decay_me=self.all_ME.get_decay_from_tag(production_tag, decay['decay_tag'])
