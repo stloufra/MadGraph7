@@ -270,9 +270,9 @@ C
       PARAMETER (ZERO=0D0)
       COMPLEX*16 IMAG1
       PARAMETER (IMAG1=(0D0,1D0))
-      INTEGER DENOM
-      INTEGER CF(%(ncolortriang)d)
-      COMMON /%(proc_prefix)sCOLOR_MATRIX/ CF,DENOM
+      INTEGER %(proc_prefix)sDENOM
+      INTEGER %(proc_prefix)sCF(%(ncolortriang)d)
+      COMMON /%(proc_prefix)sCOLOR_MATRIX/ %(proc_prefix)sCF,%(proc_prefix)sDENOM
 C  
 C ARGUMENTS 
 C  
@@ -428,7 +428,7 @@ CF2PY INTENT(IN) :: JAMP(NCOLOR,NAMPSO)
       PARAMETER (NAMPSO=%(nAmpSplitOrders)d, NSQAMPSO=%(nSqAmpSplitOrders)d)
       REAL*8     ZERO,RES(NSQAMPSO)
       PARAMETER (ZERO=0D0)
-      INTEGER SQSOINDEX
+      INTEGER %(proc_prefix)sSQSOINDEX
 C
 C LOCAL VARIABLES
 C
@@ -453,14 +453,14 @@ C
          ZTEMP = (0.D0,0.D0)
          DO J = I, NCOLOR
              CF_INDEX = CF_INDEX +1
-             ZTEMP = ZTEMP + CF(CF_INDEX)*JAMP(J,M)
+             ZTEMP = ZTEMP + %(proc_prefix)sCF(CF_INDEX)*JAMP(J,M)
          ENDDO
          DO N = 1, NAMPSO
            RES(%(proc_prefix)sSQSOINDEX(M,N)) = RES(%(proc_prefix)sSQSOINDEX(M,N)) + REAL(ZTEMP*DCONJG(JAMP(I,N)))
          ENDDO
        ENDDO
      DO N = 1, NAMPSO
-        RES(%(proc_prefix)sSQSOINDEX(M,N)) = RES(%(proc_prefix)sSQSOINDEX(M,N))/DENOM
+        RES(%(proc_prefix)sSQSOINDEX(M,N)) = RES(%(proc_prefix)sSQSOINDEX(M,N))/%(proc_prefix)sDENOM
      ENDDO
      ENDDO
      END
@@ -473,7 +473,7 @@ CF2PY INTENT(IN) :: JAMP_2(NCOLOR,NAMPSO)
 
        INTEGER NAMPSO, NSQAMPSO
        PARAMETER (NAMPSO=%(nAmpSplitOrders)d, NSQAMPSO=%(nSqAmpSplitOrders)d)
-       INTEGER SQSOINDEX
+       INTEGER %(proc_prefix)sSQSOINDEX
 
        INTEGER I,J,M,N
        INTEGER NCOLOR
@@ -494,14 +494,14 @@ C
           ZTEMP = (0.D0,0.D0)
           DO J = I, NCOLOR
               CF_INDEX = CF_INDEX +1
-              ZTEMP = ZTEMP + CF(CF_INDEX)*JAMP_1(J,M)
+              ZTEMP = ZTEMP + %(proc_prefix)sCF(CF_INDEX)*JAMP_1(J,M)
           ENDDO
           DO N = 1, NAMPSO
             INTER(%(proc_prefix)sSQSOINDEX(M,N)) = INTER(%(proc_prefix)sSQSOINDEX(M,N)) + REAL(ZTEMP*DCONJG(JAMP_2(I,N)))
           ENDDO
         ENDDO
         DO N = 1, NAMPSO
-         INTER(%(proc_prefix)sSQSOINDEX(M,N)) = INTER(%(proc_prefix)sSQSOINDEX(M,N))/DENOM
+         INTER(%(proc_prefix)sSQSOINDEX(M,N)) = INTER(%(proc_prefix)sSQSOINDEX(M,N))/%(proc_prefix)sDENOM
         ENDDO
       ENDDO
       RETURN
