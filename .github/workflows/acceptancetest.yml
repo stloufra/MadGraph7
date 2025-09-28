@@ -742,7 +742,7 @@ jobs:
             which f2py
             echo "f2py_compiler = $(which f2py)" >> input/mg5_configuration.txt
             cp Template/LO/Source/.make_opts Template/LO/Source/make_opts
-            #./tests/test_manager.py test_oneloop_reweighting -pA -t0 -l INFO
+            ./tests/test_manager.py test_oneloop_reweighting -pA -t0 -l INFO || echo "bypased"
       - name: Breakpoint
         uses: namespacelabs/breakpoint-action@v0
         with:
