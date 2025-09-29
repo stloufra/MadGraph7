@@ -278,7 +278,7 @@ C
       INTEGER I,J
       COMPLEX*16 ZTEMP
       INTEGER CF_INDEX
-      INTEGER CF(NCOLOR*(NCOLOR+1)/2)
+      INTEGER CF(21)
       INTEGER DENOM
       COMMON /COLOR_MATRIX/ CF,DENOM
       COMPLEX*16 AMP(NGRAPHS), JAMP(NCOLOR), TMP_JAMP(55)
@@ -719,7 +719,6 @@ C
       INTEGER CF(NCOLOR*(NCOLOR+1)/2)
       INTEGER DENOM
       COMMON /COLOR_MATRIX/ CF,DENOM
-      INTEGER DENOM
       COMPLEX*16 JAMP(NCOLOR), TMP_JAMP(55)
       COMPLEX*16 DUM0,DUM1
       DATA DUM0, DUM1/(0D0, 0D0), (1D0, 0D0)/
@@ -755,7 +754,7 @@ CF2PY INTENT(IN) :: JAMP_2
       INTEGER CF(NCOLOR*(NCOLOR+1)/2)
       INTEGER DENOM
       COMMON /COLOR_MATRIX/ CF,DENOM
-      COMPLEX*16 JAMP_1(NCOLOR),JAMP_2(NCOLOR),ZTEMP,INTER
+      COMPLEX*16 JAMP_1(NCOLOR),JAMP_2(NCOLOR),INTER
 
 C     COLOR DATA
 C     
@@ -763,12 +762,14 @@ C
       INTER = (0.D0,0.D0)
       CF_INDEX = 0
       DO I = 1, NCOLOR
-        ZTEMP = DCONJG(JAMP_2(I))
+C       ZTEMP = DCONJG(JAMP_2(I))
         DO J=I, NCOLOR
-          INTER = INTER + CF(CF_INDEX) * JAMP_1(J) * ZTEMP
+          CF_INDEX = CF_INDEX +1
+          INTER = INTER + CF(CF_INDEX) * (JAMP_1(J) * DCONJG(JAMP_2(I))
+     $      +JAMP_1(I) * DCONJG(JAMP_2(J)))
         ENDDO
       ENDDO
-      INTER = INTER/ DENOM
+      INTER = INTER/ (2D0*DENOM)
 
       END
 
@@ -819,6 +820,7 @@ C
 C     include coupling definition to update the value of alphas
 C     
       INCLUDE 'coupl.inc'
+
 
       DO I=1, N_COMB*(N_COMB+1)/2
         INTER(I) = 0
