@@ -6016,6 +6016,7 @@ class AskforEditCard(cmd.OneLinePathCompletion):
                     self.shower_card = shower_card_mod.ShowerCard(self.paths['shower'])
                 elif args[0] == 'reweight_card':
                     self.reweight_card = banner_mod.DensityCard(self.paths['reweight_default'])
+                return
             else:
                 card = args[0]
             start=1

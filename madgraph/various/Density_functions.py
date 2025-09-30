@@ -579,9 +579,11 @@ def permutations_PGD(PDG: list[int], status: list[int])-> list[list[int]]:
                 if status[i] == -1:
                         nincoming += 1
                 elif status[i] == +1:
-                        noutcoming +1
+                        noutcoming +=1
+                elif status[i] == 2 or status[i] == -2: #if the particle is an intermediate particle, we keep them in the final state, it is to the user to not put them in the density matrix
+                      noutcoming +=1
                 else:
-                        raise ValueError("Status not correct")
+                        raise ValueError("Status not recognised.")
 
         InitialState = PDG[0:nincoming]
         FinalState = PDG[nincoming:]
@@ -720,7 +722,7 @@ def Get_Bell_Test(CTC: list[list[float]]) -> tuple[float, bool]: #a tester
 
 def Get_Concurrence(rho: list[complex, complex]) -> float:
         """
-        Input:  rho -> density matrix of a system qubit/qubit
+        Input:  rho -> square format density matrix of a system qubit/qubit
         Output: concurrence
         """
         if len(rho) != 4:
@@ -909,6 +911,7 @@ def Negativity(rho:list[complex, complex], pdg_pos:list[int]) -> tuple[float, fl
                    pdg_pos -> list of the pdg code of the particles in the density matrix
            Output: negativity
            This functions computes the negativity of a density matrix composed of any two particles. From https://arxiv.org/abs/quant-ph/0504163
+           See https://arxiv.org/pdf/quant-ph/0508045 ?
         """
 
         #We take the partial transpose of the second particle because the negativity does not depend on it 
@@ -916,11 +919,19 @@ def Negativity(rho:list[complex, complex], pdg_pos:list[int]) -> tuple[float, fl
         aux = np.dot(np.transpose(np.conjugate(rho_TB)), rho_TB)
 
         eigvals, eigvecs = la.eigh(aux) # diagonalization formula: M = P D P^{-1}
-        # sqrt_rho = np.dot(eigvecs, np.dot(np.sqrt(np.diag(eigvals)), la.inv(eigvecs)))
+        for i in range(len(eigvals)): # we need to put this threshold because of numerical unstabilities small negative eigenvalues can appear
+              if abs(eigvals[i]) < 1e-10:
+                    eigvals[i] = 0.
         norm_trace = np.sum(np.sqrt(eigvals))
 
         Negativity = (norm_trace - 1)/2.
         Log_Negativity = np.log2(norm_trace)
+
+        if abs(Negativity.real) < 1e-10:
+              Negativity = 0.
+        if (Log_Negativity.real) < 1e-10:
+              Log_Negativity = 0.
+
         return Negativity.real, Log_Negativity.real
 
 def shift_clock(d: int) -> tuple[list[complex, complex], list[float, float]]:

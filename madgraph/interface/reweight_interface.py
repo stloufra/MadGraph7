@@ -1661,81 +1661,91 @@ class ReweightInterface(extended_cmd.Cmd):
         list_properties = [p for p in dir(lhe_parser.FourMomentum) if isinstance(getattr(lhe_parser.FourMomentum,p),property)]
         
 #######################BOOST BLOCK#############################
+        #this block of code determines which particles are chosen by the user in boost_choice and boosts the frame using this information
         if self.flag_density_matrix:
             if self.momenta_boost[1] == '':
-                new_order_momenta = tuple([i for i in range(len(event))])
+                new_order_boost = tuple([i for i in range(len(event))])
             else:
                 found_property_boost = False
                 for prop in list_properties:
                     if prop in self.momenta_boost[1]:
+                        # misc.sprint(prop)
                         found_property_boost = True
-                        information_lhe_order = []
-                        original_lhe_order = [i for i in range(len(event))]
+                        information_lhe_order_boost = []
+                        original_lhe_order_boost = [i for i in range(len(event))]
                         for i, p in enumerate(event):
                             if pdg[i] in self.momenta_boost[0]:
-                                correct_p = lhe_parser.FourMomentum(p)
-                                information_lhe_order.append(getattr(correct_p, prop))
+                                correct_p_boost = lhe_parser.FourMomentum(p)
+                                information_lhe_order_boost.append(getattr(correct_p_boost, prop))
                             else:
-                                information_lhe_order.append(float('NaN'))
+                                information_lhe_order_boost.append(float('NaN'))
 
-                        #Check if there are dupplicate in the list
-                        if len(set(information_lhe_order)) != len(information_lhe_order):
-                            logger.warning("Some particles in the boosting option have the same value for the chosen observable. Their ordering is random. Please ensure to choose an obsevarble that allows to discrimate all the identical particles.")
+                        #Check if there are duplicates in the list
+                        if len(set(information_lhe_order_boost)) != len(information_lhe_order_boost):
+                            logger.warning("Some particles in the boost_choice have the same value for the observable given. Their ordering is random for this event. Please ensure to choose an obsevarble that allows to discrimate all the identical particles.")
                         
-                        information_lhe_order_momenta, new_order_momenta = zip(*sorted(zip(information_lhe_order, original_lhe_order), reverse=True)) #values of the observable ordered
-                        
+                        information_lhe_order_new_boost, new_order_boost = zip(*sorted(zip(information_lhe_order_boost, original_lhe_order_boost), reverse=True)) #values of the observable ordered
+                        # misc.sprint(information_lhe_order_boost)
+                        # misc.sprint(information_lhe_order_new_boost)
+                        # misc.sprint(new_order_boost) 
+
                         if len(self.momenta_boost[2]) > 0: #this block allows to take into account the choice of order by the user
 
-                            order_input_boost = self.momenta_boost[2]
-                            information_lhe_order_momenta_without_nan = [elem for elem in information_lhe_order_momenta if elem == elem]
-                            observable_order_momenta = []
-                            
-                            #This bloc reorders the values of the observarble according to the user's input
-                            for i in range(len(order_input_boost)):
-                                observable_order_momenta.append(information_lhe_order_momenta_without_nan[order_input_boost[i]])
-
-                            order_input_momenta_sorted = sorted(order_input_boost, reverse=True)
-                            for i in range(len(order_input_momenta_sorted)):
-                                information_lhe_order_momenta_without_nan.pop(order_input_momenta_sorted[i])
-
-                            for k in range(len(information_lhe_order_momenta_without_nan)):
-                                observable_order_momenta.append(information_lhe_order_momenta_without_nan[k])
-
-                            input_information_lhe_order_momenta = [0] * len(information_lhe_order_momenta)
-                            input_compteur_momenta = 0
-                            for i in range(len(information_lhe_order_momenta)):
-                                if information_lhe_order_momenta[i] == information_lhe_order_momenta[i]:
-                                    input_information_lhe_order_momenta[i] = observable_order_momenta[input_compteur_momenta]
-                                    input_compteur_momenta += 1
+                            pdg_new_boost = [0] * len(pdg)
+                            order_new_corrected_boost = [0] * len(pdg)
+                            for i in range(len(pdg)):
+                                if information_lhe_order_new_boost[i] == information_lhe_order_new_boost[i]: #if the particle is in rho
+                                    pdg_new_boost[i] = pdg[new_order_boost[i]]
+                                    order_new_corrected_boost[i] = new_order_boost[i]
                                 else:
-                                    input_information_lhe_order_momenta[i] = float("NaN")
-                            
-                            order_input_boost = [0] * len(information_lhe_order_momenta)
-                            for i in range(len(input_information_lhe_order_momenta)):
-                                if input_information_lhe_order_momenta[i] != input_information_lhe_order_momenta[i]:
-                                    order_input_boost[i] = i
-                                else:
-                                    for j in range(len(information_lhe_order)):
-                                        if input_information_lhe_order_momenta[i] == information_lhe_order[j]:
-                                            order_input_boost[i] = j
+                                    pdg_new_boost[i] = pdg[i]
+                                    order_new_corrected_boost[i] = original_lhe_order_boost[i]
 
-                            pos_aux_momenta = self.momenta_boost[0]
+                            # misc.sprint("order_new = ", order_new_corrected_boost)
+                            # misc.sprint("values of the observables, ordered = ", information_lhe_order_new_boost)
 
-                            boost_corrected = [0] * len(pos_aux_momenta)
-                            is_particle_taken_good_momenta = [0] * len(pdg)
-                            compteur_momenta_good = 0
-                            for i in range(len(pos_aux_momenta)):
-                                 for j in range(len(pdg)):
-                                    if pdg[order_input_boost[j]] == pos_aux_momenta[i] and is_particle_taken_good_momenta[j] == 0:
-                                        boost_corrected[compteur_momenta_good] = order_input_boost[j]  #no +1 because python format
-                                        is_particle_taken_good_momenta[j] = 1
-                                        compteur_momenta_good += 1
-                                        break
-                            #result of this block: boost_corrected
+
+                            #this bloc of code initialises dic1 with the correct keys, it contains for each particle which value of observable to take (the first one, the second one, etc.)
+                            dic1_boost = {}
+                            for i in range(len(self.momenta_boost[0])):
+                                if self.momenta_boost[0][i] not in dic1_boost.keys():
+                                    dic1_boost[self.momenta_boost[0][i]] = []
+
+                            #this bloc of code fills dic1 with the given values (it must be done in another loop)
+                            for i in range(len(self.momenta_boost[0])):
+                                if self.momenta_boost[0][i] in dic1_boost.keys():
+                                    dic1_boost[self.momenta_boost[0][i]].append(self.momenta_boost[2][i])
+
+                            #initialisation of dic2 and dic3
+                            dic2_boost, dic3_boost = {}, {}
+                            for key in self.momenta_boost[0]:
+                                dic2_boost[key], dic3_boost[key] = [], []
+
+                            # In this loop we fill the dictionnaries dic2 and dic3. 
+                            # dic1 contains for each particle in rho, the rank of the observable's value we want to keep
+                            # dic2 contains the value of the obseravbles for the rank given in dic1
+                            # dic3 contains the position in the order of order_new of the particle we want to keep in rho
+                            for key in dic1_boost.keys():
+                                for j in range(len(pdg_new_boost)):
+                                    if pdg_new_boost[j] == int(key):
+                                        dic2_boost[key].append(information_lhe_order_new_boost[j])
+                                for k in range(len(dic1_boost[key])):
+                                    for l in range(len(information_lhe_order_new_boost)):
+                                        if information_lhe_order_new_boost[l] == dic2_boost[key][dic1_boost[key][k]]: #represents which index of dic2[key] we want
+                                            dic3_boost[key].append(l)
+
+                            #this bloc creates final_order which contains the position of the particles in rho in the original particle order
+                            boost_corrected = []
+                            for key in dic3_boost.keys():
+                                for j in range(len(dic3_boost[key])):
+                                    boost_corrected.append(new_order_boost[dic3_boost[key][j]]) #python format begins integers at 0 so we do not need to add +1
+
+                            # misc.sprint("dic1", dic1)
+                            # misc.sprint("value of the observables for the particles picked = ", dic2)
+                            # misc.sprint("position in new_order of each particle in rho =", dic3)
 
                 if not found_property_boost:
-                    new_order_momenta = tuple([i for i in range(len(event))])
-                    logger.warning("The observable given as input is not defined in the FourMomentum class. using default order.")
+                    logger.error(f'The observable {self.momenta_boost[1]} is not recognised. Observables are defined in the class FourMomentum of lhe_parser.')
 
             if len(self.momenta_boost[2]) == 0:
                 if -1 not in self.momenta_boost[0]:
@@ -1744,8 +1754,8 @@ class ReweightInterface(extended_cmd.Cmd):
                     compteur_boost = 0
                     for i in range(len(boost_corrected)):
                         for j in range(len(pdg)):
-                            if pdg[new_order_momenta[j]] == self.momenta_boost[0][i] and is_particle_taken_boost[j] == 0:
-                                boost_corrected[compteur_boost] = new_order_momenta[j] # no +1 because python format
+                            if pdg[new_order_boost[j]] == self.momenta_boost[0][i] and is_particle_taken_boost[j] == 0:
+                                boost_corrected[compteur_boost] = new_order_boost[j] # no +1 because python format
                                 is_particle_taken_boost[j] = 1
                                 compteur_boost += 1
                                 break
@@ -1755,6 +1765,7 @@ class ReweightInterface(extended_cmd.Cmd):
                 else:
                     boost_corrected = [-1]
             
+        # misc.sprint("boost_corrected",boost_corrected)
 
         #Here we call the boost function, there is a slight difference between the reweight/density mode that needs to separate it in 2 cases
         if self.flag_density_matrix:
@@ -1766,80 +1777,95 @@ class ReweightInterface(extended_cmd.Cmd):
 
 
 #######################ROTATION CHOICE BLOCK#############################
-        if self.flag_density_matrix: #this big block allows to define the orders in which to chose the PDG-codes when there are several identical in the process
+        #this block of code determines which particles are chosen by the user in helicity_direction and rotates the frame using this information
+        if self.flag_density_matrix:
             if self.helicity_direction[1] == '':
                 new_order_rot = tuple([i for i in range(len(event))])
 
             else:
                 found_property_rot = False
                 for prop in list_properties:
-                    if prop in self.helicity_direction[1]:
+                    if prop == self.helicity_direction[1]:
+                        # misc.sprint(prop)
                         found_property_rot = True
-                        information_lhe_order = []
-                        original_lhe_order = [i for i in range(len(event))]
+                        information_lhe_order_rot = []
+                        original_lhe_order_rot = [i for i in range(len(event))]
                         for i, p in enumerate(event):
                             if pdg[i] in self.helicity_direction[0]:
-                                correct_p = lhe_parser.FourMomentum(p)
-                                information_lhe_order.append(getattr(correct_p, prop))
+                                correct_p_rot = lhe_parser.FourMomentum(p)
+                                information_lhe_order_rot.append(getattr(correct_p_rot, prop))
                             else:
-                                information_lhe_order.append(float('NaN'))
+                                information_lhe_order_rot.append(float('NaN'))
 
-                        if len(set(information_lhe_order)) != len(information_lhe_order):
-                            logger.warning("Some particles in the helicity direction option have the same value for the chosen observable. Their ordering is random. Please ensure to choose an obsevarble that allows to discrimate all the identical particles.")
-                        
-                        new_information_lhe_rot, new_order_rot = zip(*sorted(zip(information_lhe_order, original_lhe_order), reverse=True))
+                        if len(set(information_lhe_order_rot)) != len(information_lhe_order_rot):
+                            logger.warning("Some particles in the helicity_direction have the same value for the observable given. Their ordering is random for this event. Please ensure to choose an obsevarble that allows to discrimate all the identical particles.")                        
+
+                        new_information_lhe_rot, new_order_rot = zip(*sorted(zip(information_lhe_order_rot, original_lhe_order_rot), reverse=True))
+                        # misc.sprint(information_lhe_order_rot)
+                        # misc.sprint(new_information_lhe_rot)
+                        # misc.sprint(new_order_rot)
+
 
                         if len(self.helicity_direction[2]) > 0: #this block allows to take into account the choice of order by the user
 
-                            order_input_rot = self.helicity_direction[2]
-                            information_lhe_order_without_nan_rot = [elem for elem in new_information_lhe_rot if elem == elem]
-                            observable_order_rot = []
-                            
-                            for i in range(len(order_input_rot)):
-                                observable_order_rot.append(information_lhe_order_without_nan_rot[order_input_rot[i]] )
-
-                            order_input_sorted_rot = sorted(order_input_rot, reverse=True)
-                            for i in range(len(order_input_sorted_rot)):
-                                information_lhe_order_without_nan_rot.pop(order_input_sorted_rot[i])
-
-                            for k in range(len(information_lhe_order_without_nan_rot)):
-                                observable_order_rot.append(information_lhe_order_without_nan_rot[k])
-
-                            input_information_lhe_order_rot = [0] * len(new_information_lhe_rot)
-                            input_compteur_rot = 0
-                            for i in range(len(new_information_lhe_rot)):
-                                if new_information_lhe_rot[i] == new_information_lhe_rot[i]:
-                                    input_information_lhe_order_rot[i] = observable_order_rot[input_compteur_rot]
-                                    input_compteur_rot += 1
+                            pdg_new_rot = [0] * len(pdg)
+                            order_new_corrected_rot = [0] * len(pdg)
+                            for i in range(len(pdg)):
+                                if new_information_lhe_rot[i] == new_information_lhe_rot[i]: #if the particle is in rho
+                                    pdg_new_rot[i] = pdg[new_order_rot[i]]
+                                    order_new_corrected_rot[i] = new_order_rot[i]
                                 else:
-                                    input_information_lhe_order_rot[i] = float("NaN")
-                            
-                            good_order_rot = [0] * len(information_lhe_order)
-                            for i in range(len(input_information_lhe_order_rot)):
-                                if input_information_lhe_order_rot[i] != input_information_lhe_order_rot[i]:
-                                    good_order_rot[i] = i
-                                else:
-                                    for j in range(len(information_lhe_order)):
-                                        if input_information_lhe_order_rot[i] == information_lhe_order[j]:
-                                            good_order_rot[i] = j
+                                    pdg_new_rot[i] = pdg[i]
+                                    order_new_corrected_rot[i] = original_lhe_order_rot[i]
 
-                            pos_aux = self.helicity_direction[0]
-                            pos_good_rot = [0] * len(pos_aux)
-                            is_particle_taken_good_rot = [0] * len(pdg)
-                            compteur_pos_good_rot = 0
-                            for i in range(len(pos_aux)):
-                                for j in range(len(pdg)):
-                                    if pdg[good_order_rot[j]] == pos_aux[i] and is_particle_taken_good_rot[j] == 0:
-                                        pos_good_rot[compteur_pos_good_rot] = good_order_rot[j] + 1 #+1 because fortran format
-                                        is_particle_taken_good_rot[j] = 1
-                                        compteur_pos_good_rot += 1
-                                        break
-                            refChoice_corrected = pos_good_rot
+                            # misc.sprint("order_new = ", order_new_corrected_rot)
+                            # misc.sprint("values of the observables, ordered = ", new_information_lhe_rot)
+
+                            #this bloc of code initialises dic1 with the correct keys, it contains for each particle which value of observable to take (the first one, the second one, etc.)
+                            dic1_rot = {}
+                            for i in range(len(self.helicity_direction[0])):
+                                if self.helicity_direction[0][i] not in dic1_rot.keys():
+                                    dic1_rot[self.helicity_direction[0][i]] = []
+
+                            #this bloc of code fills dic1 with the given values (it must be done in another loop)
+                            for i in range(len(self.helicity_direction[0])):
+                                if self.helicity_direction[0][i] in dic1_rot.keys():
+                                    dic1_rot[self.helicity_direction[0][i]].append(self.helicity_direction[2][i])
+
+                            #initialisation of dic2 and dic3
+                            dic2_rot, dic3_rot = {}, {}
+                            for key in self.helicity_direction[0]:
+                                dic2_rot[key], dic3_rot[key] = [], []
+
+
+                            # In this loop we fill the dictionnaries dic2 and dic3. 
+                            # dic1 contains for each particle in rho, the rank of the observable's value we want to keep
+                            # dic2 contains the value of the obseravbles for the rank given in dic1
+                            # dic3 contains the position in the order of order_new of the particle we want to keep in rho
+                            for key in dic1_rot.keys():
+                                for j in range(len(pdg_new_rot)):
+                                    if pdg_new_rot[j] == int(key):
+                                        dic2_rot[key].append(new_information_lhe_rot[j])
+                                for k in range(len(dic1_rot[key])):
+                                    for l in range(len(new_information_lhe_rot)):
+                                        if new_information_lhe_rot[l] == dic2_rot[key][dic1_rot[key][k]]: #represents which index of dic2[key] we want
+                                            dic3_rot[key].append(l)
+
+                            #this bloc creates refChoice_corrected which contains the position of the particles used for the rotations in the original particle order
+                            refChoice_corrected = []
+                            for key in dic3_rot.keys():
+                                for j in range(len(dic3_rot[key])):
+                                    refChoice_corrected.append(order_new_corrected_rot[dic3_rot[key][j]] + 1) #fortran format begins integers at 1 so we need to add +1
+
+
+                            # misc.sprint("dic1", dic1)
+                            # misc.sprint("value of the observables for the particles picked = ", dic2)
+                            # misc.sprint("position in new_order of each particle in rho =", dic3)
 
                 if not found_property_rot:
                     new_order_rot = tuple([i for i in range(len(event))])
-                    logger.warning("The observable given as input is not defined in the FourMomentum class. Using default order.")
-
+                    logger.error(f'The observable {self.helicity_direction[1]} is not recognised. Observables are defined in the class FourMomentum of lhe_parser.')
+                    
             if len(self.helicity_direction[2]) == 0:
                 refChoice = [0] * len(self.helicity_direction[0])
                 if -1 in self.helicity_direction[0]: #all the angles are set to 0 and the rotation is done
@@ -1859,12 +1885,14 @@ class ReweightInterface(extended_cmd.Cmd):
                     for i in range(len(refChoice)):
                         for j in range(len(pdg)):
                             if pdg[new_order_rot[j]] == input_pdg[i] and is_particle_taken_refChoice[new_order_rot[j]] == 0:
-                                refChoice[compteur_refChoice] = new_order_rot[j] + 1 #+1 because fortran format
+                                refChoice[compteur_refChoice] = new_order_rot[j] + 1 # +1 because fortran format
                                 is_particle_taken_refChoice[new_order_rot[j]] = 1
                                 compteur_refChoice += 1
-                                break #needed to put only one particle for each refChoice[i]
+                                break # needed to put only one particle for each refChoice[i]
 
                     refChoice_corrected = refChoice
+
+            # misc.sprint("refChoice_corrected",refChoice_corrected)
 
             if -1 not in refChoice_corrected:
                 pref = [0, 0, 0, 0]
@@ -1924,74 +1952,87 @@ class ReweightInterface(extended_cmd.Cmd):
             else:
                 found_property = False
                 for prop in list_properties:
-                    if prop in self.particle_in_density_matrix[1]:
+                    if prop == self.particle_in_density_matrix[1].lower():
+                        # misc.sprint(prop)
                         found_property = True
-                        information_lhe_order = []
-                        original_lhe_order = [i for i in range(len(event))]
+                        information_lhe_order_pos = []
+                        original_lhe_order_pos = [i for i in range(len(event))]
                         for i, p in enumerate(event):
                             if pdg[i] in self.particle_in_density_matrix[0]:
-                                correct_p = lhe_parser.FourMomentum(p)
-                                information_lhe_order.append(getattr(correct_p, prop))
+                                correct_p_pos = lhe_parser.FourMomentum(p)
+                                information_lhe_order_pos.append(getattr(correct_p_pos, prop))
                             else:
-                                information_lhe_order.append(float('NaN'))
+                                information_lhe_order_pos.append(float('NaN'))
 
-                        if len(set(information_lhe_order)) != len(information_lhe_order):
-                            logger.warning("Some particles in the density matrix have the same value for the chosen observable. Their ordering is random. Please ensure to choose an obsevarble that allows to discrimate all the identical particles.")
+                        
 
-                        new_information_lhe_order, new_order_pos = zip(*sorted(zip(information_lhe_order, original_lhe_order), reverse=True))
+                        if len(set(information_lhe_order_pos)) != len(information_lhe_order_pos):
+                            logger.warning("Some particles in the particle_in_density_matrix have the same value for the observable given. Their ordering is random for this event. Please ensure to choose an obsevarble that allows to discrimate all the identical particles.")
+
+                        
+                        #ordering the value of the observable in decreasing order. Ordering the position of the particles in the same way.
+                        new_information_lhe_order_pos, new_order_pos = zip(*sorted(zip(information_lhe_order_pos, original_lhe_order_pos), reverse=True))
+                        
+                        # misc.sprint(information_lhe_order_pos)
+                        # misc.sprint(new_information_lhe_order_pos)
+                        # misc.sprint(new_order_pos)
 
                         if len(self.particle_in_density_matrix[2]) > 0: #this block allows to take into account the choice of order by the user
-
-                            order_input = self.particle_in_density_matrix[2]
-                            information_lhe_order_without_nan = [elem for elem in new_information_lhe_order if elem == elem]
-                            observable_order = []
-                            
-                            #This bloc reorders the values of the obsevarble according to the user's input
-                            for i in range(len(order_input)):
-                                observable_order.append(information_lhe_order_without_nan[order_input[i]])
-
-                            #We need to order the input because of the pop method
-                            order_input_sorted = sorted(order_input, reverse=True)
-                            for i in range(len(order_input_sorted)):
-                                information_lhe_order_without_nan.pop(order_input_sorted[i])
-
-                            for k in range(len(information_lhe_order_without_nan)):
-                                observable_order.append(information_lhe_order_without_nan[k])
-
-                            input_information_lhe_order = [0] * len(new_information_lhe_order)
-                            input_compteur = 0
-                            for i in range(len(new_information_lhe_order)):
-                                if new_information_lhe_order[i] == new_information_lhe_order[i]:
-                                    input_information_lhe_order[i] = observable_order[input_compteur]
-                                    input_compteur += 1
+                            pdg_new_pos = [0] * len(pdg)
+                            order_new_corrected_pos = [0] * len(pdg)
+                            for i in range(len(pdg)):
+                                if new_information_lhe_order_pos[i] == new_information_lhe_order_pos[i]: #if the particle is in rho
+                                    pdg_new_pos[i] = pdg[new_order_pos[i]]
+                                    order_new_corrected_pos[i] = new_order_pos[i]
                                 else:
-                                    input_information_lhe_order[i] = float("NaN")
+                                    pdg_new_pos[i] = pdg[i]
+                                    order_new_corrected_pos[i] = original_lhe_order_pos[i]
 
-                            good_order = [0] * len(information_lhe_order)
-                            for i in range(len(input_information_lhe_order)):
-                                if input_information_lhe_order[i] != input_information_lhe_order[i]:
-                                    good_order[i] = i
-                                else:
-                                    for j in range(len(information_lhe_order)):
-                                        if input_information_lhe_order[i] == information_lhe_order[j]:
-                                            good_order[i] = j
+                            # print("pdg_new = ", pdg_new_pos)
+                            # misc.sprint("order_new = ", order_new_corrected_pos)
+                            # misc.sprint("values of the observables, ordered = ", new_information_lhe_order)
 
-                            pos_aux = self.particle_in_density_matrix[0]
+                            #this bloc of code initialises dic1 with the correct keys, it contains for each particle which value of observable to take (the first one, the second one, etc.)
+                            dic1_pos = {}
+                            for i in range(len(self.particle_in_density_matrix[0])):
+                                if self.particle_in_density_matrix[0][i] not in dic1_pos.keys():
+                                    dic1_pos[self.particle_in_density_matrix[0][i]] = []
 
-                            pos_good = [0] * len(pos_aux)
-                            is_particle_taken_good = [0] * len(pdg)
-                            compteur_pos_good = 0
-                            for i in range(len(pos_aux)):
-                                for j in range(len(pdg)):
-                                    if pdg[good_order[j]] == pos_aux[i] and is_particle_taken_good[j] == 0:
-                                        pos_good[compteur_pos_good] = good_order[j] + 1 #+1 because fortran format
-                                        is_particle_taken_good[j] = 1
-                                        compteur_pos_good += 1
-                                        break
-                            pos_corrected = pos_good
+                            #this bloc of code fills dic1 with the given values (it must be done in another loop)
+                            for i in range(len(self.particle_in_density_matrix[0])):
+                                if self.particle_in_density_matrix[0][i] in dic1_pos.keys():
+                                    dic1_pos[self.particle_in_density_matrix[0][i]].append(self.particle_in_density_matrix[2][i])
+
+                            #initialisation of dic2 and dic3
+                            dic2_pos, dic3_pos = {}, {}
+                            for key in self.particle_in_density_matrix[0]:
+                                dic2_pos[key], dic3_pos[key] = [], []
+
+                            # In this loop we fill the dictionnaries dic2 and dic3. 
+                            # dic1 contains for each particle in rho, the rank of the observable's value we want to keep
+                            # dic2 contains the value of the obseravbles for the rank given in dic1
+                            # dic3 contains the position in the order of order_new of the particle we want to keep in rho
+                            for key in dic1_pos.keys():
+                                for j in range(len(pdg_new_pos)):
+                                    if pdg_new_pos[j] == int(key):
+                                        dic2_pos[key].append(new_information_lhe_order_pos[j])
+                                for k in range(len(dic1_pos[key])):
+                                    for l in range(len(new_information_lhe_order_pos)):
+                                        if new_information_lhe_order_pos[l] == dic2_pos[key][dic1_pos[key][k]]: #represents which index of dic2[key] we want
+                                            dic3_pos[key].append(l)
+
+                            # misc.sprint(dic1)
+                            # misc.sprint("value of the observables for the particles picked = ", dic2)
+                            # misc.sprint("position in new_order of each particle in rho =", dic3)
+
+                            #this bloc creates final_order which contains the position of the particles in rho in the original particle order
+                            pos_corrected = []
+                            for key in dic3_pos.keys():
+                                for j in range(len(dic3_pos[key])):
+                                    pos_corrected.append(order_new_corrected_pos[dic3_pos[key][j]] + 1) #fortran format begins integers at 1 so we need to add +1
 
                 if not found_property:
-                    new_order_pos = tuple([i for i in range(len(event))])
+                    logger.error(f'The observable {self.particle_in_density_matrix[1]} is not recognised. Observables are defined in the class FourMomentum of lhe_parser.')
 
             if len(self.particle_in_density_matrix[2]) == 0:
                 pos_aux = self.particle_in_density_matrix[0]
@@ -2003,15 +2044,16 @@ class ReweightInterface(extended_cmd.Cmd):
                     for j in range(len(pdg)):
                         if pdg[new_order_pos[j]] == pos_aux[i] and is_particle_taken_new[j] == 0:
                             pos_new[compteur_pos_new] = new_order_pos[j] + 1 #+1 because fortran format
-                            is_particle_taken_new[j] = 1 ################Is it correct ?
+                            is_particle_taken_new[j] = 1
                             compteur_pos_new += 1
                             break #needed to put only one particle for each pos_aux[i]
 
-                pos_corrected = pos_new 
+                pos_corrected = pos_new
+            # misc.sprint(pos_corrected)
 
 #######################END PARTICLE CHOICE BLOCK#############################
 
-        
+
         if self.flag_density_matrix:
             import madgraph.various.Density_functions as dens
             import numpy as np
