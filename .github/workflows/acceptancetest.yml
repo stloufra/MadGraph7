@@ -2018,6 +2018,9 @@ jobs:
         run: |
             cd $GITHUB_WORKSPACE
             cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
+            sudo pip install numpy
+            which f2py
+            echo "f2py_compiler = $(which f2py)" >> input/mg5_configuration.txt
             ./tests/test_manager.py test_density_mode_ttbar -pA -t0 -l INFO
 
   acceptancetest_density_wpwm:
@@ -2034,6 +2037,9 @@ jobs:
         run: |
             cd $GITHUB_WORKSPACE
             cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
+            sudo pip install numpy
+            which f2py
+            echo "f2py_compiler = $(which f2py)" >> input/mg5_configuration.txt
             ./tests/test_manager.py test_density_mode_wpwm -pA -t0 -l INFO
 
   acceptancetest_density_decay1:
@@ -2050,6 +2056,9 @@ jobs:
         run: |
             cd $GITHUB_WORKSPACE
             cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
+            sudo pip install numpy
+            which f2py
+            echo "f2py_compiler = $(which f2py)" >> input/mg5_configuration.txt
             ./tests/test_manager.py test_density_mode_decay1 -pA -t0 -l INFO
 
   acceptancetest_density_decay2:
@@ -2066,6 +2075,9 @@ jobs:
         run: |
             cd $GITHUB_WORKSPACE
             cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
+            sudo pip install numpy
+            which f2py
+            echo "f2py_compiler = $(which f2py)" >> input/mg5_configuration.txt
             ./tests/test_manager.py test_density_mode_decay2 -pA -t0 -l INFO
 
   acceptancetest_density_tttbartbar:
@@ -2082,4 +2094,7 @@ jobs:
         run: |
             cd $GITHUB_WORKSPACE
             cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
+            sudo pip install numpy
+            which f2py
+            echo "f2py_compiler = $(which f2py)" >> input/mg5_configuration.txt
             ./tests/test_manager.py test_density_mode_doublettbar -pA -t0 -l INFO
