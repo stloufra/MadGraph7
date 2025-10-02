@@ -1578,12 +1578,12 @@ set boost_choice [6, -6]
 #we use iseed = 643 because it shows non-zero concurrence
 
         #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
-        command_card = open('../TEST_AMC/mg5_cmd.txt','w')
+        command_card = open('/tmp/mg5_cmd.txt','w')
         command_card.write(text)
         command_card.close()
 
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '../TEST_AMC/mg5_cmd.txt'])
+                         '/tmp/mg5_cmd.txt'])
 
 
         ## With the chosen seed, the event must be:
@@ -1654,12 +1654,12 @@ set axis_referential [-1, -2]
 #we use iseed = 643 because it shows non-zero concurrence
 
         #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
-        command_card = open('../TEST_AMC/mg5_cmd.txt','w')
+        command_card = open('/tmp/mg5_cmd.txt','w')
         command_card.write(text)
         command_card.close()
 
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '../TEST_AMC/mg5_cmd.txt'])
+                         '/tmp/mg5_cmd.txt'])
 
 
         ## Read a test event for g g > t t~
@@ -1742,12 +1742,12 @@ set boost_choice [6, -6]
 """
 
         #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
-        command_card = open('../TEST_AMC/mg5_cmd.txt','w')
+        command_card = open('/tmp/mg5_cmd.txt','w')
         command_card.write(text)
         command_card.close()
 
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '../TEST_AMC/mg5_cmd.txt'])
+                         '/tmp/mg5_cmd.txt'])
 
 
         ## With the chosen seed, the event must be:
@@ -1818,12 +1818,12 @@ set boost_choice [6, -6]
 """
 
         #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
-        command_card = open('../TEST_AMC/mg5_cmd.txt','w')
+        command_card = open('/tmp/mg5_cmd.txt','w')
         command_card.write(text)
         command_card.close()
 
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '../TEST_AMC/mg5_cmd.txt'])
+                         '/tmp/mg5_cmd.txt'])
 
 
         ## With the chosen seed, the event must be:
@@ -1898,12 +1898,12 @@ set boost_choice [6, -6] pt [0, 0]
 """
 
         #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
-        command_card = open('../TEST_AMC/mg5_cmd.txt','w')
+        command_card = open('/tmp/mg5_cmd.txt','w')
         command_card.write(text)
         command_card.close()
 
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '../TEST_AMC/mg5_cmd.txt'])
+                         '/tmp/mg5_cmd.txt'])
 
 
         ## With the chosen seed, the event must be:
