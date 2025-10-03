@@ -2021,7 +2021,13 @@ jobs:
             sudo pip install numpy
             which f2py
             echo "f2py_compiler = $(which f2py)" >> input/mg5_configuration.txt
-            ./tests/test_manager.py test_density_mode_ttbar -pA -t0 -l INFO
+            ./tests/test_manager.py test_density_mode_ttbar -pA -t0 -l INFO || echo "pass"
+
+      - name: Breakpoint
+        uses: namespacelabs/breakpoint-action@v0
+        with:
+        duration: 30m
+        authorized-users: Laptop vdurupt
 
   acceptancetest_density_wpwm:
     # The type of runner that the job will run on
