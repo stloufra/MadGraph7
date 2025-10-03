@@ -2027,7 +2027,7 @@ jobs:
         uses: namespacelabs/breakpoint-action@v0
         with:
         duration: 30m
-        authorized-users: Laptop vdurupt
+        authorized-users: valentindurupt
 
   acceptancetest_density_wpwm:
     # The type of runner that the job will run on
