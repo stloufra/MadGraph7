@@ -1558,7 +1558,7 @@ class TestCmdShell2(unittest.TestCase,
             misc.sprint(density_matrix.matrix[1], fortran_dens[1])
 
 
-    def test_density_mode_ttbar(self):
+    def test_density_mode_1(self):
         ############################################################################
         # Check working condition of the density mode
         # reproduces the full density matrix and computes quantum information observables
@@ -1566,7 +1566,7 @@ class TestCmdShell2(unittest.TestCase,
         ############################################################################
         import subprocess
         text = f"""generate g g > t t~
-output {self.out_dir}_density_ttbar
+output {self.out_dir}_density_1
 launch
 reweight=density
 set run_card nevents 1
@@ -1600,7 +1600,7 @@ set boost_choice [6, -6]
                           (0.28550869973262555+0j), (0.04730266391943712+0j), (0.04700262219476668+0j), (2.1317321205213577e-05+0.0024340905386288922j),
                           (0.04730266391943711+0j), (-2.1317321205040145e-05-0.0024340905341333906j), (0.45269733608056295+0j)]
 
-        lhe_path = pjoin(self.out_dir + '_density_ttbar/Events/run_01/unweighted_events.lhe.gz')
+        lhe_path = pjoin(self.out_dir + '_density_1/Events/run_01/unweighted_events.lhe.gz')
         for event in lhe_parser.EventFile(lhe_path):
             density_check = event.density
         
