@@ -1600,7 +1600,7 @@ set boost_choice [6, -6]
                           (0.28550869973262555+0j), (0.04730266391943712+0j), (0.04700262219476668+0j), (2.1317321205213577e-05+0.0024340905386288922j),
                           (0.04730266391943711+0j), (-2.1317321205040145e-05-0.0024340905341333906j), (0.45269733608056295+0j)]
 
-        lhe_path = pjoin(self.out_dir + '_density_1/Events/run_01/unweighted_events.lhe.gz')
+        lhe_path = pjoin(self.out_dir + '_density1/Events/run_01/unweighted_events.lhe.gz')
         for event in lhe_parser.EventFile(lhe_path):
             density_check = event.density
         
@@ -1692,7 +1692,7 @@ set axis_referential [-1, -2]
                           (1.0786277441447357e-06+0.0021453488355359946j), (0.000713281928075904+0j)]
 
 
-        lhe_path = pjoin(self.out_dir + '_density_wpwm/Events/run_01/unweighted_events.lhe.gz')
+        lhe_path = pjoin(self.out_dir + '_density2/Events/run_01/unweighted_events.lhe.gz')
         # data = lhe_parser.EventFile(lhe_path)
         for event in lhe_parser.EventFile(lhe_path):
             density_check = event.density
@@ -1767,7 +1767,7 @@ set boost_choice [6, -6]
                             (0.005287141802513801+0.012831939486467707j), (0.539071278207638+0j), (0.03516457213088001-0.015492896985252561j), 
                             (0.45967553207554+0j)]
 
-        lhe_path = pjoin(self.out_dir + '_density_decay1/Events/run_01/unweighted_events.lhe.gz')
+        lhe_path = pjoin(self.out_dir + '_density3/Events/run_01/unweighted_events.lhe.gz')
         for event in lhe_parser.EventFile(lhe_path):
             density_check = event.density
         
@@ -1847,7 +1847,7 @@ set boost_choice [6, -6]
                             (-0.14464757876132972-0.004876846643445785j), (0.0447277689436506-0.03330034636772638j), (0.12018937740685305+0j), 
                             (0.003090836638649085+0.022706873588567943j), (0.21022979130678973+0j)]
 
-        lhe_path = pjoin(self.out_dir + '_density_decay2/Events/run_01/unweighted_events.lhe.gz')
+        lhe_path = pjoin(self.out_dir + '_density4/Events/run_01/unweighted_events.lhe.gz')
         for event in lhe_parser.EventFile(lhe_path):
             density_check = event.density
         
@@ -1923,7 +1923,7 @@ set boost_choice [6, -6] pt [0, 0]
                             (-0.018157600093053276-0.06950829298296718j), (0.0841062677380868+0j), (0.0382601151338116+0.08669345314193963j), 
                             (0.41594860198874833+0j)]
 
-        lhe_path = pjoin(self.out_dir + '_density_tttbartbar/Events/run_01/unweighted_events.lhe.gz')
+        lhe_path = pjoin(self.out_dir + '_density5/Events/run_01/unweighted_events.lhe.gz')
         for event in lhe_parser.EventFile(lhe_path):
             density_check = event.density
         
