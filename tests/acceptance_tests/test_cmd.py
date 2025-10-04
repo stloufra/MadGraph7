@@ -1558,7 +1558,7 @@ class TestCmdShell2(unittest.TestCase,
             misc.sprint(density_matrix.matrix[1], fortran_dens[1])
 
 
-    def test_density_mode_1(self):
+    def test_density_mode_ttbar(self):
         ############################################################################
         # Check working condition of the density mode
         # reproduces the full density matrix and computes quantum information observables
@@ -1566,7 +1566,7 @@ class TestCmdShell2(unittest.TestCase,
         ############################################################################
         import subprocess
         text = f"""generate g g > t t~
-output {self.out_dir}_density_1
+output {self.out_dir}_density1
 launch
 reweight=density
 set run_card nevents 1
@@ -1640,7 +1640,7 @@ set boost_choice [6, -6]
         ############################################################################
         import subprocess
         text = f"""generate d d~ > w+ w-
-output {self.out_dir}_density_wpwm
+output {self.out_dir}_density2
 launch
 reweight=density
 set run_card nevents 1
@@ -1731,7 +1731,7 @@ set axis_referential [-1, -2]
         ############################################################################
         import subprocess
         text = f"""generate g g > t t~, t > b w+
-output {self.out_dir}_density_decay1
+output {self.out_dir}_density3
 launch
 reweight=density
 set run_card nevents 1
@@ -1807,7 +1807,7 @@ set boost_choice [6, -6]
         ############################################################################
         import subprocess
         text = f"""generate g g > t t~, t > b w+
-output {self.out_dir}_density_decay2
+output {self.out_dir}_density4
 launch
 reweight=density
 set run_card nevents 1
@@ -1887,7 +1887,7 @@ set boost_choice [6, -6]
         ############################################################################
         import subprocess
         text = f"""generate p p > t t t~ t~
-output {self.out_dir}_density_tttbartbar
+output {self.out_dir}_density5
 launch
 reweight=density
 set run_card nevents 1
