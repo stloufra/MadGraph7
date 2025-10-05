@@ -27,7 +27,7 @@ C Set of subroutines to project the Feynman diagrama amplitudes AMPL onto the co
 C
 C    Common for density
 C
-    COMMON/DENSITY_MATRIX/JAMPL_all,STORE_DENSITY
+    COMMON/%(proc_prefix)sDENSITY_MATRIX/JAMPL_all,STORE_DENSITY
        COMPLEX*16 JAMPL(3,NLOOPFLOWS,NLOOPAMPSO)
        COMMON/ML5_0_JAMPL/JAMPL
 
@@ -716,12 +716,12 @@ c       PARAMETER (NGRAPHS=3)
 C
 C    Common for density
 C
-    COMMON/DENSITY_MATRIX/JAMPL_all,STORE_DENSITY
+    COMMON/%(proc_prefix)sDENSITY_MATRIX/JAMPL_all,STORE_DENSITY
 c
 c   local
 c
        integer i,j,IHEL, n
-       integer get_hel_index
+       integer %(proc_prefix)sget_hel_index
 
        ALLOCATE(PREC_FOUND(0:NSQUAREDSO))
     STORE_DENSITY=0
@@ -731,7 +731,7 @@ c
            NHEL(POS(N)) = ALLOW_HEL((I-1)*N_CHANGING+N)
         enddo
         !determine the correct ihel
-        IHEL = GET_HEL_INDEX(NHEL)
+        IHEL = %(proc_prefix)sGET_HEL_INDEX(NHEL)
         call %(proc_prefix)sSLOOPMATRIXHEL_THRES(P,IHEL, MATELEM,-1.0D0,PREC_FOUND, RETURNCODE)
        ENDDO
 
@@ -741,7 +741,7 @@ END SUBROUTINE
 ## }
 
 
-INTEGER FUNCTION GET_HEL_INDEX(NHEL)
+INTEGER FUNCTION %(proc_prefix)sGET_HEL_INDEX(NHEL)
 c returned th 
 c
     implicit none
@@ -757,9 +757,9 @@ c
 c    
 c   START CODE
 c
-    DO GET_HEL_INDEX=1,NCOMB
+    DO %(proc_prefix)sGET_HEL_INDEX=1,NCOMB
         DO I=1,NEXTERNAL
-           IF (HELC(I, GET_HEL_INDEX).ne.NHEL(I))then 
+           IF (HELC(I, %(proc_prefix)sGET_HEL_INDEX).ne.NHEL(I))then 
               exit
            ELSE IF (I.eq.nexternal) then
               return

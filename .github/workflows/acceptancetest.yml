@@ -724,7 +724,7 @@ jobs:
             ./tests/test_manager.py test_mass_reweighting -pA -t0 -l INFO
 
 
-  acceptancetest_41:
+  acceptancetest_one_loop_reweighting:
     # The type of runner that the job will run on
     runs-on: ubuntu-22.04
 
@@ -743,7 +743,6 @@ jobs:
             echo "f2py_compiler = $(which f2py)" >> input/mg5_configuration.txt
             cp Template/LO/Source/.make_opts Template/LO/Source/make_opts
             ./tests/test_manager.py test_oneloop_reweighting -pA -t0 -l INFO
-
 
 
   acceptancetest_42:
