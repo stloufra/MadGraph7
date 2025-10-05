@@ -4980,6 +4980,7 @@ class AskforEditCard(cmd.OneLinePathCompletion):
         self.paths['FO_analyse'] = pjoin(self.me_dir,'Cards', 'FO_analyse_card.dat')
         self.paths['reweight_default'] = pjoin(self.me_dir, 'Cards', 'density_card_default.dat') #this works only for density mode, generalise it to normal reweight ?
         self.paths['reweight'] = pjoin(self.me_dir, 'Cards', 'reweight_card.dat')
+        #
 
 
      
@@ -7828,7 +7829,9 @@ You can also copy/paste, your event file here.''')
                 import internal.madweight.Cards as mwcards
             self.mw_card = mwcards.Card(path)
         elif path == self.paths['FO_analyse']:
-            self.fo_card = FO_analyse_card.FOAnalyseCard(self.paths['FO_analyse']) 
+            self.fo_card = FO_analyse_card.FOAnalyseCard(self.paths['FO_analyse'])
+        elif path == self.paths['reweight']:
+            self.reweight_card = banner_mod.DensityCard(self.paths['reweight'])
         else:
             logger.debug('not keep in sync: %s', path)
         return path
