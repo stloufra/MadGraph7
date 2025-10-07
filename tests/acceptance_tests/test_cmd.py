@@ -34,7 +34,6 @@ import madgraph.iolibs.files as files
 import madgraph.core.diagram_generation as diagram_generation
 import madgraph.various.misc as misc
 import madgraph.various.lhe_parser as lhe_parser
-import madgraph.various.Density_functions as dens
 _file_path = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0]
 _pickle_path =os.path.join(_file_path, 'input_files')
 
@@ -1564,7 +1563,7 @@ class TestCmdShell2(unittest.TestCase,
         # reproduces the full density matrix and computes quantum information observables
         # testing case g g > t t~
         ############################################################################
-        import subprocess
+        import madgraph.various.Density_functions as dens
         text = f"""generate g g > t t~
 output {self.out_dir}_density1
 launch
@@ -1638,7 +1637,7 @@ set boost_choice [6, -6]
         # reproduces the full density matrix and computes quantum information observables
         # testing case d d~ > w+ w-
         ############################################################################
-        import subprocess
+        import madgraph.various.Density_functions as dens
         text = f"""generate d d~ > w+ w-
 output {self.out_dir}_density2
 launch
@@ -1729,7 +1728,7 @@ set axis_referential [-1, -2]
         # testing case p p > t t~, t > b W+
         # particle_in_density_matrix = [5, -6]
         ############################################################################
-        import subprocess
+        import madgraph.various.Density_functions as dens
         text = f"""generate g g > t t~, t > b w+
 output {self.out_dir}_density3
 launch
@@ -1805,7 +1804,7 @@ set boost_choice [6, -6]
         # testing case p p > t t~, t > b W+
         # particle_in_density_matrix = [24, -6]
         ############################################################################
-        import subprocess
+        import madgraph.various.Density_functions as dens
         text = f"""generate g g > t t~, t > b w+
 output {self.out_dir}_density4
 launch
@@ -1885,7 +1884,7 @@ set boost_choice [6, -6]
         # particle_in_density_matrix [6, -6] rapidity [0, 1]
         # boost_choice [6, -6] pt [0, 0]
         ############################################################################
-        import subprocess
+        import madgraph.various.Density_functions as dens
         text = f"""generate p p > t t t~ t~
 output {self.out_dir}_density5
 launch
