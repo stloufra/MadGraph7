@@ -547,6 +547,7 @@ def plot_hist(x:list[float], y:list[float], z:list[float], limitx:list[float], l
     binsx = np.linspace(limitx[0], limitx[1], n_binx + 1)
     binsy = np.linspace(limity[0], limity[1], n_biny + 1)
     Map = np.zeros((n_biny, n_binx))
+#     Map = np.zeros((n_biny, n_binx), dtype=object)
     N_Map = np.zeros((n_biny, n_binx))
     for k in range(len(z)):
             for i in range(len(binsx) - 1): #we need the -1 because we added +1 when defining binsx
@@ -1088,8 +1089,10 @@ def Get_Mana(rho: list[complex, complex], d1:int, d2:int) -> float:
     """
     Input:  rho -> density matrix 
             d1, d2 -> dimensions of the Hilbert spaces of the chosen particles
-    Output: the observable Mana
+    Output: the observable Mana. Caution: it is only defined for d1,d2 = 3, 5
     """
+    if (d1 not in [3, 5]) or (d2 not in [3, 5]):
+          raise ValueError("Mana is only defined for odd-dimension Hilbert spaces. Please use it for adapted systems.")
     return np.log2(Sum_Discrete_Wigner(rho, d1, d2))
 
 def PeresHorodecki_criterion(rho: list[complex, complex], pdg_code: list[int], epsilon=1e-7) -> tuple[bool, list[float]]:
@@ -1127,7 +1130,7 @@ def trace_distance(rho1: list[complex, complex], rho2: list[complex, complex]) -
     
     sqrt_rho = np.dot(eigvecs, np.dot(np.sqrt(np.diag(eigvals)), la.inv(eigvecs)))
 
-    return np.trace(sqrt_rho)/2.
+    return (np.trace(sqrt_rho).real)/2. #we only keep the real part
 
 def Fidelity(rho1: list[complex, complex], rho2: list[complex, complex]) -> float:
     """

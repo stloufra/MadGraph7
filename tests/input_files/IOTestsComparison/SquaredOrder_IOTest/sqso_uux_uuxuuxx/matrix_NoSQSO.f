@@ -209,7 +209,7 @@ C      only three external particles.
      $       -1.AND.(.NOT.IS_BORN_HEL_SELECTED(IHEL))) THEN
               CYCLE
             ENDIF
-C           write (*,*) 'HEL = ',NHEL(:,IHEL)
+
             T=MATRIX(P ,NHEL(1,IHEL),JC(1))
             IF(POLARIZATIONS(0,0).EQ.-1.OR.IS_BORN_HEL_SELECTED(IHEL))
      $        THEN
@@ -831,7 +831,6 @@ C
         G = 2* DSQRT(ALPHAS*PI)
         CALL UPDATE_AS_PARAM()
       ENDIF
-
       DO IHEL =1, NB_NHEL
         THISNHEL(:) = NHEL(:, IHEL)
         DO IPART=1,N_CHANGING
@@ -847,6 +846,26 @@ C
       RETURN
       END
 
+      SUBROUTINE TRANSFER_DENSITY(RHO, REAL_RHO, IMAG_RHO)
+C     RH0 : density matrix or production matrix
+C     REAL_RHO : array of the real parts of the elements of RHO
+C     IMAG_RHO : array of the imaginary parts of the elements of RHO
+CF2PY INTENT(IN) :: RHO(99)
+CF2PY INTENT(OUT) :: REAL_RHO(99)
+CF2PY INTENT(OUT) :: IMAG_RHO(99)
+
+      DOUBLE COMPLEX RHO(99)
+      DOUBLE PRECISION REAL_RHO(99)
+      DOUBLE PRECISION IMAG_RHO(99)
+      INTEGER I
+
+      DO I = 1, 99
+        REAL_RHO(I) = DREAL(RHO(I))
+        IMAG_RHO(I) = DIMAG(RHO(I))
+      ENDDO
+
+      RETURN
+      END
 
       SUBROUTINE  GET_ALL_INTER(P, NHEL, POS, N_CHANGING, ALLOW_HEL,
      $  N_COMB, INTER)
