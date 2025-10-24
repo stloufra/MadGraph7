@@ -544,7 +544,7 @@ class ReweightInterface(extended_cmd.Cmd):
         # get the mode of reweighting #LO/NLO/NLO_tree/...
         type_rwgt = self.get_weight_names() 
         # get iterator over param_card and the name associated to the current reweighting.
-        param_card_iterator, tag_name = self.handle_param_card(model_line, args, type_rwgt)
+        # param_card_iterator, tag_name = self.handle_param_card(model_line, args, type_rwgt)
         if self.rwgt_dir:
             path_me =self.rwgt_dir
         else:
@@ -618,7 +618,7 @@ class ReweightInterface(extended_cmd.Cmd):
                                            'number_changing_helicities = ' + str(self.number_changing_helicities) + '\n' + \
                                            'number_combinations = ' + str(self.number_combinations) + '\n' + \
                                            'axis_referential = ' + str(self.axis_referential) + '\n' + \
-                                           'symmetrise_initial_state' + str(self.symmetrise_initial_state)
+                                           'symmetrise_initial_state = ' + str(self.symmetrise_initial_state)
                 self.banner.pop('initrwgt')
             output = open( self.lhe_input.path +'rw', 'w')
             #write the banner to the output file
@@ -666,7 +666,8 @@ class ReweightInterface(extended_cmd.Cmd):
                 weight = {'':weight}
 
             if self.flag_density_matrix:
-                self.production_matrix += weight['orig'] * event.wgt
+                # self.production_matrix += weight['orig'] * event.wgt
+                self.production_matrix += weight['orig']
 
             for name in weight:
                 cross[name] += weight[name]
@@ -2333,7 +2334,6 @@ class ReweightInterface(extended_cmd.Cmd):
                 logger.info("Average density matrix:")
                 for i in range(len(rho_avg_square)):
                     print("\t",list(rho_avg_square[i]))
-                #Ca fonctionne mais il faudrait améliorer la présentation
             else:
                 if 'orig' not in self.all_cross_section:
                     logger.info('Original cross-section: %s +- %s pb' % (cross, error))

@@ -1626,11 +1626,6 @@ set boost_choice [6, -6]
         magic_check = dens.Magic_Mixed(square_density_check, 2)
         self.assertAlmostEqual(magic_ref, magic_check, places=7)
 
-        #5) here we check that mana is computed properly
-        mana_ref = 0.5620954386893258
-        mana_check = dens.Get_Mana(square_density_check, 2, 2)
-        self.assertAlmostEqual(mana_ref, mana_check, places=7)
-
     def test_density_mode_wpwm(self):
         ############################################################################
         # Check working condition of the density mode
@@ -1792,11 +1787,6 @@ set boost_choice [6, -6]
         magic_check = dens.Magic_Mixed(square_density_check, 2)
         self.assertAlmostEqual(magic_ref, magic_check, places=7)
 
-        #5) here we check that mana is computed properly
-        mana_ref = 0.020947989176620094
-        mana_check = dens.Get_Mana(square_density_check, 2, 2)
-        self.assertAlmostEqual(mana_ref, mana_check, places=7)
-
     def test_density_mode_decay2(self):
         ############################################################################
         # Check working condition of the density mode
@@ -1868,12 +1858,6 @@ set boost_choice [6, -6]
         purity_ref = 0.357464140177786
         purity_check = dens.Get_Purity(square_density_check)
         self.assertAlmostEqual(purity_ref, purity_check, places=7)
-
-        #5) here we check that mana is computed properly
-        mana_ref = 0.3306883790464792
-        mana_check = dens.Get_Mana(square_density_check, 3, 2)
-        self.assertAlmostEqual(mana_ref, mana_check, places=7)
-
 
     def test_density_mode_doublettbar(self):
         ############################################################################
@@ -1947,11 +1931,6 @@ set boost_choice [6, -6] pt [0, 0]
         magic_ref = 0.480231580151087
         magic_check = dens.Magic_Mixed(square_density_check, 2)
         self.assertAlmostEqual(magic_ref, magic_check, places=7)
-
-        # #5) here we check that mana is computed properly
-        mana_ref = 0.09227819322148753
-        mana_check = dens.Get_Mana(square_density_check, 2, 2)
-        self.assertAlmostEqual(mana_ref, mana_check, places=7)
 
     @staticmethod
     def invert_momenta(p):

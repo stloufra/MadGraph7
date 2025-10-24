@@ -1116,12 +1116,12 @@ def PeresHorodecki_criterion(rho: list[complex, complex], pdg_code: list[int], e
 
     return flag_entanglement, eigvals
 
-def trace_distance(rho1: list[complex, complex], rho2: list[complex, complex]) -> float:
+def trace_distance(Matrix1: list[complex, complex], Matrix2: list[complex, complex]) -> float:
     """
-       Input: rho1, rho2 -> density matrices in matrix format
-       Output: trace distance between the two density matrices
+       Input: Matrix1, Matrix2 -> 2 square matrices
+       Output: trace distance between the two matrices
     """
-    aux1 = rho1 - rho2
+    aux1 = Matrix1 - Matrix2
     aux2 = np.dot(np.conjugate(np.transpose(aux1)), aux1)
     eigvals, eigvecs = la.eigh(np.array(aux2))
     for o in range(len(eigvals)): #This is necessary because numerical errors can cause a almost zero eigenvalue to be negative.
@@ -1145,12 +1145,12 @@ def Fidelity(rho1: list[complex, complex], rho2: list[complex, complex]) -> floa
     return np.sum(np.sqrt(eigvals2)) #the trace is the sum of the eigenvalues
 
     
-def Fidelity_distance(rho1: list[complex, complex], rho2: list[complex, complex]) -> float:
+def Fidelity_distance(Matrix1: list[complex, complex], Matrix2: list[complex, complex]) -> float:
     """
-       Input: rho1, rho2 -> density matrices
-       Output: fidelity distance between the two density matrices
+       Input: Matrix1, Matrix2 -> 2 square matrices
+       Output: fidelity distance between the two matrices
     """
-    fidelity = Fidelity(rho1, rho2)
+    fidelity = Fidelity(Matrix1, Matrix2)
     return np.sqrt(1 - fidelity**2)
 
 
