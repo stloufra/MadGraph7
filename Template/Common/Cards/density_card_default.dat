@@ -8,7 +8,7 @@
 #      the param_card is not taken into account.
 #      event generation runs are needed.
 #   2) all inputs except particle_in_density_matrix are optional and
-#      the accepted values are described in [paper].
+#      the accepted values are described in [2510.17730].
 #
 #   For more detail on the inputs and how to use the density module, see [paper].
 #   helicity_direction: choose 1 or more particles to act as reference for the definition of the helicity referential (appendix ... of [paper])

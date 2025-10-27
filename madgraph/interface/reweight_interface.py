@@ -122,6 +122,7 @@ class ReweightInterface(extended_cmd.Cmd):
         self.keep_ordering = False
         self.use_eventid = False
         self.inc_sudakov = False
+        self.event_path = event_path
         if event_path:
             logger.info("Extracting the banner ...")
             self.do_import(event_path, allow_madspin=allow_madspin)
@@ -503,7 +504,6 @@ class ReweightInterface(extended_cmd.Cmd):
     @misc.mute_logger()
     def do_launch(self, line):
         """end of the configuration launched the code"""
-        #misc.sprint(self.flag_density_matrix)
         args = self.split_arg(line)
         opts = self.check_launch(args)
         mgcmd = self.mg5cmd
@@ -543,8 +543,7 @@ class ReweightInterface(extended_cmd.Cmd):
         
         # get the mode of reweighting #LO/NLO/NLO_tree/...
         type_rwgt = self.get_weight_names() 
-        # get iterator over param_card and the name associated to the current reweighting.
-        # param_card_iterator, tag_name = self.handle_param_card(model_line, args, type_rwgt)
+
         if self.rwgt_dir:
             path_me =self.rwgt_dir
         else:
@@ -656,18 +655,14 @@ class ReweightInterface(extended_cmd.Cmd):
                 weight = self.calculate_weight(event)
                 if self.flag_density_matrix: #density mode not compatible with inc_sudakov for now
                     import madgraph.various.Density_functions as dens
-                    density_matrix_to_print = dens.get_rho_normalised(weight['orig'], self.number_combinations).tolist()
-                    # for elem in range(len(density_matrix_to_print)):
-                    #     if density_matrix_to_print[elem].imag == 0:
-                    #         density_matrix_to_print[elem] = float(density_matrix_to_print[elem].real)
-                    event.density = density_matrix_to_print #add the density information to the event for lhe_parser
+                    event.density = dens.get_rho_normalised(weight['orig'], self.number_combinations).tolist()
 
             if not isinstance(weight, dict):
                 weight = {'':weight}
 
             if self.flag_density_matrix:
-                # self.production_matrix += weight['orig'] * event.wgt
-                self.production_matrix += weight['orig']
+                self.average_rho += dens.get_rho_normalised(weight['orig'], self.number_combinations) * event.wgt
+                self.total_wgt += event.wgt
 
             for name in weight:
                 cross[name] += weight[name]
@@ -692,7 +687,6 @@ class ReweightInterface(extended_cmd.Cmd):
                         continue          
                     event.reweight_data['%s%s' % (tag_name,name)] = weight[name]
                     #write this event with weight
-                # misc.sprint(event)
                 output.write(str(event))
             else:
                 for i,name in enumerate(weight):
@@ -717,6 +711,24 @@ class ReweightInterface(extended_cmd.Cmd):
         if self.inc_sudakov:
             logger.info('Number of events thrown away due to large Sudakov: %s' % str(count_errors))   
         
+        #If the density mode is on, compute the average density matrix on write it on a txt file
+        if self.flag_density_matrix:
+            rho_avg = [0 for i in range(len(self.average_rho))]
+            for i in range(len(rho_avg)):
+                rho_avg[i] = self.average_rho[i] / self.total_wgt
+            rho_avg_square = dens.square_matrix(rho_avg)
+
+            logger.info("Average density matrix:")
+            for i in range(len(rho_avg_square)):
+                print("\t",list(rho_avg_square[i]))
+
+
+            file_density = open(pjoin(os.path.dirname(self.event_path), 'Average_density_matrix.txt'), 'w')
+            file_density.write('Average density matrix:\n')
+            for i in range(len(rho_avg_square)):
+                    file_density.write('\t' + str(list(rho_avg_square[i])) + '\n')
+            file_density.close()
+
         if self.output_type == "default":
             output.write('</LesHouchesEvents>\n')
             output.close()
@@ -740,7 +752,7 @@ class ReweightInterface(extended_cmd.Cmd):
                     except Exception:
                         logger.error('fail to add systematics')
                         raise
-##################################################################################################################
+
         # add output information        
         if self.mother and hasattr(self.mother, 'results'):
             run_name = self.mother.run_name
@@ -781,7 +793,7 @@ class ReweightInterface(extended_cmd.Cmd):
                     results.current.parton.append('lhe')
                 logger.info('Event %s is now unweighted under the new theory: %s(%s)' % (lhe.name, target, nb_event))                
         else:
-            if self.mother and  hasattr(self.mother, 'results'):
+            if self.mother and hasattr(self.mother, 'results'):
                 results = self.mother.results
                 results.current.parton.append('lhe')       
             logger.info('Eventfiles is/are now created with new central weight')
@@ -918,7 +930,6 @@ class ReweightInterface(extended_cmd.Cmd):
             self.mother.check_param_card(pjoin(rw_dir, 'Cards', 'param_card.dat'))
             new_card = open(pjoin(rw_dir, 'Cards', 'param_card.dat')).read()
 
-        #misc.sprint(self.banner)
         # Find new tag in the banner and add information if needed
         if 'initrwgt' in self.banner and self.output_type == 'default':
             if 'name=\'mg_reweighting\'' in self.banner['initrwgt']:
@@ -1605,7 +1616,6 @@ class ReweightInterface(extended_cmd.Cmd):
             nb_retry, sleep = 5, 20 
         
         tag, order = event.get_tag_and_order()
-        #misc.sprint(self.keep_ordering) #I am not sure what is keep_ordering so I print it
         if self.keep_ordering:
             old_tag = tuple(tag)
             tag = (tag[0], tuple(order[1])) 
@@ -1656,7 +1666,7 @@ class ReweightInterface(extended_cmd.Cmd):
         else:
             nhel = -1
 
-        pdg = list(orig_order[0])+list(orig_order[1]) #my code should work if this is the order in the lhe file, see the order 'keep_ordering'
+        pdg = list(orig_order[0])+list(orig_order[1])
 
         #list_properties is the list of properties of the class FourMomentum that we can use to ordonate our particles
         list_properties = [p for p in dir(lhe_parser.FourMomentum) if isinstance(getattr(lhe_parser.FourMomentum,p),property)]
@@ -1670,7 +1680,6 @@ class ReweightInterface(extended_cmd.Cmd):
                 found_property_boost = False
                 for prop in list_properties:
                     if prop in self.momenta_boost[1]:
-                        # misc.sprint(prop)
                         found_property_boost = True
                         information_lhe_order_boost = []
                         original_lhe_order_boost = [i for i in range(len(event))]
@@ -1686,9 +1695,6 @@ class ReweightInterface(extended_cmd.Cmd):
                             logger.warning("Some particles in the boost_choice have the same value for the observable given. Their ordering is random for this event. Please ensure to choose an obsevarble that allows to discrimate all the identical particles.")
                         
                         information_lhe_order_new_boost, new_order_boost = zip(*sorted(zip(information_lhe_order_boost, original_lhe_order_boost), reverse=True)) #values of the observable ordered
-                        # misc.sprint(information_lhe_order_boost)
-                        # misc.sprint(information_lhe_order_new_boost)
-                        # misc.sprint(new_order_boost) 
 
                         if len(self.momenta_boost[2]) > 0: #this block allows to take into account the choice of order by the user
 
@@ -1701,10 +1707,6 @@ class ReweightInterface(extended_cmd.Cmd):
                                 else:
                                     pdg_new_boost[i] = pdg[i]
                                     order_new_corrected_boost[i] = original_lhe_order_boost[i]
-
-                            # misc.sprint("order_new = ", order_new_corrected_boost)
-                            # misc.sprint("values of the observables, ordered = ", information_lhe_order_new_boost)
-
 
                             #this bloc of code initialises dic1 with the correct keys, it contains for each particle which value of observable to take (the first one, the second one, etc.)
                             dic1_boost = {}
@@ -1741,10 +1743,6 @@ class ReweightInterface(extended_cmd.Cmd):
                                 for j in range(len(dic3_boost[key])):
                                     boost_corrected.append(new_order_boost[dic3_boost[key][j]]) #python format begins integers at 0 so we do not need to add +1
 
-                            # misc.sprint("dic1", dic1)
-                            # misc.sprint("value of the observables for the particles picked = ", dic2)
-                            # misc.sprint("position in new_order of each particle in rho =", dic3)
-
                 if not found_property_boost:
                     logger.error(f'The observable {self.momenta_boost[1]} is not recognised. Observables are defined in the class FourMomentum of lhe_parser.')
 
@@ -1759,15 +1757,10 @@ class ReweightInterface(extended_cmd.Cmd):
                                 boost_corrected[compteur_boost] = new_order_boost[j] # no +1 because python format
                                 is_particle_taken_boost[j] = 1
                                 compteur_boost += 1
-                                break
-
-                    #result of this block: boost_corrected
-                    
+                                break                    
                 else:
                     boost_corrected = [-1]
             
-        # misc.sprint("boost_corrected",boost_corrected)
-
         #Here we call the boost function, there is a slight difference between the reweight/density mode that needs to separate it in 2 cases
         if self.flag_density_matrix:
             all_p = self.boost_event_density(event, all_p, orig_order, hypp_id, boost_corrected)
@@ -1787,7 +1780,6 @@ class ReweightInterface(extended_cmd.Cmd):
                 found_property_rot = False
                 for prop in list_properties:
                     if prop == self.helicity_direction[1]:
-                        # misc.sprint(prop)
                         found_property_rot = True
                         information_lhe_order_rot = []
                         original_lhe_order_rot = [i for i in range(len(event))]
@@ -1802,10 +1794,6 @@ class ReweightInterface(extended_cmd.Cmd):
                             logger.warning("Some particles in the helicity_direction have the same value for the observable given. Their ordering is random for this event. Please ensure to choose an obsevarble that allows to discrimate all the identical particles.")                        
 
                         new_information_lhe_rot, new_order_rot = zip(*sorted(zip(information_lhe_order_rot, original_lhe_order_rot), reverse=True))
-                        # misc.sprint(information_lhe_order_rot)
-                        # misc.sprint(new_information_lhe_rot)
-                        # misc.sprint(new_order_rot)
-
 
                         if len(self.helicity_direction[2]) > 0: #this block allows to take into account the choice of order by the user
 
@@ -1818,9 +1806,6 @@ class ReweightInterface(extended_cmd.Cmd):
                                 else:
                                     pdg_new_rot[i] = pdg[i]
                                     order_new_corrected_rot[i] = original_lhe_order_rot[i]
-
-                            # misc.sprint("order_new = ", order_new_corrected_rot)
-                            # misc.sprint("values of the observables, ordered = ", new_information_lhe_rot)
 
                             #this bloc of code initialises dic1 with the correct keys, it contains for each particle which value of observable to take (the first one, the second one, etc.)
                             dic1_rot = {}
@@ -1858,11 +1843,6 @@ class ReweightInterface(extended_cmd.Cmd):
                                 for j in range(len(dic3_rot[key])):
                                     refChoice_corrected.append(order_new_corrected_rot[dic3_rot[key][j]] + 1) #fortran format begins integers at 1 so we need to add +1
 
-
-                            # misc.sprint("dic1", dic1)
-                            # misc.sprint("value of the observables for the particles picked = ", dic2)
-                            # misc.sprint("position in new_order of each particle in rho =", dic3)
-
                 if not found_property_rot:
                     new_order_rot = tuple([i for i in range(len(event))])
                     logger.error(f'The observable {self.helicity_direction[1]} is not recognised. Observables are defined in the class FourMomentum of lhe_parser.')
@@ -1893,8 +1873,6 @@ class ReweightInterface(extended_cmd.Cmd):
 
                     refChoice_corrected = refChoice
 
-            # misc.sprint("refChoice_corrected",refChoice_corrected)
-
             if -1 not in refChoice_corrected:
                 pref = [0, 0, 0, 0]
                 phi, theta = [0] * len(all_p), [0] * len(all_p)
@@ -1907,19 +1885,18 @@ class ReweightInterface(extended_cmd.Cmd):
                     #########
                     #This block allows to choose which initial state particle is chosen as reference to define theta.
                     #If its pz is > 0 the default definition is correct, if it is < 0, then we need to add pi
-
                     if self.axis_referential:
                         for k in range(len(self.axis_referential)):
                             if self.axis_referential[k] in orig_order[0]: #check whether the pdg is in the initial state, if it is not we do not change anything
 
                                 for j in range(len(orig_order[0])):
                                     if self.axis_referential[k] == orig_order[0][j]:
-                                        pz_axis_referential = all_p[i][j][3] #here we take the p_z of the chosen particle
+                                        pz_axis_referential = all_p[i][j][3]
                                         break #we quit the loop once we found which particle in the initial state is in axis_referential
                                 if pz_axis_referential < 0:
                                     theta[i] += math.pi
-                
                     #########
+
                     if self.symmetrise_initial_state: #if we want to calculate R(theta) + R(theta + pi)
                         import copy
                         all_p_bis = copy.deepcopy(all_p)
@@ -1935,7 +1912,7 @@ class ReweightInterface(extended_cmd.Cmd):
                     all_p[i] = self.invert_momenta(all_p[i]) #put back into python format
 
                     for j in range(len(all_p[i])):
-                        all_p[i][j] = tuple(all_p[i][j]) #we put the momenta back into tuples because it was structured like that initially
+                        all_p[i][j] = tuple(all_p[i][j])
 
             if self.options['identical_particle_in_prod_and_decay'] == 'crash':
                 if len(all_p) > 1:
@@ -1973,10 +1950,6 @@ class ReweightInterface(extended_cmd.Cmd):
                         
                         #ordering the value of the observable in decreasing order. Ordering the position of the particles in the same way.
                         new_information_lhe_order_pos, new_order_pos = zip(*sorted(zip(information_lhe_order_pos, original_lhe_order_pos), reverse=True))
-                        
-                        # misc.sprint(information_lhe_order_pos)
-                        # misc.sprint(new_information_lhe_order_pos)
-                        # misc.sprint(new_order_pos)
 
                         if len(self.particle_in_density_matrix[2]) > 0: #this block allows to take into account the choice of order by the user
                             pdg_new_pos = [0] * len(pdg)
@@ -1988,10 +1961,6 @@ class ReweightInterface(extended_cmd.Cmd):
                                 else:
                                     pdg_new_pos[i] = pdg[i]
                                     order_new_corrected_pos[i] = original_lhe_order_pos[i]
-
-                            # print("pdg_new = ", pdg_new_pos)
-                            # misc.sprint("order_new = ", order_new_corrected_pos)
-                            # misc.sprint("values of the observables, ordered = ", new_information_lhe_order)
 
                             #this bloc of code initialises dic1 with the correct keys, it contains for each particle which value of observable to take (the first one, the second one, etc.)
                             dic1_pos = {}
@@ -2022,10 +1991,6 @@ class ReweightInterface(extended_cmd.Cmd):
                                         if new_information_lhe_order_pos[l] == dic2_pos[key][dic1_pos[key][k]]: #represents which index of dic2[key] we want
                                             dic3_pos[key].append(l)
 
-                            # misc.sprint(dic1)
-                            # misc.sprint("value of the observables for the particles picked = ", dic2)
-                            # misc.sprint("position in new_order of each particle in rho =", dic3)
-
                             #this bloc creates final_order which contains the position of the particles in rho in the original particle order
                             pos_corrected = []
                             for key in dic3_pos.keys():
@@ -2050,7 +2015,6 @@ class ReweightInterface(extended_cmd.Cmd):
                             break #needed to put only one particle for each pos_aux[i]
 
                 pos_corrected = pos_new
-            # misc.sprint(pos_corrected)
 
 #######################END PARTICLE CHOICE BLOCK#############################
 
@@ -2058,14 +2022,6 @@ class ReweightInterface(extended_cmd.Cmd):
         if self.flag_density_matrix:
             import madgraph.various.Density_functions as dens
             import numpy as np
-
-            ##Check if all parameters are loaded properly
-            # misc.sprint(self.helicity_direction)
-            # misc.sprint(self.particle_in_density_matrix)
-            # misc.sprint(self.momenta_boost)
-            # misc.sprint(self.allowed_helicities)
-            # misc.sprint(self.axis_referential)
-            # misc.sprint(self.symmetrise_initial_state)
             
             status = []
             for particle in event:
@@ -2123,7 +2079,7 @@ class ReweightInterface(extended_cmd.Cmd):
                 if self.symmetrise_initial_state:
                     new_value = dens.get_list_sliced(production_matrix_cor + production_matrix_cor_bis, self.number_combinations, epsilon=1e-10) #new value is the production matrix, not the density matrix
                 else:
-                    new_value = dens.get_list_sliced(production_matrix_cor, self.number_combinations, epsilon=1e-10) #new value is the production matrix, not the density matrix
+                    new_value = dens.get_list_sliced(production_matrix_cor, self.number_combinations, epsilon=1e-10)
 
 
                 # for loop we have also the stability status code
@@ -2165,7 +2121,7 @@ class ReweightInterface(extended_cmd.Cmd):
                     else:
                         scale2 = 0
 
-                with misc.chdir(Pdir): #we enter the directory Pdir
+                with misc.chdir(Pdir):
                     with misc.stdchannel_redirected(sys.stdout, os.devnull):
                         new_value = module.smatrixhel(pdg, pid, p, event.aqcd, scale2, nhel)
 
@@ -2324,16 +2280,6 @@ class ReweightInterface(extended_cmd.Cmd):
             if self.flag_density_matrix:
                 import madgraph.various.Density_functions as dens
                 logger.info("Cross-section: %s +- %s pb" % (cross, error))
-                rho_avg = dens.get_rho_normalised(self.production_matrix, self.number_combinations, epsilon=1e-10)
-                # for elem in range(len(rho_avg)):
-                #     if rho_avg[elem].imag == 0:
-                #         rho_avg[elem] = float(rho_avg[elem].real)
-                # misc.sprint(rho_avg)
-                rho_avg_square = dens.square_matrix(rho_avg)
-
-                logger.info("Average density matrix:")
-                for i in range(len(rho_avg_square)):
-                    print("\t",list(rho_avg_square[i]))
             else:
                 if 'orig' not in self.all_cross_section:
                     logger.info('Original cross-section: %s +- %s pb' % (cross, error))
@@ -3095,7 +3041,8 @@ class DensityInterface(ReweightInterface):
         self.number_changing_helicities = None
         self.number_combinations = None
         self.new_param_card = False #Needed to not call ask_edit_card_static
-        self.production_matrix = 0
+        self.average_rho = 0
+        self.total_wgt = 0
         
         ReweightInterface.__init__(self, *args, **opts)
         self.flag_density_matrix = True
@@ -3336,8 +3283,7 @@ class DensityInterface(ReweightInterface):
         self.number_combinations = n_comb
 
         #if the user didn't use the option or if it has not been read yet, fill it automatically here
-        #how to generalise to graviton ?
-        if self.allowed_helicities == None or self.allowed_helicities == [-1]: #if allowed_helicities is in default value
+        if self.allowed_helicities == None or self.allowed_helicities == [-1]:
             if self.number_combinations == 2:
                 self.allowed_helicities = [+1, -1]
             elif self.number_combinations == 3:
@@ -3358,7 +3304,6 @@ class DensityInterface(ReweightInterface):
 
     def do_quit(self, line):
         """exit the reweighting module"""
-        #misc.sprint(self.has_run)
         if self.has_run:
             return super().do_quit(line)
         

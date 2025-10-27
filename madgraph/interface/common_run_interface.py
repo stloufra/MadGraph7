@@ -2286,7 +2286,6 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         self.check_decay_events(args) 
         # args now alway content the path to the valid files
         rwgt_interface = reweight_interface.ReweightInterface 
-        #misc.sprint(rwgt_interface.flag_density_matrix)
         if plugin == 'density':
             rwgt_interface = reweight_interface.DensityInterface #every calculation for the density mode is done within this line.
         elif plugin: 
@@ -4978,7 +4977,7 @@ class AskforEditCard(cmd.OneLinePathCompletion):
         self.paths['madanalysis5_parton_default'] = pjoin(self.me_dir,'Cards','madanalysis5_parton_card_default.dat')
         self.paths['madanalysis5_hadron_default'] = pjoin(self.me_dir,'Cards','madanalysis5_hadron_card_default.dat')
         self.paths['FO_analyse'] = pjoin(self.me_dir,'Cards', 'FO_analyse_card.dat')
-        self.paths['reweight_default'] = pjoin(self.me_dir, 'Cards', 'density_card_default.dat') #this works only for density mode, generalise it to normal reweight ?
+        self.paths['reweight_default'] = pjoin(self.me_dir, 'Cards', 'density_card_default.dat')
         self.paths['reweight'] = pjoin(self.me_dir, 'Cards', 'reweight_card.dat')
         #
 

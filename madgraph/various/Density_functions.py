@@ -202,7 +202,6 @@ def Get_Correlations(rho:list[complex, complex], pdg_pos:list[int], epsilon=1e-1
 
         return Correlations, Correlations_squared
 
-#%%This functon computes the polarisation of the qubits for square density matrix
 def Get_Polarisations(rho:list[complex, complex], pdg_pos:list[int], epsilon=1e-10) -> tuple[list[float], list[float]]:
         """
         Input:  rho -> density matrix in its matrix format
@@ -315,7 +314,7 @@ def spin_expectation(Polarisation1: list[float], Polarisation2: list[float]) -> 
 def spinspin_expectation(Correlation: list[float]) -> list[float, float]:
         """
         Input: Polarisation1, Polarisation2 -> polarisation vectors for the two particles studied
-        Output: exp1, exp2 -> the spin expectation values for each particle
+        Output: spin_spin_exp -> the spin-spin expectation value of the pair of particles
         """
         spin_spin_exp = np.zeros((3,3), dtype=np.complex128)
         Corr = np.array(Correlation)
@@ -445,7 +444,7 @@ def Partial_Trace(rho:list[complex, complex], index:int, pdg_pos:list[int]) -> l
 
 
 
-#%% Rotation for p = p[E, px, py, pz]
+#%% Rotation for p = [E, px, py, pz]
 #it must be applied on momenta in the python format (so before invert_momenta)
 def rotation(p: list[float], phi: float, theta: float, epsilon: float) ->list[float]:
         """
@@ -710,10 +709,10 @@ def ConcUB2(Rho: list[complex, complex], pdg_pos: list[int])-> float:
     ConcUB2 = 2 * min(aux1, aux2)
     return ConcUB2.real
 
-def Get_Bell_Test(CTC: list[list[float]]) -> tuple[float, bool]: #a tester
+def Get_Bell_Test(CTC: list[float, float]) -> tuple[float, bool]:
         '''
-        This functions takes as an entry the matrix transpose(C) * C and returns the Bell inequality and the optimal directions.
-        This is only working for pair of qubits.
+        This functions takes as an entry the matrix transpose(C) * C and returns the Bell inequality.
+        This is only working for pair of qubits with no polarisation.
         '''
 
         eigvals, eigvecs = la.eigh(np.array(CTC)) #We now need to sort them
@@ -753,7 +752,7 @@ def Get_Concurrence(rho: list[complex, complex]) -> float:
 
         return Concurrence
 
-def Get_Dcoef(C:list[list[float]]) -> tuple[float, float, float, float, bool]: #This functions depends a lot on the basis we use, put in comment the convention we use.
+def Get_Dcoef(C:list[float, float]) -> tuple[float, float, float, float, bool]: #This functions depends a lot on the basis we use, put in comment the convention we use.
         """
         Input:  C -> spin correlations matrix
         Output: D1, Dr, Dn, Dk -> the 4 D-coefficients
@@ -772,7 +771,7 @@ def Get_Dcoef(C:list[list[float]]) -> tuple[float, float, float, float, bool]: #
         boolD = Done < - 1/3 or Dn < - 1/3 or Dr < - 1/3 or Dk < - 1/3 #if boolD = True, then there is entanglement
         return Done, Dn, Dr, Dk, boolD
 
-def Get_Concurrence_C(C: list[list[float]]) -> float:
+def Get_Concurrence_C(C: list[float, float]) -> float:
         """
         Input:  C -> spin correlations matrix
         Output: Concurrence
@@ -818,7 +817,7 @@ def get_Pauli_string(n:int) ->list[list[complex, complex]]:
                 return Pauli_string
 
 
-def Magic_Pure(rho: list[complex, complex], n: int) -> complex:
+def Magic_Pure(rho: list[complex, complex], n: int) -> float:
         """
         Input:  rho -> density matrix in matrix format
                 n -> number of qubits (usually taken as 2)  
@@ -829,9 +828,9 @@ def Magic_Pure(rho: list[complex, complex], n: int) -> complex:
         Pauli_strings = get_Pauli_string(n)
         for P in Pauli_strings:
                 Xi += np.trace(np.dot(P, rho)) ** 4
-        return - np.log2(Xi / 2**n)
+        return (- np.log2(Xi / 2**n)).real
 
-def Magic_Mixed(rho: list[complex, complex], n: int) -> complex:
+def Magic_Mixed(rho: list[complex, complex], n: int) -> float:
         """
         Input:  rho -> density matrix in matrix format
                 n -> number of qubits (usually taken as 2)  
@@ -911,8 +910,7 @@ def Negativity(rho:list[complex, complex], pdg_pos:list[int]) -> tuple[float, fl
            Input:  rho -> density matrix
                    pdg_pos -> list of the pdg code of the particles in the density matrix
            Output: negativity
-           This functions computes the negativity of a density matrix composed of any two particles. From https://arxiv.org/abs/quant-ph/0504163
-           See https://arxiv.org/pdf/quant-ph/0508045 ?
+           This functions computes the negativity of a density matrix composed of any two particles.
         """
 
         #We take the partial transpose of the second particle because the negativity does not depend on it 
@@ -957,7 +955,7 @@ def Displacement_Operator(d: int) -> list[list[complex, complex]]:
     """
         Input:  d -> dimension of the Hilbert space of the chosen particle
         Output: list of all the displacement operator
-        The convention in the ordering of the indices follows https://arxiv.org/abs/2003.02717
+        The convention in the ordering of the indices follows [2003.02717]
         Note: the convention differs from the one of qbism.
     """
     Displacement_list = []
