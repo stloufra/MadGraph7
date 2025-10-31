@@ -2568,6 +2568,12 @@ class decay_all_events(object):
                 part_for_curr_evt=event_map[part-1]+1 # index for curr event
                 pid=self.curr_event.particle[part_for_curr_evt]['pid']
                 self.curr_event.particle[part_for_curr_evt]['helicity']=helicities[part-1]
+        for index in self.curr_event.resonance:
+            #part=self.curr_event.event2mg[index]       # index for production ME
+            #part_for_curr_evt=event_map[part-1]+1 # index for curr event
+            self.curr_event.resonance[index]['helicity']=9 
+            #part['helicity'] = 9    
+
 
     def get_mom(self,momenta):
         """ input: list of momenta in a string format 
@@ -3755,7 +3761,6 @@ class decay_all_events(object):
                 else:
                     # now we need to write the decay products in the event
                     # follow the decay chain order, so that we can easily keep track of the mother index
-                       
                     map_to_part_number={}
                     for res in range(-1,-len(list(decay_struct[part]["tree"].keys()))-1,-1):
                         index_res_for_mom=decay_struct[part]['mg_tree'][-res-1][0]
@@ -3771,7 +3776,7 @@ class decay_all_events(object):
                             decay_struct[part]["tree"][res]["colup1"]=colup1
                             decay_struct[part]["tree"][res]["colup2"]=colup2
                             mass=mom.m
-                            helicity=0.
+                            helicity=9.
                             decayed_event.particle[part_number]={"pid":pid,\
                                 "istup":istup,"mothup1":mothup1,"mothup2":mothup2,\
                                 "colup1":colup1,"colup2":colup2,"momentum":mom,\

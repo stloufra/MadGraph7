@@ -2761,6 +2761,53 @@ Beware that MG5aMC now changes your runtime options to a multi-core mode with on
         #else:
         self.do_generate_events(line, *args, **opt)
             
+    def getSysSummaryFromLog(self, kpath=None,knext_name=None):
+        '''extracts and returns MUF and PDF scale uncertainties as lists [Hi,Lo]
+              from  summary.txt log files for MadEvent type events'''
+        # parton_systematics.log files have the following format:
+        #
+        # original cross-section: 574.4537157252221
+        #     scale variation: +29.6% -21.5%
+        #     central scheme variation: + 0% -25.9%
+        # PDF variation: + 2% - 2%
+        #
+        # dynamical scheme # 1 : 537.679 +29% -21.3% # \sum ET
+        # dynamical scheme # 2 : 450.797 +27.4% -20.4% # \sum\sqrt{m^2+pt^2}
+        # dynamical scheme # 3 : 574.454 +29.6% -21.5% # 0.5 \sum\sqrt{m^2+pt^2}
+        # dynamical scheme # 4 : 425.471 +26.8% -20.1% # \sqrt{\hat s}
+        # note possible space between sign and number
+        # define output
+        tmpMUX = []
+        tmpPDF = []
+
+        # open, read, and implicitly close it
+        sys_log = pjoin(kpath.rsplit("/", 2)[0],"Events",knext_name,"parton_systematics.log")
+        with open(sys_log,'r') as sys_out:
+
+            # parse the list for...
+            for sysLine in sys_out.readlines():
+
+                # scale variation
+                if(sysLine.startswith("#     scale variation")):
+                    # does not work for full integers
+                    # e.g., # PDF variation: + 2% - 2%
+                    #varHi=sysLine.split(" ")[-2].replace("%","")
+                    #varLo=sysLine.split(" ")[-1].replace("%","")
+                    varHi=sysLine.split(":")[1].split("%")[0].replace(" ","")
+                    varLo=sysLine.split(":")[1].split("%")[1].replace(" ","")
+                    tmpMUX = [varHi,varLo]
+                    continue
+
+                # PDF variation
+                if(sysLine.startswith("# PDF variation")):
+                    varHi=sysLine.split(":")[1].split("%")[0].replace(" ","")
+                    varLo=sysLine.split(":")[1].split("%")[1].replace(" ","")
+                    tmpPDF = [varHi,varLo]
+                    continue
+
+        # done!
+        return tmpMUX, tmpPDF    
+
     def print_results_in_shell(self, data):
         """Have a nice results prints in the shell,
         data should be of type: gen_crossxhtml.OneTagResults"""
@@ -3673,7 +3720,7 @@ Beware that this can be dangerous for local multicore runs.""")
         devnull.close()
     
     ############################################################################ 
-    def do_comine_iteration(self, line):
+    def do_combine_iteration(self, line):
         """Not in help: Combine a given iteration combine_iteration Pdir Gdir S|R step
             S is for survey 
             R is for refine
@@ -5633,6 +5680,19 @@ tar -czf split_$1.tar.gz split_$1
             else:
                 logger.info('No valid files for delphes plot')
 
+    def do_compile(self, line):
+        """compile the current directory    """
+
+        args = self.split_arg(line)
+        self.ask_run_configuration(mode='parton')
+        self.run_card = banner_mod.RunCard(pjoin(self.me_dir, 'Cards', 'run_card.dat'))
+        self.configure_directory(html_opening =False)
+
+        for Pdir in self.get_Pdir():
+            misc.sprint(Pdir)
+            self.compile(['gensym'], cwd=Pdir)
+            self.compile(['madevent_forhel'], cwd=Pdir)
+
     ############################################################################
     def do_syscalc(self, line):
         """Evaluate systematics variation weights for a given run"""
@@ -6233,7 +6293,7 @@ tar -czf split_$1.tar.gz split_$1
                     else:
                         critical_bwconfig.add(os.sep.join(base.rsplit(os.sep)[-2:]))
                 for G in critical_bwconfig:
-                    logger.warning('Gdirectory %s has no events.lhe file. (no BW config found %s times)' % G) 
+                    logger.warning('Gdirectory %s has no events.lhe file.' % G) 
 
                 logger.debug('  - impossible BW configuration: %s' % len(reasons['bwconfig']))
                 logger.debug('  - channel with no possible BW configuration: %s' %  len(critical_bwconfig))
