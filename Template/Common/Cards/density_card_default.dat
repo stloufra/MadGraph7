@@ -10,8 +10,8 @@
 #   2) all inputs except particle_in_density_matrix are optional and
 #      the accepted values are described in [2510.17730].
 #
-#   For more detail on the inputs and how to use the density module, see [paper].
-#   helicity_direction: choose 1 or more particles to act as reference for the definition of the helicity referential (appendix ... of [paper])
+#   For more detail on the inputs and how to use the density module, see [2510.17730].
+#   helicity_direction: choose 1 or more particles to act as reference for the definition of the helicity referential (appendix C of [2510.17730])
 #   particle_in_density_matrix: choose 2 particles to put in the density matrix to study their spin correlations
 #   boost_choice: choose 1 or more particles to boost the frame into their center-of-mass frame
 

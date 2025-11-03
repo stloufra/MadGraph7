@@ -607,22 +607,11 @@ class ReweightInterface(extended_cmd.Cmd):
         for name in type_rwgt + ['orig']:
             cross[name], error[name] = 0.,0.
             ratio[name],ratio_square[name] = 0., 0.# to compute the variance and associate error
-        
+
         if self.output_type == "default":
-            if self.flag_density_matrix: #if density mode, we add a tag to the banner object containing density information and we delete the tag 'initrwgt'
-                self.banner['MGDensity'] = 'helicity_direction = ' + str(self.helicity_direction) + '\n' + \
-                                           'particle_in_density_matrix = ' + str(self.particle_in_density_matrix) + '\n' + \
-                                           'momenta_boost = ' + str(self.momenta_boost) + '\n' + \
-                                           'allowed_helicities = ' + str(self.allowed_helicities) + '\n' + \
-                                           'number_changing_helicities = ' + str(self.number_changing_helicities) + '\n' + \
-                                           'number_combinations = ' + str(self.number_combinations) + '\n' + \
-                                           'axis_referential = ' + str(self.axis_referential) + '\n' + \
-                                           'symmetrise_initial_state = ' + str(self.symmetrise_initial_state)
-                self.banner.pop('initrwgt')
             output = open( self.lhe_input.path +'rw', 'w')
             #write the banner to the output file
             self.banner.write(output, close_tag=False)
-            
         else:
             output = {}
             if tag_name.isdigit():
@@ -653,16 +642,9 @@ class ReweightInterface(extended_cmd.Cmd):
                 weight = self.calculate_weight(event, sud_mod)
             else:
                 weight = self.calculate_weight(event)
-                if self.flag_density_matrix: #density mode not compatible with inc_sudakov for now
-                    import madgraph.various.Density_functions as dens
-                    event.density = dens.get_rho_normalised(weight['orig'], self.number_combinations).tolist()
 
             if not isinstance(weight, dict):
                 weight = {'':weight}
-
-            if self.flag_density_matrix:
-                self.average_rho += dens.get_rho_normalised(weight['orig'], self.number_combinations) * event.wgt
-                self.total_wgt += event.wgt
 
             for name in weight:
                 cross[name] += weight[name]
@@ -711,24 +693,6 @@ class ReweightInterface(extended_cmd.Cmd):
         if self.inc_sudakov:
             logger.info('Number of events thrown away due to large Sudakov: %s' % str(count_errors))   
         
-        #If the density mode is on, compute the average density matrix on write it on a txt file
-        if self.flag_density_matrix:
-            rho_avg = [0 for i in range(len(self.average_rho))]
-            for i in range(len(rho_avg)):
-                rho_avg[i] = self.average_rho[i] / self.total_wgt
-            rho_avg_square = dens.square_matrix(rho_avg)
-
-            logger.info("Average density matrix:")
-            for i in range(len(rho_avg_square)):
-                print("\t",list(rho_avg_square[i]))
-
-
-            file_density = open(pjoin(os.path.dirname(self.event_path), 'Average_density_matrix.txt'), 'w')
-            file_density.write('Average density matrix:\n')
-            for i in range(len(rho_avg_square)):
-                    file_density.write('\t' + str(list(rho_avg_square[i])) + '\n')
-            file_density.close()
-
         if self.output_type == "default":
             output.write('</LesHouchesEvents>\n')
             output.close()
@@ -752,7 +716,6 @@ class ReweightInterface(extended_cmd.Cmd):
                     except Exception:
                         logger.error('fail to add systematics')
                         raise
-
         # add output information        
         if self.mother and hasattr(self.mother, 'results'):
             run_name = self.mother.run_name
@@ -793,7 +756,7 @@ class ReweightInterface(extended_cmd.Cmd):
                     results.current.parton.append('lhe')
                 logger.info('Event %s is now unweighted under the new theory: %s(%s)' % (lhe.name, target, nb_event))                
         else:
-            if self.mother and hasattr(self.mother, 'results'):
+            if self.mother and  hasattr(self.mother, 'results'):
                 results = self.mother.results
                 results.current.parton.append('lhe')       
             logger.info('Eventfiles is/are now created with new central weight')
@@ -802,9 +765,8 @@ class ReweightInterface(extended_cmd.Cmd):
             for name in cross:
                 if name == 'orig':
                     continue
-                if not self.flag_density_matrix:
-                    logger.info('new cross-section is %s: %g pb (indicative error: %g pb)' %\
-                            ('(%s)' %name if name else '',cross[name], error[name]))
+                logger.info('new cross-section is %s: %g pb (indicative error: %g pb)' %\
+                        ('(%s)' %name if name else '',cross[name], error[name]))
             
         self.terminate_fortran_executables(new_card_only=True)
         #store result
@@ -1205,8 +1167,6 @@ class ReweightInterface(extended_cmd.Cmd):
             orig_wgt = event.wgt
             # LO reweighting    
             w_orig = self.calculate_matrix_element(event, 0)
-            if self.flag_density_matrix: #If we just want to calculate the density we exit the function here
-                return {'orig': w_orig}
             # reshuffle event for mass effect # external mass only
             # carefull that new_event can sometimes be = to event 
             # (i.e. change can be in place)
@@ -1608,14 +1568,15 @@ class ReweightInterface(extended_cmd.Cmd):
                                         ).read().replace('matrix2py', 'matrix%spy' % tag))
 
     def calculate_matrix_element(self, event, hypp_id, scale2=0):
-        """routine to return the matrix element or the density matrix"""
-
+        """routine to return the matrix element"""
+        
         if self.has_nlo:
             nb_retry, sleep = 10, 60 
         else:
             nb_retry, sleep = 5, 20 
         
         tag, order = event.get_tag_and_order()
+
         if self.keep_ordering:
             old_tag = tuple(tag)
             tag = (tag[0], tuple(order[1])) 
@@ -1640,19 +1601,17 @@ class ReweightInterface(extended_cmd.Cmd):
                     raise Exception
 
         base = os.path.basename(os.path.dirname(Pdir))
-
         if base == 'rw_me':
             moduletag = (base, 2+hypp_id)
         else:
             moduletag = (base, 2)
-
+        
         module = self.f2pylib[moduletag]
 
         if self.keep_ordering:
             all_p = [event.get_momenta(orig_order)]
         else:
             all_p = event.get_all_momenta(orig_order)
-
             if len(all_p) >1:
                 if self.helicity_reweighting:
                     logger.warning("due to ordering ambiguity, we flip off helicity per helicity reweighting.")
@@ -1662,523 +1621,64 @@ class ReweightInterface(extended_cmd.Cmd):
         
         hel_order = event.get_helicity(orig_order)
         if self.helicity_reweighting and 9 not in hel_order:
-            nhel = hel_dict[tuple(hel_order)]
+            nhel = hel_dict[tuple(hel_order)]                
         else:
             nhel = -1
-
-        pdg = list(orig_order[0])+list(orig_order[1])
-
-        #list_properties is the list of properties of the class FourMomentum that we can use to ordonate our particles
-        list_properties = [p for p in dir(lhe_parser.FourMomentum) if isinstance(getattr(lhe_parser.FourMomentum,p),property)]
+            
+        #boosting the event
+        all_p = self.method_boost_event(event, all_p, orig_order, hypp_id)
         
-#######################BOOST BLOCK#############################
-        #this block of code determines which particles are chosen by the user in boost_choice and boosts the frame using this information
-        if self.flag_density_matrix:
-            if self.momenta_boost[1] == '':
-                new_order_boost = tuple([i for i in range(len(event))])
-            else:
-                found_property_boost = False
-                for prop in list_properties:
-                    if prop in self.momenta_boost[1]:
-                        found_property_boost = True
-                        information_lhe_order_boost = []
-                        original_lhe_order_boost = [i for i in range(len(event))]
-                        for i, p in enumerate(event):
-                            if pdg[i] in self.momenta_boost[0]:
-                                correct_p_boost = lhe_parser.FourMomentum(p)
-                                information_lhe_order_boost.append(getattr(correct_p_boost, prop))
-                            else:
-                                information_lhe_order_boost.append(float('NaN'))
+        if self.options['identical_particle_in_prod_and_decay'] == 'crash':
+            if len(all_p) > 1:
+                raise Exception("Ambiguous particle in production and decay. crash as requested by \'identical_particle_in_prod_and_decay\'")
 
-                        #Check if there are duplicates in the list
-                        if len(set(information_lhe_order_boost)) != len(information_lhe_order_boost):
-                            logger.warning("Some particles in the boost_choice have the same value for the observable given. Their ordering is random for this event. Please ensure to choose an obsevarble that allows to discrimate all the identical particles.")
-                        
-                        information_lhe_order_new_boost, new_order_boost = zip(*sorted(zip(information_lhe_order_boost, original_lhe_order_boost), reverse=True)) #values of the observable ordered
-
-                        if len(self.momenta_boost[2]) > 0: #this block allows to take into account the choice of order by the user
-
-                            pdg_new_boost = [0] * len(pdg)
-                            order_new_corrected_boost = [0] * len(pdg)
-                            for i in range(len(pdg)):
-                                if information_lhe_order_new_boost[i] == information_lhe_order_new_boost[i]: #if the particle is in rho
-                                    pdg_new_boost[i] = pdg[new_order_boost[i]]
-                                    order_new_corrected_boost[i] = new_order_boost[i]
-                                else:
-                                    pdg_new_boost[i] = pdg[i]
-                                    order_new_corrected_boost[i] = original_lhe_order_boost[i]
-
-                            #this bloc of code initialises dic1 with the correct keys, it contains for each particle which value of observable to take (the first one, the second one, etc.)
-                            dic1_boost = {}
-                            for i in range(len(self.momenta_boost[0])):
-                                if self.momenta_boost[0][i] not in dic1_boost.keys():
-                                    dic1_boost[self.momenta_boost[0][i]] = []
-
-                            #this bloc of code fills dic1 with the given values (it must be done in another loop)
-                            for i in range(len(self.momenta_boost[0])):
-                                if self.momenta_boost[0][i] in dic1_boost.keys():
-                                    dic1_boost[self.momenta_boost[0][i]].append(self.momenta_boost[2][i])
-
-                            #initialisation of dic2 and dic3
-                            dic2_boost, dic3_boost = {}, {}
-                            for key in self.momenta_boost[0]:
-                                dic2_boost[key], dic3_boost[key] = [], []
-
-                            # In this loop we fill the dictionnaries dic2 and dic3. 
-                            # dic1 contains for each particle in rho, the rank of the observable's value we want to keep
-                            # dic2 contains the value of the obseravbles for the rank given in dic1
-                            # dic3 contains the position in the order of order_new of the particle we want to keep in rho
-                            for key in dic1_boost.keys():
-                                for j in range(len(pdg_new_boost)):
-                                    if pdg_new_boost[j] == int(key):
-                                        dic2_boost[key].append(information_lhe_order_new_boost[j])
-                                for k in range(len(dic1_boost[key])):
-                                    for l in range(len(information_lhe_order_new_boost)):
-                                        if information_lhe_order_new_boost[l] == dic2_boost[key][dic1_boost[key][k]]: #represents which index of dic2[key] we want
-                                            dic3_boost[key].append(l)
-
-                            #this bloc creates final_order which contains the position of the particles in rho in the original particle order
-                            boost_corrected = []
-                            for key in dic3_boost.keys():
-                                for j in range(len(dic3_boost[key])):
-                                    boost_corrected.append(new_order_boost[dic3_boost[key][j]]) #python format begins integers at 0 so we do not need to add +1
-
-                if not found_property_boost:
-                    logger.error(f'The observable {self.momenta_boost[1]} is not recognised. Observables are defined in the class FourMomentum of lhe_parser.')
-
-            if len(self.momenta_boost[2]) == 0:
-                if -1 not in self.momenta_boost[0]:
-                    boost_corrected = [0] * len(self.momenta_boost[0])
-                    is_particle_taken_boost = [0] * len(pdg)
-                    compteur_boost = 0
-                    for i in range(len(boost_corrected)):
-                        for j in range(len(pdg)):
-                            if pdg[new_order_boost[j]] == self.momenta_boost[0][i] and is_particle_taken_boost[j] == 0:
-                                boost_corrected[compteur_boost] = new_order_boost[j] # no +1 because python format
-                                is_particle_taken_boost[j] = 1
-                                compteur_boost += 1
-                                break                    
-                else:
-                    boost_corrected = [-1]
+        me_value = 0
+        for p in all_p:
+            pold = list(p)
+            p = self.invert_momenta(p)
+            pdg = list(orig_order[0])+list(orig_order[1])
+            try:
+                pid = event.ievent
+            except AttributeError:
+                pid = -1
+            if not self.use_eventid:
+                pid = -1
             
-        #Here we call the boost function, there is a slight difference between the reweight/density mode that needs to separate it in 2 cases
-        if self.flag_density_matrix:
-            all_p = self.boost_event_density(event, all_p, orig_order, hypp_id, boost_corrected)
-        else:
-            all_p = self.boost_event_density(event, all_p, orig_order, hypp_id)
-
-#######################END BOOST BLOCK#############################
-
-
-#######################ROTATION CHOICE BLOCK#############################
-        #this block of code determines which particles are chosen by the user in helicity_direction and rotates the frame using this information
-        if self.flag_density_matrix:
-            if self.helicity_direction[1] == '':
-                new_order_rot = tuple([i for i in range(len(event))])
-
-            else:
-                found_property_rot = False
-                for prop in list_properties:
-                    if prop == self.helicity_direction[1]:
-                        found_property_rot = True
-                        information_lhe_order_rot = []
-                        original_lhe_order_rot = [i for i in range(len(event))]
-                        for i, p in enumerate(event):
-                            if pdg[i] in self.helicity_direction[0]:
-                                correct_p_rot = lhe_parser.FourMomentum(p)
-                                information_lhe_order_rot.append(getattr(correct_p_rot, prop))
-                            else:
-                                information_lhe_order_rot.append(float('NaN'))
-
-                        if len(set(information_lhe_order_rot)) != len(information_lhe_order_rot):
-                            logger.warning("Some particles in the helicity_direction have the same value for the observable given. Their ordering is random for this event. Please ensure to choose an obsevarble that allows to discrimate all the identical particles.")                        
-
-                        new_information_lhe_rot, new_order_rot = zip(*sorted(zip(information_lhe_order_rot, original_lhe_order_rot), reverse=True))
-
-                        if len(self.helicity_direction[2]) > 0: #this block allows to take into account the choice of order by the user
-
-                            pdg_new_rot = [0] * len(pdg)
-                            order_new_corrected_rot = [0] * len(pdg)
-                            for i in range(len(pdg)):
-                                if new_information_lhe_rot[i] == new_information_lhe_rot[i]: #if the particle is in rho
-                                    pdg_new_rot[i] = pdg[new_order_rot[i]]
-                                    order_new_corrected_rot[i] = new_order_rot[i]
-                                else:
-                                    pdg_new_rot[i] = pdg[i]
-                                    order_new_corrected_rot[i] = original_lhe_order_rot[i]
-
-                            #this bloc of code initialises dic1 with the correct keys, it contains for each particle which value of observable to take (the first one, the second one, etc.)
-                            dic1_rot = {}
-                            for i in range(len(self.helicity_direction[0])):
-                                if self.helicity_direction[0][i] not in dic1_rot.keys():
-                                    dic1_rot[self.helicity_direction[0][i]] = []
-
-                            #this bloc of code fills dic1 with the given values (it must be done in another loop)
-                            for i in range(len(self.helicity_direction[0])):
-                                if self.helicity_direction[0][i] in dic1_rot.keys():
-                                    dic1_rot[self.helicity_direction[0][i]].append(self.helicity_direction[2][i])
-
-                            #initialisation of dic2 and dic3
-                            dic2_rot, dic3_rot = {}, {}
-                            for key in self.helicity_direction[0]:
-                                dic2_rot[key], dic3_rot[key] = [], []
-
-
-                            # In this loop we fill the dictionnaries dic2 and dic3. 
-                            # dic1 contains for each particle in rho, the rank of the observable's value we want to keep
-                            # dic2 contains the value of the obseravbles for the rank given in dic1
-                            # dic3 contains the position in the order of order_new of the particle we want to keep in rho
-                            for key in dic1_rot.keys():
-                                for j in range(len(pdg_new_rot)):
-                                    if pdg_new_rot[j] == int(key):
-                                        dic2_rot[key].append(new_information_lhe_rot[j])
-                                for k in range(len(dic1_rot[key])):
-                                    for l in range(len(new_information_lhe_rot)):
-                                        if new_information_lhe_rot[l] == dic2_rot[key][dic1_rot[key][k]]: #represents which index of dic2[key] we want
-                                            dic3_rot[key].append(l)
-
-                            #this bloc creates refChoice_corrected which contains the position of the particles used for the rotations in the original particle order
-                            refChoice_corrected = []
-                            for key in dic3_rot.keys():
-                                for j in range(len(dic3_rot[key])):
-                                    refChoice_corrected.append(order_new_corrected_rot[dic3_rot[key][j]] + 1) #fortran format begins integers at 1 so we need to add +1
-
-                if not found_property_rot:
-                    new_order_rot = tuple([i for i in range(len(event))])
-                    logger.error(f'The observable {self.helicity_direction[1]} is not recognised. Observables are defined in the class FourMomentum of lhe_parser.')
-                    
-            if len(self.helicity_direction[2]) == 0:
-                refChoice = [0] * len(self.helicity_direction[0])
-                if -1 in self.helicity_direction[0]: #all the angles are set to 0 and the rotation is done
-                    phi, theta = [0] * len(all_p), [0] * len(all_p)
-                    for i in range(len(all_p)):
-                        all_p[i] = self.invert_momenta(all_p[i])
-                        all_p[i] = module.rotationp(all_p[i], phi[i], theta[i], len(pdg))
-                        all_p[i] = self.invert_momenta(all_p[i])
-                        for j in range(len(all_p[i])):
-                            all_p[i][j] = tuple(all_p[i][j])
-                    refChoice_corrected = [-1]
-
+            if not scale2: 
+                if hasattr(event, 'scale'):
+                    scale2 = event.scale**2
                 else:
-                    is_particle_taken_refChoice = [0] * len(pdg)
-                    compteur_refChoice = 0
-                    input_pdg = self.helicity_direction[0]
-                    for i in range(len(refChoice)):
-                        for j in range(len(pdg)):
-                            if pdg[new_order_rot[j]] == input_pdg[i] and is_particle_taken_refChoice[new_order_rot[j]] == 0:
-                                refChoice[compteur_refChoice] = new_order_rot[j] + 1 # +1 because fortran format
-                                is_particle_taken_refChoice[new_order_rot[j]] = 1
-                                compteur_refChoice += 1
-                                break # needed to put only one particle for each refChoice[i]
+                    scale2 = 0
 
-                    refChoice_corrected = refChoice
+            with misc.chdir(Pdir):
+                with misc.stdchannel_redirected(sys.stdout, os.devnull):
+                    new_value = module.smatrixhel(pdg, pid, p, event.aqcd, scale2, nhel)
 
-            if -1 not in refChoice_corrected:
-                pref = [0, 0, 0, 0]
-                phi, theta = [0] * len(all_p), [0] * len(all_p)
-                for i in range(len(all_p)):
-                    for j in range(len(refChoice_corrected)):
-                        for k in range(len(pref)):
-                            pref[k] += all_p[i][refChoice_corrected[j] - 1][k]
-                    phi[i], theta[i] = module.refchoicep(pref) #angles phi and theta are defined here
-
-                    #########
-                    #This block allows to choose which initial state particle is chosen as reference to define theta.
-                    #If its pz is > 0 the default definition is correct, if it is < 0, then we need to add pi
-                    if self.axis_referential:
-                        for k in range(len(self.axis_referential)):
-                            if self.axis_referential[k] in orig_order[0]: #check whether the pdg is in the initial state, if it is not we do not change anything
-
-                                for j in range(len(orig_order[0])):
-                                    if self.axis_referential[k] == orig_order[0][j]:
-                                        pz_axis_referential = all_p[i][j][3]
-                                        break #we quit the loop once we found which particle in the initial state is in axis_referential
-                                if pz_axis_referential < 0:
-                                    theta[i] += math.pi
-                    #########
-
-                    if self.symmetrise_initial_state: #if we want to calculate R(theta) + R(theta + pi)
-                        import copy
-                        all_p_bis = copy.deepcopy(all_p)
-                        all_p_bis[i] = self.invert_momenta(all_p_bis[i])
-                        all_p_bis[i] = module.rotationp(all_p_bis[i], phi[i], theta[i] + math.pi, len(pdg)) #we add pi to theta for the symetrisation
-                        all_p_bis[i] = self.invert_momenta(all_p_bis[i]) 
-
-                        for j in range(len(all_p[i])):
-                            all_p_bis[i][j] = tuple(all_p_bis[i][j])
-
-                    all_p[i] = self.invert_momenta(all_p[i]) #put in fortran format
-                    all_p[i] = module.rotationp(all_p[i], phi[i], theta[i], len(pdg))
-                    all_p[i] = self.invert_momenta(all_p[i]) #put back into python format
-
-                    for j in range(len(all_p[i])):
-                        all_p[i][j] = tuple(all_p[i][j])
-
-            if self.options['identical_particle_in_prod_and_decay'] == 'crash':
-                if len(all_p) > 1:
-                    raise Exception("Ambiguous particle in production and decay. crash as requested by \'identical_particle_in_prod_and_decay\'")
-
-#######################END ROTATION CHOICE BLOCK#############################
-
-#######################PARTICLE CHOICE BLOCK#############################
-        if self.flag_density_matrix:
-            if self.particle_in_density_matrix[1] == '':
-                new_order_pos = tuple([i for i in range(len(event))])
-                new_pdg_pos = [0] * len(pdg)
-                for k in range(len(pdg)):
-                    new_pdg_pos[k] = pdg[new_order_pos[k]]
-            else:
-                found_property = False
-                for prop in list_properties:
-                    if prop == self.particle_in_density_matrix[1].lower():
-                        # misc.sprint(prop)
-                        found_property = True
-                        information_lhe_order_pos = []
-                        original_lhe_order_pos = [i for i in range(len(event))]
-                        for i, p in enumerate(event):
-                            if pdg[i] in self.particle_in_density_matrix[0]:
-                                correct_p_pos = lhe_parser.FourMomentum(p)
-                                information_lhe_order_pos.append(getattr(correct_p_pos, prop))
-                            else:
-                                information_lhe_order_pos.append(float('NaN'))
-
-                        
-
-                        if len(set(information_lhe_order_pos)) != len(information_lhe_order_pos):
-                            logger.warning("Some particles in the particle_in_density_matrix have the same value for the observable given. Their ordering is random for this event. Please ensure to choose an obsevarble that allows to discrimate all the identical particles.")
-
-                        
-                        #ordering the value of the observable in decreasing order. Ordering the position of the particles in the same way.
-                        new_information_lhe_order_pos, new_order_pos = zip(*sorted(zip(information_lhe_order_pos, original_lhe_order_pos), reverse=True))
-
-                        if len(self.particle_in_density_matrix[2]) > 0: #this block allows to take into account the choice of order by the user
-                            pdg_new_pos = [0] * len(pdg)
-                            order_new_corrected_pos = [0] * len(pdg)
-                            for i in range(len(pdg)):
-                                if new_information_lhe_order_pos[i] == new_information_lhe_order_pos[i]: #if the particle is in rho
-                                    pdg_new_pos[i] = pdg[new_order_pos[i]]
-                                    order_new_corrected_pos[i] = new_order_pos[i]
-                                else:
-                                    pdg_new_pos[i] = pdg[i]
-                                    order_new_corrected_pos[i] = original_lhe_order_pos[i]
-
-                            #this bloc of code initialises dic1 with the correct keys, it contains for each particle which value of observable to take (the first one, the second one, etc.)
-                            dic1_pos = {}
-                            for i in range(len(self.particle_in_density_matrix[0])):
-                                if self.particle_in_density_matrix[0][i] not in dic1_pos.keys():
-                                    dic1_pos[self.particle_in_density_matrix[0][i]] = []
-
-                            #this bloc of code fills dic1 with the given values (it must be done in another loop)
-                            for i in range(len(self.particle_in_density_matrix[0])):
-                                if self.particle_in_density_matrix[0][i] in dic1_pos.keys():
-                                    dic1_pos[self.particle_in_density_matrix[0][i]].append(self.particle_in_density_matrix[2][i])
-
-                            #initialisation of dic2 and dic3
-                            dic2_pos, dic3_pos = {}, {}
-                            for key in self.particle_in_density_matrix[0]:
-                                dic2_pos[key], dic3_pos[key] = [], []
-
-                            # In this loop we fill the dictionnaries dic2 and dic3. 
-                            # dic1 contains for each particle in rho, the rank of the observable's value we want to keep
-                            # dic2 contains the value of the obseravbles for the rank given in dic1
-                            # dic3 contains the position in the order of order_new of the particle we want to keep in rho
-                            for key in dic1_pos.keys():
-                                for j in range(len(pdg_new_pos)):
-                                    if pdg_new_pos[j] == int(key):
-                                        dic2_pos[key].append(new_information_lhe_order_pos[j])
-                                for k in range(len(dic1_pos[key])):
-                                    for l in range(len(new_information_lhe_order_pos)):
-                                        if new_information_lhe_order_pos[l] == dic2_pos[key][dic1_pos[key][k]]: #represents which index of dic2[key] we want
-                                            dic3_pos[key].append(l)
-
-                            #this bloc creates final_order which contains the position of the particles in rho in the original particle order
-                            pos_corrected = []
-                            for key in dic3_pos.keys():
-                                for j in range(len(dic3_pos[key])):
-                                    pos_corrected.append(order_new_corrected_pos[dic3_pos[key][j]] + 1) #fortran format begins integers at 1 so we need to add +1
-
-                if not found_property:
-                    logger.error(f'The observable {self.particle_in_density_matrix[1]} is not recognised. Observables are defined in the class FourMomentum of lhe_parser.')
-
-            if len(self.particle_in_density_matrix[2]) == 0:
-                pos_aux = self.particle_in_density_matrix[0]
-
-                pos_new = [0] * len(pos_aux)
-                is_particle_taken_new = [0] * len(pdg)
-                compteur_pos_new = 0
-                for i in range(len(pos_aux)):
-                    for j in range(len(pdg)):
-                        if pdg[new_order_pos[j]] == pos_aux[i] and is_particle_taken_new[j] == 0:
-                            pos_new[compteur_pos_new] = new_order_pos[j] + 1 #+1 because fortran format
-                            is_particle_taken_new[j] = 1
-                            compteur_pos_new += 1
-                            break #needed to put only one particle for each pos_aux[i]
-
-                pos_corrected = pos_new
-
-#######################END PARTICLE CHOICE BLOCK#############################
-
-
-        if self.flag_density_matrix:
-            import madgraph.various.Density_functions as dens
-            import numpy as np
-            
-            status = []
-            for particle in event:
-                status.append(int(particle.status))
-
-
-            PDGs, _ = module.get_pdg_order()
-            PREFIX = module.get_prefix()
-            prefix_cor = []
-            All_PDGs = []
-            prefix_unique = []
-                
-            #Block to determine which sets of pdg-codes corresponds to which prefix
-            for i in range(len(PREFIX)):
-                prefix_cor.append(PREFIX[i].decode('UTF-8').strip().lower())
-                if prefix_cor[i] not in prefix_unique:
-                    prefix_unique.append(prefix_cor[i])
-            for i in range(len(PDGs)):
-                All_PDGs.append(dens.permutations_PGD(PDGs[i], status))
-
-            #We take the card in the general folder, not in the reweight folder
-            Card_dir = os.path.join(self.me_dir, "Cards", "param_card.dat")
-
-            Initialise_allmatrix = getattr(module, 'initialise')
-            Initialise_allmatrix(Card_dir)
-            for i in range(len(prefix_unique)):
-                InitialiseMatrix = getattr(module, prefix_unique[i] + 'initialisemodel')
-                InitialiseMatrix(Card_dir)   
-
-            #The prefix is defined for a given event
-            for k in range(len(All_PDGs)):
-                    if pdg in All_PDGs[k]:
-                        prefix = prefix_cor[k]
-
-            me_value = 0
-            get_density = getattr(module, prefix + 'get_density')
-            transfer_density = getattr(module, prefix + 'transfer_density')
-            for i in range(len(all_p)):
-                pinv = self.invert_momenta(all_p[i])
-                production_matrix = get_density(pinv, pos_corrected, self.number_changing_helicities,
-                                                self.allowed_helicities, self.number_combinations,
-                                                event.aqcd)
-                real_production, imag_production = transfer_density(production_matrix) #necessary because the transfer from fortran to python does not always work correctly with complex numbers
-                production_matrix_cor = np.array(real_production) + np.array(imag_production)*1j
-                
-                if self.symmetrise_initial_state:
-                    pinv_bis = self.invert_momenta(all_p_bis[i])
-                    production_matrix_bis = get_density(pinv_bis, pos_corrected, self.number_changing_helicities,
-                                                        self.allowed_helicities, self.number_combinations,
-                                                        event.aqcd)
-                    real_production_bis, imag_production_bis = transfer_density(production_matrix_bis) 
-                    production_matrix_cor_bis = np.array(real_production_bis) + np.array(imag_production_bis)*1j
-                #event.aqcd can be also fixed.
- 
-                if self.symmetrise_initial_state:
-                    new_value = dens.get_list_sliced(production_matrix_cor + production_matrix_cor_bis, self.number_combinations, epsilon=1e-10) #new value is the production matrix, not the density matrix
-                else:
-                    new_value = dens.get_list_sliced(production_matrix_cor, self.number_combinations, epsilon=1e-10)
-
-
-                # for loop we have also the stability status code
-                if isinstance(new_value, tuple):
-                    new_value, code = new_value
-                    #if code points unstability -> returns 0
-                    hundred_value = (code % 1000) //100
-                    if hundred_value in [4]:
-                        new_value = 0.
-                if self.options["identical_particle_in_prod_and_decay"] == "average":
-                    me_value += new_value
-                elif self.options["identical_particle_in_prod_and_decay"] == "max":
-                    if abs(new_value) > abs(me_value):
-                        me_value = new_value
-                else: 
-                    raise Exception("not valid option")
-
+            # for loop we have also the stability status code
+            if isinstance(new_value, tuple):
+                new_value, code = new_value
+                #if code points unstability -> returns 0
+                hundred_value = (code % 1000) //100
+                if hundred_value in [4]:
+                    new_value = 0.
             if self.options["identical_particle_in_prod_and_decay"] == "average":
-                return me_value / len(all_p)        
-            else:
-                return new_value
-                
+                me_value += new_value
+            elif self.options["identical_particle_in_prod_and_decay"] == "max":
+                if abs(new_value) > abs(me_value):
+                    me_value = new_value
+            else: 
+                raise Exception("not valid option")
+
+        if self.options["identical_particle_in_prod_and_decay"] == "average":
+            return me_value / len(all_p)        
         else:
-            me_value = 0
-            for p in all_p:
-                pold = list(p)
-                p = self.invert_momenta(p)
-                pdg = list(orig_order[0])+list(orig_order[1])
-                try:
-                    pid = event.ievent
-                except AttributeError:
-                    pid = -1
-                if not self.use_eventid:
-                    pid = -1
-                
-                if not scale2: 
-                    if hasattr(event, 'scale'):
-                        scale2 = event.scale**2
-                    else:
-                        scale2 = 0
-
-                with misc.chdir(Pdir):
-                    with misc.stdchannel_redirected(sys.stdout, os.devnull):
-                        new_value = module.smatrixhel(pdg, pid, p, event.aqcd, scale2, nhel)
-
-                # for loop we have also the stability status code
-                if isinstance(new_value, tuple):
-                    new_value, code = new_value
-                    #if code points unstability -> returns 0
-                    hundred_value = (code % 1000) //100
-                    if hundred_value in [4]:
-                        new_value = 0.
-                if self.options["identical_particle_in_prod_and_decay"] == "average":
-                    me_value += new_value
-                elif self.options["identical_particle_in_prod_and_decay"] == "max":
-                    if abs(new_value) > abs(me_value):
-                        me_value = new_value
-                else: 
-                    raise Exception("not valid option")
-
-            if self.options["identical_particle_in_prod_and_decay"] == "average":
-                return me_value / len(all_p)        
-            else:
-                return me_value
+            return me_value
 
 
-    def boost_event_density(self, event, all_p, orig_order, hypp_id, boost_corrected=None):
+    def method_boost_event(self, event, all_p, orig_order, hypp_id):
         # For 2>N pass in the center of mass frame
         #   - required for helicity by helicity re-weighitng
         #   - Speed-up loop computation 
-        # the option boost_corrected is only necessary for the density mode
-
-        if self.flag_density_matrix == True: #boost in the case of the density mode
-            if -1 in self.momenta_boost[0]: #if we don't want to boost the system
-                return all_p
-            import copy
-            new_event = copy.deepcopy(event)
-            nb_ext = 0
-            pboost = lhe_parser.FourMomentum()
-            for p in new_event: 
-                for j in range(len(boost_corrected)):
-                    if nb_ext == boost_corrected[j]:
-                        pboost += p
-                nb_ext += 1
-
-
-            if abs(pboost.px/pboost.E) < 1e-10 and abs(pboost.py/pboost.E) < 1e-10 and abs(pboost.pz/pboost.E) < 1e-10:
-                #if we try to boost with with a 4-momentum like [M, 0, 0, 0], we return the momenta without any boost
-                return all_p
-            new_event.boost(pboost)
-            if self.keep_ordering:
-                new_all_p = [new_event.get_momenta(orig_order)]
-            else:
-                new_all_p = new_event.get_all_momenta(orig_order)
-            if len(new_all_p) > 1:
-                logger.critical("due to ordering ambiguity, the boost used might not be consistent. please ensure that this is not an issue")
-
-            return new_all_p
-        
         
         if (hypp_id == 0 and ('frame_id' in self.banner.run_card and self.banner.run_card['frame_id'] !=6)):
             import copy
@@ -2225,34 +1725,10 @@ class ReweightInterface(extended_cmd.Cmd):
             
             return all_p
         
-        ############This bloc of code needs to be checked if it is needed
         else:
             return all_p
 
-            with misc.chdir(Pdir):
-                with misc.stdchannel_redirected(sys.stdout, os.devnull):
-                    new_value = module.smatrixhel(pdg, pid, p, event.aqcd, scale2, nhel)
 
-            # for loop we have also the stability status code
-            if isinstance(new_value, tuple):
-                new_value, code = new_value
-                #if code points unstability -> returns 0
-                hundred_value = (code % 1000) //100
-                if hundred_value in [4]:
-                    new_value = 0.
-            if self.options["identical_particle_in_prod_and_decay"] == "average":
-                me_value += new_value
-            elif self.options["identical_particle_in_prod_and_decay"] == "max":
-                if abs(new_value) > abs(me_value):
-                    me_value = new_value
-            else: 
-                raise Exception("not valid option")
-
-        if self.options["identical_particle_in_prod_and_decay"] == "average":
-            return me_value / len(all_p)        
-        else:
-            return me_value
-    ##############
     def terminate_fortran_executables(self, new_card_only=False):
         """routine to terminate all fortran executables"""
 
@@ -2284,7 +1760,6 @@ class ReweightInterface(extended_cmd.Cmd):
                 if 'orig' not in self.all_cross_section:
                     logger.info('Original cross-section: %s +- %s pb' % (cross, error))
                 else: 
-                    misc.sprint(self.all_cross_section)
                     logger.info('Original cross-section: %s +- %s pb (cross-section from sum of weights: %s)' % (cross, error, self.all_cross_section['orig'][0]))
                 logger.info('Computed cross-section:')
                 keys = list(self.all_cross_section.keys())
@@ -3327,3 +2802,525 @@ class DensityInterface(ReweightInterface):
         self.run_cmd('launch --keep_card') #calls the function do_launch()
 
 
+
+    def launch_actual_reweighting(self, param_card_iterator, 
+                                              tag_name,
+                                              type_rwgt,
+                                              path_me):
+        """
+            This method overwrites the one in the parent class ReweightInterface when we want to do density matrix computation.
+            It launches the computation of the density matrix for each event and computes the average density matrix.
+        """
+       
+        import madgraph.various.Density_functions as dens
+         
+        start = time.time()
+        # initialize the collector for the various re-weighting
+        cross, ratio, ratio_square,error = {},{},{}, {}
+        for name in type_rwgt + ['orig']:
+            cross[name], error[name] = 0.,0.
+            ratio[name],ratio_square[name] = 0., 0.# to compute the variance and associate error
+        
+        self.banner['MGDensity'] = 'helicity_direction = ' + str(self.helicity_direction) + '\n' + \
+                                    'particle_in_density_matrix = ' + str(self.particle_in_density_matrix) + '\n' + \
+                                    'momenta_boost = ' + str(self.momenta_boost) + '\n' + \
+                                    'allowed_helicities = ' + str(self.allowed_helicities) + '\n' + \
+                                    'number_changing_helicities = ' + str(self.number_changing_helicities) + '\n' + \
+                                    'number_combinations = ' + str(self.number_combinations) + '\n' + \
+                                    'axis_referential = ' + str(self.axis_referential) + '\n' + \
+                                    'symmetrise_initial_state = ' + str(self.symmetrise_initial_state)
+        self.banner.pop('initrwgt') #we remove the reweight header because it does not correspond to the operations done
+        output = open( self.lhe_input.path +'rw', 'w')
+        #write the banner to the output file
+        self.banner.write(output, close_tag=False)
+            
+        if self.lhe_input.closed:
+            self.lhe_input = lhe_parser.EventFile(self.lhe_input.name)
+
+        self.lhe_input.seek(0)
+        count_errors = 0
+        for event_nb,event in enumerate(self.lhe_input):
+            #control logger
+            if (event_nb % max(int(10**int(math.log10(float(event_nb)+1))),10)==0): 
+                    running_time = misc.format_timer(time.time()-start)
+                    logger.info('Event nb %s %s' % (event_nb, running_time))
+            if (event_nb==10001): logger.info('reducing number of print status. Next status update in 10000 events')
+            if (event_nb==100001): logger.info('reducing number of print status. Next status update in 100000 events')
+            weight = self.calculate_weight(event)
+            event.density = dens.get_rho_normalised(weight['orig'], self.number_combinations).tolist()
+
+            if not isinstance(weight, dict):
+                weight = {'':weight}
+                self.average_rho += dens.get_rho_normalised(weight[''], self.number_combinations) * event.wgt
+                self.total_wgt += event.wgt
+            else:
+                self.average_rho += dens.get_rho_normalised(weight['orig'], self.number_combinations) * event.wgt # weighted sum of the density matrices for the total density matrix
+                self.total_wgt += event.wgt
+
+            for name in weight:
+                cross[name] += weight[name]
+                ratio[name] += weight[name]/event.wgt
+                ratio_square[name] += (weight[name]/event.wgt)**2
+
+            output.write(str(event))
+                
+        running_time = misc.format_timer(time.time()-start)
+        logger.info('All event done  (nb_event: %s) %s' % (event_nb+1, running_time))     
+        
+        # Compute the average density matrix on write it on a .txt file
+        rho_avg = [0 for i in range(len(self.average_rho))]
+        for i in range(len(rho_avg)):
+            rho_avg[i] = self.average_rho[i] / self.total_wgt
+        rho_avg_square = dens.square_matrix(rho_avg)
+
+        logger.info("Average density matrix:")
+        for i in range(len(rho_avg_square)):
+            print("\t",list(rho_avg_square[i]))
+        file_density = open(pjoin(os.path.dirname(self.event_path), 'Average_density_matrix.txt'), 'w')
+        file_density.write('Average density matrix:\n')
+        for i in range(len(rho_avg_square)):
+                file_density.write('\t' + str(list(rho_avg_square[i])) + '\n')
+        file_density.close()
+
+
+        if self.output_type == "default":
+            output.write('</LesHouchesEvents>\n')
+            output.close()
+        else:
+            for key in output:
+                output[key].write('</LesHouchesEvents>\n')
+                output[key].close()
+                if self.systematics and len(output) ==1:
+                    try:
+                        logger.info('running systematics computation')
+                        import madgraph.various.systematics as syst
+                        
+                        if not isinstance(self.systematics, bool):
+                            args = [output[key].name, output[key].name] + self.systematics
+                        else:
+                            args = [output[key].name, output[key].name]
+                        if self.mother and self.mother.options['lhapdf']:
+                            args.append('--lhapdf_config=%s' % self.mother.options['lhapdf'])
+                        syst.call_systematics(args, result=open('rwg_syst_%s.result' % key[0],'w'),
+                                            log=logger.info)
+                    except Exception:
+                        logger.error('fail to add systematics')
+                        raise
+
+        self.lhe_input.close()
+        
+
+        if not self.mother:
+            name, ext = self.lhe_input.name.rsplit('.',1)
+            target = '%s_out.%s' % (name, ext)            
+        elif self.output_type != "default" :
+            target = pjoin(self.mother.me_dir, 'Events', run_name, 'events.lhe')
+        else:
+            target = self.lhe_input.name
+        
+        if self.output_type == "default":
+            files.mv(output.name, target)
+            logger.info('Event %s have now the additional weight' % self.lhe_input.name)
+        else:
+            raise ValueError("Only the 'default' output_type is available for the density mode.")
+        
+
+        self.terminate_fortran_executables(new_card_only=True)
+
+        #store result
+        for name in cross:
+            if name == 'orig':
+                self.all_cross_section[name] = (cross[name], error[name])
+            else:
+                self.all_cross_section[(tag_name,name)] = (cross[name], error[name])
+
+
+    def calculate_matrix_element(self, event, hypp_id, scale2=0):
+        """ This method overwrites the method of the same name in the class ReweightInterface.
+            It computes the production matrix R given the user's inputs.
+            Output: new_value (the production matrix R for a single event)
+        """
+        import madgraph.various.Density_functions as dens
+        import numpy as np
+
+        tag, order = event.get_tag_and_order()
+        if self.keep_ordering:
+            old_tag = tuple(tag)
+            tag = (tag[0], tuple(order[1])) 
+        
+        try:
+            orig_order, Pdir, hel_dict = self.id_to_path[tag]
+        except KeyError:
+            misc.sprint(tag)
+            misc.sprint(self.id_to_path)
+            raise KeyError('Try to fix it')
+
+        base = os.path.basename(os.path.dirname(Pdir))
+
+        if base == 'rw_me':
+            moduletag = (base, 2+hypp_id)
+        else:
+            moduletag = (base, 2)
+
+        module = self.f2pylib[moduletag]
+
+        if self.keep_ordering:
+            all_p = [event.get_momenta(orig_order)]
+        else:
+            all_p = event.get_all_momenta(orig_order)
+
+            if len(all_p) >1:
+                if self.helicity_reweighting:
+                    logger.warning("due to ordering ambiguity, we flip off helicity per helicity reweighting.")
+                self.helicity_reweighting = False
+
+        # add helicity information
+        hel_order = event.get_helicity(orig_order)
+        if self.helicity_reweighting and 9 not in hel_order:
+            nhel = hel_dict[tuple(hel_order)]
+        else:
+            nhel = -1
+
+        pdg = list(orig_order[0])+list(orig_order[1])
+
+        #list_properties is the list of properties of the class FourMomentum that we can use to rank particles
+        list_properties = [p for p in dir(lhe_parser.FourMomentum) if isinstance(getattr(lhe_parser.FourMomentum,p),property)]
+        
+        
+        boost_corrected = self.chose_particle_user_input(event, pdg, list_properties, orig_order, self.momenta_boost, 'momenta_boost', fortran_format = False)
+        all_p = self.method_boost_event(event, all_p, orig_order, hypp_id, boost_corrected)
+        
+        refChoice_corrected = self.chose_particle_user_input(event, pdg, list_properties, orig_order, self.helicity_direction, 'helicity_direction', fortran_format = True)
+        phi, theta = self.calculate_angles_rotation(refChoice_corrected, all_p, module)
+        
+        for i in range(len(all_p)):
+            #This block allows to choose which initial state particle is chosen as reference to define theta.
+            #If its pz is > 0 the default definition is correct, if it is < 0, then we need to add pi
+            if -1 not in self.axis_referential:
+                for k in range(len(self.axis_referential)):
+                    if self.axis_referential[k] in orig_order[0]: #check whether the pdg is in the initial state
+                        for j in range(len(orig_order[0])):
+                            if self.axis_referential[k] == orig_order[0][j]:
+                                pz_axis_referential = all_p[i][j][3]
+                                break #we quit the loop once we found which particle in the initial state is in axis_referential
+                        if pz_axis_referential < 0:
+                            theta[i] += math.pi
+
+            if self.symmetrise_initial_state: # if we want to calculate R(theta) + R(theta + pi)
+                import copy
+                theta_bis = [elem + math.pi for elem in theta]
+                all_p_bis = copy.deepcopy(all_p)
+                all_p_bis = self.rotation_density(module, all_p_bis, phi, theta_bis)
+
+        all_p = self.rotation_density(module, all_p, phi, theta)
+
+        if self.options['identical_particle_in_prod_and_decay'] == 'crash':
+            if len(all_p) > 1:
+                raise Exception("Ambiguous particle in production and decay. crash as requested by \'identical_particle_in_prod_and_decay\'")
+
+
+        pos_corrected = self.chose_particle_user_input(event, pdg, list_properties, orig_order, self.particle_in_density_matrix, 'particle_in_density_matrix', fortran_format = True)
+        
+        status = []
+        for particle in event:
+            status.append(int(particle.status))
+
+        PDGs, _ = module.get_pdg_order()
+        PREFIX = module.get_prefix()
+        prefix_cor = []
+        All_PDGs = []
+        prefix_unique = []
+            
+        #Bloc to determine which sets of pdg-codes corresponds to which prefix
+        for i in range(len(PREFIX)):
+            prefix_cor.append(PREFIX[i].decode('UTF-8').strip().lower())
+            if prefix_cor[i] not in prefix_unique:
+                prefix_unique.append(prefix_cor[i])
+        for i in range(len(PDGs)):
+            All_PDGs.append(dens.permutations_PGD(PDGs[i], status))
+
+        #We take the card in the general folder, not in the reweight folder
+        Card_dir = os.path.join(self.me_dir, "Cards", "param_card.dat")
+
+        # Initialisation of the Fortran scripts with param_card.dat
+        Initialise_allmatrix = getattr(module, 'initialise')
+        Initialise_allmatrix(Card_dir)
+        for i in range(len(prefix_unique)):
+            InitialiseMatrix = getattr(module, prefix_unique[i] + 'initialisemodel')
+            InitialiseMatrix(Card_dir)   
+
+        #The prefix is defined for a given event
+        for k in range(len(All_PDGs)):
+                if pdg in All_PDGs[k]:
+                    prefix = prefix_cor[k]
+
+        me_value = 0
+        get_density = getattr(module, prefix + 'get_density')
+        transfer_density = getattr(module, prefix + 'transfer_density')
+        for i in range(len(all_p)):
+            pinv = self.invert_momenta(all_p[i])
+            production_matrix = get_density(pinv, pos_corrected, self.number_changing_helicities,
+                                            self.allowed_helicities, self.number_combinations,
+                                            event.aqcd)
+            real_production, imag_production = transfer_density(production_matrix) #necessary because the transfer from fortran to python does not always work correctly with complex numbers
+            production_matrix_cor = np.array(real_production) + np.array(imag_production)*1j
+            
+            if self.symmetrise_initial_state:
+                pinv_bis = self.invert_momenta(all_p_bis[i])
+                production_matrix_bis = get_density(pinv_bis, pos_corrected, self.number_changing_helicities,
+                                                    self.allowed_helicities, self.number_combinations,
+                                                    event.aqcd) #event.aqcd can be also fixed.
+                real_production_bis, imag_production_bis = transfer_density(production_matrix_bis) 
+                production_matrix_cor_bis = np.array(real_production_bis) + np.array(imag_production_bis)*1j
+            
+
+            if self.symmetrise_initial_state:
+                new_value = dens.get_list_sliced(production_matrix_cor + production_matrix_cor_bis, self.number_combinations, epsilon=1e-10) #new value is the production matrix, not the density matrix
+            else:
+                new_value = dens.get_list_sliced(production_matrix_cor, self.number_combinations, epsilon=1e-10)
+
+        return new_value
+
+
+
+    def calculate_weight(self, event, sud_mod=None):
+        """ This method overwrites the method of the same name in the class ReweightInterface.
+            For this mode, it does not do a lot.
+            Output: {'orig': w_orig} (dictionnary with the production matrix as value)
+        """
+        w_orig = self.calculate_matrix_element(event, 0)
+        return {'orig': w_orig}
+
+
+    def method_boost_event(self, event, all_p, orig_order, hypp_id, boost_corrected):
+        """ This method overwrites the method of the same name in the class ReweightInterface.
+            Output: new_all_p (all the boosted momenta of a given event)
+        """
+
+        if -1 in self.momenta_boost[0]: #if we don't want to boost the system
+            return all_p
+        
+        import copy
+        new_event = copy.deepcopy(event)
+        nb_ext = 0
+        pboost = lhe_parser.FourMomentum()
+        for p in new_event: 
+            for j in range(len(boost_corrected)):
+                if nb_ext == boost_corrected[j]:
+                    pboost += p
+            nb_ext += 1
+
+
+        if abs(pboost.px/pboost.E) < 1e-10 and abs(pboost.py/pboost.E) < 1e-10 and abs(pboost.pz/pboost.E) < 1e-10:
+            #if we try to boost with with a 4-momentum like [M, 0, 0, 0], we return the momenta without any boost
+            return all_p
+        new_event.boost(pboost)
+        if self.keep_ordering:
+            new_all_p = [new_event.get_momenta(orig_order)]
+        else:
+            new_all_p = new_event.get_all_momenta(orig_order)
+        if len(new_all_p) > 1:
+            logger.critical("due to ordering ambiguity, the boost used might not be consistent. please ensure that this is not an issue")
+
+        return new_all_p
+
+
+
+    def chose_particle_user_input(self, event, pdg, list_properties, orig_order, user_input, name_input, fortran_format = False):
+        """
+        This function transforms the user_input for a given name_input into the position of particles in the original order.
+        The position of the particles can then be used to boost, rotate the event, etc.
+        fortran_format = True, means that we use the Fortran format for indices, so lists begin at 1, else we use Python format.
+        Output: position_particles
+        """
+        if -1 in user_input[0]: # if the user does not want to user this input
+            return [-1]
+        
+        particle_in_final_state = [False for i in range(len(user_input[0]))]
+        for i in range(len(user_input[0])): #check that the particles given by the user are present in the final state
+            if user_input[0][i] in orig_order[1]:
+                particle_in_final_state[i] = True
+        if False in particle_in_final_state:
+            raise ValueError(f'One of the particle chosen for {name_input} is not present in the final state. Please change your input')
+
+        if user_input[1] == '':
+            position_particles = self.find_position_particles_default_order(orig_order, user_input, name_input, fortran_format) #if the user does not give an observable to rank the particles
+            return position_particles
+
+        else:
+            found_property = False
+            for prop in list_properties: #finding the observable given by the user
+                if prop == user_input[1]:
+                    found_property = True
+                    observable_values = []
+                    original_order = [i for i in range(len(event))]
+                    for i, p in enumerate(event):
+                        if pdg[i] in user_input[0]:
+                            correct_p_rot = lhe_parser.FourMomentum(p)
+                            observable_values.append(getattr(correct_p_rot, prop))
+                        else:
+                            observable_values.append(float('NaN'))
+
+                    # if several particles of same pdg have the same value of the observable, we can not rank them so we use the default order.
+                    # we do not crash the code because it can happen randomly for an event, even if the user_input is correct
+                    if len(set(observable_values)) != len(observable_values) and len(set(user_input[0])) != len(user_input[0]):
+                        logger.warning(f"Some particles in {name_input} have the same value for the observable given. For this event the order of the observable is not taken into account.")                        
+                        position_particles = self.find_position_particles_default_order(orig_order, user_input, name_input, fortran_format)
+                        return position_particles
+                    
+                    observable_values_sorted, new_order = zip(*sorted(zip(observable_values, original_order), reverse=True)) #ranking the particles via the observable's value
+
+                    if len(user_input[2]) > 0: # if the user gives a ranking to use for the observable, use it
+                        position_particles = self.find_position_particles_with_observable(pdg, observable_values_sorted, new_order, original_order, user_input, name_input, fortran_format)
+                        return position_particles
+
+                    else: #else they are ranked in decreasing order
+                        position_particles = self.find_position_particles_new_order(pdg, user_input, new_order, fortran_format)
+                        return position_particles
+
+            if not found_property:
+                raise ValueError(f'The observable {user_input[1]} is not recognised. Observables are defined in the class FourMomentum of lhe_parser.')
+
+
+    def find_position_particles_with_observable(self, pdg, observable_values_sorted, new_order, original_order, user_input, name_input, fortran_format):
+        """
+        This function transforms the user_input for a given name_input into the position of particles in the original order specifically if the user gives an observable.
+        The position of the particles can then be used to boost, rotate the event, etc.
+        fortran_format = True, means that we use the Fortran format for indices, so lists begin at 1, else we use Python format.
+        Output: position_particles
+        """
+        if len(user_input[0]) != len(user_input[2]):
+            raise ValueError(f'The number of particle in {name_input}[0] and the number of ranks in {name_input}[2] do not match.')
+
+        pdg_new = [0] * len(pdg)
+        new_order_corrected = [0] * len(pdg)
+        for i in range(len(pdg)):
+            if observable_values_sorted[i] == observable_values_sorted[i]: #if the value of observable is not a NaN (it is in the density matrix)
+                pdg_new[i] = pdg[new_order[i]]
+                new_order_corrected[i] = new_order[i]
+            else: #if it is a NaN we keep them in the original order
+                pdg_new[i] = pdg[i]
+                new_order_corrected[i] = original_order[i]
+
+        # dic_rank_particles keys are the particles chosen by the user and the values are their wanted rank in the observable's order
+        dic_rank_particles = {}
+        for i in range(len(user_input[0])):
+            if user_input[0][i] not in dic_rank_particles.keys():
+                dic_rank_particles[user_input[0][i]] = []
+
+        for i in range(len(user_input[0])):
+            if user_input[0][i] in dic_rank_particles.keys():
+                dic_rank_particles[user_input[0][i]].append(user_input[2][i])
+
+        # dic_values_observable keys are the particles chosen by the user and is filled with their value in the chosen observable
+        # dic_postion_new_order keys are the particles chosen by the user and is filled with their position in new_order
+        dic_values_observable, dic_postion_new_order = {}, {}
+        for key in user_input[0]:
+            dic_values_observable[key], dic_postion_new_order[key] = [], []
+
+        for key in dic_rank_particles.keys():
+            for j in range(len(pdg_new)):
+                if pdg_new[j] == int(key):
+                    dic_values_observable[key].append(observable_values_sorted[j])
+            for k in range(len(dic_rank_particles[key])):
+                for l in range(len(observable_values_sorted)):
+                    try:
+                        #this if statement represents which index of dic_values_observable[key] we want to keep
+                        if observable_values_sorted[l] == dic_values_observable[key][dic_rank_particles[key][k]] and pdg[new_order[l]] == key:
+                            dic_postion_new_order[key].append(l)
+                    except:
+                        raise ValueError(f'There are not enough identical particles for the rank you chose in {name_input}. Please change your input')
+
+        position_particles = []
+        for key in dic_postion_new_order.keys(): # here we convert the position in new_order to the position in the original order
+            for j in range(len(dic_postion_new_order[key])):
+                if fortran_format:
+                    position_particles.append(new_order[dic_postion_new_order[key][j]] + 1) #python format begins integers at 0 so we do not need to add +1
+                else:
+                    position_particles.append(new_order[dic_postion_new_order[key][j]]) #python format begins integers at 0 so we do not need to add +1
+        return position_particles
+
+    def find_position_particles_default_order(self, orig_order, user_input, name_input, fortran_format):
+        """
+        This function transforms the user_input for a given name_input into the position of particles in the original order specifically if the user does not give any additional information.
+        The position of the particles can then be used to boost, rotate the event, etc.
+        fortran_format = True, means that we use the Fortran format for indices, so lists begin at 1, else we use Python format.
+        Output: position_particles
+        """
+        pdg_to_chose = user_input[0]
+        position_particles = []
+        particle_already_chosen = [False for i in range(len(orig_order[1]))]
+        if -1 in pdg_to_chose:
+            return [-1]
+        else:
+            for i in range(len(orig_order[1])):
+                if len(position_particles) != len(user_input[0]):
+                    for j in range(len(pdg_to_chose)):
+                        if pdg_to_chose[j] == orig_order[1][i] and not particle_already_chosen[i]: # if the particles is still available and that its pdg code corresponds to the user input
+                            if fortran_format:
+                                position_particles.append(i + len(orig_order[0]) + 1) #if fortran_format = True, we add +1 because Fortran indices begin at 1 instead of 0 as in Python
+                            else:
+                                position_particles.append(i + len(orig_order[0])) # position of the particle in the original order
+                            particle_already_chosen[i] = True
+
+                            break
+
+            if len(position_particles) != len(user_input[0]):
+                logger.error(f'The pdg inputs for {name_input} are not correct. At least one pdg is not present in the process.')
+
+            return position_particles
+
+
+    def find_position_particles_new_order(self, pdg, user_input, new_order, fortran_format):
+        """
+        This function transforms the user_input for a given name_input into the position of particles in the original order specifically if the user gives 
+        an observable but does not specify the rank in which to order them. In this case, they are ranked in decreasing order.
+        The position of the particles can then be used to boost, rotate the event, etc.
+        fortran_format = True, means that we use the Fortran format for indices, so lists begin at 1, else we use Python format.
+        Output: position_particles
+        """
+        if -1 not in user_input[0]:
+            position_particles = [0] * len(user_input[0])
+            is_particle_taken = [0] * len(pdg)
+            compteur = 0
+            for i in range(len(position_particles)):
+                for j in range(len(pdg)):
+                    if pdg[new_order[j]] == user_input[0][i] and is_particle_taken[j] == 0:
+                        if fortran_format:
+                            position_particles[compteur] = new_order[j] + 1 #if fortran_format = True, we add +1 because Fortran indices begin at 1 instead of 0 as in Python
+                        else:
+                            position_particles[compteur] = new_order[j]
+                        is_particle_taken[j] = 1
+                        compteur += 1
+                        break                    
+        else:
+            position_particles = [-1]
+        
+        return position_particles
+
+    def calculate_angles_rotation(self, position_particles, all_p, module):
+        """ Compute the angles theta and phi given the user's inputs.
+            Output: phi and theta for each element of all_p
+        """
+        if -1 not in position_particles:
+            pref = [0, 0, 0, 0]
+            phi, theta = [0] * len(all_p), [0] * len(all_p)
+            for i in range(len(all_p)):
+                for j in range(len(position_particles)):
+                    for k in range(len(pref)):
+                        pref[k] += all_p[i][position_particles[j] - 1][k]
+                phi[i], theta[i] = module.refchoicep(pref)
+        else:
+            phi, theta = [0] * len(all_p), [0] * len(all_p)
+
+        return phi, theta
+    
+    def rotation_density(self, module, all_p, phi, theta):
+        for i in range(len(all_p)):
+                all_p[i] = self.invert_momenta(all_p[i]) #put in fortran format
+                all_p[i] = module.rotationp(all_p[i], phi[i], theta[i], len(all_p[i]))
+                all_p[i] = self.invert_momenta(all_p[i]) #put back into python format
+
+                for j in range(len(all_p[i])):
+                    all_p[i][j] = tuple(all_p[i][j])
+        return all_p
