@@ -3316,9 +3316,10 @@ class DensityInterface(ReweightInterface):
         return phi, theta
     
     def rotation_density(self, module, all_p, phi, theta):
+        nexternal = len(all_p[0])
         for i in range(len(all_p)):
                 all_p[i] = self.invert_momenta(all_p[i]) #put in fortran format
-                all_p[i] = module.rotationp(all_p[i], phi[i], theta[i], len(all_p[i]))
+                all_p[i] = module.rotationp(all_p[i], phi[i], theta[i], nexternal)
                 all_p[i] = self.invert_momenta(all_p[i]) #put back into python format
 
                 for j in range(len(all_p[i])):
