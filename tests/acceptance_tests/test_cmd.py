@@ -1609,21 +1609,21 @@ set boost_choice [6, -6]
             self.assertAlmostEqual(density_1event[i].real, density_check[i].real, places=7)
             self.assertAlmostEqual(density_1event[i].imag, density_check[i].imag, places=7)
         
-        square_density_check = dens.square_matrix(density_check)
+        rho_instance = dens.DensityMatrixObservables(density_1event)
 
         #2) here we check that the concurrence is computed properly
         concurrence_ref = 0.47641209333195317
-        concurrence_check = dens.Get_Concurrence(square_density_check)
+        concurrence_check = rho_instance.Get_Concurrence()
         self.assertAlmostEqual(concurrence_ref, concurrence_check, places=7)
 
         #3) here we check that purity is computed properly
         purity_ref = 0.5818411704583635
-        purity_check = dens.Get_Purity(square_density_check)
+        purity_check = rho_instance.Get_Purity()
         self.assertAlmostEqual(purity_ref, purity_check, places=7)
 
         #4) here we check that magic is computed properly
         magic_ref = 0.4706552252614239
-        magic_check = dens.Magic_Mixed(square_density_check, 2)
+        magic_check = rho_instance.Magic_Mixed()
         self.assertAlmostEqual(magic_ref, magic_check, places=7)
 
     def test_density_mode_wpwm(self):
@@ -1696,24 +1696,24 @@ set axis_referential [-1, -2]
             self.assertAlmostEqual(density_1event[i].real, density_check[i].real, places=7)
             self.assertAlmostEqual(density_1event[i].imag, density_check[i].imag, places=7)
 
-        square_density_check = dens.square_matrix(density_check)
+        rho_instance = dens.DensityMatrixObservables(density_check)
 
         #2) here we check that the bounds of concurrence are computed properly
         lower_concurrence2_ref = 0.3188376158549642
         upper_concurrence2_ref = 0.31936138845988493
-        lower_concurrence2_check = dens.ConcLB2(square_density_check, [24, -24])
-        upper_concurrence2_check = dens.ConcUB2(square_density_check, [24, -24])
+        lower_concurrence2_check = rho_instance.ConcLB2()
+        upper_concurrence2_check = rho_instance.ConcUB2()
         self.assertAlmostEqual(lower_concurrence2_check, lower_concurrence2_ref, places=7)
         self.assertAlmostEqual(upper_concurrence2_check, upper_concurrence2_ref, places=7)
       
         #3) here we check that purity is computed properly
         purity_ref = 0.9997381136975394
-        purity_check = dens.Get_Purity(square_density_check)
+        purity_check = rho_instance.Get_Purity()
         self.assertAlmostEqual(purity_ref, purity_check, places=7)
 
         #4) here we check that mana is computed properly
         mana_ref = 1.0500659136939539
-        mana_check = dens.Get_Mana(square_density_check, 3, 3)
+        mana_check = rho_instance.Get_Mana()
         self.assertAlmostEqual(mana_ref, mana_check, places=7)
 
     def test_density_mode_decay1(self):
@@ -1770,21 +1770,21 @@ set boost_choice [5, -6]
             self.assertAlmostEqual(density_1event[i].real, density_check[i].real, places=7)
             self.assertAlmostEqual(density_1event[i].imag, density_check[i].imag, places=7)
 
-        square_density_check = dens.square_matrix(density_check)
+        rho_instance = dens.DensityMatrixObservables(density_check)
 
         #2) here we check that the bounds of concurrence is computed properly
         concurrence_ref = 0.0
-        concurrence_check = dens.Get_Concurrence(square_density_check)
+        concurrence_check = rho_instance.Get_Concurrence()
         self.assertAlmostEqual(concurrence_check, concurrence_ref, places=7)
       
         #3) here we check that purity is computed properly
         purity_ref = 0.5057218059862959
-        purity_check = dens.Get_Purity(square_density_check)
+        purity_check = rho_instance.Get_Purity()
         self.assertAlmostEqual(purity_ref, purity_check, places=7)
 
         #4) here we check that magic is computed properly
         magic_ref = 0.018653388493735004
-        magic_check = dens.Magic_Mixed(square_density_check, 2)
+        magic_check = rho_instance.Magic_Mixed()
         self.assertAlmostEqual(magic_ref, magic_check, places=7)
 
     def test_density_mode_decay2(self):
@@ -1843,18 +1843,18 @@ set boost_choice [24, -6]
             self.assertAlmostEqual(density_1event[i].real, density_check[i].real, places=7)
             self.assertAlmostEqual(density_1event[i].imag, density_check[i].imag, places=7)
 
-        square_density_check = dens.square_matrix(density_check)
+        rho_instance = dens.DensityMatrixObservables(density_check)
 
         #2) here we check that the smaller eigenvalue of the partialy transposed density matrix is computed properly
         flag_ref, eigval_ref = False, [1.30764975e-04, 2.33384118e-04, 1.00757194e-01, 1.28026668e-01, 2.55472741e-01, 5.15379248e-01]
-        flag_check, eigval_check = dens.PeresHorodecki_criterion(square_density_check, [24, -6])
+        flag_check, eigval_check = rho_instance.PeresHorodecki_criterion(['boson', 'fermion'])
         self.assertEqual(flag_check, flag_ref)
         for i in range(len(eigval_ref)):
             self.assertAlmostEqual(eigval_check[i], eigval_ref[i], places=7)
       
         #3) here we check that purity is computed properly
         purity_ref = 0.3574250017186387
-        purity_check = dens.Get_Purity(square_density_check)
+        purity_check = rho_instance.Get_Purity()
         self.assertAlmostEqual(purity_ref, purity_check, places=7)
 
     def test_density_mode_doublettbar(self):
@@ -1913,21 +1913,21 @@ set boost_choice [6, -6] pt [0, 0]
             self.assertAlmostEqual(density_1event[i].real, density_check[i].real, places=7)
             self.assertAlmostEqual(density_1event[i].imag, density_check[i].imag, places=7)
 
-        square_density_check = dens.square_matrix(density_check)
+        rho_instance = dens.DensityMatrixObservables(density_check)
 
         #2) here we check that the bounds of concurrence is computed properly
         concurrence_ref = 0.028913810451469873
-        concurrence_check = dens.Get_Concurrence(square_density_check)
+        concurrence_check = rho_instance.Get_Concurrence()
         self.assertAlmostEqual(concurrence_check, concurrence_ref, places=7)
       
         # #3) here we check that purity is computed properly
         purity_ref = 0.42378825285881117
-        purity_check = dens.Get_Purity(square_density_check)
+        purity_check = rho_instance.Get_Purity()
         self.assertAlmostEqual(purity_ref, purity_check, places=7)
 
         # #4) here we check that magic is computed properly
         magic_ref = 0.480231580151087
-        magic_check = dens.Magic_Mixed(square_density_check, 2)
+        magic_check = rho_instance.Magic_Mixed()
         self.assertAlmostEqual(magic_ref, magic_check, places=7)
 
     @staticmethod

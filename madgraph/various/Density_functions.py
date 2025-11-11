@@ -1201,15 +1201,15 @@ class DensityMatrixObservables33(DensityMatrixObservables):
         
         return rho_corrected
 
-    def ConcLB2(self, particle_type:list[str], epsilon=1e-10) -> float:
+    def ConcLB2(self, epsilon=1e-10) -> float:
         """
             Input:  self -> density matrix
                     particle_type -> type of the particles in the density matrix ('fermion' or 'boson')
             Output: square of the lower bound of the concurrence for a system composed of a pair of qutrits.
         """
 
-        RhoA = self.Partial_Trace(2, particle_type)
-        RhoB = self.Partial_Trace(1, particle_type)
+        RhoA = self.Partial_Trace(2, ['boson', 'boson'])
+        RhoB = self.Partial_Trace(1, ['boson', 'boson'])
 
         if ((np.trace(RhoA) - 1) > epsilon) or ((np.trace(RhoB) - 1) > epsilon):
             print('Warning: the traced-out density matrices have non unitary trace!')
@@ -1220,15 +1220,15 @@ class DensityMatrixObservables33(DensityMatrixObservables):
 
         return ConcLB2.real
     
-    def ConcUB2(self, particle_type:list[str], epsilon=1e-10) -> float:
+    def ConcUB2(self, epsilon=1e-10) -> float:
         """
             Input:  self -> density matrix
                     particle_type -> type of the particles in the density matrix ('fermion' or 'boson')
             Output: square of the upper bound of the concurrence for a system composed of a pair of qutrits.
         """
 
-        RhoA = self.Partial_Trace(2, particle_type)
-        RhoB = self.Partial_Trace(1, particle_type)
+        RhoA = self.Partial_Trace(2, ['boson', 'boson'])
+        RhoB = self.Partial_Trace(1, ['boson', 'boson'])
 
         if ((np.trace(RhoA) - 1) > epsilon) or ((np.trace(RhoB) - 1) > epsilon):
             print('Warning: the traced-out density matrices have non unitary trace!')
