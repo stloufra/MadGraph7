@@ -846,26 +846,6 @@ C
       RETURN
       END
 
-      SUBROUTINE TRANSFER_DENSITY(RHO, REAL_RHO, IMAG_RHO)
-C     RH0 : density matrix or production matrix
-C     REAL_RHO : array of the real parts of the elements of RHO
-C     IMAG_RHO : array of the imaginary parts of the elements of RHO
-CF2PY INTENT(IN) :: RHO(99)
-CF2PY INTENT(OUT) :: REAL_RHO(99)
-CF2PY INTENT(OUT) :: IMAG_RHO(99)
-
-      DOUBLE COMPLEX RHO(99)
-      DOUBLE PRECISION REAL_RHO(99)
-      DOUBLE PRECISION IMAG_RHO(99)
-      INTEGER I
-
-      DO I = 1, 99
-        REAL_RHO(I) = DREAL(RHO(I))
-        IMAG_RHO(I) = DIMAG(RHO(I))
-      ENDDO
-
-      RETURN
-      END
 
       SUBROUTINE  GET_ALL_INTER(P, NHEL, POS, N_CHANGING, ALLOW_HEL,
      $  N_COMB, INTER)
