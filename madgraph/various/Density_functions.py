@@ -1,6 +1,6 @@
 import numpy as np
 from numpy import linalg as la
-from typing import Union, Self
+from typing import Union
 
 #%% Global variables for fermions and bosons
 Identity2 = np.array([[1, 0], [0, 1]])
@@ -125,7 +125,7 @@ class DensityMatrixObservables(list):
         In these classes we defined the observables specific to these systems like concurrence.
         This class redirects to the specific classes based on the user input. One should always call this generic class.
     """
-    def __new__(cls, user_input:Union[list[complex, complex], list[complex], str], len_user_input=None) -> Self:
+    def __new__(cls, user_input:Union[list[complex, complex], list[complex], str], len_user_input=None):
         """ 
         This method determines the dimension of the user input and decides which subclass to instanciate.
         For now, there are classes for density matrices of 2x2, 2x3 and 3x3 systems.
