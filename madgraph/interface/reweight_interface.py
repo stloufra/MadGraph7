@@ -2847,20 +2847,19 @@ class DensityInterface(ReweightInterface):
             if (event_nb==10001): logger.info('reducing number of print status. Next status update in 10000 events')
             if (event_nb==100001): logger.info('reducing number of print status. Next status update in 100000 events')
             weight = self.calculate_weight(event)
-            event.density = dens.get_rho_normalised(weight['orig'], self.number_combinations).tolist()
+            rho_temp = dens.DensityMatrixObservables(weight['orig'])
+            event.density = rho_temp.get_rho_normalised().tolist()
 
             if not isinstance(weight, dict):
                 weight = {'':weight}
-                self.average_rho += dens.get_rho_normalised(weight[''], self.number_combinations) * event.wgt
+                avg_rho_instance = dens.DensityMatrixObservables(weight[''])
+                self.average_rho += avg_rho_instance.get_rho_normalised() * event.wgt
                 self.total_wgt += event.wgt
             else:
-                self.average_rho += dens.get_rho_normalised(weight['orig'], self.number_combinations) * event.wgt # weighted sum of the density matrices for the total density matrix
+                avg_rho_instance = dens.DensityMatrixObservables(weight['orig'])
+                self.average_rho += avg_rho_instance.get_rho_normalised() * event.wgt # weighted sum of the density matrices for the total density matrix
                 self.total_wgt += event.wgt
 
-            for name in weight:
-                cross[name] += weight[name]
-                ratio[name] += weight[name]/event.wgt
-                ratio_square[name] += (weight[name]/event.wgt)**2
 
             output.write(str(event))
                 
@@ -2871,7 +2870,8 @@ class DensityInterface(ReweightInterface):
         rho_avg = [0 for i in range(len(self.average_rho))]
         for i in range(len(rho_avg)):
             rho_avg[i] = self.average_rho[i] / self.total_wgt
-        rho_avg_square = dens.square_matrix(rho_avg)
+        rho_avg_instance = dens.DensityMatrixObservables(rho_avg)
+        rho_avg_square = rho_avg_instance.square_matrix()
 
         logger.info("Average density matrix:")
         for i in range(len(rho_avg_square)):
@@ -3037,7 +3037,7 @@ class DensityInterface(ReweightInterface):
             if prefix_cor[i] not in prefix_unique:
                 prefix_unique.append(prefix_cor[i])
         for i in range(len(PDGs)):
-            All_PDGs.append(dens.permutations_PGD(PDGs[i], status))
+            All_PDGs.append(self.permutations_PGD(PDGs[i], status))
 
         #We take the card in the general folder, not in the reweight folder
         Card_dir = os.path.join(self.me_dir, "Cards", "param_card.dat")
@@ -3056,28 +3056,24 @@ class DensityInterface(ReweightInterface):
 
         me_value = 0
         get_density = getattr(module, prefix + 'get_density')
-        transfer_density = getattr(module, prefix + 'transfer_density')
         for i in range(len(all_p)):
             pinv = self.invert_momenta(all_p[i])
             production_matrix = get_density(pinv, pos_corrected, self.number_changing_helicities,
                                             self.allowed_helicities, self.number_combinations,
-                                            event.aqcd)
-            real_production, imag_production = transfer_density(production_matrix) #necessary because the transfer from fortran to python does not always work correctly with complex numbers
-            production_matrix_cor = np.array(real_production) + np.array(imag_production)*1j
-            
+                                            event.aqcd)            
             if self.symmetrise_initial_state:
                 pinv_bis = self.invert_momenta(all_p_bis[i])
                 production_matrix_bis = get_density(pinv_bis, pos_corrected, self.number_changing_helicities,
                                                     self.allowed_helicities, self.number_combinations,
                                                     event.aqcd) #event.aqcd can be also fixed.
-                real_production_bis, imag_production_bis = transfer_density(production_matrix_bis) 
-                production_matrix_cor_bis = np.array(real_production_bis) + np.array(imag_production_bis)*1j
-            
+                
 
             if self.symmetrise_initial_state:
-                new_value = dens.get_list_sliced(production_matrix_cor + production_matrix_cor_bis, self.number_combinations, epsilon=1e-10) #new value is the production matrix, not the density matrix
+                rho_instance = dens.DensityMatrixObservables(production_matrix + production_matrix_bis, self.number_combinations * (self.number_combinations + 1) / 2)
+                new_value = rho_instance.density_matrix
             else:
-                new_value = dens.get_list_sliced(production_matrix_cor, self.number_combinations, epsilon=1e-10)
+                rho_instance = dens.DensityMatrixObservables(production_matrix, self.number_combinations * (self.number_combinations + 1) / 2)
+                new_value = rho_instance.density_matrix
 
         return new_value
 
@@ -3325,3 +3321,36 @@ class DensityInterface(ReweightInterface):
                 for j in range(len(all_p[i])):
                     all_p[i][j] = tuple(all_p[i][j])
         return all_p
+    
+    def permutations_PGD(self, PDG: list[int], status: list[int])-> list[list[int]]:
+        """
+        Input: a list of PDGs + a list of status
+        Output: all the possible PDGs permutations keeping incoming and outcoming particles separate
+        """
+        from itertools import permutations
+        nincoming, noutcoming = 0, 0
+        End = []
+
+        for i in range(len(status)):
+            if status[i] == -1:
+                nincoming += 1
+            elif status[i] == +1:
+                noutcoming += 1
+            elif status[i] == 2 or status[i] == -2: #if the particle is an intermediate particle, we keep them in the final state, it is to the user to not put them in the density matrix
+                noutcoming += 1
+            else:
+                raise ValueError("Status not recognised.")
+
+        InitialState = PDG[0:nincoming]
+        FinalState = PDG[nincoming:]
+        All_InitialState = list(set(list(permutations(InitialState))))
+        All_FinalState = list(set(list(permutations(FinalState))))
+        
+        list_initial_states = [list(All_InitialState[i]) for i in range(len(All_InitialState))]
+        list_final_states = [list(All_FinalState[i]) for i in range(len(All_FinalState))]
+        
+        for i in range(len(list_initial_states)):
+                for j in range(len(list_final_states)):
+                        End.append(list_initial_states[i] + list_final_states[j])
+
+        return End
