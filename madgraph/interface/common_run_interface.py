@@ -2092,6 +2092,7 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
 
         # plugin option
         plugin = False
+        reweight_mode = None
         if '--mode=density' in line:
             reweight_mode = 'density'
             line = line.replace('--mode=density', '')
@@ -2290,12 +2291,11 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
 
         #According to the reweight mode chosen by the user, we instantiate the correct reweight interface
         #could improve it with a __new__ in ReweightInterface so we would always call ReweightInterface instead of DensityInterface ?
-        if reweight_mode == 'ON':
-            rwgt_interface = reweight_interface.ReweightInterface
-        elif reweight_mode == 'density':
+        if reweight_mode == 'density':
             rwgt_interface = reweight_interface.DensityInterface
         else:
-            raise Exception("No reweight mode found.")
+            rwgt_interface = reweight_interface.ReweightInterface
+        
     
         if plugin: 
             rwgt_interface = misc.from_plugin_import(self.plugin_path, 'new_reweight', 
