@@ -2093,17 +2093,19 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         # plugin option
         plugin = False
         if '--mode=density' in line:
-            plugin='density'
+            reweight_mode = 'density'
             line = line.replace('--mode=density', '')
         elif '--mode=ON' in line:
+            reweight_mode = 'ON'
             line = line.replace('--mode=ON', '')
         elif '--mode=OFF' in line:
-            return 
+            return
+
         if '--plugin=' in line:
             plugin = [l.split('=',1)[1] for l in line.split() if '--plugin=' in l][0]
-        elif hasattr(self, 'switch') and self.switch['reweight'] not in ['ON','OFF']:
+        elif hasattr(self, 'switch') and self.switch['reweight'] not in ['ON','OFF', 'density']:
             plugin=self.switch['reweight']
-            
+        
         # option for multicore to avoid that all of them create the same directory
         if '--multicore=create' in line:
             multicore='create'
@@ -2285,10 +2287,17 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
 
         self.check_decay_events(args) 
         # args now alway content the path to the valid files
-        rwgt_interface = reweight_interface.ReweightInterface 
-        if plugin == 'density':
-            rwgt_interface = reweight_interface.DensityInterface #every calculation for the density mode is done within this line.
-        elif plugin: 
+
+        #According to the reweight mode chosen by the user, we instantiate the correct reweight interface
+        #could improve it with a __new__ in ReweightInterface so we would always call ReweightInterface instead of DensityInterface ?
+        if reweight_mode == 'ON':
+            rwgt_interface = reweight_interface.ReweightInterface
+        elif reweight_mode == 'density':
+            rwgt_interface = reweight_interface.DensityInterface
+        else:
+            raise Exception("No reweight mode found.")
+    
+        if plugin: 
             rwgt_interface = misc.from_plugin_import(self.plugin_path, 'new_reweight', 
                                         plugin, warning=False, 
                                         info="Will use re-weighting from pluging %(plug)s")
@@ -2300,6 +2309,8 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         wgt_names = reweight_cmd.get_weight_names()
         if wgt_names == [''] and reweight_cmd.has_nlo:
             self.update_status('Running Reweighting (LO approximate)', level='madspin')
+        elif wgt_names == [''] and reweight_mode == 'density':
+            self.update_status('Running Reweighting Density mode', level='madspin')
         else:
             self.update_status('Running Reweighting', level='madspin')
         

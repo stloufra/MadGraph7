@@ -1009,8 +1009,11 @@ class ReweightInterface(extended_cmd.Cmd):
         self.banner['initrwgt'] += '\n</weightgroup>\n'
         self.banner['initrwgt'] = self.banner['initrwgt'].replace('\n\n', '\n')
 
-        logger.info('starts to compute weight for events with the following modification to the param_card:')
-        logger.info(card_diff.replace('\n','\nKEEP:'))
+        if self.flag_density_matrix:
+            logger.info('starts to compute density matrices for events with the inputs from the reweight_card:')
+        else:
+            logger.info('starts to compute weight for events with the following modification to the param_card:')
+            logger.info(card_diff.replace('\n','\nKEEP:'))
         try:
             self.run_card = banner.Banner(self.banner).charge_card('run_card')
         except Exception:
