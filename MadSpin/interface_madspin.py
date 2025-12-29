@@ -1344,7 +1344,6 @@ class MadSpinInterface(extended_cmd.Cmd):
                     self.seed = random.randint(0, int(30081*30081))
                     self.do_set('seed %s' % self.seed)
                     logger.info('Will use seed %s' % self.seed)
-                    logger.info("hello 2")
                     self.history.insert(0, 'set seed %s' % self.seed)
                 run_card["iseed"] = self.seed
                 run_card["systematics_program"] = 'None'
@@ -1374,7 +1373,6 @@ class MadSpinInterface(extended_cmd.Cmd):
                 if self.seed > 30081*30081:
                     self.seed -= 30081*30081        
                 logger.info('Will use seed %s' % (self.seed))
-                logger.info("hello spyros")
                 misc.call(['run.sh', str(int(1.2*nb_event)), str(self.seed)], cwd=decay_dir)     
                 out[i] = lhe_parser.EventFile(pjoin(decay_dir, 'events.lhe.gz'))     
                 print("=======> CHECKING IF FILES ARE THE SAME")
@@ -1951,10 +1949,8 @@ class MadSpinInterface(extended_cmd.Cmd):
             # (one element per Z decay)
             Ndecays_sameid = len(decay_event)
             
-            # In this case the symmetry factor is wrong so we need to turn off the ME check
-            # Spyros: remove this in production? Not needed since default will be False
-            #if Ndecays_sameid > 1: 
-            #    self.options['density_debug'] = False
+            # Keep a list of decay events to calculate symmetry factor
+            decay_events = []
 
 	        # Get the color, mass, spin and width of decaying particle
             width = decay_dict[pdg][0]
@@ -1964,10 +1960,11 @@ class MadSpinInterface(extended_cmd.Cmd):
 
             # The rest of the operations need to be repeated if we have multiple 
             # decays of the SAME PARTICLE so we need a loop over the decay_event blocks
-            for i_decay_event in range(Ndecays_sameid):
+            for i_decay_event in range(Ndecays_sameid):               
                 current_decay_event = decay_event[i_decay_event]
+                decay_events.append(current_decay_event)
                 #print(f"Processing decay #{i_decay_event} of {pdg}")
-                #print(f"Current decay_event = {current_decay_event}")
+                #print(f"Current decay_event = {current_decay_event}") 
 
                 # Find decaying particle from the list of decaying particles that was initially declared
                 part = init_part[decaying_idx+i_decay_event]
@@ -2019,11 +2016,17 @@ class MadSpinInterface(extended_cmd.Cmd):
             
         #print(f"density_dec = {density_dec.matrix} - length = {len(density_dec.matrix)}")
         #print(f"density_prod = {density_prod.matrix} - length = {len(density_prod.matrix)}")
-        
+
+        # Get the symmetry factor
+        # NB: for ZZ MG already divides by 2 during production
+        # So if ZZ has different decays we need to multiply by Ndecays_sameid
+        # if it has the same decays we need to multiply by Ndecays_sameid / symmetry factor = 1
+        sym_factor_decay = decay_events[0].get_sym_factor_with(decay_events[1:]) / Ndecays_sameid if Ndecays_sameid > 1 else 1
+             
 		# Get the full ME from the production and decay density matrices
         me = density_dec.scalar_multiplication(density_prod)
         #print(f"scalar multiplication dec*prod = {me}")
-        denominator = iden_p * prod_color * prod_denominators #* Ndecays_sameid
+        denominator = iden_p * prod_color * prod_denominators * sym_factor_decay
         #print(f"denominator = {denominator}")
         me = me.real / denominator
         #print(f"me = {me}")
