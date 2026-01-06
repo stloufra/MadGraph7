@@ -4474,6 +4474,7 @@ class DensityMatrix:
     (eq 45 in Quentin's thesis)
     """
     def __init__(self, array, nchanging, all_helicity_combinations, dimension):
+        import numpy as np
         self.nchanging = nchanging
         self.all_helicity_combinations = all_helicity_combinations
         self.dimension = dimension
@@ -4571,6 +4572,7 @@ class DensityMatrix:
         return [item for sublist in combinations for item in sublist]
             
     def tensor_product(self, other):
+        import numpy as np
         if not isinstance(other, DensityMatrix):
             raise TypeError("Tensor product is only supported between two DensityMatrix instances.")
         #print(f"self.matrix[0] = {self.matrix[0]}")

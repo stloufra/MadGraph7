@@ -1557,11 +1557,379 @@ class TestCmdShell2(unittest.TestCase,
             misc.sprint(density_matrix.matrix[1], fortran_dens[1])
 
 
-            
+    def test_density_mode_ttbar(self):
+        ############################################################################
+        # Check working condition of the density mode
+        # reproduces the full density matrix and computes quantum information observables
+        # testing case g g > t t~
+        ############################################################################
+        import madgraph.various.Density_functions as dens
+        text = f"""generate g g > t t~
+output {self.out_dir}_density1
+launch
+reweight=density
+set run_card nevents 1
+set run_card iseed 643
+set helicity_direction [6]
+set particle_in_density_matrix [6, -6]
+set boost_choice [6, -6]
+"""
+#we use iseed = 643 because it shows non-zero concurrence
+
+        #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
+        command_card = open('/tmp/mg5_cmd.txt','w')
+        command_card.write(text)
+        command_card.close()
+
+        subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
+                         '/tmp/mg5_cmd.txt'])
 
 
+        ## With the chosen seed, the event must be:
+        event_random = """<event>
+ 4      1 +4.4153000e+02 1.83718300e+02 7.54677100e-03 1.16425200e-01
+       21 -1    0    0  503  502 +0.0000000000e+00 +0.0000000000e+00 +1.7560408079e+02 1.7560408079e+02 0.0000000000e+00 0.0000e+00 1.0000e+00
+       21 -1    0    0  501  503 -0.0000000000e+00 -0.0000000000e+00 -1.9227329772e+02 1.9227329772e+02 0.0000000000e+00 0.0000e+00 1.0000e+00
+        6  1    1    2  501    0 -1.8479327069e+01 +5.9007817552e+01 -1.1739229414e+01 1.8409295904e+02 1.7300000000e+02 0.0000e+00 1.0000e+00
+       -6  1    1    2    0  502 +1.8479327069e+01 -5.9007817552e+01 -4.9299875115e+00 1.8378441946e+02 1.7300000000e+02 0.0000e+00 1.0000e+00
+<density> (0.4526973360805629+0j) (-2.1317321205040213e-05+0.0024340905341333923j) (2.13173212052136e-05-0.002434090538628891j) (0.28550869973262555+0j) (0.04730266391943712+0j) (0.04700262219476668+0j) (2.1317321205213577e-05+0.0024340905386288922j) (0.04730266391943711+0j) (-2.1317321205040145e-05-0.0024340905341333906j) (0.45269733608056295+0j) </density>
+</event>
+"""
+        density_1event = [(0.4526973360805629+0j), (-2.1317321205040213e-05+0.0024340905341333923j), (2.13173212052136e-05-0.002434090538628891j),
+                          (0.28550869973262555+0j), (0.04730266391943712+0j), (0.04700262219476668+0j), (2.1317321205213577e-05+0.0024340905386288922j),
+                          (0.04730266391943711+0j), (-2.1317321205040145e-05-0.0024340905341333906j), (0.45269733608056295+0j)]
 
+        lhe_path = pjoin(self.out_dir + '_density1/Events/run_01/unweighted_events.lhe.gz')
+        for event in lhe_parser.EventFile(lhe_path):
+            density_check = event.density
+        
+
+        #1) here we check that the density matrix is computed properly
+        for i in range(len(density_1event)):
+            self.assertAlmostEqual(density_1event[i].real, density_check[i].real, places=7)
+            self.assertAlmostEqual(density_1event[i].imag, density_check[i].imag, places=7)
+        
+        rho_instance = dens.DensityMatrixObservables(density_1event)
+
+        #2) here we check that the concurrence is computed properly
+        concurrence_ref = 0.47641209333195317
+        concurrence_check = rho_instance.Get_Concurrence()
+        self.assertAlmostEqual(concurrence_ref, concurrence_check, places=7)
+
+        #3) here we check that purity is computed properly
+        purity_ref = 0.5818411704583635
+        purity_check = rho_instance.Get_Purity()
+        self.assertAlmostEqual(purity_ref, purity_check, places=7)
+
+        #4) here we check that magic is computed properly
+        magic_ref = 0.4706552252614239
+        magic_check = rho_instance.Magic_Mixed()
+        self.assertAlmostEqual(magic_ref, magic_check, places=7)
+
+    def test_density_mode_wpwm(self):
+        ############################################################################
+        # Check working condition of the density mode
+        # reproduces the full density matrix and computes quantum information observables
+        # testing case d d~ > w+ w-
+        ############################################################################
+        import madgraph.various.Density_functions as dens
+        text = f"""generate d d~ > w+ w-
+output {self.out_dir}_density2
+launch
+reweight=density
+set run_card nevents 1
+set run_card iseed 27
+set helicity_direction [24]
+set particle_in_density_matrix [24, -24]
+set boost_choice [24, -24]
+set order_helicities [+1, -1, +1, 0, +1, +1, 0, -1, 0, 0, 0, +1, -1, -1, -1, 0, -1, +1]
+set axis_referential [-1, -2]
+"""
+#we use iseed = 643 because it shows non-zero concurrence
+
+        #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
+        command_card = open('/tmp/mg5_cmd.txt','w')
+        command_card.write(text)
+        command_card.close()
+
+        subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
+                         '/tmp/mg5_cmd.txt'])
+
+
+        ## Read a test event for g g > t t~
+        ## With the chosen seed, the event must be:
+        event_random = """<event>
+ 4      1 +1.1598180e+01 8.61641400e+01 7.54677100e-03 1.31241600e-01
+        1 -1    0    0  501    0 +0.0000000000e+00 +0.0000000000e+00 +6.7453756875e+01 6.7453756875e+01 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       -1 -1    0    0    0  501 -0.0000000000e+00 -0.0000000000e+00 -2.2362978447e+02 2.2362978447e+02 0.0000000000e+00 0.0000e+00 1.0000e+00
+       24  1    1    2    0    0 +2.9712846835e+01 -8.6133184071e+00 -1.8180402011e+02 2.0118886700e+02 8.0419002446e+01 0.0000e+00 1.0000e+00
+      -24  1    1    2    0    0 -2.9712846835e+01 +8.6133184071e+00 +2.5627992516e+01 8.9894674346e+01 8.0419002446e+01 0.0000e+00 -1.0000e+00
+<density> (0.8239521035420918+0j) (0.0012459836198752744-0.18876088754596865j) (0.10590205871336196+9.895276547915974e-05j) (0.001245983619863055-0.1887608875497407j) (0.20007680637202244+0.0005605639859763565j) (-3.6659957735389485e-05+0.07291523704402764j) (0.1059020587083611+9.895276547721885e-05j) (-3.665995773502995e-05+0.0729152370357459j) (-0.024242733861029375+0j) (0.04324555661196509+0j) (0.00013747621754224657+0.024261332551989638j) (0.04324555661282923+0j) (0.00017413617529524783+0.045836073006731676j) (-0.01670609814743152+0.00010186420360581529j) (0.0001374762175351289+0.024261332550843975j) (-0.016706098145534257+0.00010186420359337397j) (-3.6659957735389384e-05-0.005553817922760897j) (0.013611911685141956+0j) (0.00013747621754022304-0.02426133255247446j) (0.025717930303802445+4.80206636849651e-05j) (4.044894527515657e-06+0.009367056873370817j) (0.013611911684499201+0j) (4.0448945265672705e-06+0.009367056872306325j) (-0.0031159037202360715+2.9114381139529145e-06j) (0.04324555661369336+0j) (0.0001741361752897144+0.04583607300764762j) (-0.016706098147765344+0.0001018642036045661j) (0.00013747621753310534+0.024261332551328795j) (-0.016706098145868084+0.0001018642035921248j) (-3.6659957735029856e-05-0.00555381792287188j) (0.04859616069266536+0j) (4.070485226774791e-05+0.017679108347624695j) (0.025717930302588142-4.802066368203413e-05j) (4.070485226220086e-05+0.017679108345613412j) (-0.005886760586920283+1.6493195982730305e-05j) (0.006511758621987346+0j) (4.044894527566402e-06-0.009367056872928175j) (0.006511758621255038+0j) (1.078627744155314e-06+0.0021453488357796643j) (0.013611911683856446+0j) (4.044894526618015e-06+0.009367056871863684j) (-0.0031159037200889335+2.9114381138958083e-06j) (0.006511758620522728+0j) (1.0786277441447357e-06+0.0021453488355359946j) (0.000713281928075904+0j) </density>
+</event>
+"""
+        density_1event = [(0.8239521035420918+0j), (0.0012459836198752744-0.18876088754596865j), (0.10590205871336196+9.895276547915974e-05j), 
+                          (0.001245983619863055-0.1887608875497407j), (0.20007680637202244+0.0005605639859763565j), (-3.6659957735389485e-05+0.07291523704402764j), 
+                          (0.1059020587083611+9.895276547721885e-05j), (-3.665995773502995e-05+0.0729152370357459j), (-0.024242733861029375+0j), 
+                          (0.04324555661196509+0j), (0.00013747621754224657+0.024261332551989638j), (0.04324555661282923+0j), 
+                          (0.00017413617529524783+0.045836073006731676j), (-0.01670609814743152+0.00010186420360581529j), 
+                          (0.0001374762175351289+0.024261332550843975j), (-0.016706098145534257+0.00010186420359337397j), 
+                          (-3.6659957735389384e-05-0.005553817922760897j), (0.013611911685141956+0j), (0.00013747621754022304-0.02426133255247446j), 
+                          (0.025717930303802445+4.80206636849651e-05j), (4.044894527515657e-06+0.009367056873370817j), (0.013611911684499201+0j), 
+                          (4.0448945265672705e-06+0.009367056872306325j), (-0.0031159037202360715+2.9114381139529145e-06j), (0.04324555661369336+0j), 
+                          (0.0001741361752897144+0.04583607300764762j), (-0.016706098147765344+0.0001018642036045661j), 
+                          (0.00013747621753310534+0.024261332551328795j), (-0.016706098145868084+0.0001018642035921248j), 
+                          (-3.6659957735029856e-05-0.00555381792287188j), (0.04859616069266536+0j), (4.070485226774791e-05+0.017679108347624695j), 
+                          (0.025717930302588142-4.802066368203413e-05j), (4.070485226220086e-05+0.017679108345613412j), 
+                          (-0.005886760586920283+1.6493195982730305e-05j), (0.006511758621987346+0j), (4.044894527566402e-06-0.009367056872928175j), 
+                          (0.006511758621255038+0j), (1.078627744155314e-06+0.0021453488357796643j), (0.013611911683856446+0j), 
+                          (4.044894526618015e-06+0.009367056871863684j), (-0.0031159037200889335+2.9114381138958083e-06j), (0.006511758620522728+0j), 
+                          (1.0786277441447357e-06+0.0021453488355359946j), (0.000713281928075904+0j)]
+
+
+        lhe_path = pjoin(self.out_dir + '_density2/Events/run_01/unweighted_events.lhe.gz')
+        # data = lhe_parser.EventFile(lhe_path)
+        for event in lhe_parser.EventFile(lhe_path):
+            density_check = event.density
+        
+        #1) here we check that the density matrix is computed properly
+        for i in range(len(density_1event)):
+            self.assertAlmostEqual(density_1event[i].real, density_check[i].real, places=7)
+            self.assertAlmostEqual(density_1event[i].imag, density_check[i].imag, places=7)
+
+        rho_instance = dens.DensityMatrixObservables(density_check)
+
+        #2) here we check that the bounds of concurrence are computed properly
+        lower_concurrence2_ref = 0.3188376158549642
+        upper_concurrence2_ref = 0.31936138845988493
+        lower_concurrence2_check = rho_instance.ConcLB2()
+        upper_concurrence2_check = rho_instance.ConcUB2()
+        self.assertAlmostEqual(lower_concurrence2_check, lower_concurrence2_ref, places=7)
+        self.assertAlmostEqual(upper_concurrence2_check, upper_concurrence2_ref, places=7)
       
+        #3) here we check that purity is computed properly
+        purity_ref = 0.9997381136975394
+        purity_check = rho_instance.Get_Purity()
+        self.assertAlmostEqual(purity_ref, purity_check, places=7)
+
+        #4) here we check that mana is computed properly
+        mana_ref = 1.0500659136939539
+        mana_check = rho_instance.Get_Mana()
+        self.assertAlmostEqual(mana_ref, mana_check, places=7)
+
+    def test_density_mode_decay1(self):
+        ############################################################################
+        # Check working condition of the density mode
+        # reproduces the full density matrix and computes quantum information observables
+        # testing case p p > t t~, t > b W+
+        # particle_in_density_matrix = [5, -6]
+        ############################################################################
+        import madgraph.various.Density_functions as dens
+        text = f"""generate g g > t t~, t > b w+
+output {self.out_dir}_density3
+launch
+reweight=density
+set run_card nevents 1
+set run_card iseed 27
+set helicity_direction [5]
+set particle_in_density_matrix [5, -6]
+set boost_choice [5, -6]
+"""
+
+        #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
+        command_card = open('/tmp/mg5_cmd.txt','w')
+        command_card.write(text)
+        command_card.close()
+
+        subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
+                         '/tmp/mg5_cmd.txt'])
+
+
+        ## With the chosen seed, the event must be:
+        event_random = """<event>
+ 6      1 +4.2873600e+02 2.58116800e+02 7.54677100e-03 1.10829800e-01
+       21 -1    0    0  501  502 +0.0000000000e+00 +0.0000000000e+00 +1.0845458909e+02 1.0845458909e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       21 -1    0    0  502  503 -0.0000000000e+00 -0.0000000000e+00 -6.4844659178e+02 6.4844659178e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+        6  2    1    2  501    0 -1.0996883743e+01 +1.9124424233e+02 -1.8275210837e+02 3.1616925127e+02 1.7282757494e+02 0.0000e+00 0.0000e+00
+        5  1    3    3  501    0 +4.3637392514e+01 +4.9281743782e+00 -1.3060449857e+01 4.6056207819e+01 4.7000000000e+00 0.0000e+00 -1.0000e+00
+       24  1    3    3    0    0 -5.4634276257e+01 +1.8631606795e+02 -1.6969165851e+02 2.7011304345e+02 8.0419002446e+01 0.0000e+00 -1.0000e+00
+       -6  1    1    2    0  503 +1.0996883743e+01 -1.9124424233e+02 -3.5723989432e+02 4.4073192960e+02 1.7300000000e+02 0.0000e+00 -1.0000e+00
+<density> (0.00023359526522495882+0j) (2.9956750131603144e-05+1.3622977588717694e-05j) (-0.00037002831548626185-0.0001606402006384915j) (0.0013988914248279838+0.0007925330810912253j) (0.0001701973522356173+0j) (-0.0003301297581403585+4.196117432997617e-05j) (0.0003588942963018077+0.00015927990509450137j) (0.5380495499305434+0j) (0.03639176740610352+0.01649755017431808j) (0.4615466574519961+0j) </density>
+</event>
+"""
+        density_1event =   [(0.00023359526522495882+0j), (2.9956750131603144e-05+1.3622977588717694e-05j), (-0.00037002831548626185-0.0001606402006384915j),
+                            (0.0013988914248279838+0.0007925330810912253j), (0.0001701973522356173+0j), (-0.0003301297581403585+4.196117432997617e-05j), 
+                            (0.0003588942963018077+0.00015927990509450137j), (0.5380495499305434+0j), (0.03639176740610352+0.01649755017431808j), 
+                            (0.4615466574519961+0j)]
+
+        lhe_path = pjoin(self.out_dir + '_density3/Events/run_01/unweighted_events.lhe.gz')
+        for event in lhe_parser.EventFile(lhe_path):
+            density_check = event.density
+        
+        #1) here we check that the density matrix is computed properly
+        for i in range(len(density_1event)):
+            self.assertAlmostEqual(density_1event[i].real, density_check[i].real, places=7)
+            self.assertAlmostEqual(density_1event[i].imag, density_check[i].imag, places=7)
+
+        rho_instance = dens.DensityMatrixObservables(density_check)
+
+        #2) here we check that the bounds of concurrence is computed properly
+        concurrence_ref = 0.0
+        concurrence_check = rho_instance.Get_Concurrence()
+        self.assertAlmostEqual(concurrence_check, concurrence_ref, places=7)
+      
+        #3) here we check that purity is computed properly
+        purity_ref = 0.5057218059862959
+        purity_check = rho_instance.Get_Purity()
+        self.assertAlmostEqual(purity_ref, purity_check, places=7)
+
+        #4) here we check that magic is computed properly
+        magic_ref = 0.018653388493735004
+        magic_check = rho_instance.Magic_Mixed()
+        self.assertAlmostEqual(magic_ref, magic_check, places=7)
+
+    def test_density_mode_decay2(self):
+        ############################################################################
+        # Check working condition of the density mode
+        # reproduces the full density matrix and computes quantum information observables
+        # testing case p p > t t~, t > b W+
+        # particle_in_density_matrix = [24, -6]
+        ############################################################################
+        import madgraph.various.Density_functions as dens
+        text = f"""generate g g > t t~, t > b w+
+output {self.out_dir}_density4
+launch
+reweight=density
+set run_card nevents 1
+set run_card iseed 27
+set helicity_direction [24]
+set particle_in_density_matrix [24, -6]
+set boost_choice [24, -6]
+"""
+
+        #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
+        command_card = open('/tmp/mg5_cmd.txt','w')
+        command_card.write(text)
+        command_card.close()
+
+        subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
+                         '/tmp/mg5_cmd.txt'])
+
+
+        ## With the chosen seed, the event must be:
+        event_random = """<event>
+ 6      1 +4.2873600e+02 2.58116800e+02 7.54677100e-03 1.10829800e-01
+       21 -1    0    0  501  502 +0.0000000000e+00 +0.0000000000e+00 +1.0845458909e+02 1.0845458909e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       21 -1    0    0  502  503 -0.0000000000e+00 -0.0000000000e+00 -6.4844659178e+02 6.4844659178e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+        6  2    1    2  501    0 -1.0996883743e+01 +1.9124424233e+02 -1.8275210837e+02 3.1616925127e+02 1.7282757494e+02 0.0000e+00 0.0000e+00
+        5  1    3    3  501    0 +4.3637392514e+01 +4.9281743782e+00 -1.3060449857e+01 4.6056207819e+01 4.7000000000e+00 0.0000e+00 -1.0000e+00
+       24  1    3    3    0    0 -5.4634276257e+01 +1.8631606795e+02 -1.6969165851e+02 2.7011304345e+02 8.0419002446e+01 0.0000e+00 -1.0000e+00
+       -6  1    1    2    0  503 +1.0996883743e+01 -1.9124424233e+02 -3.5723989432e+02 4.4073192960e+02 1.7300000000e+02 0.0000e+00 -1.0000e+00
+<density> (0.00021651020376335244+0j) (1.859345759680708e-05+3.319131194668537e-05j) (-8.654700949220674e-06+4.660850889005045e-06j) (-5.964620125575636e-06-5.140944580422725e-06j) 0j 0j (0.00014764522936272262+0j) (1.2627222190362744e-05-3.412335641445621e-05j) (8.443512531745642e-06-4.6314605809771255e-06j) 0j 0j (0.4140153688283749+0j) (0.0355514105428883+0.06346306191601571j) (-0.033098118766739994+0.01782446293447554j) (-0.022810459480124095-0.019660482239005784j) (0.28234295658745207+0j) (0.04829020692948074-0.13049773873783233j) (0.03229047222126599-0.017712065763110893j) (0.12282862506005009+0j) (-0.015383774120452564-0.027546742046050884j) (0.18044889409099676+0j) </density>
+</event>
+"""
+        density_1event =   [(0.00021651020376335244+0j), (1.859345759680708e-05+3.319131194668537e-05j), (-8.654700949220674e-06+4.660850889005045e-06j), 
+                            (-5.964620125575636e-06-5.140944580422725e-06j), 0j, 0j, (0.00014764522936272262+0j), (1.2627222190362744e-05-3.412335641445621e-05j), 
+                            (8.443512531745642e-06-4.6314605809771255e-06j), 0j, 0j, (0.4140153688283749+0j), (0.0355514105428883+0.06346306191601571j), 
+                            (-0.033098118766739994+0.01782446293447554j), (-0.022810459480124095-0.019660482239005784j), (0.28234295658745207+0j), 
+                            (0.04829020692948074-0.13049773873783233j), (0.03229047222126599-0.017712065763110893j), (0.12282862506005009+0j), 
+                            (-0.015383774120452564-0.027546742046050884j), (0.18044889409099676+0j)]
+
+        lhe_path = pjoin(self.out_dir + '_density4/Events/run_01/unweighted_events.lhe.gz')
+        for event in lhe_parser.EventFile(lhe_path):
+            density_check = event.density
+        
+        #1) here we check that the density matrix is computed properly
+        for i in range(len(density_1event)):
+            self.assertAlmostEqual(density_1event[i].real, density_check[i].real, places=7)
+            self.assertAlmostEqual(density_1event[i].imag, density_check[i].imag, places=7)
+
+        rho_instance = dens.DensityMatrixObservables(density_check)
+
+        #2) here we check that the smaller eigenvalue of the partialy transposed density matrix is computed properly
+        flag_ref, eigval_ref = False, [1.30764975e-04, 2.33384118e-04, 1.00757194e-01, 1.28026668e-01, 2.55472741e-01, 5.15379248e-01]
+        flag_check, eigval_check = rho_instance.PeresHorodecki_criterion(['boson', 'fermion'])
+        self.assertEqual(flag_check, flag_ref)
+        for i in range(len(eigval_ref)):
+            self.assertAlmostEqual(eigval_check[i], eigval_ref[i], places=7)
+      
+        #3) here we check that purity is computed properly
+        purity_ref = 0.3574250017186387
+        purity_check = rho_instance.Get_Purity()
+        self.assertAlmostEqual(purity_ref, purity_check, places=7)
+
+    def test_density_mode_doublettbar(self):
+        ############################################################################
+        # Check working condition of the density mode
+        # reproduces the full density matrix and computes quantum information observables
+        # testing case p p > t t t~ t~
+        # helicity_direction [6] pt [0]
+        # particle_in_density_matrix [6, -6] rapidity [0, 1]
+        # boost_choice [6, -6] pt [0, 0]
+        ############################################################################
+        import madgraph.various.Density_functions as dens
+        text = f"""generate p p > t t t~ t~
+output {self.out_dir}_density5
+launch
+reweight=density
+set run_card nevents 1
+set run_card iseed 64
+set helicity_direction [6] pt [0]
+set particle_in_density_matrix [6, -6] rapidity [0, 1]
+set boost_choice [6, -6] pt [0, 0]
+"""
+
+        #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
+        command_card = open('/tmp/mg5_cmd.txt','w')
+        command_card.write(text)
+        command_card.close()
+
+        subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
+                         '/tmp/mg5_cmd.txt'])
+
+
+        ## With the chosen seed, the event must be:
+        event_random = """<event>
+ 6      1 +8.8259995e-03 6.31093800e+02 7.54677100e-03 1.00159800e-01
+       21 -1    0    0  504  503 +0.0000000000e+00 +0.0000000000e+00 +1.2135286086e+03 1.2135286086e+03 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       21 -1    0    0  502  504 -0.0000000000e+00 -0.0000000000e+00 -5.8371897887e+02 5.8371897887e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+        6  1    1    2  501    0 +3.6623210951e+02 -1.7709369819e+02 +2.0834055640e+02 4.8869512318e+02 1.7300000000e+02 0.0000e+00 -1.0000e+00
+        6  1    1    2  502    0 -3.1599447381e+02 +3.9628896508e+02 +1.0466750690e+02 5.4569381371e+02 1.7300000000e+02 0.0000e+00 -1.0000e+00
+       -6  1    1    2    0  501 -2.8790168023e+02 -5.3212030280e+01 +2.4116702458e+02 4.1690458307e+02 1.7300000000e+02 0.0000e+00 -1.0000e+00
+       -6  1    1    2    0  503 +2.3766404453e+02 -1.6598323661e+02 +7.5634541823e+01 3.4595406749e+02 1.7300000000e+02 0.0000e+00 -1.0000e+00
+<density> (0.41585128247332614+0j) (-0.03826754879773473-0.08665010160467382j) (0.01819843853040962+0.0694772074195328j) (-0.006036323974019095+0.028318452797874368j) (0.08409384779983874+0j) (-0.051323966834621225-0.010218484907272918j) (-0.018157600093053276-0.06950829298296718j) (0.0841062677380868+0j) (0.0382601151338116+0.08669345314193963j) (0.41594860198874833+0j) </density>
+</event>
+"""
+        density_1event =   [(0.41585128247332614+0j), (-0.03826754879773473-0.08665010160467382j), (0.01819843853040962+0.0694772074195328j), 
+                            (-0.006036323974019095+0.028318452797874368j), (0.08409384779983874+0j), (-0.051323966834621225-0.010218484907272918j), 
+                            (-0.018157600093053276-0.06950829298296718j), (0.0841062677380868+0j), (0.0382601151338116+0.08669345314193963j), 
+                            (0.41594860198874833+0j)]
+
+        lhe_path = pjoin(self.out_dir + '_density5/Events/run_01/unweighted_events.lhe.gz')
+        for event in lhe_parser.EventFile(lhe_path):
+            density_check = event.density
+        
+        # 1) here we check that the density matrix is computed properly
+        for i in range(len(density_1event)):
+            self.assertAlmostEqual(density_1event[i].real, density_check[i].real, places=7)
+            self.assertAlmostEqual(density_1event[i].imag, density_check[i].imag, places=7)
+
+        rho_instance = dens.DensityMatrixObservables(density_check)
+
+        #2) here we check that the bounds of concurrence is computed properly
+        concurrence_ref = 0.028913810451469873
+        concurrence_check = rho_instance.Get_Concurrence()
+        self.assertAlmostEqual(concurrence_check, concurrence_ref, places=7)
+      
+        # #3) here we check that purity is computed properly
+        purity_ref = 0.42378825285881117
+        purity_check = rho_instance.Get_Purity()
+        self.assertAlmostEqual(purity_ref, purity_check, places=7)
+
+        # #4) here we check that magic is computed properly
+        magic_ref = 0.480231580151087
+        magic_check = rho_instance.Magic_Mixed()
+        self.assertAlmostEqual(magic_ref, magic_check, places=7)
+
     @staticmethod
     def invert_momenta(p):
         """ fortran/C-python do not order table in the same order"""

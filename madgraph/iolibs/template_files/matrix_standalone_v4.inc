@@ -137,7 +137,7 @@ C     For this reason, we simply remove the filterin when there is only three ex
                     IF(NTRY.GE.2.AND.POLARIZATIONS(0,0).ne.-1.and.(.not.%(proc_prefix)sIS_BORN_HEL_SELECTED(IHEL))) THEN
                         CYCLE
                     ENDIF
-c           write (*,*) 'HEL = ',NHEL(:,IHEL)
+                    
                     T=%(proc_prefix)sMATRIX(P ,NHEL(1,IHEL),JC(1))
                     IF(POLARIZATIONS(0,0).eq.-1.or.%(proc_prefix)sIS_BORN_HEL_SELECTED(IHEL)) THEN
                         ANS=ANS+T
@@ -385,7 +385,7 @@ C
       INTER = (0.D0,0.D0)
       CF_INDEX = 0  
       DO I = 1, NCOLOR 
-c        ZTEMP = DCONJG(JAMP_2(I))
+C        ZTEMP = DCONJG(JAMP_2(I))
          DO J=I, NCOLOR
           CF_INDEX = CF_INDEX +1
           INTER = INTER + %(proc_prefix)sCF(CF_INDEX) * (JAMP_1(J) * DCONJG(JAMP_2(I)) +JAMP_1(I) * DCONJG(JAMP_2(J))) 
@@ -450,7 +450,6 @@ C
           G = 2* DSQRT(ALPHAS*pi)
           call UPDATE_AS_PARAM()
       ENDIF
-
       DO IHEL =1, NB_NHEL
         THISNHEL(:) = NHEL(:, IHEL)
 	    DO IPART=1,N_CHANGING
@@ -461,10 +460,9 @@ C
         do I = 1, N_COMB*(N_COMB+1)/2
            INTER(I) = INTER(I) + TMP_INTER(I)
         enddo 
- 10   enddo   
+ 10   enddo 
       return 
       end
-
 
       SUBROUTINE  %(proc_prefix)sGET_ALL_INTER(P, NHEL, POS, N_CHANGING, ALLOW_HEL, N_COMB, INTER)
 c     P momenta

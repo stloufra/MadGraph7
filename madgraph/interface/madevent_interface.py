@@ -887,7 +887,7 @@ class AskRun(cmd.ControlSwitch):
         if 'reweight' not in self.available_module:
             self.allowed_reweight = []
             return
-        self.allowed_reweight = ['OFF', 'ON']
+        self.allowed_reweight = ['OFF', 'ON', 'density']
         
         # check for plugin mode
         plugin_path = self.mother_interface.plugin_path
@@ -903,7 +903,30 @@ class AskRun(cmd.ControlSwitch):
             else:
                 self.switch['reweight'] = 'OFF'
         else:
-            self.switch['reweight'] = 'Not Avail.'        
+            self.switch['reweight'] = 'Not Avail.'      
+
+    def get_cardcmd_for_reweight(self, value):
+        """set some command to run before allowing the user to modify the cards."""
+        if value in ['density']:
+            content_rwgt_card = open(pjoin(self.me_dir, "Cards", "reweight_card.dat"), "r")
+            if 'change particle_in_density_matrix' in content_rwgt_card.read():
+                content_rwgt_card.close()
+                return ["./Cards/reweight_card.dat"] #if reweight_card.dat has information for density matrices, we keep it
+            else:
+                content_rwgt_card.close()
+                return ["./Cards/density_card_default.dat"] #else we overwrite it with density_card_default.dat
+        elif value in ['ON']:
+            content_rwgt_card = open(pjoin(self.me_dir, "Cards", "reweight_card.dat"), "r")
+            if 'change particle_in_density_matrix' in content_rwgt_card.read():
+                content_rwgt_card.close()
+                return ["./Cards/reweight_card_default.dat"] #if reweight_card.dat has information for density matrices, we overwrite it with the default because it is reweight mode
+            else:
+                content_rwgt_card.close()
+                return ["./Cards/reweight_card.dat"] #else we keep the current reweight_card.dat
+        elif value in ['OFF']:
+            return [] #if reweight=OFF, we do not create a reweight_card.dat
+        else:
+            return 
 
 #===============================================================================
 # CheckValidForCmd
@@ -2653,7 +2676,7 @@ Beware that MG5aMC now changes your runtime options to a multi-core mode with on
                     self.boost_events()
                             
                                        
-                self.exec_cmd('reweight -from_cards', postcmd=False)            
+                self.exec_cmd('reweight --mode=%s -from_cards' %switch_mode['reweight'], postcmd=False)            
                 self.exec_cmd('decay_events -from_cards', postcmd=False)
                 if self.run_card['time_of_flight']>=0:
                     self.exec_cmd("add_time_of_flight --threshold=%s" % self.run_card['time_of_flight'] ,postcmd=False)

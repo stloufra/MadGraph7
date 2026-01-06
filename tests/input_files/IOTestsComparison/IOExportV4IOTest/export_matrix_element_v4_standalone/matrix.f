@@ -177,7 +177,7 @@ C      only three external particles.
      $       -1.AND.(.NOT.IS_BORN_HEL_SELECTED(IHEL))) THEN
               CYCLE
             ENDIF
-C           write (*,*) 'HEL = ',NHEL(:,IHEL)
+
             T=MATRIX(P ,NHEL(1,IHEL),JC(1))
             IF(POLARIZATIONS(0,0).EQ.-1.OR.IS_BORN_HEL_SELECTED(IHEL))
      $        THEN
@@ -558,7 +558,6 @@ C
         G = 2* DSQRT(ALPHAS*PI)
         CALL UPDATE_AS_PARAM()
       ENDIF
-
       DO IHEL =1, NB_NHEL
         THISNHEL(:) = NHEL(:, IHEL)
         DO IPART=1,N_CHANGING

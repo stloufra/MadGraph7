@@ -1339,6 +1339,8 @@ class Event(list):
         self.reweight_data = {}
         self.matched_scale_data = None
         self.syscalc_data = {}
+        #Spin Information
+        self.density = []
         if text:
             self.parse(text, parse_momenta=parse_momenta)
 
@@ -1388,7 +1390,11 @@ class Event(list):
                 else:
                     tags.append(line)
             else:
-                if line.endswith('</event>'):
+                if '<density>' in line:
+                    temp = line.strip('<>density/[]').split()
+                    self.density = [complex(temp[o].strip(',()')) for o in range(len(temp))]
+                    
+                if '</event>' in line:
                     line = line.replace('</event>','',1)
                 tags.append(line) 
         self.tag += "\n".join(tags)
@@ -1573,7 +1579,7 @@ class Event(list):
                 return
             wgt = self.nloweight
             
-        data = {'total_wgt': wgt.total_wgt, #need to check name and meaning,
+        data = {'total_wgt': wgt.total_wgt,
                 'nb_wgt': wgt.nb_wgt,
                 'nb_event': wgt.nb_event,
                 'event': '\n'.join(p.__str__(mode='fortran') for p in wgt.momenta),
@@ -2617,6 +2623,7 @@ class Event(list):
 %(comments)s
 %(tag)s
 %(reweight)s
+%(density)s
 </event>
 """ 
         if event_id not in ['', None]:
@@ -2678,13 +2685,24 @@ class Event(list):
                 sys_str += template % replace
             sys_str += "</mgrwt>\n"
             reweight_str = sys_str + reweight_str
+
+        
+
+        if self.density == []: #if we are not in density mode
+            density_to_write = ''
+        else:
+            info_density = ''
+            for i in range(len(self.density)):
+                info_density += str(self.density[i]) + ' '
+            density_to_write = "<density> " + info_density + "</density>"
         
         out = out % {'event_flag': event_flag,
                      'scale': scale_str, 
                       'particles': '\n'.join([str(p) for p in self]),
                       'tag': tag_str,
                       'comments': self.comment,
-                      'reweight': reweight_str}
+                      'reweight': reweight_str,
+                      'density': density_to_write}
         
         return re.sub('[\n]+', '\n', out)
 
