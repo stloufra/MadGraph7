@@ -4203,10 +4203,8 @@ class decay_all_events_onshell(decay_all_events):
 
     mode = "onshell"
  
-    #@misc.mute_logger()
-    
+    @misc.mute_logger()
     @misc.set_global()
-    
     def generate_all_matrix_element(self):
         """generate the full series of matrix element needed by Madspin.
         i.e. the undecayed and the decay one. And associate those to the 
@@ -4293,7 +4291,8 @@ class decay_all_events_onshell(decay_all_events):
         # remove decay with 0 branching ratio.
         #mgcmd.remove_pointless_decay(self.banner.param_card)
         #
-        commandline = 'output standalone %s' % pjoin(path_me,'madspin_me')
+        misc.sprint("generating directory *****************************************************************************")
+        commandline = 'output standalone %s --prefix=int' % pjoin(path_me,'madspin_me')
         logger.info(commandline)
         mgcmd.exec_cmd(commandline, precmd=True)
         logger.info('Done %.4g' % (time.time()-start))  
@@ -4420,7 +4419,7 @@ class decay_all_events_onshell(decay_all_events):
         #os.environ["GFORTRAN_UNBUFFERED_ALL"] = "y"
         misc.compile(cwd=pjoin(self.path_me,'madspin_me', 'Source'),
                      nb_core=self.mgcmd.options['nb_core'])        
-        misc.compile(['all'],cwd=pjoin(self.path_me,'madspin_me', 'SubProcesses'),
+        misc.compile(['all_matrix2py.so'],cwd=pjoin(self.path_me,'madspin_me', 'SubProcesses'),
                      nb_core=self.mgcmd.options['nb_core'])
 
     def save_to_file(self, *args):

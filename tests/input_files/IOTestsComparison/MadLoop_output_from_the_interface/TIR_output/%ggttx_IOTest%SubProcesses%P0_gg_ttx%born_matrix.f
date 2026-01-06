@@ -524,11 +524,8 @@ C
      $        REAL(ZTEMP*DCONJG(JAMP(I,N)))
           ENDDO
         ENDDO
-        DO N = 1, NAMPSO
-          RES(ML5_0_SQSOINDEX(M,N)) = RES(ML5_0_SQSOINDEX(M,N))
-     $     /ML5_0_DENOM
-        ENDDO
       ENDDO
+      RES(:) = RES(:)/ML5_0_DENOM
       END
 
       SUBROUTINE ML5_0_GET_INTER(JAMP_1,JAMP_2, INTER)
@@ -568,11 +565,8 @@ C
      $       + REAL(ZTEMP*DCONJG(JAMP_2(I,N)))
           ENDDO
         ENDDO
-        DO N = 1, NAMPSO
-          INTER(ML5_0_SQSOINDEX(M,N)) = INTER(ML5_0_SQSOINDEX(M,N))
-     $     /ML5_0_DENOM
-        ENDDO
       ENDDO
+      INTER(:) = INTER(:)/ML5_0_DENOM
       RETURN
       END
 

@@ -459,10 +459,8 @@ C
            RES(%(proc_prefix)sSQSOINDEX(M,N)) = RES(%(proc_prefix)sSQSOINDEX(M,N)) + REAL(ZTEMP*DCONJG(JAMP(I,N)))
          ENDDO
        ENDDO
-     DO N = 1, NAMPSO
-        RES(%(proc_prefix)sSQSOINDEX(M,N)) = RES(%(proc_prefix)sSQSOINDEX(M,N))/%(proc_prefix)sDENOM
      ENDDO
-     ENDDO
+     RES(:) = RES(:)/%(proc_prefix)sDENOM     
      END
 
       SUBROUTINE %(proc_prefix)sGET_INTER(JAMP_1,JAMP_2, INTER)
@@ -500,10 +498,8 @@ C
             INTER(%(proc_prefix)sSQSOINDEX(M,N)) = INTER(%(proc_prefix)sSQSOINDEX(M,N)) + REAL(ZTEMP*DCONJG(JAMP_2(I,N)))
           ENDDO
         ENDDO
-        DO N = 1, NAMPSO
-         INTER(%(proc_prefix)sSQSOINDEX(M,N)) = INTER(%(proc_prefix)sSQSOINDEX(M,N))/%(proc_prefix)sDENOM
-        ENDDO
       ENDDO
+      INTER(:) = INTER(:)/%(proc_prefix)sDENOM
       RETURN
       END
 
