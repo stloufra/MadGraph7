@@ -4203,8 +4203,10 @@ class decay_all_events_onshell(decay_all_events):
 
     mode = "onshell"
  
-    @misc.mute_logger()
+    #@misc.mute_logger()
+    
     @misc.set_global()
+    
     def generate_all_matrix_element(self):
         """generate the full series of matrix element needed by Madspin.
         i.e. the undecayed and the decay one. And associate those to the 
@@ -4291,8 +4293,7 @@ class decay_all_events_onshell(decay_all_events):
         # remove decay with 0 branching ratio.
         #mgcmd.remove_pointless_decay(self.banner.param_card)
         #
-        misc.sprint("generating directory *****************************************************************************")
-        commandline = 'output standalone %s --prefix=int' % pjoin(path_me,'madspin_me')
+        commandline = 'output standalone %s' % pjoin(path_me,'madspin_me')
         logger.info(commandline)
         mgcmd.exec_cmd(commandline, precmd=True)
         logger.info('Done %.4g' % (time.time()-start))  
@@ -4419,7 +4420,7 @@ class decay_all_events_onshell(decay_all_events):
         #os.environ["GFORTRAN_UNBUFFERED_ALL"] = "y"
         misc.compile(cwd=pjoin(self.path_me,'madspin_me', 'Source'),
                      nb_core=self.mgcmd.options['nb_core'])        
-        misc.compile(['all_matrix2py.so'],cwd=pjoin(self.path_me,'madspin_me', 'SubProcesses'),
+        misc.compile(['all'],cwd=pjoin(self.path_me,'madspin_me', 'SubProcesses'),
                      nb_core=self.mgcmd.options['nb_core'])
 
     def save_to_file(self, *args):
@@ -4464,54 +4465,118 @@ class decay_all_events_density(decay_all_events_onshell):
         with misc.stdchannel_redirected(sys.stdout, os.devnull):
             return super(decay_all_events_onshell,self).save_to_file(*args) 
 
+import numpy as np
+
 class DensityMatrix:
     """
-    DensityMatrix is a numpy structured array
-    with the first element being a label indicating the helicity combination
-    and the second element being the value.
+    DensityMatrix is a numpy container holding
+      - helicities: int32 array of shape (N, L)
+      - values:     complex64 array of shape (N,)
     It corresponds to INTER = Sum_colors JAMP(h1)*JAMP(h2)
     (eq 45 in Quentin's thesis)
-    """
-    def __init__(self, array, nchanging, all_helicity_combinations, dimension):
-        import numpy as np
-        self.nchanging = nchanging
-        self.all_helicity_combinations = all_helicity_combinations
-        self.dimension = dimension
-        self.diag_elements = [i * (2 * self.dimension - i + 1) // 2 for i in range(self.dimension)]
-        # Create the index map
-        self.map_density_matrix_ind = self.get_map_density_matrix(all_helicity_combinations, nchanging)
-        len_allowed_hel = len(next(iter(self.map_density_matrix_ind)))
-        #misc.sprint(len_allowed_hel)
-         # Create the structured array
-        dtype = [('helicities', 'i4', (len_allowed_hel)),  
-                 ('value', 'complex64')] 
-        import numpy as np
-        self.matrix = np.empty(0, dtype=dtype)
 
-           
-        # If the array is already of the correct type set the matrix
-        # equal to it and return otherwise create the matrix
-        #print(f"array = {array}")
-        #print(f"array.dtype = {array.dtype}")
-        #print(f"dtype = {dtype}")
-        if isinstance(array, np.ndarray) and array.dtype == dtype:
-            #print("filling from array")
-            self.matrix = array
+    PERFORMANCE NOTES (what this version does)
+    ------------------------------------------
+    1) Keeps helicity labels, but stores them as plain NumPy arrays (no structured dtype).
+    2) Caches the helicity-index map (allowed_hel, n_changing) -> map dict.
+    3) Avoids Python dict/tuple joins during contractions.
+    4) Avoids per-instance sorting storms by caching ONE lexsort permutation per basis_id.
+    5) Caches diagonal masks per basis_id (trace becomes cheap).
+    6) Caches tensor-product helicity tables per tensor-product basis_id, so tensor_product
+       only recomputes VALUES per event (outer product / kron), not helicity labels.
+    """
+
+    # Cache for the helicity-index map.
+    # Key: (tuple(allowed_hel), n_changing)
+    _map_cache = {}
+
+    # Cache for sort permutations by basis_id.
+    # basis_id is stable across events for the same helicity basis.
+    _sort_cache = {}
+
+    # Cache diagonal masks by basis_id (depends only on helicities)
+    _diag_cache = {}
+
+    # Cache tensor-product helicity tables by basis_id
+    _tp_hel_cache = {}
+
+    def __init__(self, array, nchanging, all_helicity_combinations, dimension):
+        """
+        Parameters
+        ----------
+        array : np.ndarray or array-like
+            Either:
+              - a 1D complex array containing the independent INTER entries in the
+                MadGraph/MadSpin triangular storage convention (as produced by Fortran),
+                OR
+              - a dict-like object {"helicities": <int32 (N,L)>, "values": <complex64 (N,)>}
+                (used internally by from_components / tensor_product).
+        nchanging : int
+            Number of helicities that are changing in the decay chain segment.
+        all_helicity_combinations : list[int] or np.ndarray
+            Flat list of allowed helicities (Fortran-style ordering) used to build the map.
+        dimension : int
+            Dimension used for trace diagonal indexing (your original convention).
+        """
+        self.nchanging = int(nchanging)
+        self.all_helicity_combinations = all_helicity_combinations
+        self.dimension = int(dimension)
+
+        # Indices of diagonal elements in the packed upper-triangular storage
+        # (kept exactly as you had it; may be used elsewhere)
+        self.diag_elements = [
+            i * (2 * self.dimension - i + 1) // 2 for i in range(self.dimension)
+        ]
+
+        # Map is cached and reused across instances with same (allowed_hel, n_changing)
+        self.map_density_matrix_ind = DensityMatrix.get_map_density_matrix(
+            all_helicity_combinations, self.nchanging
+        )
+
+        # Basis identifier (stable across events) for caching sort permutations and diag masks.
+        # For "map-built" matrices, this is fully determined by (allowed_hel, n_changing).
+        self._basis_id = ("map", tuple(all_helicity_combinations), self.nchanging)
+
+        # Lazy per-instance cache
+        self._sort_order = None
+
+        # If array already comes in as our internal representation (from_components)
+        if isinstance(array, dict) and "helicities" in array and "values" in array:
+            self.helicities = array["helicities"].astype(np.int32, copy=False)
+            self.values = array["values"].astype(np.complex64, copy=False)
         else:
-            #print("not filling from array")
-            # Fill matrix using elements from array
-            #print(f"Now filling density matrix elements")
-            for key, (is_in_array, pos_in_array) in self.map_density_matrix_ind.items():
-                #print(f"key = {key}")
-                #print(f"array[{pos_in_array}] = {array[pos_in_array]}")
-                new_element = np.array((key, array[pos_in_array]), dtype=dtype) if is_in_array \
-                              else np.array((key, array[pos_in_array].conjugate()), dtype=dtype)
-                self.matrix = np.append(self.matrix, new_element)
-        
-    @staticmethod
-    def get_map_density_matrix(allowed_hel, n_changing):
-        #print(f"Spyros from map: allowed_hel = {allowed_hel}")
-        #print(f"Spyros from map: n_changing = {n_changing}")
+            # Build helicities + values in map iteration order (preallocated)
+            keys = list(self.map_density_matrix_ind.keys())  # list of tuples
+            n = len(keys)
+            L = len(keys[0])
+
+            hel = np.empty((n, L), dtype=np.int32)
+            val = np.empty(n, dtype=np.complex64)
+
+            for i, key in enumerate(keys):
+                is_in_array, pos = self.map_density_matrix_ind[key]
+                hel[i, :] = key
+                v = array[pos]
+                val[i] = v if is_in_array else np.conjugate(v)
+
+            self.helicities = hel
+            self.values = val
+
+        # Diagonal mask is cached per basis_id
+        self._diag_mask = self._get_diag_mask_cached()
+
+    # -------------------------------------------------------------------------
+    # Map caching (same semantics as your original get_map_density_matrix)
+    # -------------------------------------------------------------------------
+
+    @classmethod
+    def get_map_density_matrix(cls, allowed_hel, n_changing):
+        # allowed_hel can be list/np array: make it hashable
+        cache_key = (tuple(allowed_hel), int(n_changing))
+        cached = cls._map_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         map_density = {}
         #c  FORTRAN CODE
         #c 576       DO I = 1, N_COMB
@@ -4528,107 +4593,189 @@ class DensityMatrix:
         #c 588           CALL GET_INTER(JAMP(1,I), JAMP(1,J), INTER(SOL))
         #c 589         ENDDO
         #c 590       ENDDO
-        #print(f"Spyros allowed_hel = {allowed_hel}")
-        #print(f"Spyros n_changing = {n_changing}")
-        # set the index for the equivalent of the jamp
-        jamp_hel = []
+
         n_comb = len(allowed_hel) // n_changing
 
-        for i in range(n_comb):
-            current_hel = []
-            for n in range(n_changing):
-                current_hel.append(allowed_hel[i*n_changing+n])
-            jamp_hel.append(current_hel)
-
-        # get the index for each solution
+        # Direct entries (i <= j)
         nb_sol = 0
         for i in range(n_comb):
-            for j in range(i,n_comb):
+            for j in range(i, n_comb):
                 curr_index = []
                 for n in range(n_changing):
-                    curr_index.append(allowed_hel[i*n_changing+n])
-                    curr_index.append(allowed_hel[j*n_changing+n])
+                    curr_index.append(allowed_hel[i * n_changing + n])
+                    curr_index.append(allowed_hel[j * n_changing + n])
                 map_density[tuple(curr_index)] = (True, nb_sol)
-                nb_sol +=1
+                nb_sol += 1
 
-        # get the index for the complex conjugate
+        # Complex-conjugate entries (swap each (h1,h2) pair)
         def conjugate_index(orig_index):
             flip_index = []
-            for i in range(0, len(orig_index), 2):
-                hel1, hel2 = orig_index[i], orig_index[i+1]
-                flip_index += [hel2, hel1]
+            for k in range(0, len(orig_index), 2):
+                flip_index += [orig_index[k + 1], orig_index[k]]
             return tuple(flip_index)
 
-        # add the entry that need to be complex conjugate
         for key in list(map_density.keys()):
-            if key != conjugate_index(key):
-                map_density[conjugate_index(key)] = (False, map_density[key][1])
-        
+            conj = conjugate_index(key)
+            if conj != key:
+                map_density[conj] = (False, map_density[key][1])
+
+        cls._map_cache[cache_key] = map_density
         return map_density
 
-    def get_helicities_for_tensor_product(self, helicities):
-        combinations = list(itertools.product(helicities, repeat=2))
-        return [item for sublist in combinations for item in sublist]
-            
-    def tensor_product(self, other):
-        import numpy as np
-        if not isinstance(other, DensityMatrix):
-            raise TypeError("Tensor product is only supported between two DensityMatrix instances.")
-        #print(f"self.matrix[0] = {self.matrix[0]}")
-        #print(f"self.matrix[0]['helicities'] = {self.matrix[0]['helicities']}")
-        len_allowed_hel = len(self.matrix[0]['helicities'])*len(other.matrix[0]['helicities'])
-        dtype = [('helicities', 'i4', (len_allowed_hel)),
-                 ('value', 'complex64')]
-        import numpy as np
-        result = np.empty(0, dtype=dtype)
-
-        for entry1 in self.matrix:
-            for entry2 in other.matrix:
-                new = np.array((tuple(entry1['helicities']) + tuple(entry2['helicities']), 
-                                entry1['value'] * entry2['value']), dtype=dtype)
-                result = np.append(result, new)    
-        
-        #helicities_for_tensor_product = [tuple(self.all_helicity_combinations), 
-        #                                 tuple(other.all_helicity_combinations)]
-
-        return DensityMatrix.from_matrix(result, 
-                                         self.nchanging+other.nchanging, 
-                                         self.all_helicity_combinations, # this should be helicities_for_tensor_product but it gives unhashable type
-                                         self.dimension)
+    # -------------------------------------------------------------------------
+    # Construction helper for tensor products
+    # -------------------------------------------------------------------------
 
     @staticmethod
-    def from_matrix(matrix, nchanging, all_helicity_combinations, dimension):
-        dm = DensityMatrix(matrix, nchanging, all_helicity_combinations, dimension)
-        return dm
+    def from_components(helicities, values, nchanging, all_helicity_combinations, dimension, basis_id):
+        """
+        Construct a DensityMatrix from already-built arrays.
+        """
+        obj = object.__new__(DensityMatrix)
+        obj.nchanging = int(nchanging)
+        obj.all_helicity_combinations = all_helicity_combinations
+        obj.dimension = int(dimension)
+        obj.diag_elements = [
+            i * (2 * obj.dimension - i + 1) // 2 for i in range(obj.dimension)
+        ]
+
+        # Tensor-product objects typically don't have a useful map in your current API
+        obj.map_density_matrix_ind = None
+
+        obj.helicities = helicities.astype(np.int32, copy=False)
+        obj.values = values.astype(np.complex64, copy=False)
+
+        obj._basis_id = basis_id
+        obj._sort_order = None
+
+        # Diagonal mask is cached per basis_id
+        obj._diag_mask = obj._get_diag_mask_cached()
+        return obj
+
+    # -------------------------------------------------------------------------
+    # Cached diagonal mask
+    # -------------------------------------------------------------------------
+
+    def _get_diag_mask_cached(self):
+        """
+        Diagonal entries satisfy, for label [h1_1,h2_1,h1_2,h2_2,...]:
+            h1_k == h2_k  for all k
+        This is independent of entry ordering and depends only on helicities,
+        so we cache it per basis_id.
+        """
+        cached = DensityMatrix._diag_cache.get(self._basis_id)
+        if cached is not None:
+            return cached
+
+        h = self.helicities
+        mask = np.all(h[:, 0::2] == h[:, 1::2], axis=1)
+        DensityMatrix._diag_cache[self._basis_id] = mask
+        return mask
+
+    # -------------------------------------------------------------------------
+    # Cached permutation for alignment by helicity labels
+    # -------------------------------------------------------------------------
+
+    def _ensure_sorted_view(self):
+        """
+        Cache the permutation that sorts rows by helicity labels for this basis.
+        This is computed ONCE per basis_id and reused across all events, avoiding
+        the repeated sort storm.
+        """
+        if self._sort_order is not None:
+            return
+
+        bid = self._basis_id
+        cached = DensityMatrix._sort_cache.get(bid)
+        if cached is not None:
+            self._sort_order = cached
+            return
+
+        hel = self.helicities
+        # Lexicographic sort by columns: last key is primary -> reverse columns
+        keys = [hel[:, i] for i in range(hel.shape[1] - 1, -1, -1)]
+        order = np.lexsort(keys)
+
+        DensityMatrix._sort_cache[bid] = order
+        self._sort_order = order
+
+    # -------------------------------------------------------------------------
+    # Operations
+    # -------------------------------------------------------------------------
 
     def scalar_multiplication(self, other):
-        #print(f"--------- Scalar multiplication ---------")
-        #print(f"decay map_density_matrix_ind = {self.map_density_matrix_ind}")
-        #print(f"production map_density_matrix_ind = {other.map_density_matrix_ind}")
-        #print(f"Matrix decay = {self.matrix}")
-        #print(f"Matrix prod = {other.matrix}")
-        
-        #if self.map_density_matrix_ind != other.map_density_matrix_ind:
-        #    raise TypeError("Non-compatible dimensions of production and decay spin-density matrices")
-        if len(self.matrix) != len(other.matrix):
-            misc.sprint(len(self.matrix), len(other.matrix))
+        """
+        Scalar contraction between two density matrices.
+
+        Fast path:
+        - If both matrices are built from the same cached map object, the entry
+          order matches by construction -> dot-product of values.
+
+        General path:
+        - Align by cached helicity-sort permutations (one per basis_id), then
+          dot-product on aligned values.
+        """
+        if len(self.values) != len(other.values):
             raise TypeError("Non-compatible dimensions of production and decay spin-density matrices")
 
-        # Multiply the matrix elements of one matrix with the elements of the other matrix that have
-        # the same index
-        me = 0
-        for entry1 in self.matrix:
-            for entry2 in other.matrix:
-                if list(entry1['helicities']) == list(entry2['helicities']):
-                    #print(f"multiplying {list(entry1['helicities'])} with {list(entry2['helicities'])}")
-                    me += entry1['value']*entry2['value']
-        return me
-    
+        # Fastest correct path for map-built matrices
+        if (self.map_density_matrix_ind is not None and
+                self.map_density_matrix_ind is other.map_density_matrix_ind):
+            return np.sum(self.values * other.values)
+
+        # Align by cached ordering for each basis
+        self._ensure_sorted_view()
+        other._ensure_sorted_view()
+
+        a = self._sort_order
+        b = other._sort_order
+        return np.sum(self.values[a] * other.values[b])
+
+    def tensor_product(self, other):
+        """
+        Tensor product of two density matrices (vectorized), with cached helicity labels.
+
+        Values:
+          - computed every call (event-dependent)
+
+        Helicities:
+          - cached per tensor-product basis_id (basis-dependent, not event-dependent)
+        """
+        basis_id = ("tp", self._basis_id, other._basis_id)
+
+        # --- helicities: cache per basis_id ---
+        hel = DensityMatrix._tp_hel_cache.get(basis_id)
+        if hel is None:
+            h1 = self.helicities
+            h2 = other.helicities
+            n1, L1 = h1.shape
+            n2, L2 = h2.shape
+
+            L = L1 + L2
+            hel = np.empty((n1 * n2, L), dtype=np.int32)
+            hel[:, :L1] = np.repeat(h1, n2, axis=0)
+            hel[:, L1:] = np.tile(h2, (n1, 1))
+
+            DensityMatrix._tp_hel_cache[basis_id] = hel
+
+        # --- values: compute every call ---
+        v1 = self.values
+        v2 = other.values
+
+        # Often faster than np.kron; if you prefer, replace with np.kron(v1, v2)
+        vals = (v1[:, None] * v2[None, :]).ravel().astype(np.complex64, copy=False)
+
+        return DensityMatrix.from_components(
+            hel,
+            vals,
+            self.nchanging + other.nchanging,
+            self.all_helicity_combinations,  # preserve existing API behavior
+            self.dimension,
+            basis_id=basis_id,
+        )
+
     def trace(self):
-        me = 0
-        #print(f"diag = {self.diag_elements}")
-        #print(f"matrix = {self.matrix}")
-        for i in self.diag_elements:
-            #print(f"trace for element {list(self.matrix[i]['helicities'])}")
-            me += self.matrix[i]['value']
-        return me
+        """
+        Order-independent trace.
+        """
+        return np.sum(self.values[self._diag_mask])

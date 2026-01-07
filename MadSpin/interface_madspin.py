@@ -1860,7 +1860,7 @@ class MadSpinInterface(extended_cmd.Cmd):
            
     def calculate_matrix_element_from_density(self, production, decays, decay_dict, prod_density_cached=None):
         """routine to return all the possible inter for an event"""        
-
+        
         # Get all helicity configurations and iden number for production and decay events
         iden_p = self.get_iden(production)
         #print(f"iden_p = {iden_p}")
@@ -2080,7 +2080,17 @@ class MadSpinInterface(extended_cmd.Cmd):
 		
         
         if pdir in self.all_density:
-            all_p = event.get_all_momenta(orig_order)
+            # Cache momenta per event+order to avoid recomputing/parsing multiple times
+            cache = getattr(event, "_momenta_cache", None)
+            if cache is None:
+                cache = {}
+                setattr(event, "_momenta_cache", cache)
+            
+            key = tuple(orig_order)
+            all_p = cache.get(key)
+            if all_p is None:
+                all_p = event.get_all_momenta(orig_order)
+                cache[key] = all_p
             for p in all_p:
                 P = rwgt_interface.ReweightInterface.invert_momenta(p)
                 density_array = self.all_density[pdir](P, position, nchanging, allow_hel, ncomb, event.aqcd)
