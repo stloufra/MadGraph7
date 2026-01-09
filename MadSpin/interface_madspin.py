@@ -1861,8 +1861,34 @@ class MadSpinInterface(extended_cmd.Cmd):
     def calculate_matrix_element_from_density(self, production, decays, decay_dict, prod_density_cached=None):
         """routine to return all the possible inter for an event"""        
         
+
+        if not hasattr(self, 'f2py_module'):
+            if sys.path[0] != pjoin(self.path_me, 'madspin_me', 'SubProcesses'):
+                sys.path.insert(0, pjoin(self.path_me, 'madspin_me', 'SubProcesses'))
+
+            mymod = __import__('all_matrix2py')
+            self.f2py_module = mymod
+
+            
+            all_prefix = self.f2py_module.get_prefix()
+            all_pdg, all_procid = self.f2py_module.get_pdg_order()
+            self.pdg2prefix = {}
+            for i, pdg in enumerate(all_pdg):
+                pdg = tuple([x for x in pdg if x != 0])
+                self.pdg2prefix[tuple(pdg)] = (str(all_prefix[i].decode()).strip(),i)
+
+            if self.model_init:
+                self.model_init = False
+                with misc.chdir(pjoin(self.path_me, 'madspin_me', 'SubProcesses')):
+                    #with misc.stdchannel_redirected(sys.stdout, os.devnull):
+                        if not os.path.exists(pjoin(self.path_me, 'Cards','param_card.dat')) and \
+                                os.path.exists(pjoin(self.path_me,'param_card.dat')):
+                            mymod.initialise(pjoin(self.path_me,'param_card.dat'))
+                        else:
+                            mymod.initialise(pjoin(self.path_me, 'Cards','param_card.dat'))
+
         # Get all helicity configurations and iden number for production and decay events
-        iden_p = self.get_iden(production)
+        iden_p = self.get_iden(production)  
         #print(f"iden_p = {iden_p}")
 
         #print(f"Spyros len(decays) = {len(decays)}")
@@ -2061,7 +2087,15 @@ class MadSpinInterface(extended_cmd.Cmd):
         return helicity_combinations, concatenated_hel_list  
 
     def get_density(self, event, position, nchanging, allow_hel, ncomb, dimension):
-        pdir,orig_order = self.get_pdir(event)
+
+        # Cache momenta per event+order to avoid recomputing/parsing multiple times
+        cache = getattr(event, "_momenta_cache", None)
+        if cache is None:
+            cache = {}
+            setattr(event, "_momenta_cache", cache)
+
+        pdir,orig_order, prefix, pos = self.get_pdir(event)
+        
         
         # Spyros we can use 
         # ncomb = len(allow_hel)/nchanging
@@ -2077,7 +2111,15 @@ class MadSpinInterface(extended_cmd.Cmd):
         #print("-------------------------")
 
         #density = [[0 for _ in range(len(allow_hel))] for _ in range(len(allow_hel))]
-		
+        tag, order = event.get_tag_and_order()
+        all_p = event.get_all_momenta(orig_order)
+        assert len(all_p) == 1, "Error: get_density can only be called for a single phase-space point"
+        p = all_p[0]
+        P = rwgt_interface.ReweightInterface.invert_momenta(p) 
+        pdgs =list(orig_order[0])+list(orig_order[1])
+        density_array = self.f2py_module.py_get_density(pdgs=pdgs, procid=-1, p=P, pos=position, allow_hel=allow_hel, n_comb=ncomb, alphas=event.aqcd, n_changing=len(position), npdg=len(pdgs))       
+        density_matrix = madspin.DensityMatrix(density_array, nchanging, allow_hel, dimension)
+        return density_matrix
         
         if pdir in self.all_density:
             # Cache momenta per event+order to avoid recomputing/parsing multiple times
@@ -2138,9 +2180,9 @@ class MadSpinInterface(extended_cmd.Cmd):
 
     def get_nhel(self,event,position):
 
-        pdir,orig_order = self.get_pdir(event)
+        pdir,orig_order, prefix, pos = self.get_pdir(event)
         if pdir in self.all_nhel:
-            iden,NHEL = self.all_nhel[pdir]()
+            iden,NHEL = self.all_nhel[pdir]
             if position == -1:
                 return iden
             nhel = rwgt_interface.ReweightInterface.invert_momenta(NHEL)
@@ -2153,9 +2195,13 @@ class MadSpinInterface(extended_cmd.Cmd):
                 groups.setdefault(t, []).append(item)
                 grouped = list(groups.values())
             return grouped,iden
-        else : 
-            self.all_nhel[pdir] = self.get_mymod(pdir,'NHEL')
-
+        else:
+            #transer nhel information from fortran to wrapper
+            getattr(self.f2py_module, '%sget_nhel_entry' % prefix.lower())()
+            #transer now to python dictionary
+            nhel = getattr(getattr(self.f2py_module, '%sprocess_nhel' % prefix.lower()), '%snhel' %prefix.lower())
+            iden = getattr(self.f2py_module, 'get_idens')()[pos]
+            self.all_nhel[pdir] = (iden, nhel)
             return self.get_nhel(event,position)
 
     def get_iden(self, event):
@@ -2169,17 +2215,35 @@ class MadSpinInterface(extended_cmd.Cmd):
             return iden
 
     def get_mymod(self,pdir,MODE): 
+        
+        all_prefix = self.f2py_module.get_prefix()
+        tag = [t for t in self.all_me if self.all_me[t]['pdir'] == pdir][0]
+        return 
+
+
+
 
         if sys.path[0] != pjoin(self.path_me, 'madspin_me', 'SubProcesses'):
                 sys.path.insert(0, pjoin(self.path_me, 'madspin_me', 'SubProcesses'))
             
-        mymod = __import__("%s.matrix2py" % (pdir))
+        misc.sprint(sys.path[0])
+        with misc.chdir(pjoin(self.path_me, 'madspin_me', 'SubProcesses', pdir)):
+            try:
+                mymod = __import__('matrix2py')
+            except Exception:
+                misc.compile(['matrix2py.so'], cwd=pjoin(self.path_me, 'madspin_me', 'SubProcesses', pdir)  )                
+                mymod = __import__('matrix2py')
+            #if mymod.__path__[0] != pjoin(self.path_me, 'madspin_me', 'SubProcesses'):
+            #    from importlib import reload
+            #    mymod = reload(mymod)
+
+
         if six.PY3:
             from importlib import reload
         else:
             from imp import reload
         reload(mymod)
-        mymod = getattr(mymod, 'matrix2py')  
+        #mymod = getattr(mymod, 'matrix2py')  
         with misc.chdir(pjoin(self.path_me, 'madspin_me', 'SubProcesses', pdir)):
             with misc.stdchannel_redirected(sys.stdout, os.devnull):
                 if not os.path.exists(pjoin(self.path_me, 'Cards','param_card.dat')) and \
@@ -2209,8 +2273,11 @@ class MadSpinInterface(extended_cmd.Cmd):
             tag = (init, final)
             orig_order = self.all_me[tag]['order']
         pdir = self.all_me[tag]['pdir']
-        return pdir,orig_order
+        prefix, pos = self.pdg2prefix[tuple(list(orig_order[0]) + list(orig_order[1]))]
+        #misc.sprint(f"get_pdir: pdir = {pdir} , orig_order = {orig_order} , prefix = {prefix}")
+        return pdir,orig_order, prefix, pos
 
+    model_init = True
     def calculate_matrix_element(self, event):
         """routine to return the matrix element"""        
         
@@ -2260,6 +2327,19 @@ class MadSpinInterface(extended_cmd.Cmd):
                 sys.path.insert(0, pjoin(self.path_me, 'madspin_me', 'SubProcesses'))
 
             mymod = __import__('all_matrix2py')
+            self.f2py_module = mymod
+
+            
+            all_prefix = self.f2py_module.get_prefix()
+            all_pdg, all_procid = self.f2py_module.get_pdg_order()
+            self.pdg2prefix = {}
+            for i, pdg in enumerate(all_pdg):
+                pdg = tuple([x for x in pdg if x != 0])
+                self.pdg2prefix[tuple(pdg)] = (str(all_prefix[i].decode()).strip(),i)
+
+
+
+
             #if mymod.__path__[0] != pjoin(self.path_me, 'madspin_me', 'SubProcesses'):
             #    from importlib import reload
             #    mymod = reload(mymod)
@@ -2280,13 +2360,16 @@ class MadSpinInterface(extended_cmd.Cmd):
             #    reload(mymod)
 
             #mymod = getattr(mymod, 'matrix2py')  
-            with misc.chdir(pjoin(self.path_me, 'madspin_me', 'SubProcesses', pdir)):
-                with misc.stdchannel_redirected(sys.stdout, os.devnull):
-                    if not os.path.exists(pjoin(self.path_me, 'Cards','param_card.dat')) and \
-                            os.path.exists(pjoin(self.path_me,'param_card.dat')):
-                        mymod.initialise(pjoin(self.path_me,'param_card.dat'))
-                    else:
-                        mymod.initialise(pjoin(self.path_me, 'Cards','param_card.dat'))
+
+            if self.model_init:
+                self.model_init = False
+                with misc.chdir(pjoin(self.path_me, 'madspin_me', 'SubProcesses')):
+                    #with misc.stdchannel_redirected(sys.stdout, os.devnull):
+                        if not os.path.exists(pjoin(self.path_me, 'Cards','param_card.dat')) and \
+                                os.path.exists(pjoin(self.path_me,'param_card.dat')):
+                            mymod.initialise(pjoin(self.path_me,'param_card.dat'))
+                        else:
+                            mymod.initialise(pjoin(self.path_me, 'Cards','param_card.dat'))
             pdg = list(orig_order[0]) + list(orig_order[1])
             self.all_f2py[pdir] = lambda *args : mymod.smatrixhel(pdg, 0, *args)
             return self.calculate_matrix_element(event)

@@ -2696,15 +2696,17 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         allids = list(self.prefix_info.keys())
         allprefix = [self.prefix_info[key][0] for key in allids]
         allncomb = [self.prefix_info[key][2] for key in allids]
+        alliden = [self.prefix_info[key][3] for key in allids] 
         min_nexternal = min([len(ids[0]) for ids in allids])
         max_nexternal = max([len(ids[0]) for ids in allids])
 
         info = []
-        for (key, pid), (prefix, tag, ncomb) in self.prefix_info.items():
+        for (key, pid), (prefix, tag, ncomb, iden) in self.prefix_info.items():
             info.append('#PY %s : %s # %s %s' % (tag, key, prefix, pid))
             
 
         text = []
+        
         for n_ext in range(min_nexternal, max_nexternal+1):
             current_id = [ids[0] for ids in allids if len(ids[0])==n_ext]
             current_pid = [ids[1] for ids in allids if len(ids[0])==n_ext]
@@ -2722,7 +2724,7 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
                     text.append( ' if(%s.and.(procid.le.0.or.procid.eq.%d)) then ! %i' % (condition, pid, ii))
                 else:
                     text.append( ' else if(%s.and.(procid.le.0.or.procid.eq.%d)) then ! %i' % (condition,pid,ii))
-                text.append(' call %ssmatrixhel(p, nhel, ans)' % self.prefix_info[(pdgs,pid)][0])
+                text.append(' call %s%%(fct_name)s' % self.prefix_info[(pdgs,pid)][0])
             text.append(' endif')
         #close the function
         if min_nexternal != max_nexternal:
@@ -2746,6 +2748,7 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         #nhel
         all_nhel_f2py = ' '
         all_nhel = ''
+        all_iden = ''
         nhel_template_f2py = """
         subroutine %(f2py_prefix)s%(prefix)sget_nhel_entry()
         integer %(prefix)snhel(%(next)s,%(ncombs)s)
@@ -2768,7 +2771,8 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
             f2py_prefix = 'f%s_' % self.opt['output_options']['prefixf2py']
 
         done_prefix = set()
-        for prefix, ids, ncomb in zip(allprefix, allids, allncomb):
+        nb_iden = 0
+        for prefix, ids, ncomb, iden in zip(allprefix, allids, allncomb, alliden):
             if prefix in done_prefix:
                 continue
             done_prefix.add(prefix)
@@ -2776,21 +2780,30 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
                                           'f2py_prefix': f2py_prefix}
             all_nhel_f2py += nhel_template_f2py % {'prefix': prefix, 'next': len(ids[0]), 
                                                    'ncombs': ncomb, 'f2py_prefix': f2py_prefix}
+            nb_iden += 1
+            all_iden += ' idens(%s) = %s \n' % (nb_iden, iden)
+            
 
+        misc.sprint(all_iden)
         formatting = {'python_information':'\n'.join(info), 
-                          'smatrixhel': '\n'.join(text),
+                          'smatrixhel': '\n'.join(text) % {'fct_name': 'smatrixhel(p, nhel, ans)'},
                           'maxpart': max_nexternal,
                           'nb_me': len(allids),
                           'pdgs': ','.join(str(pdg[i]) if i<len(pdg) else '0' 
                                            for i in range(max_nexternal) for (pdg,pid) in allids),
                           'prefix':'\',\''.join(allprefix),
                           'pids': ','.join(str(pid) for (pdg,pid) in allids),
+                          'inter_splitter': '\n'.join(text) % {'fct_name': 'GET_ALL_INTER(P, POS, N_CHANGING, ALLOW_HEL, N_COMB, INTER)'},
                           'parameter_setup': '\n'.join(parameter_setup),
                           'helreset_def' : '\n'.join(helreset_def),
                           'helreset_setup' : '\n'.join(helreset_setup),
                           'nhel': all_nhel,
-                          'f2py_prefix': f2py_prefix
+                          'f2py_prefix': f2py_prefix,
+                          'idens_value': all_iden,
+                          'density_splitter': '\n'.join(text) % {'fct_name': 'GET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL, N_COMB , ALPHAS, INTER)'},
+                          
                           }
+
         formatting['lenprefix'] = len(formatting['prefix'])
         text = template % formatting
         fsock = writers.FortranWriter(pjoin(self.dir_path, 'SubProcesses', 'all_matrix.f'),'w')
@@ -2934,9 +2947,10 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
             else:
                 raise Exception('--prefix options supports only \'int\' and \'proc\'')
             ncomb = matrix_element.get_helicity_combinations()
+            iden = matrix_element.get_denominator_factor() 
             for proc in matrix_element.get('processes'):
                 ids = [l.get('id') for l in proc.get('legs_with_decays')]
-                self.prefix_info[(tuple(ids), proc.get('id'))] = [proc_prefix, proc.get_tag(), ncomb]
+                self.prefix_info[(tuple(ids), proc.get('id'))] = [proc_prefix, proc.get_tag(), ncomb, iden]
                 
         replace_dict = self.write_matrix_element_v4(
             writers.FortranWriter(filename),
