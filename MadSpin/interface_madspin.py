@@ -1427,6 +1427,8 @@ class MadSpinInterface(extended_cmd.Cmd):
                 shutil.rmtree(name)
 
         self.events_file.close()
+        if self.events_file.name.endswith('.gz'):
+            misc.gunzip(self.events_file.name)
         orig_lhe = lhe_parser.EventFile(self.events_file.name)
         if self.options['fixed_order']:
             orig_lhe.eventgroup = True

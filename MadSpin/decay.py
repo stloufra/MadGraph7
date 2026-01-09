@@ -4465,7 +4465,7 @@ class decay_all_events_density(decay_all_events_onshell):
         with misc.stdchannel_redirected(sys.stdout, os.devnull):
             return super(decay_all_events_onshell,self).save_to_file(*args) 
 
-import numpy as np
+
 
 class DensityMatrix:
     """
@@ -4501,6 +4501,7 @@ class DensityMatrix:
     _tp_hel_cache = {}
 
     def __init__(self, array, nchanging, all_helicity_combinations, dimension):
+        import numpy as np
         """
         Parameters
         ----------
@@ -4631,6 +4632,7 @@ class DensityMatrix:
         """
         Construct a DensityMatrix from already-built arrays.
         """
+        import numpy as np
         obj = object.__new__(DensityMatrix)
         obj.nchanging = int(nchanging)
         obj.all_helicity_combinations = all_helicity_combinations
@@ -4663,6 +4665,7 @@ class DensityMatrix:
         This is independent of entry ordering and depends only on helicities,
         so we cache it per basis_id.
         """
+        import numpy as np
         cached = DensityMatrix._diag_cache.get(self._basis_id)
         if cached is not None:
             return cached
@@ -4682,6 +4685,7 @@ class DensityMatrix:
         This is computed ONCE per basis_id and reused across all events, avoiding
         the repeated sort storm.
         """
+        import numpy as np
         if self._sort_order is not None:
             return
 
@@ -4715,6 +4719,7 @@ class DensityMatrix:
         - Align by cached helicity-sort permutations (one per basis_id), then
           dot-product on aligned values.
         """
+        import numpy as np
         if len(self.values) != len(other.values):
             raise TypeError("Non-compatible dimensions of production and decay spin-density matrices")
 
@@ -4741,6 +4746,7 @@ class DensityMatrix:
         Helicities:
           - cached per tensor-product basis_id (basis-dependent, not event-dependent)
         """
+        import numpy as np
         basis_id = ("tp", self._basis_id, other._basis_id)
 
         # --- helicities: cache per basis_id ---
@@ -4778,4 +4784,5 @@ class DensityMatrix:
         """
         Order-independent trace.
         """
+        import numpy as np 
         return np.sum(self.values[self._diag_mask])
