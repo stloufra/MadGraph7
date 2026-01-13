@@ -2785,7 +2785,7 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         all_iden = ''
         for i, iden in enumerate(alliden, start=1):
             all_iden += ' idens(%s) = %s \n' % (i, iden)
-        misc.sprint(all_iden)
+        #misc.sprint(all_iden)
 
         formatting = {'python_information':'\n'.join(info), 
                           'smatrixhel': '\n'.join(text) % {'fct_name': 'smatrixhel(p, nhel, ans)'},

@@ -49,7 +49,7 @@ C      symmetric one)
   integer n_changing
   INTEGER POS(*)
   INTEGER ALLOW_HEL(*)
-  DOUBLE COMPLEX INTER(99)
+  DOUBLE COMPLEX INTER(*)
 C     Update is done insider the direct density call functions
 
 %(density_splitter)s
@@ -75,7 +75,7 @@ C      symmetric one)
   double precision ANS,  PI,SCALE2
   INTEGER POS(*)
   INTEGER ALLOW_HEL(*)
-  DOUBLE COMPLEX INTER(99)
+  DOUBLE COMPLEX INTER(*)
 C     Update is done insider the direct density call functions
 
 C     Update is done insider the direct density call functions

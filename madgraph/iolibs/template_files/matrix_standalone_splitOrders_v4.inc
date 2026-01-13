@@ -532,11 +532,12 @@ C
       REAL*8 P(0:3,NEXTERNAL)
       INTEGER THISNHEL(NEXTERNAL)
       INTEGER N_CHANGING, N_COMB
+      INTEGER NINTER
       INTEGER POS(*)
       INTEGER ALLOW_HEL(*)
+      DOUBLE COMPLEX, ALLOCATABLE :: TMP_INTER(:,:)
       DOUBLE PRECISION ALPHAS
-      DOUBLE COMPLEX INTER_SUM(99)
-      DOUBLE COMPLEX TMP_INTER(NSQAMPSO,99)
+      DOUBLE COMPLEX INTER_SUM(*)
 c LOCAL
       INTEGER I,IHEL,IPART
       INTEGER J
@@ -554,6 +555,11 @@ C
 C     include coupling definition to update the value of alphas
 C
       include 'coupl.inc'
+      
+      ninter = N_COMB*(N_COMB+1)/2
+      allocate(TMP_INTER(NSQAMPSO, ninter))
+      TMP_INTER(:,:) = (0d0, 0d0)
+      
       do I = 1,  N_COMB*(N_COMB+1)/2
         INTER_SUM(I) = 0d0
       enddo
@@ -580,6 +586,7 @@ C
         enddo
  10   enddo
       return
+      deallocate(TMP_INTER)
       end
 
 
@@ -612,7 +619,7 @@ C
       INTEGER N_CHANGING, N_COMB
       INTEGER POS(*)
       INTEGER ALLOW_HEL(*)
-      DOUBLE COMPLEX INTER(NSQAMPSO,99)
+      DOUBLE COMPLEX INTER(NSQAMPSO,*)
 c
 c     Intermediate array
 c
