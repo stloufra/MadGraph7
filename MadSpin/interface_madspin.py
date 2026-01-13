@@ -2208,6 +2208,19 @@ class MadSpinInterface(extended_cmd.Cmd):
 
 
     def get_iden(self, event):
+        # DEBUGGING REMOVE
+        #print("---- DEBUG ---")
+        #pdgs, allproc = self.f2py_module.get_pdg_order()
+        #idens = self.f2py_module.get_idens()
+        #
+        #print("len(pdgs) =", len(pdgs))
+        #print("len(idens) =", len(idens))
+        #   
+        #for i in range(len(idens)):
+        #    print(i, pdgs[i], idens[i])
+        #print("--- END")
+        # END REMOVE
+
         # get_pdir returns (pdir, orig_order, prefix, pos)
         _, _, _, pos = self.get_pdir(event)
         idens = self.f2py_module.get_idens()

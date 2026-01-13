@@ -2890,21 +2890,28 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         including the necessary matrix.f and nexternal.inc files"""
 
         # Helper
-        def compute_iden_from_pdgs(pdgs):
-            """Compute spin*color denominator from incoming PDGs."""
-            ini1, ini2 = pdgs[0], pdgs[1]
+        def compute_iden_from_pdgs(ids, ninitial, model):
+            """
+            Helper function to compute denominator factor
+            """
+            def nhel_from_particle(p):
+                spin = int(p.get('spin'))
+                # for massless vectors use 2 helicities not 3
+                mass = p.get('mass')
+                if spin == 3 and (mass == 'ZERO' or str(mass).upper() == 'ZERO'):
+                    return 2
+                return spin
 
-            def mult(pid):
-                ap = abs(pid)
-                if pid == 21:        # gluon
-                    return 16        # 2 helicities * 8 colors
-                if 1 <= ap <= 6:     # quark
-                    return 6         # 2 helicities * 3 colors
-                if 11 <= ap <= 16:   # leptons
-                    return 2         # 2 helicities * 1 color
-                return 1
+            def color_dim_from_particle(p):
+                # In UFO, color is typically 1, 3, -3, 8, ...
+                return abs(int(p.get('color')))
 
-            return mult(ini1) * mult(ini2)
+            incoming = ids[:ninitial]
+            iden = 1
+            for pid in incoming:
+                p = model.get_particle(pid)
+                iden *= nhel_from_particle(p) * color_dim_from_particle(p)
+            return int(iden)
         
         cwd = os.getcwd()
         # Create the directory PN_xx_xxxxx in the specified path
@@ -2969,7 +2976,7 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
             #iden = matrix_element.get_denominator_factor() 
             for proc in matrix_element.get('processes'):
                 ids = [l.get('id') for l in proc.get('legs_with_decays')]
-                iden = compute_iden_from_pdgs(ids)
+                iden = compute_iden_from_pdgs(ids, ninitial, self.model)
                 self.prefix_info[(tuple(ids), proc.get('id'))] = [proc_prefix, proc.get_tag(), ncomb, iden]
                 
         replace_dict = self.write_matrix_element_v4(
