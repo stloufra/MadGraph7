@@ -1863,7 +1863,6 @@ class MadSpinInterface(extended_cmd.Cmd):
     def calculate_matrix_element_from_density(self, production, decays, decay_dict, prod_density_cached=None):
         """routine to return all the possible inter for an event"""        
         
-
         if not hasattr(self, 'f2py_module'):
             if sys.path[0] != pjoin(self.path_me, 'madspin_me', 'SubProcesses'):
                 sys.path.insert(0, pjoin(self.path_me, 'madspin_me', 'SubProcesses'))
@@ -2040,9 +2039,9 @@ class MadSpinInterface(extended_cmd.Cmd):
 
             # Move to NEXT PARTICLE that decays and update the index
             decaying_idx += Ndecays_sameid
-            
-        #print(f"density_dec = {density_dec.matrix} - length = {len(density_dec.matrix)}")
-        #print(f"density_prod = {density_prod.matrix} - length = {len(density_prod.matrix)}")
+
+        #print(f"density_dec = {density_dec.values} - length = {len(density_dec.values)}")
+        #print(f"density_prod = {density_prod.values} - length = {len(density_prod.values)}")
 
         # Get the symmetry factor
         # NB: for ZZ MG already divides by 2 during production
@@ -2061,6 +2060,7 @@ class MadSpinInterface(extended_cmd.Cmd):
         # Get production and decay ME from diagonal elements of density matrix
         #print(f"iden_p = {iden_p} , prod_color = {prod_color} , prod_denominators = {prod_denominators} , color = {color} , ncomb = {ncomb}")
         prod_diag = density_prod.trace().real/iden_p
+        #print(f"prod_diag = {prod_diag}")
         
         return me, density_prod, prod_diag, dec_diag
 
@@ -2206,15 +2206,14 @@ class MadSpinInterface(extended_cmd.Cmd):
             self.all_nhel[pdir] = (iden, nhel)
             return self.get_nhel(event,position)
 
-    def get_iden(self, event):
 
-        pdir = self.get_pdir(event) 
-        if pdir in self.all_iden:
-            return self.all_iden[pdir]
-        else:
-            _, iden = self.get_nhel(event, 1)
-            self.all_iden[pdir] = iden
-            return iden
+    def get_iden(self, event):
+        # get_pdir returns (pdir, orig_order, prefix, pos)
+        _, _, _, pos = self.get_pdir(event)
+        idens = self.f2py_module.get_idens()
+        #print(f"idens = {idens} , pos = {pos}")
+        return idens[pos]
+    
 
     def get_mymod(self,pdir,MODE): 
         

@@ -1291,7 +1291,6 @@ param_card.inc: ../Cards/param_card.dat\n\t../bin/madevent treatcards param\n'''
 
     def get_den_factor_line(self, matrix_element):
         """Return the denominator factor line for this matrix element"""
-
         return "DATA IDEN/%2r/" % \
                matrix_element.get_denominator_factor()
 
@@ -2684,11 +2683,10 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
             ff = open(pjoin(self.dir_path, 'SubProcesses', 'makefile'),'a')
             ff.write(text)
             ff.close()
-    
+
 
     def write_f2py_splitter(self):
         """write a function to call the correct matrix element"""
-
 
         template = open(pjoin(MG5DIR, 'madgraph', 'iolibs', 'template_files', self.f2py_matrix_splitter)).read()
         template2 = open(pjoin(MG5DIR, 'madgraph', 'iolibs', 'template_files', self.f2py_wrapper_all)).read()
@@ -2771,20 +2769,24 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
             f2py_prefix = 'f%s_' % self.opt['output_options']['prefixf2py']
 
         done_prefix = set()
-        nb_iden = 0
         for prefix, ids, ncomb, iden in zip(allprefix, allids, allncomb, alliden):
             if prefix in done_prefix:
                 continue
             done_prefix.add(prefix)
-            all_nhel += nhel_template % {'prefix': prefix, 'next': len(ids[0]), 'ncombs': ncomb,
-                                          'f2py_prefix': f2py_prefix}
-            all_nhel_f2py += nhel_template_f2py % {'prefix': prefix, 'next': len(ids[0]), 
-                                                   'ncombs': ncomb, 'f2py_prefix': f2py_prefix}
-            nb_iden += 1
-            all_iden += ' idens(%s) = %s \n' % (nb_iden, iden)
-            
-
+            all_nhel += nhel_template % {'prefix': prefix, 
+                                         'next': len(ids[0]), 
+                                         'ncombs': ncomb,
+                                         'f2py_prefix': f2py_prefix}
+            all_nhel_f2py += nhel_template_f2py % {'prefix': prefix, 
+                                                   'next': len(ids[0]), 
+                                                   'ncombs': ncomb, 
+                                                   'f2py_prefix': f2py_prefix}
+        # Build IDENS entries ONCE per ME slot (must align 1-to-1 with get_pdg_order / allids).
+        all_iden = ''
+        for i, iden in enumerate(alliden, start=1):
+            all_iden += ' idens(%s) = %s \n' % (i, iden)
         misc.sprint(all_iden)
+
         formatting = {'python_information':'\n'.join(info), 
                           'smatrixhel': '\n'.join(text) % {'fct_name': 'smatrixhel(p, nhel, ans)'},
                           'maxpart': max_nexternal,
@@ -2887,6 +2889,23 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         """Generate the Pxxxxx directory for a subprocess in MG4 standalone,
         including the necessary matrix.f and nexternal.inc files"""
 
+        # Helper
+        def compute_iden_from_pdgs(pdgs):
+            """Compute spin*color denominator from incoming PDGs."""
+            ini1, ini2 = pdgs[0], pdgs[1]
+
+            def mult(pid):
+                ap = abs(pid)
+                if pid == 21:        # gluon
+                    return 16        # 2 helicities * 8 colors
+                if 1 <= ap <= 6:     # quark
+                    return 6         # 2 helicities * 3 colors
+                if 11 <= ap <= 16:   # leptons
+                    return 2         # 2 helicities * 1 color
+                return 1
+
+            return mult(ini1) * mult(ini2)
+        
         cwd = os.getcwd()
         # Create the directory PN_xx_xxxxx in the specified path
         dirpath = pjoin(self.dir_path, 'SubProcesses', \
@@ -2947,9 +2966,10 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
             else:
                 raise Exception('--prefix options supports only \'int\' and \'proc\'')
             ncomb = matrix_element.get_helicity_combinations()
-            iden = matrix_element.get_denominator_factor() 
+            #iden = matrix_element.get_denominator_factor() 
             for proc in matrix_element.get('processes'):
                 ids = [l.get('id') for l in proc.get('legs_with_decays')]
+                iden = compute_iden_from_pdgs(ids)
                 self.prefix_info[(tuple(ids), proc.get('id'))] = [proc_prefix, proc.get_tag(), ncomb, iden]
                 
         replace_dict = self.write_matrix_element_v4(
