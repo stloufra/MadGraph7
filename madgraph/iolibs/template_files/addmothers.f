@@ -662,6 +662,8 @@ c     Replace the maximum index with the minimum one everywhere
             do j=1,2
                if(icol(j,i).eq.maxcol)
      $              icol(j,i)=mincol
+               if(icol(j,i).eq.-maxcol)
+     $              icol(j,i)=-mincol
             enddo
          enddo
 c         print *,'Replaced ',maxcol,' by ',mincol
@@ -717,6 +719,8 @@ c     Actually we know if one of the index is repeated (we do not want to replac
             do j=1,2
                if(icol(j,i).eq.maxcol)
      $              icol(j,i)=mincol
+               if(icol(j,i).eq.-maxcol)
+     $              icol(j,i)=-mincol
             enddo
          enddo
 
@@ -762,6 +766,8 @@ c            print *,'Replaced ',maxcol,' by ',mincol
                do j=1,2
                   if(icol(j,i).eq.maxcol)
      $                 icol(j,i)=mincol
+                  if(icol(j,i).eq.-maxcol)
+     $                 icol(j,i)=-mincol
                enddo
             enddo
          else
