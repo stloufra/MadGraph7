@@ -306,6 +306,13 @@ c
 c-----
 c  Begin Code
 c-----     
+c      Those commented line were creating bias for g g > t t~ g g for dsart_shatmax =4k
+c      if (dsqrt_shatmax.ne.-1)then
+c        stot = min(real_stot, dsqrt_shatmax**2)
+c      else
+        stot = real_stot
+c      endif
+
       iconfig = this_config
 c     needs to be initialise to avoid segfault
       do i = -nexternal,-1
