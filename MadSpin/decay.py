@@ -4475,14 +4475,14 @@ class DensityMatrix:
     It corresponds to INTER = Sum_colors JAMP(h1)*JAMP(h2)
     (eq 45 in Quentin's thesis)
 
-    PERFORMANCE NOTES (what this version does)
-    ------------------------------------------
-    1) Keeps helicity labels, but stores them as plain NumPy arrays (no structured dtype).
-    2) Caches the helicity-index map (allowed_hel, n_changing) -> map dict.
-    3) Avoids Python dict/tuple joins during contractions.
-    4) Avoids per-instance sorting storms by caching ONE lexsort permutation per basis_id.
-    5) Caches diagonal masks per basis_id (trace becomes cheap).
-    6) Caches tensor-product helicity tables per tensor-product basis_id, so tensor_product
+    PERFORMANCE NOTES 
+    -----------------
+    - Keep helicity labels, but store them as plain NumPy arrays
+    - Cache the helicity-index map (allowed_hel, n_changing) -> map dict
+    - Avoid Python dict/tuple joins during contractions
+    - cache ONE lexsort permutation per basis_id
+    - Cache diagonal masks per basis_id (trace becomes cheap)
+    - Cache tensor-product helicity tables per tensor-product basis_id, so tensor_product
        only recomputes VALUES per event (outer product / kron), not helicity labels.
     """
 
@@ -4524,7 +4524,6 @@ class DensityMatrix:
         self.dimension = int(dimension)
 
         # Indices of diagonal elements in the packed upper-triangular storage
-        # (kept exactly as you had it; may be used elsewhere)
         self.diag_elements = [
             i * (2 * self.dimension - i + 1) // 2 for i in range(self.dimension)
         ]
@@ -4567,7 +4566,7 @@ class DensityMatrix:
         self._diag_mask = self._get_diag_mask_cached()
 
     # -------------------------------------------------------------------------
-    # Map caching (same semantics as your original get_map_density_matrix)
+    # Map caching 
     # -------------------------------------------------------------------------
 
     @classmethod
@@ -4641,7 +4640,7 @@ class DensityMatrix:
             i * (2 * obj.dimension - i + 1) // 2 for i in range(obj.dimension)
         ]
 
-        # Tensor-product objects typically don't have a useful map in your current API
+        # Tensor-product objects typically don't have a useful map
         obj.map_density_matrix_ind = None
 
         obj.helicities = helicities.astype(np.int32, copy=False)
@@ -4768,14 +4767,14 @@ class DensityMatrix:
         v1 = self.values
         v2 = other.values
 
-        # Often faster than np.kron; if you prefer, replace with np.kron(v1, v2)
+        # Often faster than np.kron
         vals = (v1[:, None] * v2[None, :]).ravel().astype(np.complex64, copy=False)
 
         return DensityMatrix.from_components(
             hel,
             vals,
             self.nchanging + other.nchanging,
-            self.all_helicity_combinations,  # preserve existing API behavior
+            self.all_helicity_combinations,  
             self.dimension,
             basis_id=basis_id,
         )

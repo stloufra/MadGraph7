@@ -1719,15 +1719,30 @@ class Event(list):
         nb_part = len(self) #original number of particle
         
         thres = decay_particle.E*1e-5
-        at_rest = True
-        if abs(decay_particle.px-this_particle.px)< thres:
-            assert max(abs(decay_particle.py-this_particle.py), abs(decay_particle.pz-this_particle.pz)) < thres,\
-            "not boosted correctly %s %s %s %s" % (decay_particle.E, decay_particle.px,decay_particle.py,decay_particle.pz)  
-            at_rest = False
-        else:     
-            assert max(decay_particle.px, decay_particle.py, decay_particle.pz) < thres,\
-            "not on rest particle %s %s %s %s" % (decay_particle.E, decay_particle.px,decay_particle.py,decay_particle.pz) 
         
+        # Absolute momentum of decay mother
+        R = max(abs(decay_particle.px),
+                abs(decay_particle.py),
+                abs(decay_particle.pz))
+
+        # Difference to production particle momentum
+        D = max(abs(decay_particle.px - this_particle.px),
+                abs(decay_particle.py - this_particle.py),
+                abs(decay_particle.pz - this_particle.pz))
+        
+        at_rest = R < thres
+
+        if R > thres and D > thres:
+            raise AssertionError(
+                "inconsistent decay boost: "
+                "decay p=(%s,%s,%s,%s) prod p=(%s,%s,%s,%s)" % (
+                    decay_particle.E,
+                    decay_particle.px, decay_particle.py, decay_particle.pz,
+                    this_particle.E,
+                    this_particle.px, this_particle.py, this_particle.pz
+                )
+            )
+                 
         self.nexternal += decay_event.nexternal -1
         old_scales = list(self.parse_matching_scale())
         if old_scales:

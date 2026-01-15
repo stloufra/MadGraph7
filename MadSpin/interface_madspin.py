@@ -81,6 +81,7 @@ class MadSpinOptions(banner.ConfigFile):
         self.add_param('beampol', [0.5, 0.5], comment='beam polarization')
         self.add_param('density_debug', False, comment='Turn on check against full ME calculation')
         self.add_param('density_tolerance', 1E-4, comment='Tolerance for deviation between density and full ME')
+        self.add_param('decay_event_mult', 1E0, comment='Produce more events than needed so that MadSpin does not have to regenerate decay events')
         
     ############################################################################
     ##  Special post-processing of the options                                ## 
@@ -1494,7 +1495,6 @@ class MadSpinInterface(extended_cmd.Cmd):
                 mg5.exec_cmd("import model %s" % modelpath)      
             evt_decayfile = {}
             br = 1.
-            #print(f"to_decay = {to_decay}")
             for pdg, nb_needed in to_decay.items():
                 # muliply by expected effeciency of generation
                 spin = self.model.get_particle(pdg).get('spin')
@@ -1506,11 +1506,8 @@ class MadSpinInterface(extended_cmd.Cmd):
                 totwidth = self.banner.get('param_card', 'decay', abs(pdg)).value
 				
                 #check if a splitting is needed
-                #print(f"nb_needed = {nb_needed} , nb_event = {nb_event}, nb_mult = {nb_needed//nb_event}")
-                #print(f"nb_needed1 = {int(efficiency*nb_needed) + nevents_for_max}")
-                #print(f"nb_needed2 = {int(efficiency*nb_needed) +nevents_for_max *(nb_needed//nb_event)}")
                 if nb_needed == nb_event:
-                    nb_needed = int(efficiency*nb_needed) + nevents_for_max   
+                    nb_needed = (int(efficiency*nb_needed) + nevents_for_max)*self.options['decay_event_mult'] 
                     evt_decayfile[pdg], pwidth = self.generate_events(pdg, nb_needed, mg5, output_width=True, cumul=True)
                     if pwidth > 1.01*totwidth:
                         logger.warning('partial width (%s) larger than total width (%s) --from param_card--', pwidth, totwidth)
@@ -1519,15 +1516,13 @@ class MadSpinInterface(extended_cmd.Cmd):
                     br *= pwidth / totwidth
                 elif nb_needed %  nb_event == 0:
                     nb_mult = nb_needed // nb_event
-                    nb_needed = int(efficiency*nb_needed) + nevents_for_max*nb_mult
-                    #print(f"2: nb_needed = {nb_needed} , nb_event = {nb_event}")
+                    nb_needed = (int(efficiency*nb_needed) + nevents_for_max*nb_mult)*self.options['decay_event_mult']
                     part = self.model.get_particle(pdg)
                     name = part.get_name()
                     if name not in self.list_branches:
                         continue
                     elif len(self.list_branches[name]) == nb_mult:
-                        #print(f"Spyros : {nb_event}")
-                        evt_decayfile[pdg], pwidth = self.generate_events(pdg, nb_event, mg5, output_width=True)
+                        evt_decayfile[pdg], pwidth = self.generate_events(pdg, nb_event*self.options['decay_event_mult'], mg5, output_width=True)
                         if pwidth > 1.01*totwidth:
                             logger.warning('partial width (%s) larger than total width (%s) --from param_card--')
                         elif pwidth > totwidth:
@@ -1535,7 +1530,6 @@ class MadSpinInterface(extended_cmd.Cmd):
                         br *= pwidth / totwidth**nb_mult
                         br *= math.factorial(nb_mult)
                     else:
-                        #print(f"Spyros 2 : {nb_needed}")
                         evt_decayfile[pdg],pwidth = self.generate_events(pdg, nb_needed, mg5, cumul=True, output_width=True)
                         if pwidth > 1.01*totwidth:
                             logger.warning('partial width (%s) larger than total width (%s) --from param_card--')
