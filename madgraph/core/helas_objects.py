@@ -1597,6 +1597,7 @@ class HelasWavefunction(base_objects.PhysicsObject):
             map = {}
             pdg_in = [w.get_pdg_code() for w in self.get('mothers')]
             flav = [w[tag_name] for w in self.get('mothers')]
+            #misc.sprint(flav, [w['flavor'] for w in self.get('mothers')])
 
             for pdg, flavor in zip(pdg_in,flav):
                 if pdg in map:
@@ -1884,6 +1885,7 @@ class HelasWavefunction(base_objects.PhysicsObject):
                 res.append(self.get('is_part'))
 
         res.append(tuple(self.get('polarization')) )
+        misc.sprint(self.get('flavor'))
         res.append(tuple(self.get('flavor')))
 
         # Check if we need to append a charge conjugation flag

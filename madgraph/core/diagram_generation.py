@@ -1751,7 +1751,7 @@ class MultiProcess(base_objects.PhysicsObject):
         polids = [tuple(leg['polarization'])  for leg in process_definition['legs'] \
                  if leg['state'] == True]
 
-        masses = {id: model.get_particle(id).get('mass')  for leg in process_definition['legs'] for id in leg['ids']} 
+        masses = {id: model.get_particle(abs(id)).get('mass')  for leg in process_definition['legs'] for id in leg['ids']} 
 
         # keep track of the 'is_tagged' property of the legs if needed
         try:
