@@ -352,6 +352,19 @@ class DensityMatrixObservables(list):
         """ Computes the Shannon entropy of x."""
         return - x * np.log2(x) - (1 - x) * np.log2(1 - x)
     
+    def Von_Neumann_entropy(self, rho=None, epsilon=1e-5) -> float:
+        "The Von Neumann entropy of a density matrix can be seen as the Shannon entropy of its eigenvalues"
+        if rho is None:
+            rho = self.square_matrix()
+        eigvals, _ = la.eigh(rho) #eigenvalues of the density matrix
+        entropy = 0.
+        for eig in eigvals:
+            if abs(eig) < epsilon or eig < 0: #if the eigenvalue is zero (or negative because of numerical errors), we do not count it
+                continue
+            entropy += -eig * np.log2(eig)
+
+        return entropy.real
+    
     def Partial_Transpose(self, index:int, particle_type:list[str]) ->list[complex, complex]:
         """
             Input:  rho -> density matrix
@@ -804,10 +817,11 @@ class DensityMatrixObservables22(DensityMatrixObservables):
         
         return rho_corrected
 
-    def Get_Bell_Test(self) -> tuple[list[float], bool]:
+    def CHSH_inequality(self) -> tuple[list[float], bool]:
         '''
             Input: self -> density matrix
             Output: value of the critation, boolean which is True if the inegality is violated
+            This method computes whether the CHSH is violated using the eigenvalues of C^T . C
             This criterion only works for pair of qubits with no polarisation.
         '''
         Correlations = self.Get_Correlations()[0]
@@ -926,6 +940,54 @@ class DensityMatrixObservables22(DensityMatrixObservables):
                 XiDenom += np.trace(np.dot(Pstring, self.square_matrix())) ** 2
         Magic = - np.log2(XiNum / XiDenom)
         return Magic.real
+
+    def Get_Discord(self, maxiter=100) -> float:
+        """
+        Algorithm based on formula (3) from [2209.03969]. It computes Discord for a given density matrix rho.
+        Input: self -> density matrix
+               maxiter -> maximum number of iterations for the minimisation
+        Output: float -> Discord
+        """
+        from scipy.optimize import minimize
+
+        Srho = self.Von_Neumann_entropy() # S(rho)
+        rhoB = self.Partial_Trace(2, ['fermion', 'fermion'])
+        SrhoB = self.Von_Neumann_entropy(rho=rhoB) #S(rho_B)
+
+        B_plus, B_minus = self.Get_Polarisations()
+        Corr, _ = self.Get_Correlations()
+
+        def proba_n(n: list[float]) -> float: #B- = B2
+            return (1 + np.dot(B_minus, n)) / 2
+        def Bn_plus(n: list[float]) -> list[complex]:
+            return np.array(B_plus) + np.dot(Corr,n) / (1 + np.dot(B_minus, n))
+        def rho_n(n: list[float]) -> list[complex, complex]:
+            Bnp = Bn_plus(n)
+            return (np.eye(2) + Bnp[0]*sigma[0] + Bnp[1]*sigma[1] + Bnp[2]*sigma[2])/2
+
+
+        #Here we have the minimisation problem to do on the sphere
+        def objective_function(n: list[float]) -> float: #n is the Boch vector
+            n_opp = [-n[0], -n[1], -n[2]]
+            fun = proba_n(n)*self.Von_Neumann_entropy(rho=rho_n(n)) + proba_n(n_opp)*self.Von_Neumann_entropy(rho=rho_n(n_opp)) #function to minimise
+            return fun.real
+        
+        # Define the constraint for the unit sphere
+        constraints = ({'type': 'eq', 'fun': lambda n: n[0]**2 + n[1]**2 + n[2]**2 - 1})
+
+        # Initial guess
+        vec = np.random.randn(3, 1)
+        vec /= np.linalg.norm(vec, axis=0)
+        x0 = [vec[0][0], vec[1][0], vec[2][0]]
+
+        # Perform the optimization
+        result = minimize(objective_function, x0, constraints=constraints, options={'maxiter': maxiter})
+        min_result = result.fun
+
+        Discord = SrhoB - Srho + min_result
+        
+        return Discord.real
+
 
 
 class DensityMatrixObservables23(DensityMatrixObservables):

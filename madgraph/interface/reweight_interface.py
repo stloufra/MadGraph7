@@ -2275,7 +2275,7 @@ class ReweightInterface(extended_cmd.Cmd):
                 return
             pdir = pjoin(path_me, onedir, 'SubProcesses')
             for tag in [2*metag,2*metag+1]:
-                with misc.TMP_variable(sys, 'path', [pjoin(path_me), pjoin(path_me,'onedir', 'SubProcesses')]+sys.path):      
+                with misc.TMP_variable(sys, 'path', [pjoin(path_me), pjoin(path_me, onedir, 'SubProcesses')]+sys.path):    
                     mod_name = '%s.SubProcesses.allmatrix%spy' % (onedir, tag)
                     #mymod = __import__('%s.SubProcesses.allmatrix%spy' % (onedir, tag), globals(), locals(), [],-1)
                     if mod_name in list(sys.modules.keys()):
@@ -3113,6 +3113,14 @@ class DensityInterface(ReweightInterface):
         if abs(pboost.px/pboost.E) < 1e-10 and abs(pboost.py/pboost.E) < 1e-10 and abs(pboost.pz/pboost.E) < 1e-10:
             #if we try to boost with with a 4-momentum like [M, 0, 0, 0], we return the momenta without any boost
             return all_p
+                
+        if abs(pboost.px/pboost.E) < 1e-10:
+            pboost.px = 0.
+        if abs(pboost.py/pboost.E) < 1e-10:
+            pboost.py = 0.
+        if abs(pboost.pz/pboost.E) < 1e-10:
+            pboost.pz = 0.
+
         new_event.boost(pboost)
         if self.keep_ordering:
             new_all_p = [new_event.get_momenta(orig_order)]

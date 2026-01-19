@@ -899,7 +899,13 @@ class AskRun(cmd.ControlSwitch):
         
         if 'reweight' in self.available_module:
             if os.path.exists(pjoin(self.me_dir,'Cards','reweight_card.dat')):
-                self.switch['reweight'] = 'ON'
+                reweightcard = open(pjoin(self.me_dir,'Cards','reweight_card.dat'), 'r')
+                content = reweightcard.read()
+                if 'change particle_in_density_matrix' in content:
+                    self.switch['reweight'] = 'density'
+                else:
+                    self.switch['reweight'] = 'ON'
+                reweightcard.close()
             else:
                 self.switch['reweight'] = 'OFF'
         else:
@@ -911,18 +917,22 @@ class AskRun(cmd.ControlSwitch):
             content_rwgt_card = open(pjoin(self.me_dir, "Cards", "reweight_card.dat"), "r")
             if 'change particle_in_density_matrix' in content_rwgt_card.read():
                 content_rwgt_card.close()
-                return ["./Cards/reweight_card.dat"] #if reweight_card.dat has information for density matrices, we keep it
+                return [] #if reweight_card.dat has information for density matrices, we keep it
             else:
                 content_rwgt_card.close()
-                return ["./Cards/density_card_default.dat"] #else we overwrite it with density_card_default.dat
+                import shutil
+                shutil.copyfile(pjoin(self.me_dir, "Cards", "density_card_default.dat"), pjoin(self.me_dir, "Cards", "reweight_card.dat"))
+                return []
         elif value in ['ON']:
             content_rwgt_card = open(pjoin(self.me_dir, "Cards", "reweight_card.dat"), "r")
             if 'change particle_in_density_matrix' in content_rwgt_card.read():
                 content_rwgt_card.close()
-                return ["./Cards/reweight_card_default.dat"] #if reweight_card.dat has information for density matrices, we overwrite it with the default because it is reweight mode
+                import shutil
+                shutil.copyfile(pjoin(self.me_dir, "Cards", "reweight_card_default.dat"), pjoin(self.me_dir, "Cards", "reweight_card.dat"))
+                return []
             else:
                 content_rwgt_card.close()
-                return ["./Cards/reweight_card.dat"] #else we keep the current reweight_card.dat
+                return [] #else we keep the current reweight_card.dat
         elif value in ['OFF']:
             return [] #if reweight=OFF, we do not create a reweight_card.dat
         else:
