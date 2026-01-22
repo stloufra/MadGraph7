@@ -1087,6 +1087,7 @@ c
       integer k,l
       integer potential_index(2)
       integer epsilon_index(4)
+      integer epsilon_type ! 1 anti-color and 2 color (correspond to the colummn in lhef)
       integer mothers(2*nexternal-3)
       logical to_change
 
@@ -1096,6 +1097,11 @@ C        the index of the non summed indices do not repeat each other
          do i=-nexternal+3,2*nexternal-3
             if (icol(1,i).eq.mincol.or.icol(2,i).eq.mincol)then
                potential_index(1)=0
+               if (icol(1,i).eq.mincol)then
+                   epsilon_type = 1
+               else
+                   epsilon_type = 2
+               endif
 c               write(*,*) "particle",i,"has color index", mincol
                k=0 !index to see how many child we found so far
                do j=-nexternal+3,2*nexternal-3
@@ -1107,6 +1113,12 @@ c                        write(*,*) "the color", mincol,
 c     &       "is pass to one of the children ->no epsilon at this stage"
 c                       the color flow is pass to a child so no need to do anything for this part/junction                        
                         goto 10 ! break
+                     elseif(icol(1,j).ne.0.and.icol(2,j).ne.0)then
+                         ! sextet involve use epsilon_type to guess the correct
+                         ! index involved in the epsilon
+                         k = k+1
+                         potential_index(k) = icol(epsilon_type,j)
+                         mothers(1) = i 
                      elseif(icol(1,j).ne.0) then
 c             write(*,*) "child has not colour", mincol, "add", icol(1,j)
                         k = k+1
