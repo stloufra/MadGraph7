@@ -3107,9 +3107,9 @@ class DensityInterface(ReweightInterface):
         # Initialisation of the Fortran scripts with param_card.dat
         Initialise_allmatrix = getattr(module, 'initialise')
         Initialise_allmatrix(Card_dir)
-        for i in range(len(prefix_unique)):
-            InitialiseMatrix = getattr(module, prefix_unique[i] + 'initialisemodel')
-            InitialiseMatrix(Card_dir)   
+        #for i in range(len(prefix_unique)):
+        #    InitialiseMatrix = getattr(module, prefix_unique[i] + 'initialisemodel')
+        #    InitialiseMatrix(Card_dir)   
 
         #The prefix is defined for a given event
         for k in range(len(All_PDGs)):
@@ -3117,18 +3117,16 @@ class DensityInterface(ReweightInterface):
                     prefix = prefix_cor[k]
 
         me_value = 0
-        get_density = getattr(module, prefix + 'get_density')
+        get_density = lambda *args: module.py_get_density(orig_order[0]+orig_order[1], *args)  
         for i in range(len(all_p)):
             pinv = self.invert_momenta(all_p[i])
-            production_matrix = get_density(pinv, pos_corrected, self.number_changing_helicities,
+            production_matrix = get_density(-1, pinv, pos_corrected, #self.number_changing_helicities,
                                             self.allowed_helicities, self.number_combinations,
-                                            event.aqcd)            
+                                            event.aqcd)    
             if self.symmetrise_initial_state:
                 pinv_bis = self.invert_momenta(all_p_bis[i])
-                production_matrix_bis = get_density(pinv_bis, pos_corrected, self.number_changing_helicities,
-                                                    self.allowed_helicities, self.number_combinations,
+                production_matrix_bis = get_density(-1, pinv_bis, pos_corrected, self.allowed_helicities, self.number_combinations,
                                                     event.aqcd) #event.aqcd can be also fixed.
-                
 
             if self.symmetrise_initial_state:
                 rho_instance = dens.DensityMatrixObservables(production_matrix + production_matrix_bis, self.number_combinations * (self.number_combinations + 1) / 2)
