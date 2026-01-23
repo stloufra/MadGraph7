@@ -796,8 +796,6 @@ def stdchannel_redirected(stdchannel, dest_filename):
         try:
             logger.debug('no stdout/stderr redirection due to debug level')
             yield
-        finally:
-            return
         
         
 def get_open_fds():
