@@ -793,9 +793,8 @@ def stdchannel_redirected(stdchannel, dest_filename):
             if dest_file is not None:
                 dest_file.close()
     else:
-        try:
-            logger.debug('no stdout/stderr redirection due to debug level')
-            yield
+        logger.debug('no stdout/stderr redirection due to debug level')
+        yield
         
         
 def get_open_fds():
