@@ -35,6 +35,7 @@ C
       INTEGER MAXFLAVOR
       PARAMETER (MAXFLAVOR=%(maxflavor)d)
       INTEGER FLAVOR(NEXTERNAL, MAXFLAVOR)
+      INTEGER PDG_FOR_FLAVOR(NEXTERNAL,MAXFLAVOR)
 C     
 C     EXTERNAL
 C     
@@ -99,7 +100,7 @@ c
       do I=1, MAXFLAVOR
       CALL %(proc_prefix)sSMATRIX(P,FLAVOR(1,I), MATELEM)
 c
-      write(*,*) "flavor", FLAVOR(:,I)
+      write(*,*) "PDG", PDG_FOR_FLAVOR(:,I)
       write (*,*) "Matrix element = ", MATELEM, " GeV^",-(2*nexternal-8)	
       write (*,*) "-----------------------------------------------------------------------------"
       enddo

@@ -961,8 +961,6 @@ param_card.inc: ../Cards/param_card.dat\n\t../bin/madevent treatcards param\n'''
             ids = [l.get('id') for l in legs]
             if any([id in self.model['merged_particles'] for id in ids]):
                 allow_flavor = matrix_element.get_external_flavors_with_iden()
-                for flavor in allow_flavor:
-                    misc.sprint(len(flavor), flavor)
                 for flavor in sum(allow_flavor,[]):
                     ids = [l.get('id') for l in legs]
                     for i,id in enumerate(ids):
@@ -2665,7 +2663,7 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
 
         
         all_flavors  = matrix_element.get_external_flavors(all_perm=False)
-        misc.sprint('found %d flavors, check for identical combination' % len(all_flavors))
+        all_pdgs = [l.get('id') for l in matrix_element.get('processes')[0].get('legs')]
         map_all_flv = {}
         for i, flv1 in  enumerate(all_flavors):
             coup = matrix_element.get_coupling_for_flv(flv1, self.model)
@@ -2685,7 +2683,17 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         for i in range(1, maxflavor+1):
             for j in range(1,1+len(all_flavors[i-1])):
                 if all_flavors[i-1][j-1] != 1:
+                    pdg = all_flavors[i-1][j-1] * all_pdgs[j-1] // abs(all_pdgs[j-1])
                     flavor_text.append('FLAVOR(%d,%d) = %d ! PDG = %d' % (j,i,pdg_to_flv_index[all_flavors[i-1][j-1]], all_flavors[i-1][j-1]))
+                    flavor_text.append('PDG_FOR_FLAVOR(%d,%d) = %d' % (j,i,pdg))
+                elif abs(all_pdgs[j-1]) in self.model.get('merged_particles'):
+                    pdg = all_flavors[i-1][j-1] * all_pdgs[j-1] // abs(all_pdgs[j-1])
+                    flavor_text.append('PDG_FOR_FLAVOR(%d,%d) = %d' % (j,i,pdg)) 
+                else:
+                    flavor_text.append('PDG_FOR_FLAVOR(%d,%d) = %d' % (j,i, all_pdgs[j-1]))
+                    
+                    
+
         flavor_text = '\n        '.join(flavor_text)
         fsock.write(template % {'maxflavor':maxflavor, 'flavor_def': flavor_text,
                                 'proc_prefix':proc_prefix})
@@ -6627,13 +6635,13 @@ class ProcessExporterFortranMEGroup(ProcessExporterFortranME):
 
         filename = 'maxamps.inc'
         # get number of non identical flavor for each matrix element file
-        for me in matrix_elements:
-            misc.sprint(me.get_external_flavors_with_iden())
-            misc.sprint(me.get_nb_flavors())
-        misc.sprint([me.get_nb_flavors() for me in matrix_elements])
+        #for me in matrix_elements:
+            #misc.sprint(me.get_external_flavors_with_iden())
+            #misc.sprint(me.get_nb_flavors())
+        #misc.sprint([me.get_nb_flavors() for me in matrix_elements])
 
         nb_flavor_per_proc = [me.get_nb_flavors() for me in matrix_elements]
-        misc.sprint(os.getcwd(), nb_flavor_per_proc)
+        #misc.sprint(os.getcwd(), nb_flavor_per_proc)
         self.write_maxamps_file(writers.FortranWriter(filename),
                            maxamps,
                            maxflows,
@@ -7144,7 +7152,6 @@ class UFO_model_to_mg4(object):
     def __init__(self, model, output_path, opt=None):
         """ initialization of the objects """
 
-        misc.sprint("pass here") 
         self.model = model
         self.model_name = model['name']
         self.dir_path = output_path
@@ -10514,7 +10521,6 @@ class ProcessExporterFortranMWGroup(ProcessExporterFortranMW):
                            nconfigs)
                            
         nb_flavor_per_proc = matrix_elements.get_nb_flavors()
-        misc.sprint(os.getcwd(), nb_flavor_per_proc)
         self.write_maxamps_file(writers.FortranWriter(filename),
                            maxamps,
                            maxflows,
