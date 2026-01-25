@@ -995,7 +995,6 @@ class Interaction(PhysicsObject):
         if ids_to_merge[0] != -ids_to_merge[1]: 
             get_flav = lambda p: ids_to_merge.index(abs(p.get_pdg_code()))+1 
         else:
-            misc.sprint("use sign", ids_to_merge, [p.get_pdg_code() for p in self.get('particles')])
             # special case for W+/W- merging
             get_flav = lambda p: ids_to_merge.index(p.get_pdg_code())+1
 
@@ -1040,8 +1039,8 @@ class Interaction(PhysicsObject):
         #assert isinstance(other_flavor.get('couplings')[(0,0)], str)
 
         debug = False
-        if new_part is anti_part:
-            debug = True
+        #if new_part is anti_part:
+        #    debug = True
         #debug = True
 
         if ids[0] != -ids[1]: 
@@ -1642,13 +1641,10 @@ class Model(PhysicsObject):
             if any(p.get('pdg_code')in ids for p in inter.get('particles')):
                 key = self.get_get_merge_key(inter, ids, new_part, force_delta=0)
 
-                misc.sprint(key, [p.get_pdg_code() for p in inter.get('particles')])
                 if key in new_interactions:
-                    misc.sprint("update flavor")
                     new_interactions[key].update_flavor(inter, ids, new_part, new_part)
                     self.get('interactions').remove(inter)
                 else:
-                    misc.sprint("update")
                     #inter.pass_interaction_to_flavor_mode(ids, new_part, anti_part)
                     new_interactions[key] = inter
                     inter.pass_interaction_to_flavor_mode(ids, new_part, new_part)

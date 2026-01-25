@@ -5222,9 +5222,6 @@ This implies that with decay chains:
                         if is_tagged:
                             raise self.InvalidCmd(
                                 "%s mode does not handle tagged particles" % LoopOption)
-                        if flavor:
-                            logger.critical("convert process to multi-flavor equivalent (flavor selection is not yet supported)")
-                        
                         myleglist.append(base_objects.MultiLeg({'ids':mylegids,
                                                             'state':state,
                                                             'polarization': polarization,
@@ -9618,6 +9615,8 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
                       
                       
         matrix_elements = self._curr_matrix_elements.get_matrix_elements()
+        if any(l.get('flavor') is None for l in matrix_elements[0].get('processes')[0].get('legs')):
+            [m.get_external_flavors() for m in matrix_elements]  #precompute all flavors
         # Just the matrix.f files
         if self._export_format == 'matrix':
             for me in matrix_elements:

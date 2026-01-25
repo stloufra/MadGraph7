@@ -1483,7 +1483,7 @@ class HelasWavefunction(base_objects.PhysicsObject):
     def nice_string(self, key=None):
         """Return a nice string representation of the wavefunction"""
         if not key or not hasattr(self, key):
-            value=''
+            value=', %s' % key
         else:
             value = ', %s' % self.get(key)
         if self.get('mothers'):
@@ -1518,7 +1518,10 @@ class HelasWavefunction(base_objects.PhysicsObject):
         if abs(flavor_id[i-1]) == abs(self.get('pdg_code')) or flavor_id[i-1] == 1:
             self[tag_name] = 1
         elif abs(self.get('pdg_code')) in model.get('merged_particles'):
-            self[tag_name] = flavor_id[i-1]
+            merged_id = abs(self.get('pdg_code'))
+            curr_id = abs(flavor_id[i-1])
+            curr_flav_index = model['merged_particles'][merged_id].index(curr_id) 
+            self[tag_name] =  curr_flav_index + 1 
         else:
             raise Exception('Not Implemented')
 
@@ -1885,7 +1888,6 @@ class HelasWavefunction(base_objects.PhysicsObject):
                 res.append(self.get('is_part'))
 
         res.append(tuple(self.get('polarization')) )
-        misc.sprint(self.get('flavor'))
         res.append(tuple(self.get('flavor')))
 
         # Check if we need to append a charge conjugation flag
@@ -3635,6 +3637,7 @@ class HelasDiagram(base_objects.PhysicsObject):
             else:
                 valid = wfct.propagate_flavor_tag(model, check_valid_input=True)
                 if not valid:
+                    if debug: misc.sprint("Failed at wfct:", wfct.nice_string('flavortag'))
                     # question do we need to compute the flavor of the following wfct? or we do just have to trash the old assigned flavor?
                     return valid
 
@@ -4165,7 +4168,6 @@ class HelasMatrixElement(base_objects.PhysicsObject):
     def reuse_outdated_wavefunctions(self, helas_diagrams):
         """change the wavefunctions id used in the writer to minimize the 
            memory used by the wavefunctions."""
-        
 
         if not self.optimization:
             for diag in helas_diagrams:
@@ -5160,13 +5162,15 @@ class HelasMatrixElement(base_objects.PhysicsObject):
         restricted_flavor = [None]*len(external_wfs)
         for i,wf in enumerate(external_wfs):
             if wf.get('flavor'):
-                if wf.get('state') == 'final':
-                    restricted_flavor[i] = wf.get('flavor') 
-                else:
-                    restricted_flavor[i] = [-f for f in wf.get('flavor')]
+                restricted_flavor[i] = wf.get('flavor') 
 
         # need to avoid to compute for the permutation(?)
         checked = {}
+
+        allow_triming = False
+        if restricted_flavor != [None]*len(external_wfs):
+            allow_triming = True
+            self.reset_has_flavor()
 
         misc.sprint('need to decide which permutation to keep --only one for the moment--')
         for one_flavor in itertools.product(*[to_map[abs(id)] for id in pdgs]):
@@ -5181,7 +5185,6 @@ class HelasMatrixElement(base_objects.PhysicsObject):
                         skip = True
                         break
                 if skip:
-                    misc.sprint('  skip flavor:', one_flavor)
                     continue
 
 
@@ -5205,10 +5208,17 @@ class HelasMatrixElement(base_objects.PhysicsObject):
                 flavor_list.append(one_flavor)
                 #misc.sprint('checking flavor:', pdg, one_flavor, True)
                 checked[pdg] = True
+                if allow_triming:
+                    self.check_flavor_for_all_diagrams(one_flavor, model)
             else:
                 #misc.sprint('checking flavor:', pdg, one_flavor, False)
                 checked[pdg] = False
-        
+
+        if allow_triming:
+            self.remove_diagrams_without_flavor()
+            if len(self.get('diagrams')) == 0:
+                raise self.PhysicsObjectError("No diagram left after trimming for flavor!")
+             
         self['allowed_flavors'] = flavor_list
         return flavor_list
     
@@ -5239,6 +5249,114 @@ class HelasMatrixElement(base_objects.PhysicsObject):
                 return True
         if debug: misc.sprint('no diag for ', real_pdgs)
         return False
+    
+    def reset_has_flavor(self):
+        """reset the has_flavor attribute for all diagrams"""
+        misc.sprint('resetting has_flavor for all diagrams')
+        for diag in self.get('diagrams'):
+            diag.has_flavor = False
+    
+    def check_flavor_for_all_diagrams(self, real_pdgs, model, debug=False):
+        """check which feynman diagram is compatible with the pdg codes replaced by the real_pdgs
+           flag those diagrams with has_flavor attribute set to True.
+           Such that all those with has_flavor = False can be trimmed later on.
+        """
+        misc.sprint('checking flavor for all diagrams:', real_pdgs, debug)
+        for i, diag in enumerate(self.get('diagrams')):
+            if not diag.has_flavor:
+                if diag.check_flavor(real_pdgs, model, debug=debug):
+                    diag.has_flavor = True
+                    if debug: misc.sprint('diag', i, 'is ok')
+                else:
+                    if debug: misc.sprint('diag', i, 'not ok')
+            else:
+                if debug: misc.sprint('diag', i, 'already ok')
+
+    def remove_diagrams_without_flavor(self):
+        """remove all diagrams which do not have has_flavor attribute set to True.
+           This is used after check_flavor_for_all_diagrams to trim the ME.
+        """
+
+        # helper functions to recursively store and restore dropped wfcts
+        def store_dropped(wft, def_wfct):
+
+            out = {}
+            out[wft.get('number')] = wft
+            for wf in wft.get('mothers'):
+                if wf.get('number') not in def_wfct:
+                    out.update(store_dropped(wf, def_wfct))
+            return out
+        
+        def restore_dropped(wft, dropped_wfct, def_wfct, diag):
+            """diag is the diagram to which assiciated the wfct 
+               wft is the wfct to check recursively (and be sure that it is not dropped)
+               dropped_wfct is the dict of dropped wfct (key is the wfct number and value the wfct object)
+               def_wfct is the set of currently defined wfct number (so not need to restore it)"""
+
+            for wf in wft.get('mothers')[:]:
+                if wf.get('number') in dropped_wfct:
+                    tmp = diag.get('wavefunctions')
+                    tmp.insert(0,dropped_wfct[wf.get('number')])
+                    del dropped_wfct[wf.get('number')]
+                    def_wfct.add(wf.get('number'))
+                    # start recursion
+                    restore_dropped(wf, dropped_wfct, def_wfct, diag)
+                else:
+                    def_wfct.add(wf.get('number'))
+                    
+
+        debug = False
+
+        # store which diagram
+        dropped_wfct = {}
+        def_wfct = set()
+        for diag in self.get('diagrams')[:]:
+            if debug:
+                misc.sprint('NEXT DIAG -> used wfcts:')
+                for wf in diag['wavefunctions']:
+                    misc.sprint(wf.nice_string(), [wf.get('number') for wf in wf['mothers']], wf.get('number'), wf.get('coupling'))
+                    misc.sprint(wf.get('interaction_id'))
+                    if wf.get('interaction_id'):#wf.get('coupling') is ['none']:
+                        model = self.get('processes')[0].get('model')
+                        vertex = model.get('interaction_dict')[wf.get('interaction_id')]
+                        misc.sprint(vertex['couplings'])      
+   
+                misc.sprint('new amp')
+                for amp in diag['amplitudes']:
+                    misc.sprint(amp.nice_string(), [wf.get('number') for wf in amp['mothers']], amp.get('number'))
+            if not diag.has_flavor:
+                if debug: misc.sprint('dropping diagram')
+                for wf in diag['wavefunctions']:
+                    if debug: misc.sprint('dropping wfct number %d'%(wf.get('number')))
+                    dropped_wfct.update(store_dropped(wf, def_wfct))
+            else:
+                # need to check if the wfct has not been dropped already
+                if debug: misc.sprint('keeping diagram -> check wfcts')
+                for wf in diag['wavefunctions'][:]:
+                    def_wfct.add(wf.get('number'))
+                    restore_dropped(wf, dropped_wfct, def_wfct, diag)
+                for wf in diag['amplitudes'][:]:
+                    def_wfct.add(wf.get('number'))
+                    restore_dropped(wf, dropped_wfct, def_wfct, diag)
+
+        initial_len = len(self.get('diagrams'))
+
+        self['diagrams'] = HelasDiagramList([diag for diag in self.get('diagrams') if diag.has_flavor])
+        final_len = len(self.get('diagrams'))
+        if final_len < initial_len:
+            logger.info('removed %d diagrams which were incompatible with flavor restriction'% (initial_len - final_len))
+
+        # reset wfct numbers for those dropped
+        for i,wfct in enumerate(self.get_all_wavefunctions()):
+            wfct.set('number', i+1)
+        # reset wfct numbers for those dropped
+        for i,amp in enumerate(self.get_all_amplitudes()):
+            amp.set('number', i+1)
+                        
+        
+        if final_len == 0:
+            raise self.PhysicsObjectError("No diagram left after trimming for flavor!")
+        
     
     def check_helicity(self, helicity):
         """check if any feynman diagram is compatible with the given helicity"""
