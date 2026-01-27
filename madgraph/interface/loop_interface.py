@@ -311,9 +311,6 @@ class CommonLoopInterface(mg_interface.MadGraphCmd):
             assert self.options['apply_flavor_grouping'] == False
             model_name = self._curr_model.get('name')
             self.exec_cmd(" import model %s" % (model_name), precmd=True)
-        else:
-            self._curr_model = None
-            logger.debug('No merged particles in the model for loop computations')
         
         if not isinstance(self._curr_model,loop_base_objects.LoopModel) or \
            self._curr_model['perturbation_couplings']==[] or \

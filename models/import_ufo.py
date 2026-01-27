@@ -395,6 +395,7 @@ def import_full_model(model_path, decay=False, prefix='', options={}):
         pickle_name = 'dec_%s' % pickle_name
     if six.PY3:
         pickle_name = 'py3_%s' % pickle_name
+    model = None
     
     allow_reload = False
     if files.is_uptodate(os.path.join(model_path, pickle_name), files_list):
