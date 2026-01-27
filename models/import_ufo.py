@@ -966,6 +966,10 @@ class UFOMG5Converter(object):
                 return get_coeff(lor), 0
             elif "ProjM(-1,1)" in lor:
                 return 0, get_coeff(lor)
+            elif "ProjP(%s,1)" in lor:
+                return get_coeff(lor), 0
+            elif "ProjM(%s,1)" in lor:
+                return 0, get_coeff(lor)
             else:
                 misc.sprint(lor)
                 raise Exception("Not implemented")
