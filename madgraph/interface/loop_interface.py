@@ -305,13 +305,21 @@ class CommonLoopInterface(mg_interface.MadGraphCmd):
 ##        if coupling_type!= ['QCD'] and loop_type not in ['virtual','noborn']:
 ##            c = ' '.join(coupling_type)
 ##            raise self.InvalidCmd('MG5aMC can only handle QCD at NLO accuracy.\n We can however compute loop with [virt=%s].\n We can also compute cross-section for loop-induced processes with [noborn=%s]' % (c,c))
+        if self._curr_model.merged_particles:
+            logger.debug('Unmerge particles for loop computations')
+            self.exec_cmd('set apply_flavor_grouping False', precmd=True)
+            assert self.options['apply_flavor_grouping'] == False
+            model_name = self._curr_model.get('name')
+            self.exec_cmd(" import model %s" % (model_name), precmd=True)
+        else:
+            self._curr_model = None
+            logger.debug('No merged particles in the model for loop computations')
         
-
         if not isinstance(self._curr_model,loop_base_objects.LoopModel) or \
            self._curr_model['perturbation_couplings']==[] or \
            any((coupl not in self._curr_model['perturbation_couplings']) \
            for coupl in coupling_type):
-            if loop_type.startswith('real') or loop_type == 'LOonly':
+            if loop_type.startswith('real') or loop_type == 'LOonly' and self._curr_model:
                 if loop_type == 'real':
                     logger.info(\
                       "Beware that real corrections are generated from a tree-level model.")

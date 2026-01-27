@@ -251,7 +251,7 @@ def import_model(model_name, decay=False, restrict=True, prefix='mdl_',
     model_path, restrict_file, restrict_name = get_path_restrict(model_name, restrict)
     
     #import the FULL model
-    model = import_full_model(model_path, decay, prefix)
+    model = import_full_model(model_path, decay, prefix, options=options)
 
     if os.path.exists(pjoin(model_path, "README")):
         logger.info("Please read carefully the README of the model file for instructions/restrictions of the model.",'$MG:color:BLACK') 
@@ -327,10 +327,27 @@ def import_model(model_name, decay=False, restrict=True, prefix='mdl_',
  
     if options.get('apply_flavor_grouping', True):
         logger.info("Apply flavor grouping to the model")
-        model.merge_flavor([1,2,3,4])
-        #model.merge_flavor([1,3])
-        #model.merge_flavor([2,4])
-        model.merge_flavor([11,13])
+        if model.get_particle(2).get('mass') != 'ZERO':
+            logger.info('no grouping quark due to massive u quark')
+        elif model.get_particle(3).get('mass') != 'ZERO':
+            model.merge_flavor([1,2])
+        elif model.get_particle(4).get('mass') != 'ZERO':
+            model.merge_flavor([1,2,3])
+        elif model.get_particle(5).get('mass') != 'ZERO':
+            model.merge_flavor([1,2,3,4])
+        elif model.get_particle(6).get('mass') != 'ZERO':
+            model.merge_flavor([1,2,3,4,5])
+        else:
+            model.merge_flavor([1,2,3,4,5,6])
+        if model.get_particle(11).get('mass') != 'ZERO':
+            logger.info('no grouping lepton due to massive electron')
+        elif model.get_particle(13).get('mass') != 'ZERO':
+            logger.info('no grouping lepton due to massive muon')
+        elif model.get_particle(15).get('mass') != 'ZERO':
+            model.merge_flavor([11,13])
+        else:
+            model.merge_flavor([11,13,15])
+
         model.merge_flavor([12,14,16])
         #misc.sprint('W merging')
         #model.merge_part_antipart(24)  # W+/W-
@@ -339,7 +356,7 @@ def import_model(model_name, decay=False, restrict=True, prefix='mdl_',
     
 
 _import_once = []
-def import_full_model(model_path, decay=False, prefix=''):
+def import_full_model(model_path, decay=False, prefix='', options={}):
     """ a practical and efficient way to import one of those models 
         (no restriction file use)"""
 
@@ -347,6 +364,8 @@ def import_full_model(model_path, decay=False, prefix=''):
     
     if prefix is True:
         prefix='mdl_'
+    
+    FFV = options.get('apply_flavor_grouping', True)
         
     # Check the validity of the model
     files_list_prov = ['couplings.py','lorentz.py','parameters.py',
@@ -380,12 +399,24 @@ def import_full_model(model_path, decay=False, prefix=''):
     allow_reload = False
     if files.is_uptodate(os.path.join(model_path, pickle_name), files_list):
         allow_reload = True
+        bypass_pkl = False
         try:
             model = save_load_object.load_from_file( \
                                           os.path.join(model_path, pickle_name))
         except Exception as error:
             logger.info('failed to load model from pickle file. Try importing UFO from File')
         else:
+            #check if FFV modification was apply or not (important for NLO which is not compatible with FFV)
+            all_coup_name =[coupl.name  for coupls in model.get('couplings').values() for coupl in coupls] 
+            if not FFV:
+                if any('FFV' in name for name in all_coup_name):
+                    logger.info('reload from .py file')
+                    bypass_pkl = True                        
+            else:
+                if all(not 'FFV' in name for name in all_coup_name):
+                    logger.info('reload from .py file')
+                    bypass_pkl = True
+
             # We don't care about the restrict_card for this comparison
             if 'version_tag' in model and not model.get('version_tag') is None and \
                 model.get('version_tag').startswith(os.path.realpath(model_path)) and \
@@ -397,36 +428,36 @@ def import_full_model(model_path, decay=False, prefix=''):
                         if value in ['as','mu_r', 'zero','aewm1']:
                             continue
                         if prefix:
-                            if value.startswith(prefix):
-                                _import_once.append((model_path, aloha.unitary_gauge, prefix, decay))
-                                return model
-                            else:
+                            if not  value.startswith(prefix):
                                 logger.info('reload from .py file')
+                                bypass_pkl = True
                                 break
-                        else:
-                            if value.startswith('mdl_'):
+                        elif value.startswith('mdl_'):
                                 logger.info('reload from .py file')
+                                bypass_pkl = True
                                 break                   
-                            else:
-                                _import_once.append((model_path, aloha.unitary_gauge, prefix, decay))
-                                return model
                     else:
                         continue
                     break                                         
             else:
                 logger.info('reload from .py file')
+                bypass_pkl = True
 
+        if not bypass_pkl and model:
+            logger.debug('use model from pickle file %s', os.path.join(model_path, pickle_name))
+            _import_once.append((model_path, aloha.unitary_gauge, prefix, decay))
+            return model
+        
     if (model_path, aloha.unitary_gauge, prefix, decay) in _import_once and not allow_reload:
         raise MadGraph5Error('This model %s is modified on disk. To reload it you need to quit/relaunch MG5_aMC ' % model_path)
      
     # Load basic information
     ufo_model = ufomodels.load_model(model_path, decay)
-    ufo2mg5_converter = UFOMG5Converter(ufo_model)    
+    ufo2mg5_converter = UFOMG5Converter(ufo_model, FFV=options.get('apply_flavor_grouping', True),)    
     model = ufo2mg5_converter.load_model()
     if model_path[-1] == '/': model_path = model_path[:-1] #avoid empty name
     model.set('name', os.path.split(model_path)[-1])
 
-    misc.sprint(ufo2mg5_converter.additional_couplings)
     # Load the Parameter/Coupling in a convenient format.
     parameters, couplings = OrganizeModelExpression(ufo_model).main(\
              additional_couplings = ufo2mg5_converter.additional_couplings)
@@ -2418,7 +2449,6 @@ class OrganizeModelExpression:
 #                                 delattr(newCoupling,"CTparam_dependence")
                             couplings_list.append(newCoupling)
         else:
-            misc.sprint(self.model.all_couplings)
             couplings_list = self.model.all_couplings + additional_couplings
             couplings_list = [c for c in couplings_list if not isinstance(c.value, dict)] 
             
