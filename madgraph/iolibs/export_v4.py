@@ -3093,6 +3093,11 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         fsock.write(text)   
         fsock.close()
 
+        #important to put that first
+        if self.format == 'standalone':
+            filename2 = pjoin(dirpath, 'check_sa.f')
+            self.write_check_sa(writers.FortranWriter(filename2), matrix_element, proc_prefix)
+
 
         replace_dict = self.write_matrix_element_v4(
             writers.FortranWriter(filename),
@@ -3140,9 +3145,7 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         self.write_ngraphs_file(writers.FortranWriter(filename),
                            len(matrix_element.get_all_amplitudes()))
         
-        if self.format == 'standalone':
-            filename = pjoin(dirpath, 'check_sa.f')
-            self.write_check_sa(writers.FortranWriter(filename), matrix_element, proc_prefix)
+
 
         # Generate diagrams
         if not 'noeps' in self.opt['output_options'] or self.opt['output_options']['noeps'] != 'True':

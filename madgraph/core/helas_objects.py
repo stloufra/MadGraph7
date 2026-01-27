@@ -6534,6 +6534,10 @@ class HelasMultiProcess(base_objects.PhysicsObject):
                     # Go on to next amplitude
                     continue
             
+            for matrix_element in matrix_element_list:
+                if any(l.get('flavor') for l in matrix_element.get_all_wavefunctions()):
+                    matrix_element.get_external_flavors()
+
             # Deal with newly generated matrix elements
             for matrix_element in copy.copy(matrix_element_list):
                 assert isinstance(matrix_element, HelasMatrixElement), \
