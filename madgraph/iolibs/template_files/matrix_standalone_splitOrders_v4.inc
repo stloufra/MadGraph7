@@ -630,7 +630,8 @@ c
       INTEGER IC(NEXTERNAL)
 
       DOUBLE COMPLEX AMP(NGRAPHS)
-      DOUBLE COMPLEX JAMP(NCOLOR, NAMPSO, 3*NEXTERNAL)
+      DOUBLE COMPLEX, ALLOCATABLE:: JAMP(:,:,:)
+      integer, save :: s_ncomb = -1
 c
 c     LOCAL
 c
@@ -639,6 +640,13 @@ c
 C ----------
 C BEGIN CODE
 C ----------
+      if (allocated(jamp).and. n_comb.ne.s_ncomb)then
+         deallocate(jamp)
+      endif
+      if (.not.allocated(jamp))then
+        allocate(jamp(ncolor, NAMPSO, N_COMB))
+        s_ncomb=n_comb
+      endif
       IC(:)=1
       do I = 1, N_COMB
          do N = 1, N_CHANGING
