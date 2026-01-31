@@ -8113,7 +8113,7 @@ C
 
         
         # max size needed for the couplings
-        max_flavor = max([len(ids) for ids in self.model['merged_particles'].values()])
+        max_flavor = max([len(ids) for ids in self.model['merged_particles'].values()], default=0)
 
         if self.vector_size:
             include_vector = "include \'../vector.inc\'\n"

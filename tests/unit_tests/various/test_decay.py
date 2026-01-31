@@ -1462,7 +1462,7 @@ class Test_Channel(unittest.TestCase):
         """ Set up necessary objects for the test"""
 
         if not hasattr(self, 'my_testmodel_base'):
-            self.my_testmodel_base = import_ufo.import_model('sm')            
+            self.my_testmodel_base = import_ufo.import_model('sm',options={'apply_flavor_grouping':True})            
 
         #Import a model from my_testmodel
         self.my_testmodel = decay_objects.DecayModel(self.my_testmodel_base, True)
@@ -1516,7 +1516,7 @@ class Test_Channel(unittest.TestCase):
                 vert_2 = copy.deepcopy(vertex)
                 vert_3 = copy.deepcopy(vertex)
                 vert_6 = copy.deepcopy(vertex)
-            elif legs_set == set([-13, 14, 24]):
+            elif legs_set == set([-13, 14, 24]) or legs_set == {24, 83, -82}:
                 # w- > mu- vm~ (decay of antiparticle)
                 # w+ > mu+ vm
                 vert_4 = copy.deepcopy(vertex)

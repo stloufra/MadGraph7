@@ -374,7 +374,7 @@ class ProcessExporterPython(object):
         couplings = misc.make_unique([c.replace('-', '') for func \
                               in matrix_element.get_all_wavefunctions() + \
                               matrix_element.get_all_amplitudes() for c in func.get('coupling')
-                              if func.get('mothers') ])
+                              if func.get('mothers') and  isinstance(c, str)])
         
         return "\n        ".join([\
                          "%(param)s = model.get(\'parameter_dict\')[\"%(param)s\"]"\

@@ -324,8 +324,23 @@ def import_model(model_name, decay=False, restrict=True, prefix='mdl_',
             # It might be that the default of the model (i.e. 'CMSParam') is CMS.
             model.change_mass_to_complex_scheme(toCMS=False, bypass_check=allow_qed)
 
- 
-    if options.get('apply_flavor_grouping', True):
+    # forbid NLO model to use flavor grouping
+    try:
+        perturb = model.get('perturbation_couplings')
+    except Exception:
+        support_flavor = True
+    else:
+        misc.sprint(perturb)
+        if perturb:
+            support_flavor = False  
+        else:
+            support_flavor = True
+
+    # forbid 4Fermion model to use flavor grouping
+    if any(lor.spins.count(2)>2 for lor in model.get('lorentz')):
+        support_flavor = False
+
+    if options.get('apply_flavor_grouping', True) and support_flavor:
         logger.info("Apply flavor grouping to the model")
         if model.get_particle(2).get('mass') != 'ZERO':
             logger.info('no grouping quark due to massive u quark')
@@ -556,13 +571,15 @@ class UFOMG5Converter(object):
         if self.perturbation_couplings!={}:
             self.model = loop_base_objects.LoopModel({'perturbation_couplings':\
                                                 list(self.perturbation_couplings.keys())})
+            self.FFV_optim = False
         else:
-            self.model = base_objects.Model()                        
+            self.model = base_objects.Model() 
+            self.FFV_optim = FFV                       
         self.model.set('particles', self.particles)
         self.model.set('interactions', self.interactions)
         self.conservecharge = set(['charge'])
         
-        self.FFV_optim = FFV
+        
 
         if hasattr(model, 'startfromalpha0'):
             startfromalpha = bannermod.ConfigFile.format_variable(model.startfromalpha0, bool, name="startfromalpha0")
@@ -966,9 +983,9 @@ class UFOMG5Converter(object):
                 return get_coeff(lor), 0
             elif "ProjM(-1,1)" in lor:
                 return 0, get_coeff(lor)
-            elif "ProjP(%s,1)" in lor:
+            elif re.search(r"ProjP\((['\"])[\w\s]*\1,1\)" , lor): 
                 return get_coeff(lor), 0
-            elif "ProjM(%s,1)" in lor:
+            elif re.search(r"ProjM\((['\"])[\w\s]*\1,1\)" , lor):
                 return 0, get_coeff(lor)
             else:
                 misc.sprint(lor)
@@ -2154,6 +2171,10 @@ class UFOMG5Converter(object):
             return self.add_lorentz_create_name(spins, expr)
         logger.debug('MG5 converter defines %s to %s', name, expr)
         assert name not in [l.name for l in self.model['lorentz']]
+
+        if not hasattr(self.ufomodel, 'object_library'):
+            raise InvalidModel('The UFO model does not have an object_library attribute. Unable to add lorentz %s' % name)
+
         with misc.TMP_variable(self.ufomodel.object_library, 'all_lorentz', 
                                self.model['lorentz']):
             new = self.model['lorentz'][0].__class__(name = name,

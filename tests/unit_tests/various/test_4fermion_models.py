@@ -60,13 +60,27 @@ class Models4FermionTest(unittest.TestCase):
         myleglist.append(base_objects.Leg({'id':6}))
         myleglist.extend([base_objects.Leg({'id':21}) for i in range(nglue)])
 
+        myleglist_flavor = base_objects.LegList()
+        myleglist_flavor.append(base_objects.Leg({'id':81,
+                                           'state':False}))
+        myleglist_flavor.append(base_objects.Leg({'id':81,
+                                           'state':False}))
+        myleglist_flavor.append(base_objects.Leg({'id':6}))
+        myleglist_flavor.append(base_objects.Leg({'id':6}))
+        myleglist_flavor.extend([base_objects.Leg({'id':21}) for i in range(nglue)])        
+
         values = {}
         p = None
         for model in 'scalar', '4ferm':
 
+
             base_model = eval('self.base_model_%s' % model)
             full_model = eval('self.full_model_%s' % model)
-            myproc = base_objects.Process({'legs':myleglist,
+            if model == 'scalar':
+                myproc = base_objects.Process({'legs':myleglist_flavor,
+                                               'model':base_model})
+            else:
+                myproc = base_objects.Process({'legs':myleglist,
                                            'model':base_model})
 
             evaluator = process_checks.MatrixElementEvaluator(base_model,
