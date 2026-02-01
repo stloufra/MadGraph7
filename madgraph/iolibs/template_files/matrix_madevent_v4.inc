@@ -191,6 +191,8 @@ c          WRITE(HEL_BUFF,'(20i5)')(NHEL(II,I),II=1,NEXTERNAL)
  
  
 REAL*8 FUNCTION MATRIX%(proc_id)s(P,NHEL,IC, IVEC)
+use model_object
+use aloha_object
 C  
 %(info_lines)s
 C
@@ -235,7 +237,7 @@ C
     INTEGER CF(NCOLOR*(NCOLOR+1))
     INTEGER CF_INDEX,DENOM
     COMPLEX*16 AMP(NGRAPHS), JAMP(NCOLOR,NAMPSO)
-    COMPLEX*16 W(18,NWAVEFUNCS)
+    type(aloha) W(NWAVEFUNCS)
 C   Needed for v4 models
     COMPLEX*16 DUM0,DUM1
     DATA DUM0, DUM1/(0d0, 0d0), (1d0, 0d0)/

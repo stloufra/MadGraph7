@@ -2898,7 +2898,7 @@ class Test_DecayAmplitude(unittest.TestCase):
 
     def setUp(self):
         """ Set up necessary objects for the test"""
-        self.my_testmodel_base = import_ufo.import_model('sm')
+        self.my_testmodel_base = import_ufo.import_model('sm')#, options={'apply_flavor_grouping':False})
         #Import a model from my_testmodel
         self.my_testmodel = decay_objects.DecayModel(self.my_testmodel_base, True)
         param_path = os.path.join(_file_path,'../input_files/param_card_sm.dat')

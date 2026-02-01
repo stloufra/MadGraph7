@@ -4666,9 +4666,11 @@ class ProcessExporterFortranME(ProcessExporterFortran):
                              matrix_element)
 
         filename = pjoin(Ppath, 'maxamps.inc')
+        nb_flavor_per_proc = matrix_element.get_nb_flavors() 
         self.write_maxamps_file(writers.FortranWriter(filename),
                            len(matrix_element.get('diagrams')),
                            ncolor,
+                           nb_flavor_per_proc,
                            len(matrix_element.get('processes')),
                            1)
 
