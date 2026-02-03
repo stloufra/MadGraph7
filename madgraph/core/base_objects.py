@@ -1250,6 +1250,7 @@ class Model(PhysicsObject):
         self['startfromalpha0'] = False
         # attribute which might be define if needed
         #self['name2pdg'] = {'name': pdg}
+        #self['unmerged_interactions'] = InteractionList()
         
         
 
@@ -1571,6 +1572,9 @@ class Model(PhysicsObject):
         (lorentz, color, flavor).
         The ids is the list of index of the particles to merge, 
         the associated flavor index will start at one"""
+
+        if not hasattr(self, 'unmerged_interactions'):
+            self['unmerged_interactions'] = InteractionList()
         
         # get the particle to merge into
         new_part, anti_part = self.define_merge_particle_for(ids)
@@ -1594,10 +1598,17 @@ class Model(PhysicsObject):
                 if key in new_interactions:
                     new_interactions[key].update_flavor(inter, ids, new_part, anti_part)
                     self.get('interactions').remove(inter)
+                    if not any(p.get('pdg_code') in self['merged_particles'] for p in inter.get('particles')):
+                        self['unmerged_interactions'].append(inter)
                 else:
                     #inter.pass_interaction_to_flavor_mode(ids, new_part, anti_part)
-                    new_interactions[key] = inter
-                    inter.pass_interaction_to_flavor_mode(ids, new_part, anti_part)
+                    self.get('interactions').remove(inter)
+                    newinter = copy.deepcopy(inter)
+                    new_interactions[key] = newinter
+                    newinter.pass_interaction_to_flavor_mode(ids, new_part, anti_part)
+                    self.get('interactions').append(newinter)
+                    if not any(p.get('pdg_code') in self['merged_particles'] for p in inter.get('particles')):
+                        self['unmerged_interactions'].append(inter)
                 
                         
         # for vertex which preserve flavor and has identical couplings. Move it back
@@ -1612,6 +1623,32 @@ class Model(PhysicsObject):
                             if len([k for k in fkey if k]) == 2:
                                 inter.get('couplings')[key] = new_coup
                             break
+
+    def unmerge_flavors(self):
+        """Unmerge a previously merged flavor particle.
+        The id is the index of the merged particle to unmerge.
+        The associated interactions will be unmerged back to standard ones.
+        """
+        if not self['merged_particles']:
+            return #nothing to unmerge
+
+        for inter in self.get('interactions')[:]:
+            #misc.sprint("check inter", [p.get('pdg_code') for p in inter.get('particles')])
+            for pdg, ids in self['merged_particles'].items():
+                if any(abs(p.get('pdg_code')) == pdg for p in inter.get('particles')):
+                    self.get('interactions').remove(inter)
+                    #misc.sprint("remove", [p.get('pdg_code') for p in inter.get('particles')])
+                    break
+
+        self.get('interactions').__iadd__(self['unmerged_interactions'])
+
+        for pdg in self['merged_particles'].keys():
+            merged_part = self.get_particle(pdg)
+            self.get('particles').remove(merged_part)
+            del self["particle_dict"][pdg]
+            del self["particle_dict"][-pdg]
+        self['merged_particles'] = {}
+        del self['unmerged_interactions']
 
     def merge_part_antipart(self, id):
         """Merge a particle with its anti-particle into a single

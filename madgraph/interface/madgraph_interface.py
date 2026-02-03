@@ -7982,6 +7982,11 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
         else:
             export_v4.ProcessExporterFortranMEGroup.grouped_mode = 'madevent'
 
+        # remove flavor special handling for non grouped case
+        if args[1].lower() == 'False':
+            self._curr_model.unmerge_flavors()
+
+
     def set2_stdout_level(self, args, log=True):
         """Set the level of output information.  Options are:
               DEBUG, INFO, WARNING, ERROR, CRITICAL, 5
