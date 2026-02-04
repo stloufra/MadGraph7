@@ -1603,7 +1603,7 @@ class Model(PhysicsObject):
                 else:
                     #inter.pass_interaction_to_flavor_mode(ids, new_part, anti_part)
                     self.get('interactions').remove(inter)
-                    newinter = copy.deepcopy(inter)
+                    newinter = inter.__class__(inter)
                     new_interactions[key] = newinter
                     newinter.pass_interaction_to_flavor_mode(ids, new_part, anti_part)
                     self.get('interactions').append(newinter)
