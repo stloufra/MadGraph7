@@ -58,7 +58,7 @@ class Test_DecayParticle(unittest.TestCase):
 
         #Import a model from my_testmodel
         self.sm_path = import_ufo.find_ufo_path('sm')
-        self.my_testmodel_base = import_ufo.import_model(self.sm_path)
+        self.my_testmodel_base = import_ufo.import_model(self.sm_path, options={'apply_flavor_grouping':False}  )
         self.my_testmodel = decay_objects.DecayModel(self.my_testmodel_base, 
                                                      True)
         param_path = os.path.join(_file_path,'../input_files/param_card_sm.dat')

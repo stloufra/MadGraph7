@@ -1546,7 +1546,10 @@ class Model(PhysicsObject):
                             c = next(iter(inter.get('couplings').values()))
                             f = next(iter(c['flavors']))
                             change[i] =  9 + 2 * f[pos]
-            delta = (change[1]-change[0]) % 6
+            if len(change) == 2:
+                delta = (change[1]-change[0]) % 6
+            else:
+                delta = 0
             # Here is the delta value for standard combination
             #   u c t  #   e  mu tau #    82(1) 82(2) 82(3)
             # d 1 3 5  #ve 5  1  3   # ve  5 .  1 .   3   #ve
@@ -1603,7 +1606,8 @@ class Model(PhysicsObject):
                 else:
                     #inter.pass_interaction_to_flavor_mode(ids, new_part, anti_part)
                     self.get('interactions').remove(inter)
-                    newinter = inter.__class__(inter)
+                    newinter = copy.deepcopy(inter)
+                    newinter.set('color', inter.get('color')) # avoid deepcopy issue with color objects
                     new_interactions[key] = newinter
                     newinter.pass_interaction_to_flavor_mode(ids, new_part, anti_part)
                     self.get('interactions').append(newinter)

@@ -330,7 +330,6 @@ def import_model(model_name, decay=False, restrict=True, prefix='mdl_',
     except Exception:
         support_flavor = True
     else:
-        misc.sprint(perturb)
         if perturb:
             support_flavor = False  
         else:

@@ -112,12 +112,12 @@ class TestSchannelModels(Models4FermionTest):
         
 
        
-        self.base_model_4ferm = import_ufo.import_model('uutt_sch_4fermion')
+        self.base_model_4ferm = import_ufo.import_model('uutt_sch_4fermion', options={'apply_flavor_grouping':False})
         self.full_model_4ferm = \
                                model_reader.ModelReader(self.base_model_4ferm)
         self.full_model_4ferm.set_parameters_and_couplings()
         
-        self.base_model_scalar = import_ufo.import_model('sextet_diquarks')
+        self.base_model_scalar = import_ufo.import_model('sextet_diquarks', options={'apply_flavor_grouping':False})
         self.full_model_scalar = \
                                model_reader.ModelReader(self.base_model_scalar)
         self.full_model_scalar.set_parameters_and_couplings()

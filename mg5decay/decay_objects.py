@@ -1339,6 +1339,9 @@ class DecayModel(model_reader.ModelReader):
                 except:
                     pass
 
+        if self.get('merged_particles'):
+            self.unmerge_flavors()
+
         
     def default_setup(self):
         """The particles is changed to ParticleList"""
