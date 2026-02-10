@@ -25,6 +25,7 @@ namespace
   void* initialize_impl(
     const fptype* momenta,
     const fptype* couplings,
+    const unsigned int* flavor_indices,
     fptype* matrix_elements,
 #ifdef MGONGPUCPP_GPUIMPL
     fptype* color_jamps,
@@ -35,7 +36,7 @@ namespace
   {
     bool is_good_hel[CPPProcess::ncomb];
     sigmaKin_getGoodHel(
-      momenta, couplings, matrix_elements, numerators, denominators,
+      momenta, couplings, flavor_indices, matrix_elements, numerators, denominators,
 #ifdef MGONGPUCPP_GPUIMPL
       color_jamps,
 #endif
@@ -48,6 +49,7 @@ namespace
   void initialize(
     const fptype* momenta,
     const fptype* couplings,
+    const unsigned int* flavor_indices,
     fptype* matrix_elements,
 #ifdef MGONGPUCPP_GPUIMPL
     fptype* color_jamps,
@@ -57,7 +59,7 @@ namespace
     std::size_t count )
   {
     // static local initialization is called exactly once in a thread-safe way
-    static void* dummy = initialize_impl( momenta, couplings, matrix_elements,
+    static void* dummy = initialize_impl( momenta, couplings, flavor_indices, matrix_elements,
 #ifdef MGONGPUCPP_GPUIMPL
                                           color_jamps,
 #endif
@@ -94,11 +96,13 @@ namespace
     const double* color_random_in,
     const double* diagram_random_in,
     const double* alpha_s_in,
+    const unsigned int* flavor_indices_in,
     fptype* momenta,
     fptype* helicity_random,
     fptype* color_random,
     fptype* diagram_random,
     fptype* g_s,
+    unsigned int* flavor_indices,
     std::size_t count,
     std::size_t stride,
     std::size_t offset )
@@ -111,6 +115,7 @@ namespace
     helicity_random[i_event] = helicity_random_in ? helicity_random_in[i_event + offset] : 0.5;
     color_random[i_event] = color_random_in ? color_random_in[i_event + offset] : 0.5;
     g_s[i_event] = alpha_s_in ? sqrt( 4 * M_PI * alpha_s_in[i_event + offset] ) : 1.2177157847767195;
+    flavor_indices[i_event] = flavor_indices_in ? flavor_indices_in[i_event + offset] : 0;
   }
 
   __global__ void copy_outputs(
@@ -242,7 +247,7 @@ extern "C"
   {
     const double* momenta_in = nullptr;
     const double* alpha_s_in = nullptr;
-    const int* flavor_in = nullptr; // TODO: unused
+    const unsigned int* flavor_indices_in = nullptr;
     const double* random_color_in = nullptr;
     const double* random_helicity_in = nullptr;
     const double* random_diagram_in = nullptr;
@@ -260,7 +265,7 @@ extern "C"
           alpha_s_in = static_cast<const double*>( input );
           break;
         case UMAMI_IN_FLAVOR_INDEX:
-          flavor_in = static_cast<const int*>( input );
+          flavor_indices_in = static_cast<const unsigned int*>( input );
           break;
         case UMAMI_IN_RANDOM_COLOR:
           random_color_in = static_cast<const double*>( input );
@@ -328,12 +333,13 @@ extern "C"
     fptype *momenta, *couplings, *g_s, *helicity_random, *color_random, *diagram_random, *color_jamps;
     fptype *matrix_elements, *numerators, *denominators, *ghel_matrix_elements, *ghel_jamps;
     int *helicity_index, *color_index;
-    unsigned int* diagram_index;
+    unsigned int *flavor_indices, *diagram_index;
 
     std::size_t n_coup = mg5amcGpu::Parameters_dependentCouplings::ndcoup;
     gpuMallocAsync( &momenta, rounded_count * CPPProcess::npar * 4 * sizeof( fptype ), gpu_stream );
     gpuMallocAsync( &couplings, rounded_count * n_coup * 2 * sizeof( fptype ), gpu_stream );
     gpuMallocAsync( &g_s, rounded_count * sizeof( fptype ), gpu_stream );
+    gpuMallocAsync( &flavor_indices, rounded_count * sizeof( unsigned int ), gpu_stream );
     gpuMallocAsync( &helicity_random, rounded_count * sizeof( fptype ), gpu_stream );
     gpuMallocAsync( &color_random, rounded_count * sizeof( fptype ), gpu_stream );
     gpuMallocAsync( &diagram_random, rounded_count * sizeof( fptype ), gpu_stream );
@@ -353,11 +359,13 @@ extern "C"
       random_color_in,
       random_diagram_in,
       alpha_s_in,
+      flavor_indices_in,
       momenta,
       helicity_random,
       color_random,
       diagram_random,
       g_s,
+      flavor_indices,
       count,
       stride,
       offset );
@@ -371,13 +379,14 @@ extern "C"
     if( !instance->initialized )
     {
       initialize(
-        momenta, couplings, matrix_elements, color_jamps, numerators, denominators, rounded_count );
+        momenta, couplings, flavor_indices, matrix_elements, color_jamps, numerators, denominators, rounded_count );
       instance->initialized = true;
     }
 
     sigmaKin(
       momenta,
       couplings,
+      flavor_indices,
       helicity_random,
       color_random,
       nullptr,
@@ -417,6 +426,7 @@ extern "C"
 
     gpuFreeAsync( momenta, gpu_stream );
     gpuFreeAsync( couplings, gpu_stream );
+    gpuFreeAsync( flavor_indices, gpu_stream );
     gpuFreeAsync( g_s, gpu_stream );
     gpuFreeAsync( helicity_random, gpu_stream );
     gpuFreeAsync( color_random, gpu_stream );
@@ -438,6 +448,7 @@ extern "C"
     HostBufferBase<fptype, false> momenta( rounded_count * CPPProcess::npar * 4 );
     HostBufferBase<fptype, false> couplings( rounded_count * mg5amcCpu::Parameters_dependentCouplings::ndcoup * 2 );
     HostBufferBase<fptype, false> g_s( rounded_count );
+    HostBufferBase<unsigned int, false> flavor_indices( rounded_count );
     HostBufferBase<fptype, false> helicity_random( rounded_count );
     HostBufferBase<fptype, false> color_random( rounded_count );
     HostBufferBase<fptype, false> diagram_random( rounded_count );
@@ -463,6 +474,7 @@ extern "C"
       initialize(
         momenta.data(),
         couplings.data(),
+        flavor_indices.data(),
         matrix_elements.data(),
         numerators.data(),
         denominators.data(),
@@ -473,6 +485,7 @@ extern "C"
     sigmaKin(
       momenta.data(),
       couplings.data(),
+      flavor_indices.data(),
       helicity_random.data(),
       color_random.data(),
       nullptr,
