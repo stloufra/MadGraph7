@@ -11,7 +11,6 @@
       // *** COLOR CHOICE BELOW ***
 
       // Store the leading color flows for choice of color
-#ifdef MGONGPU_SUPPORTS_MULTICHANNEL
 #ifndef MGONGPUCPP_GPUIMPL
       if( jamp2_sv ) // disable color choice if nullptr
       {
@@ -28,7 +27,6 @@
           atomicAdd( &J2_ACCESS::kernelAccessIcol( colAllJamp2s, icol ), cxabs2( jamp_sv[icol] ) );
       }
 #endif /* clang-format on */
-#endif
 
       // *** PREPARE OUTPUT JAMPS ***
 #ifdef MGONGPUCPP_GPUIMPL
