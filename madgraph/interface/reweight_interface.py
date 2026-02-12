@@ -2509,11 +2509,11 @@ class DensityInterface(ReweightInterface):
         
         self.flag_particle_in_density_matrix = False
 
-        self.helicity_direction = [[-1], '', []] #pid of the particle chosen as reference for the helicity frame
+        self.helicity_direction = [[0], '', []] #pid of the particle chosen as reference for the helicity frame
         self.particle_in_density_matrix = None #pid of the particles selected for the study
-        self.momenta_boost = [[-1], '', []] #pid of the particles in whose center of mass frame the system will be boosted
-        self.allowed_helicities = [-1] #basis of helicities
-        self.axis_referential = [-1]
+        self.momenta_boost = [[0], '', []] #pid of the particles in whose center of mass frame the system will be boosted
+        self.allowed_helicities = [0] #basis of helicities
+        self.axis_referential = [0]
         self.symmetrise_initial_state = False
         self.spins = None 
         self.number_changing_helicities = None
@@ -2642,14 +2642,14 @@ class DensityInterface(ReweightInterface):
 
         # We don't check what values are put in the arrays, if it is not correct, it will return an error later.
         
-        self.momenta_boost = [pdg_codes, lambda_function, order_particles]
+        self.momenta_boost = (pdg_codes, lambda_function, order_particles)
 
 
 
     def do_change_order_helicities(self, line):
         """Change the order of the basis of helicities. It accepts inputs for density matrices full and partial"""
 
-        if len(line) == 1 and line[0] == '[-1]': # if order_helicitites [-1], we take the default value
+        if len(line) == 1 and line[0] == '[0]': # if order_helicitites [0], we take the default value
             return
         
         for i in range(len(line)):
@@ -2761,7 +2761,7 @@ class DensityInterface(ReweightInterface):
         self.number_combinations = n_comb
 
         #if the user didn't use the option or if it has not been read yet, fill it automatically here
-        if self.allowed_helicities == None or self.allowed_helicities == [-1]:
+        if self.allowed_helicities == None or self.allowed_helicities == [0]:
             if self.number_combinations == 2:
                 self.allowed_helicities = [+1, -1]
             elif self.number_combinations == 3:
@@ -2999,7 +2999,7 @@ class DensityInterface(ReweightInterface):
         for i in range(len(all_p)):
             #This block allows to choose which initial state particle is chosen as reference to define theta.
             #If its pz is > 0 the default definition is correct, if it is < 0, then we need to add pi
-            if -1 not in self.axis_referential:
+            if 0 not in self.axis_referential:
                 for k in range(len(self.axis_referential)):
                     if self.axis_referential[k] in orig_order[0]: #check whether the pdg is in the initial state
                         for j in range(len(orig_order[0])):
@@ -3096,7 +3096,7 @@ class DensityInterface(ReweightInterface):
             Output: new_all_p (all the boosted momenta of a given event)
         """
 
-        if -1 in self.momenta_boost[0]: #if we don't want to boost the system
+        if 0 in self.momenta_boost[0]: #if we don't want to boost the system
             return all_p
         
         import copy
@@ -3140,7 +3140,7 @@ class DensityInterface(ReweightInterface):
         fortran_format = True, means that we use the Fortran format for indices, so lists begin at 1, else we use Python format.
         Output: position_particles
         """
-        if -1 in user_input[0]: # if the user does not want to user this input
+        if 0 in user_input[0]: # if the user does not want to user this input
             return [-1]
         
         particle_in_final_state = [False for i in range(len(user_input[0]))]
@@ -3257,7 +3257,7 @@ class DensityInterface(ReweightInterface):
         pdg_to_chose = user_input[0]
         position_particles = []
         particle_already_chosen = [False for i in range(len(orig_order[1]))]
-        if -1 in pdg_to_chose:
+        if 0 in pdg_to_chose:
             return [-1]
         else:
             for i in range(len(orig_order[1])):

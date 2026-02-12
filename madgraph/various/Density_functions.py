@@ -92,8 +92,11 @@ def plot_hist(x:list[float], y:list[float], z:list[float], limitx:list[float], l
     """
     binsx = np.linspace(limitx[0], limitx[1], n_binx + 1)
     binsy = np.linspace(limity[0], limity[1], n_biny + 1)
-    Map = np.zeros((n_biny, n_binx))
-    # Map = np.zeros((n_biny, n_binx), dtype=object)
+    if isinstance(z[0], float) or isinstance(z[0], int) or isinstance(z[0], complex):
+        Map = np.zeros((n_biny, n_binx))
+    else: #if the object is a density matrix
+        Map = np.zeros((n_biny, n_binx), dtype=object)
+        
     N_Map = np.zeros((n_biny, n_binx))
     for k in range(len(z)):
         for i in range(len(binsx) - 1): #we need the -1 because we added +1 when defining binsx
@@ -248,6 +251,12 @@ class DensityMatrixObservables(list):
                 self.density_matrix = rho_temp
                 self.density_matrix_dimension = int(dim_density_matrix)
 
+    def is_hermitian(self):
+        Matrix = self.square_matrix()
+        if np.allclose(Matrix, Matrix.conj().T):
+            return True
+        else:
+            return False
 
     def square_or_line_or_string(self, user_input=None) -> str:
         """This method determines if user_input is a line matrix, a square matrix, a string or something else."""

@@ -1562,11 +1562,11 @@ class DensityCard(ConfigFile):
     """This class is defined to allow to edit the reweight_card with inline commands for the density module"""
     def default_setup(self):
         """initialize the directory to the default value"""
-        self.add_param('helicity_direction', [-1])
+        self.add_param('helicity_direction', [0])
         self.add_param('particle_in_density_matrix', [6, -6])
-        self.add_param('boost_choice', [-1])
-        self.add_param('order_helicities', [-1])
-        self.add_param('axis_referential', [-1])
+        self.add_param('boost_choice', [0])
+        self.add_param('order_helicities', [0])
+        self.add_param('axis_referential', [0])
         self.add_param('symmetrise_initial_state', False)
 
     def read(self, finput):
