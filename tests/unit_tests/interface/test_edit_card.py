@@ -606,9 +606,9 @@ class TestEditCardCmd(unittest.TestCase):
 
         #testing the reset the reweight_card
         self.rwcmd.do_set('reweight_card default')
-        self.assertEqual(self.rwcmd.reweight_card['helicity_direction'], '[-1]')
+        self.assertEqual(self.rwcmd.reweight_card['helicity_direction'], '[0]')
         self.assertEqual(self.rwcmd.reweight_card['particle_in_density_matrix'], '[6, -6]')
-        self.assertEqual(self.rwcmd.reweight_card['boost_choice'], '[-1]')
-        self.assertEqual(self.rwcmd.reweight_card['order_helicities'], [-1])
-        self.assertEqual(self.rwcmd.reweight_card['axis_referential'], [-1])
+        self.assertEqual(self.rwcmd.reweight_card['boost_choice'], '[0]')
+        self.assertEqual(self.rwcmd.reweight_card['order_helicities'], [0])
+        self.assertEqual(self.rwcmd.reweight_card['axis_referential'], [0])
         self.assertEqual(self.rwcmd.reweight_card['symmetrise_initial_state'], False)
