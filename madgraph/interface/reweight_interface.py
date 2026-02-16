@@ -2560,18 +2560,21 @@ class DensityInterface(ReweightInterface):
         pattern = re.compile(r"\[[^\]]*\]", re.IGNORECASE)
         return pattern.findall(input_text)
 
-    def find_observable(self, input_text): #we accepect input as "lambda p: p.observable()" or just "observable"
-        pattern = re.compile(r"lambda p: p\.[A-Za-z0-9]+", re.IGNORECASE)
+    def find_observable(self, input_text): #we accepect input as "observable" or "observable_name"
+        # pattern = re.compile(r"lambda p: p\.[A-Za-z0-9]+", re.IGNORECASE)
+        # output = pattern.findall(input_text)
+        # if output == []:
+        pattern = re.compile(r"[A-Za-z]+", re.IGNORECASE)
         output = pattern.findall(input_text)
-        if output == []:
-            pattern = re.compile(r"[A-Za-z]+", re.IGNORECASE)
+        if len(output) > 1:
+            pattern = re.compile(r"[A-Za-z]+_[A-Za-z]+", re.IGNORECASE)
             output = pattern.findall(input_text)
         return pattern.findall(input_text)
 
     def do_change_helicity_direction(self, line):
         """Change the reference particle for the helicity frame, returns a list of pdg-codes.
-        The structure accepted is change helicitty_direction [list of pdg-codes] lambda p: p.pt()
-        where the lambda function is any parameter of a particle defined in a lhe file"""
+        The structure accepted is change helicitty_direction [list of pdg-codes] observable [order of observable values]
+        """
         
         pdg_codes = []
         lambda_function = ''
@@ -2752,7 +2755,10 @@ class DensityInterface(ReweightInterface):
         for particle_id in pdg_codes: #list on the pdg-code of the particles that we study
             for n_particles_model in range(len(particles)):
                 if particles[n_particles_model]['pdg_code'] == particle_id or particles[n_particles_model]['pdg_code'] == -particle_id:
-                    self.spins.append(particles[n_particles_model]['spin'])
+                    if particles[n_particles_model]['spin'] == 3 and particles[n_particles_model]['mass'] == 'ZERO': #if the particle is a massless boson, we set the spin d.o.f. to 2. Can it be problemtaic for some gauges ?
+                        self.spins.append(particles[n_particles_model]['spin'] - 1)
+                    else: #if the boson has a mass, we keep the 3 spin d.o.f.
+                        self.spins.append(particles[n_particles_model]['spin'])
 
         #Calculation of the number of helicity combinations
         n_comb = 1
@@ -2944,7 +2950,6 @@ class DensityInterface(ReweightInterface):
             Output: new_value (the production matrix R for a single event)
         """
         import madgraph.various.Density_functions as dens
-        import numpy as np
 
         tag, order = event.get_tag_and_order()
         if self.keep_ordering:
