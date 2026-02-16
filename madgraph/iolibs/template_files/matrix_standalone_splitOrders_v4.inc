@@ -489,17 +489,15 @@ C
       DO M = 1, NAMPSO
         CF_INDEX= 0
         DO I = 1, NCOLOR
-          ZTEMP = (0.D0,0.D0)
           DO J = I, NCOLOR
               CF_INDEX = CF_INDEX +1
-              ZTEMP = ZTEMP + %(proc_prefix)sCF(CF_INDEX)*JAMP_1(J,M)
-          ENDDO
-          DO N = 1, NAMPSO
-            INTER(%(proc_prefix)sSQSOINDEX(M,N)) = INTER(%(proc_prefix)sSQSOINDEX(M,N)) + REAL(ZTEMP*DCONJG(JAMP_2(I,N)))
-          ENDDO
+              DO N = 1, NAMPSO
+                 INTER(%(proc_prefix)sSQSOINDEX(M,N)) = INTER(%(proc_prefix)sSQSOINDEX(M,N)) + CF(CF_INDEX)*(DCONJG(JAMP_2(I,N))*JAMP_1(J,M)+DCONJG(JAMP_2(J,N))*JAMP_1(I,M))
+              ENDDO
+           ENDDO
         ENDDO
       ENDDO
-      INTER(:) = INTER(:)/%(proc_prefix)sDENOM
+      INTER(:) = INTER(:)/(2d0*%(proc_prefix)sDENOM)
       RETURN
       END
 
