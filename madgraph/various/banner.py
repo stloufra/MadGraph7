@@ -3498,7 +3498,7 @@ class RunCard(ConfigFile):
                     out = out[:start]+ out[stop+1:]
                 #add new common-block
                 if self.definition_path[incname]: 
-                    out.append("C START USER COMMON BLOCK")
+                    out.append("C     START USER COMMON BLOCK")
                     if isinstance(pathinc , str):
                         filename = os.path.basename(pathinc).split('.',1)[0]
                     elif hasattr(pathinc , "name"):
@@ -3509,7 +3509,7 @@ class RunCard(ConfigFile):
                         misc.sprint(incname, pathinc )
                     filename = filename.upper()
                     out.append("        COMMON/USER_CUSTOM_%s/%s" %(filename,','.join( self.definition_path[incname])))
-                    out.append('C STOP USER COMMON BLOCK')
+                    out.append('C     STOP USER COMMON BLOCK')
             
             if not output_file:
                 fsock.writelines(out)
