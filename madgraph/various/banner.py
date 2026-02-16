@@ -2797,6 +2797,7 @@ class RunCard(ConfigFile):
                         logger.warning(str(error))
                     else:
                         raise
+
     def add_unknown_entry(self, name, value):
         """function to add an entry to the run_card when the associated parameter does not exists.
            This is based on the guess_entry_fromname for the various syntax providing input.
@@ -3489,11 +3490,11 @@ class RunCard(ConfigFile):
             if to_add or previous:
                 # remove previous definition of the commonblock
                 try:
-                    start = out.index('C START USER COMMON BLOCK')
+                    start = out.index('C     START USER COMMON BLOCK')
                 except ValueError:
                     pass
                 else:
-                    stop = out.index('C STOP USER COMMON BLOCK')
+                    stop = out.index('C     STOP USER COMMON BLOCK')
                     out = out[:start]+ out[stop+1:]
                 #add new common-block
                 if self.definition_path[incname]: 
