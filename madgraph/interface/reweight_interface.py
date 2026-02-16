@@ -3056,8 +3056,7 @@ class DensityInterface(ReweightInterface):
         for k in range(len(All_PDGs)):
                 if pdg in All_PDGs[k]:
                     prefix = prefix_cor[k]
-
-        me_value = 0
+        
         get_density = getattr(module, prefix + 'get_density')
         for i in range(len(all_p)):
             pinv = self.invert_momenta(all_p[i])
@@ -3143,13 +3142,6 @@ class DensityInterface(ReweightInterface):
         if 0 in user_input[0]: # if the user does not want to user this input
             return [-1]
         
-        particle_in_final_state = [False for i in range(len(user_input[0]))]
-        for i in range(len(user_input[0])): #check that the particles given by the user are present in the final state
-            if user_input[0][i] in orig_order[1]:
-                particle_in_final_state[i] = True
-        if False in particle_in_final_state:
-            raise ValueError(f'One of the particle chosen for {name_input} is not present in the final state. Please change your input')
-
         if user_input[1] == '':
             position_particles = self.find_position_particles_default_order(orig_order, user_input, name_input, fortran_format) #if the user does not give an observable to rank the particles
             return position_particles
@@ -3256,19 +3248,23 @@ class DensityInterface(ReweightInterface):
         """
         pdg_to_chose = user_input[0]
         position_particles = []
-        particle_already_chosen = [False for i in range(len(orig_order[1]))]
+        orig_order_concatenated = orig_order[0] + orig_order[1]
+        particle_in_process_already_chosen = [False for i in range(len(orig_order_concatenated))]
+        particle_in_user_input_already_found = [False for i in range(len(pdg_to_chose))]
+        
         if 0 in pdg_to_chose:
             return [-1]
         else:
-            for i in range(len(orig_order[1])):
+            for i in range(len(orig_order_concatenated)):
                 if len(position_particles) != len(user_input[0]):
                     for j in range(len(pdg_to_chose)):
-                        if pdg_to_chose[j] == orig_order[1][i] and not particle_already_chosen[i]: # if the particles is still available and that its pdg code corresponds to the user input
+                        if pdg_to_chose[j] == orig_order_concatenated[i] and not particle_in_process_already_chosen[i] and not particle_in_user_input_already_found[j]: # if the particles is still available and that its pdg code corresponds to the user input
                             if fortran_format:
-                                position_particles.append(i + len(orig_order[0]) + 1) #if fortran_format = True, we add +1 because Fortran indices begin at 1 instead of 0 as in Python
+                                position_particles.append(i + 1) #if fortran_format = True, we add +1 because Fortran indices begin at 1 instead of 0 as in Python
                             else:
-                                position_particles.append(i + len(orig_order[0])) # position of the particle in the original order
-                            particle_already_chosen[i] = True
+                                position_particles.append(i) # position of the particle in the original order
+                            particle_in_process_already_chosen[i] = True
+                            particle_in_user_input_already_found[j] = True
 
                             break
 
