@@ -25,9 +25,13 @@ def opp_momentum(p: list[float]) -> list[float]:
     """Returns the 4-momenta (E, -p)"""
     return [p[0], -p[1], -p[2], -p[3]]
 
-def norm_momentum(p: list[float]) -> float:
+def norm_momentum(p: list[float], epsilon=1e-10) -> float:
     """Returns the norm of the 4-momentum p"""
-    return np.sqrt(p[0]**2 - p[1]**2 - p[2]**2 - p[3]**2)
+    norm2 = p[0]**2 - p[1]**2 - p[2]**2 - p[3]**2
+    if abs(norm2) < epsilon:
+        return 0.
+    else:
+        return np.sqrt(norm2)
 
 def invert_momenta(p:list[float]) ->list[float]:
     """
@@ -824,7 +828,7 @@ class DensityMatrixObservables22(DensityMatrixObservables):
                 if abs(rho_corrected[i][j].imag) < epsilon:
                     rho_corrected[i][j] = rho_corrected[i][j].real + 0. * 1j
         
-        return rho_corrected
+        self.density_matrix = rho_corrected
 
     def CHSH_inequality(self) -> tuple[list[float], bool]:
         '''
