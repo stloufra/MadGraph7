@@ -188,6 +188,20 @@ class MadSpinInterface(extended_cmd.Cmd):
         self.final_state_compact = ''
         self.prod_branches = ''
         self.final_state = set()
+
+    def _log_lhe_timers(self):
+        if not getattr(lhe_parser, "_ENABLE_LHE_TIMERS", False):
+            return
+        timers, counts = lhe_parser.get_lhe_timers()
+        if not timers:
+            print("LHE parser timing enabled but no samples were collected.")
+            return
+        print("LHE parser timing summary:")
+        for key in sorted(timers):
+            total = timers[key]
+            count = counts.get(key, 1)
+            print("  %s: %.6fs total over %d call(s) (avg %.6fs)" %
+                  (key, total, count, total / max(1, count)))
         
      
     def do_import(self, inputfile):
@@ -619,6 +633,8 @@ class MadSpinInterface(extended_cmd.Cmd):
         """end of the configuration launched the code"""
         
         (options, args) = self.parse_launch(line)
+        if getattr(lhe_parser, "_ENABLE_LHE_TIMERS", False):
+            lhe_parser.reset_lhe_timers()
         
         if options.name:
             self.me_run_name = options.name # Only use by MG5aMC
@@ -626,16 +642,24 @@ class MadSpinInterface(extended_cmd.Cmd):
             self.me_run_name = ''
         
         if self.options["spinmode"] in ["none"]:
-            return self.run_bridge(line)
+            out = self.run_bridge(line)
+            self._log_lhe_timers()
+            return out
         elif self.options["spinmode"] == "onshell":
-            return self.run_onshell(line)
+            out = self.run_onshell(line)
+            self._log_lhe_timers()
+            return out
         elif self.options["spinmode"] == "bridge":
             raise Exception("Bridge mode not available.")
         elif self.options["spinmode"] == "density":
-            return self.run_onshell(line, density_method=True)
+            out = self.run_onshell(line, density_method=True)
+            self._log_lhe_timers()
+            return out
         
         if self.options['ms_dir'] and os.path.exists(pjoin(self.options['ms_dir'], 'madspin.pkl')):
-            return self.run_from_pickle()
+            out = self.run_from_pickle()
+            self._log_lhe_timers()
+            return out
         
     
         args = self.split_arg(line)
@@ -734,6 +758,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                 misc.call(['tar','-czpf','RunMaterial.tar.gz','RunMaterial'], 
                                                                     cwd=run_dir)
                 shutil.rmtree(pjoin(run_dir,'RunMaterial'))
+        self._log_lhe_timers()
 
     def run_from_pickle(self):
         import madgraph.iolibs.save_load_object as save_load_object
@@ -1586,8 +1611,11 @@ class MadSpinInterface(extended_cmd.Cmd):
         self.banner.write(output_lhe, close_tag=False)       
         
         self.efficiency =1.
-        nb_try, nb_event = 0, len(orig_lhe)
-        
+        nb_try = 0
+        #nb_event = len(orig_lhe)
+        nb_event = orig_lhe.get_banner().run_card['nevents']
+        print(f"SPYROS NEVENTS = {nb_event}")
+
         start = time.time()
         logger.info("Start generating decays")
         for curr_event,production in enumerate(orig_lhe):
@@ -1681,7 +1709,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                     needed = 1.05 * nb_remain / eff
                     needed = min(50000, max(needed, 1000))
                     with misc.MuteLogger(["madgraph", "madevent", "ALOHA", "cmdprint"], [50,50,50,50]):
-                        new_file = self.generate_events(particle.pdg, needed, self.mg5cmd, [decay_file_nb])
+                        new_file = self.generate_events(particle.pdg, 300000, self.mg5cmd, [decay_file_nb])
                     evt_decayfile[particle.pdg].update(new_file)
                     decay_file = evt_decayfile[particle.pdg][decay_file_nb]
                     continue
@@ -1740,7 +1768,7 @@ class MadSpinInterface(extended_cmd.Cmd):
             all_maxwgt.append(maxwgt.real)
         print(f"all_maxwgt = {all_maxwgt}")
         all_maxwgt.sort(reverse=True)
-        assert all_maxwgt[0] >= all_maxwgt[1]
+        assert all_maxwgt[0] >= all_maxwgt[1], "ERROR: "
         decay_tools=madspin.decay_misc()
         ave_weight, std_weight = decay_tools.get_mean_sd(all_maxwgt)
         base_max_weight = 1.05 * (ave_weight+self.options['nb_sigma']*std_weight)
@@ -1810,6 +1838,7 @@ class MadSpinInterface(extended_cmd.Cmd):
             #print(f"full event 1 = {full_event}")            
             # CAUTION: the next line removes everything from decays dictionary
             full_event = full_event.add_decays(decays)
+            
             #print(f"full event 2 = {full_event}")
             if self.options['density_debug']:
                 me1 = self.calculate_matrix_element(full_event)
@@ -1890,9 +1919,9 @@ class MadSpinInterface(extended_cmd.Cmd):
         iden_p = self.get_iden(production)
 
         # ------------------------------------------------------------------
-        # NEW: production identical-final-state symmetry factor
+        # Symmetry factor for identical final states in production
         # MG5 standalone "full matrix element" includes 1/(Π n_i!) for identical
-        # final-state particles in the *production* process; the density pipeline
+        # final-state particles in the production process; the density pipeline
         # must include the same factor to match.
         # We compute Π n_i! over status==1 particles in the production event.
         # ------------------------------------------------------------------
@@ -1912,7 +1941,7 @@ class MadSpinInterface(extended_cmd.Cmd):
         nchanging = len(init_part)
 
         # ------------------------------------------------------------------
-        # Normalization accumulators (keep your original structure)
+        # Normalization
         # ------------------------------------------------------------------
         dec_diag = 1.0
         prod_color = 1
@@ -1925,7 +1954,8 @@ class MadSpinInterface(extended_cmd.Cmd):
 
         # Decaying-particle positions (+1 for Fortran), spins, helicities
         position = [i + 1 for pdg in decays.keys()
-                    for i in range(len(production)) if production[i].pid == pdg]
+                    for i in range(len(production)) 
+                    if production[i].pid == pdg and production[i].status == 1]
         decaying_pdg = [int(production[i - 1].pid) for i in position]
         decaying_spins = [self.model.get_particle(i).get('spin') for i in decaying_pdg]
         helicities = [hel_dict[i] for i in decaying_spins]
@@ -1942,9 +1972,9 @@ class MadSpinInterface(extended_cmd.Cmd):
             if prod_density_cached is None else prod_density_cached
 
         # ------------------------------------------------------------------
-        # FULLY GENERAL decay assignment symmetry factor:
+        # Symmetry factor:
         # For each parent-PDG group with N identical parents and decay-channel
-        # multiplicities {n_k}, the factor that belongs in YOUR denominator is:
+        # multiplicities {n_k}, the factor that belongs to the denominator is:
         #   sym_group = (Π_k n_k!) / (N!)
         # and sym_factor_decay = Π_groups sym_group.
         # ------------------------------------------------------------------
@@ -1963,7 +1993,6 @@ class MadSpinInterface(extended_cmd.Cmd):
 
         # ------------------------------------------------------------------
         # Build total decay density matrix as tensor product
-        # and keep your existing normalization updates.
         # ------------------------------------------------------------------
         decaying_idx = 0
         density_dec = None
@@ -2022,12 +2051,14 @@ class MadSpinInterface(extended_cmd.Cmd):
         me = density_dec.scalar_multiplication(density_prod)
 
         # ------------------------------------------------------------------
-        # CRITICAL FIX:
         # include production identical-final-state symmetry factor
         # ------------------------------------------------------------------
         denominator = iden_p * sym_factor_prod_ident * prod_color * prod_denominators * sym_factor_decay
         me = me.real / denominator
 
+        #print(f"SPYROS ME = {me}")
+        #print(f"production = {production}")
+        #print(f"decays = {decays}")
         prod_diag = density_prod.trace().real / (iden_p * sym_factor_prod_ident)
 
         return me, density_prod, prod_diag, dec_diag
@@ -2168,39 +2199,6 @@ class MadSpinInterface(extended_cmd.Cmd):
         tag = [t for t in self.all_me if self.all_me[t]['pdir'] == pdir][0]
         return 
 
-        if sys.path[0] != pjoin(self.path_me, 'madspin_me', 'SubProcesses'):
-                sys.path.insert(0, pjoin(self.path_me, 'madspin_me', 'SubProcesses'))
-            
-        misc.sprint(sys.path[0])
-        with misc.chdir(pjoin(self.path_me, 'madspin_me', 'SubProcesses', pdir)):
-            try:
-                mymod = __import__('matrix2py')
-            except Exception:
-                misc.compile(['matrix2py.so'], cwd=pjoin(self.path_me, 'madspin_me', 'SubProcesses', pdir)  )                
-                mymod = __import__('matrix2py')
-            #if mymod.__path__[0] != pjoin(self.path_me, 'madspin_me', 'SubProcesses'):
-            #    from importlib import reload
-            #    mymod = reload(mymod)
-
-        if six.PY3:
-            from importlib import reload
-        else:
-            from imp import reload
-        reload(mymod)
-        #mymod = getattr(mymod, 'matrix2py')  
-        with misc.chdir(pjoin(self.path_me, 'madspin_me', 'SubProcesses', pdir)):
-            with misc.stdchannel_redirected(sys.stdout, os.devnull):
-                if not os.path.exists(pjoin(self.path_me, 'Cards','param_card.dat')) and \
-                        os.path.exists(pjoin(self.path_me,'param_card.dat')):
-                    mymod.initialisemodel(pjoin(self.path_me,'param_card.dat'))
-                else:
-                    mymod.initialisemodel(pjoin(self.path_me, 'Cards','param_card.dat')) 
-                    if MODE == 'INTER':
-                        return mymod.get_amp,mymod.get_jamp,mymod.get_inter,mymod.get_matrix
-                    elif MODE == 'DENSITY':
-                        return mymod.get_density
-                    else : 
-                        return mymod.get_nhel
 
 
     def get_pdir(self,event): 
@@ -2241,6 +2239,7 @@ class MadSpinInterface(extended_cmd.Cmd):
         pdir = self.all_me[tag]['pdir']
         if pdir in self.all_f2py:
             all_p = event.get_all_momenta(orig_order)
+            #print(f"len identical = {len(all_p)} , p = {all_p}")
             if self.options['identical_particle_in_prod_and_decay'] == "crash" and\
                 len(all_p)> 1:
                 raise Exception("Ambiguous particle in production and decay. crash as requested by 'identical_particle_in_prod_and_decay'")

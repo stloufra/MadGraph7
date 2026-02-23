@@ -6,6 +6,7 @@ from madgraph.interface import reweight_interface
 from six.moves import map
 from six.moves import range
 from six.moves import zip
+import numpy as np
 import pickle
 
 ################################################################################
@@ -4501,7 +4502,6 @@ class DensityMatrix:
     _tp_hel_cache = {}
 
     def __init__(self, array, nchanging, all_helicity_combinations, dimension):
-        import numpy as np
         """
         Parameters
         ----------
@@ -4631,7 +4631,6 @@ class DensityMatrix:
         """
         Construct a DensityMatrix from already-built arrays.
         """
-        import numpy as np
         obj = object.__new__(DensityMatrix)
         obj.nchanging = int(nchanging)
         obj.all_helicity_combinations = all_helicity_combinations
@@ -4664,7 +4663,6 @@ class DensityMatrix:
         This is independent of entry ordering and depends only on helicities,
         so we cache it per basis_id.
         """
-        import numpy as np
         cached = DensityMatrix._diag_cache.get(self._basis_id)
         if cached is not None:
             return cached
@@ -4684,7 +4682,6 @@ class DensityMatrix:
         This is computed ONCE per basis_id and reused across all events, avoiding
         the repeated sort storm.
         """
-        import numpy as np
         if self._sort_order is not None:
             return
 
@@ -4718,7 +4715,6 @@ class DensityMatrix:
         - Align by cached helicity-sort permutations (one per basis_id), then
           dot-product on aligned values.
         """
-        import numpy as np
         if len(self.values) != len(other.values):
             raise TypeError("Non-compatible dimensions of production and decay spin-density matrices")
 
@@ -4745,7 +4741,6 @@ class DensityMatrix:
         Helicities:
           - cached per tensor-product basis_id (basis-dependent, not event-dependent)
         """
-        import numpy as np
         basis_id = ("tp", self._basis_id, other._basis_id)
 
         # --- helicities: cache per basis_id ---
@@ -4783,5 +4778,29 @@ class DensityMatrix:
         """
         Order-independent trace.
         """
-        import numpy as np 
         return np.sum(self.values[self._diag_mask])
+
+
+    def print_full_matrix(self, precision=6):
+
+        n = self.dimension
+        M = np.empty((n, n), dtype=np.complex64)
+
+        idx = 0
+        for i in range(n):
+            for j in range(i, n):
+                v = self.values[idx]
+                M[i, j] = v
+                M[j, i] = np.conjugate(v)
+                idx += 1
+
+        fmt = f"{{: .{precision}e}}"
+
+        print("\nFull density matrix:\n")
+        for i in range(n):
+            print(" ".join(
+                f"({fmt.format(M[i,j].real)},{fmt.format(M[i,j].imag)})"
+                for j in range(n)
+            ))
+
+        return M
