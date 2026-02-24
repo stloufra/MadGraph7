@@ -1,8 +1,0 @@
-crossx.html
-index.html
-results.dat*
-results.pkl
-run_[0-9]*
-events.lhe*
-
-py3_model.pkl
