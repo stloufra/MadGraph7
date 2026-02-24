@@ -1484,6 +1484,8 @@ class ALOHAWriterForCPP(WriteALOHA):
             shift = 0
         else:
             shift =  self.momentum_size - 1
+            if aloha.unitary_gauge == 3 and match.group('var').startswith('S'):
+                shift += 4 #to match Fortran
         return '%s[%s]' % (match.group('var'), int(match.group('num')) + shift)
               
     
