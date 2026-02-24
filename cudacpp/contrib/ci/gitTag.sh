@@ -1,8 +1,8 @@
 #!/bin/bash
-# Copyright (C) 2020-2024 CERN and UCLouvain.
+# Copyright (C) 2020-2026 CERN and UCLouvain.
 # Licensed under the GNU Lesser General Public License (version 3 or later).
-# Created by: A. Valassi (Sep 2024) for the MG5aMC CUDACPP plugin (based on earlier work for the HEP_OSlibs project).
-# Further modified by: A. Valassi (2024) for the MG5aMC CUDACPP plugin.
+# Created originally by: A. Valassi (Sep 2024) for the MG5aMC CUDACPP plugin (based on earlier work for the HEP_OSlibs project).
+# Further modified by: A. Valassi (2024).
 
 set -e # fail on error
 

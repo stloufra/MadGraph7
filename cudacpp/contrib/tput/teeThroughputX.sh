@@ -1,8 +1,8 @@
 #!/bin/bash
-# Copyright (C) 2020-2025 CERN and UCLouvain.
+# Copyright (C) 2020-2026 CERN and UCLouvain.
 # Licensed under the GNU Lesser General Public License (version 3 or later).
-# Created by: A. Valassi (Sep 2021) for the MG5aMC CUDACPP plugin.
-# Further modified by: A. Valassi (2021-2025) for the MG5aMC CUDACPP plugin.
+# Created originally by: A. Valassi (Sep 2021) for the MG5aMC CUDACPP plugin.
+# Further modified by: A. Valassi (2021-2025).
 
 scrdir=$(cd $(dirname $0); pwd)
 bckend=$(basename $(cd $scrdir; cd ..; pwd)) # cudacpp or alpaka

@@ -1,8 +1,8 @@
 #!/bin/sh
-# Copyright (C) 2020-2025 CERN and UCLouvain.
+# Copyright (C) 2020-2026 CERN and UCLouvain.
 # Licensed under the GNU Lesser General Public License (version 3 or later).
-# Created by: A. Valassi (Sep 2025) for the MG5aMC CUDACPP plugin.
-# Further modified by: A. Valassi (2025) for the MG5aMC CUDACPP plugin.
+# Created originally by: A. Valassi (Sep 2025) for the MG5aMC CUDACPP plugin.
+# Further modified by: A. Valassi (2025).
 
 cd $(dirname $0)
 for log in logs_*/log*.txt ; do
