@@ -17,7 +17,7 @@
 // objects for storing event information. Users can either provide the REX::process objects themselves,
 // or use the flexible Rex sorting architecture to extract the necessary information from an LHE file.
 //
-// Copyright © 2023-2025 CERN, CERN Author Zenny Wettersten.
+// Copyright © 2023-2026 CERN, CERN Author Zenny Wettersten.
 // Licensed under the GNU Lesser General Public License (version 3 or later).
 // All rights not expressly granted are reserved.
 //

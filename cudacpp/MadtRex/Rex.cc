@@ -13,7 +13,7 @@
 // It is designed to fast and lightweight, in comparison to internal parsers in programs like MadGraph.
 // Currently, Rex is in development and may not contain all features necessary for full LHE parsing.
 //
-// Copyright © 2023-2025 CERN, CERN Author Zenny Wettersten.
+// Copyright © 2023-2026 CERN, CERN Author Zenny Wettersten.
 // Licensed under the GNU Lesser General Public License (version 3 or later).
 // All rights not expressly granted are reserved.
 //

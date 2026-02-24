@@ -1,7 +1,7 @@
 //==========================================================================
-// Copyright (C) 2023-2024 CERN
+// Copyright (C) 2023-2026 CERN
 // Licensed under the GNU Lesser General Public License (version 3 or later).
-// Written by: Z. Wettersten (June 2024) for the MG5aMC CUDACPP plugin.
+// Written originally by: Z. Wettersten (June 2024) for the MG5aMC CUDACPP plugin.
 //==========================================================================
 //==========================================================================
 // This file has been automatically generated for the CUDACPP plugin by

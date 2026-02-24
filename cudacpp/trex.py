@@ -1,7 +1,7 @@
-# Copyright (C) 2023-2025 CERN.
+# Copyright (C) 2023-2026 CERN.
 # Licensed under the GNU Lesser General Public License (version 3 or later).
-# Created by: Z. Wettersten (Sep 2024) for the MG5aMC CUDACPP plugin.
-# Further modified by: Z. Wettersten (2024-2025) for the MG5aMC CUDACPP plugin.
+# Created originally by: Z. Wettersten (Sep 2024) for the MG5aMC CUDACPP plugin.
+# Further modified by: Z. Wettersten (2024-2025).
 
 import os
 import subprocess
