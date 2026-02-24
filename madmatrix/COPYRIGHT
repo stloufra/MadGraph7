@@ -2,12 +2,12 @@ Copyright (C) 2020-2026 CERN and UCLouvain.
 Licensed under the GNU Lesser General Public License (version 3 or later).
 All rights not expressly granted are reserved.
 
-The copyright and license notice above cover the CUDACPP contributions to the
-MadGraph7 project, for hardware acceleration. The code of CUDACPP can be found
+The copyright and license notice above cover the MadMatrix contributions to the
+MadGraph7 project, for hardware acceleration. The code of MadMatrix can be found
 in the following paths with respect to the root of the repository:
-- cudacpp
-- aloha/template_files/cudacpp
-- madgraph/iolibs/template_files/cudacpp
+- madmatrix
+- aloha/template_files/madmatrix
+- madgraph/iolibs/template_files/madmatrix
 
 Originally, this code was developed as the CUDACPP plugin to the
 MadGraph5_aMC@NLO project, at https://github.com/madgraph5/madgraph4gpu
