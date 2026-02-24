@@ -424,9 +424,10 @@ C
       INTEGER POS(*)
       INTEGER ALLOW_HEL(*)
       DOUBLE PRECISION ALPHAS
-      DOUBLE COMPLEX INTER(99)
-      DOUBLE COMPLEX TMP_INTER(99)
+      DOUBLE COMPLEX INTER(*)
+      INTEGER NINTER
       INTEGER NB_NHEL
+      DOUBLE COMPLEX, ALLOCATABLE :: TMP_INTER(:)
       PARAMETER (NB_NHEL=%(ncomb)d)
 c LOCAL
       INTEGER I,IHEL,IPART
@@ -440,6 +441,9 @@ C     include coupling definition to update the value of alphas
 C
       include 'coupl.inc'
 
+      ninter = N_COMB*(N_COMB+1)/2
+      allocate(TMP_INTER(NINTER))
+      TMP_INTER(:) = (0d0, 0d0)
 
       DO I=1, N_COMB*(N_COMB+1)/2
         INTER(I) = 0
@@ -462,6 +466,7 @@ C
         enddo 
  10   enddo 
       return 
+      deallocate(TMP_INTER)
       end
 
       SUBROUTINE  %(proc_prefix)sGET_ALL_INTER(P, NHEL, POS, N_CHANGING, ALLOW_HEL, N_COMB, INTER)
@@ -490,7 +495,7 @@ C
       INTEGER N_CHANGING, N_COMB
       INTEGER POS(*)
       INTEGER ALLOW_HEL(*)
-      DOUBLE COMPLEX INTER(99)
+      DOUBLE COMPLEX INTER(*)
 c
 c     Intermediate array
 c
@@ -501,12 +506,22 @@ c
       INTEGER IC(NEXTERNAL)
 
       DOUBLE COMPLEX AMP(NGRAPHS)
-      DOUBLE COMPLEX JAMP(NCOLOR, 3*NEXTERNAL)
+      DOUBLE COMPLEX, ALLOCATABLE, SAVE :: JAMP(:,:)
+      INTEGER, SAVE :: S_NCOMB = 0
+
 c
 c     LOCAL
 c
       INTEGER I,J,SOL,N
+     
+      if (allocated(jamp) .and. S_NCOMB.ne.N_COMB) then
+           deallocate(jamp)
+      endif
 
+     if (.not.allocated(jamp)) then
+        S_NCOMB=N_COMB
+        allocate(jamp(ncolor, N_COMB))
+      endif
 C ----------
 C BEGIN CODE
 C ----------

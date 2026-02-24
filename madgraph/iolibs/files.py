@@ -151,7 +151,12 @@ def cp(path1, path2, log=True, error=False):
         logger.debug('no cp since identical: %s', why)
         return
     except IOError as why:
-        import madgraph.various.misc as misc
+        try:
+            import madgraph
+        except ImportError:
+            import internal.misc as misc
+        else:   
+            import madgraph.various.misc as misc
         try: 
             if 'same file' in  str(why):
                 return
@@ -199,12 +204,12 @@ def mv(path1, path2):
             shutil.move(path1, path2)
         else:
             raise
-    
-    # ensure that the mtime of the destination is updated
+
+    # ensure that the mtime of the destination is updated    
     from pathlib import Path
     Path(path2).touch()
     return
-        
+
 def put_at_end(src, *add):
     
     with open(src,'ab') as wfd:

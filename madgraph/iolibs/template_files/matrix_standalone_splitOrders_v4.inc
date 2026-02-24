@@ -459,10 +459,8 @@ C
            RES(%(proc_prefix)sSQSOINDEX(M,N)) = RES(%(proc_prefix)sSQSOINDEX(M,N)) + REAL(ZTEMP*DCONJG(JAMP(I,N)))
          ENDDO
        ENDDO
-     DO N = 1, NAMPSO
-        RES(%(proc_prefix)sSQSOINDEX(M,N)) = RES(%(proc_prefix)sSQSOINDEX(M,N))/%(proc_prefix)sDENOM
      ENDDO
-     ENDDO
+     RES(:) = RES(:)/%(proc_prefix)sDENOM     
      END
 
       SUBROUTINE %(proc_prefix)sGET_INTER(JAMP_1,JAMP_2, INTER)
@@ -491,19 +489,15 @@ C
       DO M = 1, NAMPSO
         CF_INDEX= 0
         DO I = 1, NCOLOR
-          ZTEMP = (0.D0,0.D0)
           DO J = I, NCOLOR
               CF_INDEX = CF_INDEX +1
-              ZTEMP = ZTEMP + %(proc_prefix)sCF(CF_INDEX)*JAMP_1(J,M)
-          ENDDO
-          DO N = 1, NAMPSO
-            INTER(%(proc_prefix)sSQSOINDEX(M,N)) = INTER(%(proc_prefix)sSQSOINDEX(M,N)) + REAL(ZTEMP*DCONJG(JAMP_2(I,N)))
-          ENDDO
-        ENDDO
-        DO N = 1, NAMPSO
-         INTER(%(proc_prefix)sSQSOINDEX(M,N)) = INTER(%(proc_prefix)sSQSOINDEX(M,N))/%(proc_prefix)sDENOM
+              DO N = 1, NAMPSO
+                 INTER(%(proc_prefix)sSQSOINDEX(M,N)) = INTER(%(proc_prefix)sSQSOINDEX(M,N)) + CF(CF_INDEX)*(DCONJG(JAMP_2(I,N))*JAMP_1(J,M)+DCONJG(JAMP_2(J,N))*JAMP_1(I,M))
+              ENDDO
+           ENDDO
         ENDDO
       ENDDO
+      INTER(:) = INTER(:)/(2d0*%(proc_prefix)sDENOM)
       RETURN
       END
 
@@ -536,11 +530,12 @@ C
       REAL*8 P(0:3,NEXTERNAL)
       INTEGER THISNHEL(NEXTERNAL)
       INTEGER N_CHANGING, N_COMB
+      INTEGER NINTER
       INTEGER POS(*)
       INTEGER ALLOW_HEL(*)
+      DOUBLE COMPLEX, ALLOCATABLE :: TMP_INTER(:,:)
       DOUBLE PRECISION ALPHAS
-      DOUBLE COMPLEX INTER_SUM(99)
-      DOUBLE COMPLEX TMP_INTER(NSQAMPSO,99)
+      DOUBLE COMPLEX INTER_SUM(*)
 c LOCAL
       INTEGER I,IHEL,IPART
       INTEGER J
@@ -558,6 +553,11 @@ C
 C     include coupling definition to update the value of alphas
 C
       include 'coupl.inc'
+      
+      ninter = N_COMB*(N_COMB+1)/2
+      allocate(TMP_INTER(NSQAMPSO, ninter))
+      TMP_INTER(:,:) = (0d0, 0d0)
+      
       do I = 1,  N_COMB*(N_COMB+1)/2
         INTER_SUM(I) = 0d0
       enddo
@@ -584,6 +584,7 @@ C
         enddo
  10   enddo
       return
+      deallocate(TMP_INTER)
       end
 
 
@@ -616,7 +617,7 @@ C
       INTEGER N_CHANGING, N_COMB
       INTEGER POS(*)
       INTEGER ALLOW_HEL(*)
-      DOUBLE COMPLEX INTER(NSQAMPSO,99)
+      DOUBLE COMPLEX INTER(NSQAMPSO,*)
 c
 c     Intermediate array
 c
@@ -627,7 +628,8 @@ c
       INTEGER IC(NEXTERNAL)
 
       DOUBLE COMPLEX AMP(NGRAPHS)
-      DOUBLE COMPLEX JAMP(NCOLOR, NAMPSO, 3*NEXTERNAL)
+      DOUBLE COMPLEX, ALLOCATABLE:: JAMP(:,:,:)
+      integer, save :: s_ncomb = -1
 c
 c     LOCAL
 c
@@ -636,6 +638,13 @@ c
 C ----------
 C BEGIN CODE
 C ----------
+      if (allocated(jamp).and. n_comb.ne.s_ncomb)then
+         deallocate(jamp)
+      endif
+      if (.not.allocated(jamp))then
+        allocate(jamp(ncolor, NAMPSO, N_COMB))
+        s_ncomb=n_comb
+      endif
       IC(:)=1
       do I = 1, N_COMB
          do N = 1, N_CHANGING

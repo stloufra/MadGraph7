@@ -507,10 +507,8 @@ C
      $       *DCONJG(JAMP(I,N)))
           ENDDO
         ENDDO
-        DO N = 1, NAMPSO
-          RES(SQSOINDEX(M,N)) = RES(SQSOINDEX(M,N))/DENOM
-        ENDDO
       ENDDO
+      RES(:) = RES(:)/DENOM
       END
 
       SUBROUTINE GET_INTER(JAMP_1,JAMP_2, INTER)
@@ -550,10 +548,8 @@ C
      $       *DCONJG(JAMP_2(I,N)))
           ENDDO
         ENDDO
-        DO N = 1, NAMPSO
-          INTER(SQSOINDEX(M,N)) = INTER(SQSOINDEX(M,N))/DENOM
-        ENDDO
       ENDDO
+      INTER(:) = INTER(:)/DENOM
       RETURN
       END
 

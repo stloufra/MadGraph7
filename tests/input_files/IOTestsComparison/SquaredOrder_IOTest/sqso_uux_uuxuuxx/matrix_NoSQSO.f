@@ -846,7 +846,6 @@ C
       RETURN
       END
 
-
       SUBROUTINE  GET_ALL_INTER(P, NHEL, POS, N_CHANGING, ALLOW_HEL,
      $  N_COMB, INTER)
 C     P momenta

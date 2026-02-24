@@ -1069,7 +1069,9 @@ param_card.inc: ../Cards/param_card.dat\n\t../bin/madevent treatcards param\n'''
 
         # Write them out
         write_dir=pjoin(self.dir_path, 'Source', 'DHELAS')
-        aloha_model.write(write_dir, 'Fortran')
+        options= {}
+        options['vector.inc'] = True if self.opt['export_format']=='madevent' else False
+        aloha_model.write(write_dir, 'Fortran', options=options)
 
         # Revert the original aloha loop mode
         aloha.loop_mode = old_loop_mode
@@ -1289,7 +1291,6 @@ param_card.inc: ../Cards/param_card.dat\n\t../bin/madevent treatcards param\n'''
 
     def get_den_factor_line(self, matrix_element):
         """Return the denominator factor line for this matrix element"""
-
         return "DATA IDEN/%2r/" % \
                matrix_element.get_denominator_factor()
 
@@ -2472,6 +2473,9 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
     MadGraph v4 StandAlone format."""
 
     matrix_template = "matrix_standalone_v4.inc"
+    f2py_template = "matrix_standalone_f2py.inc"
+    f2py_wrapper_all ="f2py_wrapper_all.inc"
+    f2py_matrix_splitter = "f2py_splitter.py"
     jamp_optim = True
     default_vector_size = 0
 
@@ -2679,23 +2683,28 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
             ff = open(pjoin(self.dir_path, 'SubProcesses', 'makefile'),'a')
             ff.write(text)
             ff.close()
-                    
+
+
     def write_f2py_splitter(self):
         """write a function to call the correct matrix element"""
-        
-        template = open(pjoin(self.mgme_dir, 'madgraph', 'iolibs', 'template_files', 'python_all_matrix.f')).read() 
-        
+
+        template = open(pjoin(MG5DIR, 'madgraph', 'iolibs', 'template_files', self.f2py_matrix_splitter)).read()
+        template2 = open(pjoin(MG5DIR, 'madgraph', 'iolibs', 'template_files', self.f2py_wrapper_all)).read()
+
         allids = list(self.prefix_info.keys())
         allprefix = [self.prefix_info[key][0] for key in allids]
+        allncomb = [self.prefix_info[key][2] for key in allids]
+        alliden = [self.prefix_info[key][3] for key in allids] 
         min_nexternal = min([len(ids[0]) for ids in allids])
         max_nexternal = max([len(ids[0]) for ids in allids])
 
         info = []
-        for (key, pid), (prefix, tag) in self.prefix_info.items():
+        for (key, pid), (prefix, tag, ncomb, iden) in self.prefix_info.items():
             info.append('#PY %s : %s # %s %s' % (tag, key, prefix, pid))
             
 
         text = []
+        
         for n_ext in range(min_nexternal, max_nexternal+1):
             current_id = [ids[0] for ids in allids if len(ids[0])==n_ext]
             current_pid = [ids[1] for ids in allids if len(ids[0])==n_ext]
@@ -2713,7 +2722,7 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
                     text.append( ' if(%s.and.(procid.le.0.or.procid.eq.%d)) then ! %i' % (condition, pid, ii))
                 else:
                     text.append( ' else if(%s.and.(procid.le.0.or.procid.eq.%d)) then ! %i' % (condition,pid,ii))
-                text.append(' call %ssmatrixhel(p, nhel, ans)' % self.prefix_info[(pdgs,pid)][0])
+                text.append(' call %s%%(fct_name)s' % self.prefix_info[(pdgs,pid)][0])
             text.append(' endif')
         #close the function
         if min_nexternal != max_nexternal:
@@ -2734,25 +2743,80 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
             helreset_setup.append(' %shelreset = .true. ' % prefix)
             helreset_def.append(' logical %shelreset \n common /%shelreset/ %shelreset' % (prefix, prefix, prefix))
         
+        #nhel
+        all_nhel_f2py = ' '
+        all_nhel = ''
+        all_iden = ''
+        nhel_template_f2py = """
+        subroutine %(f2py_prefix)s%(prefix)sget_nhel_entry()
+        integer %(prefix)snhel(%(next)s,%(ncombs)s)
+        common/%(f2py_prefix)s%(prefix)sPROCESS_NHEL/%(prefix)sNHEL
+        call %(f2py_prefix)sf77_%(prefix)sget_nhel_entry(%(prefix)sNHEL)
+
+        return
+        end 
+"""
+        nhel_template = """subroutine %(f2py_prefix)sf77_%(prefix)sget_nhel_entry(NHEL)
+        integer %(prefix)snhel(%(next)s,%(ncombs)s), NHEL(%(next)s,%(ncombs)s)
+        common/%(prefix)sPROCESS_NHEL/%(prefix)sNHEL
+        NHEL(:,:) = %(prefix)snhel(:,:)
+        return
+        end 
+"""
+
+        f2py_prefix = ''
+        if self.opt['output_options'] and 'prefixf2py' in self.opt['output_options']:
+            f2py_prefix = 'f%s_' % self.opt['output_options']['prefixf2py']
+
+        done_prefix = set()
+        for prefix, ids, ncomb, iden in zip(allprefix, allids, allncomb, alliden):
+            if prefix in done_prefix:
+                continue
+            done_prefix.add(prefix)
+            all_nhel += nhel_template % {'prefix': prefix, 
+                                         'next': len(ids[0]), 
+                                         'ncombs': ncomb,
+                                         'f2py_prefix': f2py_prefix}
+            all_nhel_f2py += nhel_template_f2py % {'prefix': prefix, 
+                                                   'next': len(ids[0]), 
+                                                   'ncombs': ncomb, 
+                                                   'f2py_prefix': f2py_prefix}
+        # Build IDENS entries ONCE per ME slot (must align 1-to-1 with get_pdg_order / allids).
+        all_iden = ''
+        for i, iden in enumerate(alliden, start=1):
+            all_iden += ' idens(%s) = %s \n' % (i, iden)
+        #misc.sprint(all_iden)
 
         formatting = {'python_information':'\n'.join(info), 
-                          'smatrixhel': '\n'.join(text),
+                          'smatrixhel': '\n'.join(text) % {'fct_name': 'smatrixhel(p, nhel, ans)'},
                           'maxpart': max_nexternal,
                           'nb_me': len(allids),
                           'pdgs': ','.join(str(pdg[i]) if i<len(pdg) else '0' 
                                            for i in range(max_nexternal) for (pdg,pid) in allids),
                           'prefix':'\',\''.join(allprefix),
                           'pids': ','.join(str(pid) for (pdg,pid) in allids),
+                          'inter_splitter': '\n'.join(text) % {'fct_name': 'GET_ALL_INTER(P, POS, N_CHANGING, ALLOW_HEL, N_COMB, INTER)'},
                           'parameter_setup': '\n'.join(parameter_setup),
                           'helreset_def' : '\n'.join(helreset_def),
                           'helreset_setup' : '\n'.join(helreset_setup),
+                          'nhel': all_nhel,
+                          'f2py_prefix': f2py_prefix,
+                          'idens_value': all_iden,
+                          'density_splitter': '\n'.join(text) % {'fct_name': 'GET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL, N_COMB , ALPHAS, INTER)'},
+                          
                           }
+
         formatting['lenprefix'] = len(formatting['prefix'])
         text = template % formatting
         fsock = writers.FortranWriter(pjoin(self.dir_path, 'SubProcesses', 'all_matrix.f'),'w')
         fsock.writelines(text)
         fsock.close()
-    
+        formatting['nhel'] = all_nhel_f2py
+        text = template2 % formatting
+        fsock = writers.FortranWriter(pjoin(self.dir_path, 'SubProcesses', 'f2py_wrapper.f'),'w')
+        fsock.writelines(text)
+        fsock.close()    
+
     def get_model_parameter(self, model):
         """ returns all the model parameter
         """
@@ -2781,8 +2845,13 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
 
         return params                      
                                         
-        
-        
+    def write_f2py_matrix_wrapper(self, writer, replace_dict):
+        """ Write the f2py wrapper for matrix element."""
+
+        path =pjoin(_file_path, 'iolibs', 'template_files', self.f2py_template)
+        template = open(path).read()
+        writer.write(template % replace_dict)
+
     def write_f2py_check_sa(self, matrix_element, writer):
         """ Write the general check_sa.py in SubProcesses that calls all processes successively."""
         # To be implemented. It is just an example file, i.e. not crucial.
@@ -2820,6 +2889,30 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         """Generate the Pxxxxx directory for a subprocess in MG4 standalone,
         including the necessary matrix.f and nexternal.inc files"""
 
+        # Helper
+        def compute_iden_from_pdgs(ids, ninitial, model):
+            """
+            Helper function to compute denominator factor
+            """
+            def nhel_from_particle(p):
+                spin = int(p.get('spin'))
+                # for massless vectors use 2 helicities not 3
+                mass = p.get('mass')
+                if spin == 3 and (mass == 'ZERO' or str(mass).upper() == 'ZERO'):
+                    return 2
+                return spin
+
+            def color_dim_from_particle(p):
+                # In UFO, color is typically 1, 3, -3, 8, ...
+                return abs(int(p.get('color')))
+
+            incoming = ids[:ninitial]
+            iden = 1
+            for pid in incoming:
+                p = model.get_particle(pid)
+                iden *= nhel_from_particle(p) * color_dim_from_particle(p)
+            return int(iden)
+        
         cwd = os.getcwd()
         # Create the directory PN_xx_xxxxx in the specified path
         dirpath = pjoin(self.dir_path, 'SubProcesses', \
@@ -2879,15 +2972,24 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
                 proc_prefix = matrix_element.get('processes')[0].shell_string().split('_',1)[1]
             else:
                 raise Exception('--prefix options supports only \'int\' and \'proc\'')
+            ncomb = matrix_element.get_helicity_combinations()
+            #iden = matrix_element.get_denominator_factor() 
             for proc in matrix_element.get('processes'):
                 ids = [l.get('id') for l in proc.get('legs_with_decays')]
-                self.prefix_info[(tuple(ids), proc.get('id'))] = [proc_prefix, proc.get_tag()] 
+                iden = compute_iden_from_pdgs(ids, ninitial, self.model)
+                self.prefix_info[(tuple(ids), proc.get('id'))] = [proc_prefix, proc.get_tag(), ncomb, iden]
                 
-        calls = self.write_matrix_element_v4(
+        replace_dict = self.write_matrix_element_v4(
             writers.FortranWriter(filename),
             matrix_element,
             fortran_model,
-            proc_prefix=proc_prefix)
+            proc_prefix=proc_prefix,
+            return_replace_dict=True)
+        calls = replace_dict.get('return_value', 0)
+
+        self.write_f2py_matrix_wrapper(
+            writers.FortranWriter(pjoin(dirpath, 'f2py_matrix_wrapper.f')),
+                                  replace_dict=replace_dict)
         
 
         if self.opt['export_format'] == 'standalone_msP':
@@ -2989,7 +3091,7 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
     # write_matrix_element_v4
     #===========================================================================
     def write_matrix_element_v4(self, writer, matrix_element, fortran_model,
-                                write=True, proc_prefix=''):
+                                write=True, proc_prefix='', return_replace_dict=False):
         """Export a matrix element to a matrix.f file in MG4 standalone format
         if write is on False, just return the replace_dict and not write anything."""
 
@@ -3158,7 +3260,11 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
                 content = '\n' + open(replace_dict['template_file2'])\
                                    .read()%replace_dict
                 writer.writelines(content)
-            return len([call for call in helas_calls if call.find('#') != 0])
+            if return_replace_dict:
+                replace_dict['return_value'] = len([call for call in helas_calls if call.find('#') != 0])
+                return replace_dict
+            else:
+                return len([call for call in helas_calls if call.find('#') != 0])
         else:
             replace_dict['return_value'] = len([call for call in helas_calls if call.find('#') != 0])
             return replace_dict # for subclass update
@@ -4120,7 +4226,7 @@ c     channel position
                     width = 'zero'
                     pow_part = 0
                 else:
-                    if (last_leg.get('id')!=7):
+                    if (last_leg.get('id')!=self.model.get_first_non_pdg()):
                       particle = particle_dict[last_leg.get('id')]
                       # Get mass
                       mass = particle.get('mass')
@@ -4228,7 +4334,7 @@ class ProcessExporterFortranME(ProcessExporterFortran):
         elif '%(W)s' in arg['mass']:
             raise Exception
 
-        arg['coup'] = re.sub('coup(\d+)\)s','coup\g<1>)s%(vec\g<1>)s', arg['coup'])
+        arg['coup'] = re.sub(r'coup(\d+)\)s',r'coup\g<1>)s%(vec\g<1>)s', arg['coup'])
 
         return call, arg
     
@@ -5534,6 +5640,9 @@ c           This is dummy particle used in multiparticle vertices
         # Write out number of configs
         lines.append("# Number of configs")
         lines.append("data mapconfig(0)/%d/" % nconfigs)
+
+        lines.append("#used fake id")
+        lines.append("data fake_id/%d/" %new_pdg)
 
         # Write the file
         writer.writelines(lines)
