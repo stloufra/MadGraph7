@@ -1,7 +1,8 @@
-// Copyright (C) 2020-2024 CERN and UCLouvain.
+// Copyright (C) 2020-2026 CERN and UCLouvain.
 // Licensed under the GNU Lesser General Public License (version 3 or later).
-// Created by: S. Roiser (Oct 2021) for the MG5aMC CUDACPP plugin.
-// Further modified by: D. Massaro, S. Roiser, J. Teig, A. Thete, A. Valassi (2021-2024) for the MG5aMC CUDACPP plugin.
+// Created originally by: S. Roiser (Oct 2021) for the MG5aMC CUDACPP plugin.
+// Further modified by: D. Massaro, S. Roiser, J. Teig, A. Thete, A. Valassi
+// (2021-2024).
 
 #include "Bridge.h"
 #include "CPPProcess.h"

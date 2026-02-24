@@ -1,7 +1,7 @@
-// Copyright (C) 2020-2024 CERN and UCLouvain.
+// Copyright (C) 2020-2026 CERN and UCLouvain.
 // Licensed under the GNU Lesser General Public License (version 3 or later).
-// Created by: A. Valassi (Oct 2021) for the MG5aMC CUDACPP plugin.
-// Further modified by: A. Valassi (2021-2024) for the MG5aMC CUDACPP plugin.
+// Created originally by: A. Valassi (Oct 2021) for the MG5aMC CUDACPP plugin.
+// Further modified by: A. Valassi (2021-2024).
 
 #ifndef EPOCH_PROCESS_ID_H
 #define EPOCH_PROCESS_ID_H 1

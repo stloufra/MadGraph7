@@ -1,7 +1,8 @@
-# Copyright (C) 2020-2025 CERN and UCLouvain.
+# Copyright (C) 2020-2026 CERN and UCLouvain.
 # Licensed under the GNU Lesser General Public License (version 3 or later).
-# Created by: D. Massaro (Sep 2025) for the MG5aMC CUDACPP plugin.
-# Based on code originally written by: S. Hageboeck, O. Mattelaer, S. Roiser, J. Teig, A. Valassi (2020-2024)
+# Created originally by: D. Massaro (Sep 2025) for the MG5aMC CUDACPP plugin.
+# Based on code originally written by: S. Hageboeck, O. Mattelaer, S. Roiser,
+# J. Teig, A. Valassi (2020-2024)
 
 # To be used after the project makefile
 SHELL := /bin/bash

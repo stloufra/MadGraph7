@@ -1,7 +1,7 @@
-C Copyright (C) 2020-2024 CERN and UCLouvain.
+C Copyright (C) 2020-2026 CERN and UCLouvain.
 C Licensed under the GNU Lesser General Public License (version 3 or later).
-C Created by: A. Valassi (Dec 2022) for the MG5aMC CUDACPP plugin.
-C Further modified by: A. Valassi (2022-2024) for the MG5aMC CUDACPP plugin.
+C Created originally by: A. Valassi (Dec 2022) for the MG5aMC CUDACPP plugin.
+C Further modified by: A. Valassi (2022-2024).
 
 C
 C Common block for internal communication between MadEvent components
