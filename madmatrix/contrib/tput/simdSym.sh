@@ -3,6 +3,7 @@
 # Licensed under the GNU Lesser General Public License (version 3 or later).
 # Created originally by: A. Valassi (Apr 2021) for the MG5aMC CUDACPP plugin.
 # Further modified by: A. Valassi (2021-2024).
+# Integrated with the MadGraph7 project in Feb 2026.
 
 #----------------------------------------------------------------------------------------------
 # See http://sponce.web.cern.ch/sponce/CSC/slides/PracticalVectorization.booklet.pdf

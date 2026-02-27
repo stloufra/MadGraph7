@@ -2,6 +2,7 @@
 # Licensed under the GNU Lesser General Public License (version 3 or later).
 # Created originally by: S. Hageboeck (Dec 2020) for the MG5aMC CUDACPP plugin.
 # Further modified by: S. Roiser, A. Valassi (2020-2025).
+# Integrated with the MadGraph7 project in Feb 2026.
 
 THISDIR = $(dir $(abspath $(lastword $(MAKEFILE_LIST))))
 

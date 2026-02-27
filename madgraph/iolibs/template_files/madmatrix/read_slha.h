@@ -5,7 +5,8 @@
 // Licensed under the GNU Lesser General Public License (version 3 or later).
 // Modified originally by: S. Roiser (Feb 2020) for the MG5aMC CUDACPP plugin.
 // Further modified by: O. Mattelaer, S. Roiser, A. Valassi (2020-2024).
-//==========================================================================
+// Integrated with the MadGraph7 project in Feb 2026.
+// ==========================================================================
 
 #ifndef READ_SLHA_H
 #define READ_SLHA_H 1

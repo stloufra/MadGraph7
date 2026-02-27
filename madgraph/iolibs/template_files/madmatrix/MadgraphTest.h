@@ -2,6 +2,7 @@
 // Licensed under the GNU Lesser General Public License (version 3 or later).
 // Created originally by: S. Hageboeck (Dec 2020) for the MG5aMC CUDACPP plugin.
 // Further modified by: S. Hageboeck, J. Teig, A. Valassi (2020-2024).
+// Integrated with the MadGraph7 project in Feb 2026.
 
 #ifndef MADGRAPHTEST_H_
 #define MADGRAPHTEST_H_ 1

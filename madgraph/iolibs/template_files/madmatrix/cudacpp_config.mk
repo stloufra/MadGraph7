@@ -2,7 +2,7 @@
 # Licensed under the GNU Lesser General Public License (version 3 or later).
 # Created originally by: A. Valassi (Mar 2024) for the MG5aMC CUDACPP plugin.
 # Further modified by: A. Valassi (2024).
-
+# Integrated with the MadGraph7 project in Feb 2026.
 #-------------------------------------------------------------------------------
 
 #=== Check that the user-defined choices of BACKEND, FPTYPE, HELINL, HRDCOD are supported

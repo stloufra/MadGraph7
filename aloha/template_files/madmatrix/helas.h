@@ -6,7 +6,9 @@
 ! Licensed under the GNU Lesser General Public License (version 3 or later).
 ! Modified originally by: O. Mattelaer (Mar 2020) for the MG5aMC CUDACPP plugin.
 ! Further modified by: D. Massaro, O. Mattelaer, A. Thete, A. Valassi (2020-2024).
+! Integrated with the MadGraph7 project in Feb 2026.
 !==========================================================================
+
   //--------------------------------------------------------------------------
 
 #ifdef MGONGPU_INLINE_HELAMPS

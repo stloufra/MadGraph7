@@ -2,6 +2,7 @@
 // Copyright (C) 2023-2026 CERN
 // Licensed under the GNU Lesser General Public License (version 3 or later).
 // Written originally by: Z. Wettersten (Jan 2024) for the MG5aMC CUDACPP plugin.
+// Integrated with the MadGraph7 project in Feb 2026.
 //==========================================================================
 //==========================================================================
 // Library including generic functions and classes for event reweighting.

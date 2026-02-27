@@ -5,6 +5,7 @@
 ! Licensed under the GNU Lesser General Public License (version 3 or later).
 ! Modified originally by: A. Valassi (Sep 2021) for the MG5aMC CUDACPP plugin.
 ! Further modified by: J. Teig, A. Valassi, Z. Wettersten (2021-2025).
+! Integrated with the MadGraph7 project in Feb 2026.
 !==========================================================================
 //==========================================================================
 // Class member functions for calculating the matrix elements for

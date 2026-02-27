@@ -2,6 +2,7 @@
 // Licensed under the GNU Lesser General Public License (version 3 or later).
 // Created originally by: J. Teig (Jul 2023) for the MG5aMC CUDACPP plugin.
 // Further modified by: J. Teig, A. Valassi (2020-2025).
+// Integrated with the MadGraph7 project in Feb 2026.
 
 #ifndef MG5AMC_GPUABSTRACTION_H
 #define MG5AMC_GPUABSTRACTION_H 1

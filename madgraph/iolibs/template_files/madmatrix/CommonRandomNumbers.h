@@ -2,6 +2,7 @@
 // Licensed under the GNU Lesser General Public License (version 3 or later).
 // Created originally by: S. Hageboeck (Nov 2020) for the MG5aMC CUDACPP plugin.
 // Further modified by: A. Valassi (2024).
+// Integrated with the MadGraph7 project in Feb 2026.
 
 #ifndef COMMONRANDOMNUMBERS_H_
 #define COMMONRANDOMNUMBERS_H_ 1

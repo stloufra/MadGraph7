@@ -2,6 +2,7 @@ c Copyright (C) 2020-2026 CERN and UCLouvain.
 c Licensed under the GNU Lesser General Public License (version 3 or later).
 c Created originally by: O. Mattelaer (Oct 2023) for the MG5aMC CUDACPP plugin.
 c Further modified by: O. Mattelaer, A. Valassi (2023-2024).
+c Integrated with the MadGraph7 project in Feb 2026.
 c       ======================================================
 c       *START* Included from CUDACPP template smatrix_multi.f
 c       (into function smatrix$i_multi in auto_dsig$i.f)

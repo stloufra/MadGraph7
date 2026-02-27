@@ -2,6 +2,7 @@
   // Licensed under the GNU Lesser General Public License (version 3 or later).
   // Created originally by: A. Valassi (Apr 2021) for the MG5aMC CUDACPP plugin.
   // Further modified by: A. Valassi (2021-2024).
+  // Integrated with the MadGraph7 project in Feb 2026.
   expwfs.push_back( {                                   // ---------
      5.000000000000000e+02,  5.000000000000000e+02,     // itest=0: ixxxxx#0 nsp=-1 mass=0
      0.000000000000000e+00,  0.000000000000000e+00,     // itest=0: ixxxxx#0 nsp=-1 mass=0

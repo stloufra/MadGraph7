@@ -2,6 +2,7 @@
 // Licensed under the GNU Lesser General Public License (version 3 or later).
 // Created originally by: A. Valassi (Dec 2021) for the MG5aMC CUDACPP plugin.
 // Further modified by: J. Teig, A. Valassi (2021-2024).
+// Integrated with the MadGraph7 project in Feb 2026.
 
 #include "CommonRandomNumbers.h"
 #include "GpuAbstraction.h"

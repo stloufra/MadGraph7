@@ -2,6 +2,7 @@
 # Copyright (C) 2020-2026 CERN and UCLouvain.
 # Licensed under the GNU Lesser General Public License (version 3 or later).
 # Created originally by: A. Valassi (Jul 2022) for the MG5aMC CUDACPP plugin.
+# Integrated with the MadGraph7 project in Feb 2026.
 
 if [ "$1" == "" ] || [ "$2" != "" ]; then
   echo "Usage: $0 <logfile.txt>"

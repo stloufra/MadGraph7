@@ -6,6 +6,7 @@
 ! Licensed under the GNU Lesser General Public License (version 3 or later).
 ! Modified originally by: A. Valassi (Sep 2021) for the MG5aMC CUDACPP plugin.
 ! Further modified by: A. Valassi (2021-2024) for the MG5aMC CUDACPP plugin.
+! Integrated with the MadGraph7 project in Feb 2026.
 !==========================================================================
 %(function_definitions)s
 } // end namespace

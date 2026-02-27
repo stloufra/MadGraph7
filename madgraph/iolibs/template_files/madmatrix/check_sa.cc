@@ -4,8 +4,8 @@
 // Copyright (C) 2020-2024 CERN and UCLouvain.
 // Licensed under the GNU Lesser General Public License (version 3 or later).
 // Modified originally by: O. Mattelaer (Nov 2020) for the MG5aMC CUDACPP plugin.
-// Further modified by: S. Hageboeck, D. Massaro, O. Mattelaer, S. Roiser, J.
-// Teig, A. Thete, A. Valassi (2020-2026).
+// Further modified by: S. Hageboeck, D. Massaro, O. Mattelaer, S. Roiser, J. Teig, A. Thete, A. Valassi (2020-2026).
+// Integrated with the MadGraph7 project in Feb 2026.
 //==========================================================================
 
 #include "mgOnGpuConfig.h"

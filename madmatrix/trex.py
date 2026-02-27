@@ -2,6 +2,7 @@
 # Licensed under the GNU Lesser General Public License (version 3 or later).
 # Created originally by: Z. Wettersten (Sep 2024) for the MG5aMC CUDACPP plugin.
 # Further modified by: Z. Wettersten (2024-2025).
+# Integrated with the MadGraph7 project in Feb 2026.
 
 import os
 import subprocess

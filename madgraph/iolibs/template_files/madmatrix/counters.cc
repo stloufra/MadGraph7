@@ -2,6 +2,7 @@
 // Licensed under the GNU Lesser General Public License (version 3 or later).
 // Created originally by: A. Valassi (Dec 2022) for the MG5aMC CUDACPP plugin.
 // Further modified by: S. Hageboeck, A. Valassi (2022-2024).
+// Integrated with the MadGraph7 project in Feb 2026.
 
 #include "timer.h"
 #define TIMERTYPE std::chrono::high_resolution_clock

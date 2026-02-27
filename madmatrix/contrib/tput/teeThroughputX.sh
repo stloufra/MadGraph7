@@ -3,6 +3,7 @@
 # Licensed under the GNU Lesser General Public License (version 3 or later).
 # Created originally by: A. Valassi (Sep 2021) for the MG5aMC CUDACPP plugin.
 # Further modified by: A. Valassi (2021-2025).
+# Integrated with the MadGraph7 project in Feb 2026.
 
 scrdir=$(cd $(dirname $0); pwd)
 bckend=$(basename $(cd $scrdir; cd ..; pwd)) # cudacpp or alpaka

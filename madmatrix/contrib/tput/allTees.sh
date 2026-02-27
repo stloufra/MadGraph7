@@ -3,6 +3,7 @@
 # Licensed under the GNU Lesser General Public License (version 3 or later).
 # Created originally by: A. Valassi (Apr 2022) for the MG5aMC CUDACPP plugin.
 # Further modified by: A. Valassi (2022-2025).
+# Integrated with the MadGraph7 project in Feb 2026.
 
 scrdir=$(cd $(dirname $0); pwd)
 

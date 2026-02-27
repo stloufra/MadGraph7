@@ -2,6 +2,7 @@
 // Licensed under the GNU Lesser General Public License (version 3 or later).
 // Created originally originally by: A. Valassi (Jan 2022).
 // Further modified by: D. Massaro, J. Teig, A. Thete, A. Valassi (2022-2024).
+// Integrated with the MadGraph7 project in Feb 2026.
 
 #ifndef BRIDGEKERNELS_H
 #define BRIDGEKERNELS_H 1

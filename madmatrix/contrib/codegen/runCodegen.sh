@@ -3,6 +3,7 @@
 # Licensed under the GNU Lesser General Public License (version 3 or later).
 # Created originally by: S. Hageboeck (Sep 2023) for the MG5aMC CUDACPP plugin.
 # Further modified by: S. Hageboeck, A. Valassi (2023).
+# Integrated with the MadGraph7 project in Feb 2026.
 
 set -e
 

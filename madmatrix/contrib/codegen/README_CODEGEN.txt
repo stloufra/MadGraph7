@@ -2,6 +2,7 @@
 # Licensed under the GNU Lesser General Public License (version 3 or later).
 # Created originally by: A. Valassi (Jun 2023) for the MG5aMC CUDACPP plugin.
 # Further modified by: A. Valassi (2023).
+# Integrated with the MadGraph7 project in Feb 2026.
 
 [Last updated Mon 19 June 2023]
 

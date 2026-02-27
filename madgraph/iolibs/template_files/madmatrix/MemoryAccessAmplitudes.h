@@ -2,6 +2,7 @@
 // Licensed under the GNU Lesser General Public License (version 3 or later).
 // Created originally by: A. Valassi (Jan 2022) for the MG5aMC CUDACPP plugin.
 // Further modified by: A. Valassi (2022-2024).
+// Integrated with the MadGraph7 project in Feb 2026.
 
 #ifndef MemoryAccessAmplitudes_H
 #define MemoryAccessAmplitudes_H 1

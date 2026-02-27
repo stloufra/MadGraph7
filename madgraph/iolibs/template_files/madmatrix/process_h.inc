@@ -4,8 +4,8 @@
 // Copyright (C) 2020-2026 CERN and UCLouvain.
 // Licensed under the GNU Lesser General Public License (version 3 or later).
 // Modified originally by: S. Roiser (Feb 2020) for the MG5aMC CUDACPP plugin.
-// Further modified by: D. Massaro, O. Mattelaer, S. Roiser, J. Teig, A. Thete,
-// A. Valassi (2020-2025).
+// Further modified by: D. Massaro, O. Mattelaer, S. Roiser, J. Teig, A. Thete, A. Valassi (2020-2025).
+// Integrated with the MadGraph7 project in Feb 2026.
 //==========================================================================
 // This file has been automatically generated for CUDA/C++ standalone by
 %(info_lines)s

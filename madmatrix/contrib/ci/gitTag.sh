@@ -3,6 +3,7 @@
 # Licensed under the GNU Lesser General Public License (version 3 or later).
 # Created originally by: A. Valassi (Sep 2024) for the MG5aMC CUDACPP plugin (based on earlier work for the HEP_OSlibs project).
 # Further modified by: A. Valassi (2024).
+# Integrated with the MadGraph7 project in Feb 2026.
 
 set -e # fail on error
 

@@ -3,7 +3,6 @@
 # Licensed under the GNU Lesser General Public License (version 3 or later).
 # Created originally by: A. Valassi (Apr 2023) for the MG5aMC CUDACPP plugin.
 # Further modified by: A. Valassi (2024).
-
 SCRDIR=$(cd $(dirname $0); pwd)
 TOPDIR=$(dirname $SCRDIR) # e.g. epochX/cudacpp if $SCRDIR=epochX/cudacpp/CODEGEN
 

@@ -2,6 +2,7 @@
 # Licensed under the GNU Lesser General Public License (version 3 or later).
 # Created originally by: A. Valassi (Feb 2022) for the MG5aMC CUDACPP plugin.
 # Further modified by: A. Valassi (2022-2024).
+# Integrated with the MadGraph7 project in Feb 2026.
 # --- 
 # February 2022: latest draft for clang 13.0.0 (BasedOnStyle: Google)
 # See https://releases.llvm.org/13.0.0/tools/clang/docs/ClangFormatStyleOptions.html
