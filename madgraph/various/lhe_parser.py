@@ -157,14 +157,32 @@ class Particle(object):
         t0 = time.perf_counter() if _ENABLE_LHE_TIMERS else None
         try:
             args = line.split()
-            keys = ['pid', 'status','mother1','mother2','color1', 'color2', 'px','py','pz','E',
-                    'mass','vtim','helicity']
-            
-            for key,value in zip(keys,args):
-                setattr(self, key, float(value))
-            self.pid = int(self.pid)
-                
-            self.comment = ' '.join(args[len(keys):])
+            if len(args) < 13:
+                keys = ['pid', 'status','mother1','mother2','color1', 'color2', 'px','py','pz','E',
+                        'mass','vtim','helicity']
+                for key, value in zip(keys, args):
+                    setattr(self, key, float(value))
+                self.pid = int(self.pid)
+                self.comment = ' '.join(args[len(keys):])
+            else:
+                pid, status, mother1, mother2, color1, color2, px, py, pz, E, mass, vtim, helicity = args[:13]
+
+                # Hot path: avoid setattr loop in per-particle parsing.
+                self.pid = int(float(pid))
+                self.status = float(status)
+                self.mother1 = float(mother1)
+                self.mother2 = float(mother2)
+                self.color1 = float(color1)
+                self.color2 = float(color2)
+                self.px = float(px)
+                self.py = float(py)
+                self.pz = float(pz)
+                self.E = float(E)
+                self.mass = float(mass)
+                self.vtim = float(vtim)
+                self.helicity = float(helicity)
+                self.comment = ' '.join(args[13:])
+
             if self.comment.startswith(('|','#')):
                 self.comment = self.comment[1:]
         finally:
@@ -517,14 +535,171 @@ class EventFile(object):
             return parts[1], float(parts[2])
         raise ValueError("Failed to locate event header line in raw event block")
 
+    @staticmethod
+    def _extract_raw_event_header_metadata(raw_event):
+        """Legacy block-based header parser used outside the direct stream path."""
+        if isinstance(raw_event, list):
+            lines = raw_event
+        else:
+            lines = raw_event.splitlines(True)
+
+        for i, raw in enumerate(lines):
+            line = raw.strip()
+            if not line:
+                continue
+            if line[0] == '#':
+                continue
+            if line.startswith('<event'):
+                continue
+            if line[0] == '<':
+                break
+
+            parts = line.split(None, 3)
+            if len(parts) < 4:
+                break
+            ievent = parts[1]
+            wgt = float(parts[2])
+            indent = raw[:len(raw) - len(raw.lstrip(' \t'))]
+            raw_noeol = raw.rstrip('\r\n')
+            eol = raw[len(raw_noeol):]
+            meta = (i, indent, parts[0], parts[1], parts[3], eol)
+            return ievent, wgt, meta
+
+        raise ValueError("Failed to locate event header line in raw event block")
+
+    @staticmethod
+    def _rewrite_raw_event_weight(raw_event, new_wgt, header_meta=None):
+        """Rewrite only the central weight in a raw event block."""
+        if isinstance(raw_event, list):
+            lines = list(raw_event)
+        else:
+            lines = raw_event.splitlines(True)
+
+        if header_meta is not None:
+            idx, indent, field0, field1, tail, eol = header_meta
+            lines[idx] = '%s%s %s %+13.7e %s%s' % (
+                indent, field0, field1, float(new_wgt), tail, eol
+            )
+            return ''.join(lines)
+
+        for i, raw in enumerate(lines):
+            line = raw.strip()
+            if not line:
+                continue
+            if line[0] == '#':
+                continue
+            if line.startswith('<event'):
+                continue
+            if line[0] == '<':
+                raise ValueError("Malformed event header line: %r" % line)
+
+            parts = line.split(None, 3)
+            if len(parts) < 4:
+                raise ValueError("Malformed event header line: %r" % line)
+
+            indent = raw[:len(raw) - len(raw.lstrip(' \t'))]
+            raw_noeol = raw.rstrip('\r\n')
+            eol = raw[len(raw_noeol):]
+            lines[i] = '%s%s %s %+13.7e %s%s' % (
+                indent, parts[0], parts[1], float(new_wgt), parts[3], eol
+            )
+            return ''.join(lines)
+
+        raise ValueError("Failed to locate event header line in raw event block")
+
+    def _iter_raw_events_direct(self):
+        """Yield (raw_event, ievent, wgt, header_meta) via one-pass stream scanning.
+
+        Raises ValueError on malformed headers so callers can fall back to the
+        safe generic iterator.
+        """
+        readline = self.file.readline
+        decode_needed = ('b' in self.mode) or self.zip_mode
+        encoding = self.encoding
+
+        mode = 0
+        text = None
+        ievent = None
+        wgt = None
+        header_meta = None
+
+        while True:
+            line = readline()
+            if not line:
+                return
+            if decode_needed:
+                line = line.decode(encoding, errors='ignore')
+
+            if not mode:
+                c0 = line[:1]
+                if c0 == '<':
+                    if '<event' in line:
+                        mode = 1
+                        text = [line]
+                        ievent = None
+                        wgt = None
+                        header_meta = None
+                elif c0 == ' ' or c0 == '\t':
+                    s = line.lstrip()
+                    if s and s[:1] == '<' and '<event' in s:
+                        mode = 1
+                        text = [line]
+                        ievent = None
+                        wgt = None
+                        header_meta = None
+                continue
+
+            text.append(line)
+
+            if header_meta is None:
+                sline = line.strip()
+                if sline and sline[:1] != '#' and not sline.startswith('<event'):
+                    if sline[:1] == '<':
+                        raise ValueError("Malformed event header line: %r" % sline)
+                    parts = sline.split(None, 3)
+                    if len(parts) < 4:
+                        raise ValueError("Malformed event header line: %r" % sline)
+                    ievent = parts[1]
+                    wgt = float(parts[2])
+                    raw_noeol = line.rstrip('\r\n')
+                    eol = line[len(raw_noeol):]
+                    indent = line[:len(line) - len(line.lstrip(' \t'))]
+                    header_meta = (len(text) - 1, indent, parts[0], parts[1], parts[3], eol)
+
+            c0 = line[:1]
+            is_close = False
+            if c0 == '<':
+                is_close = '</event>' in line
+            elif c0 == ' ' or c0 == '\t':
+                s = line.lstrip()
+                is_close = bool(s and s[:1] == '<' and '</event>' in s)
+
+            if not is_close:
+                continue
+
+            if header_meta is None:
+                raise ValueError("Failed to locate event header line in raw event block")
+            yield text, ievent, wgt, header_meta
+            mode = 0
+            text = None
+
     def _iter_raw_events_for_unweight(self):
-        """Yield (raw_event, ievent, wgt) without building Event objects."""
+        """Yield (raw_event, ievent, wgt, header_meta) without Event objects."""
+        self.seek(0)
+        try:
+            for raw_event, ievent, wgt, header_meta in self._iter_raw_events_direct():
+                yield raw_event, ievent, wgt, header_meta
+            return
+        except Exception:
+            # Any parser edge case falls back to the safe generic event iterator
+            self.seek(0)
+
         old_parsing = self.parsing
         self.parsing = False
         try:
             for raw_event in self:
                 ievent, wgt = self._parse_raw_event_header(raw_event)
-                yield raw_event, ievent, wgt
+                yield raw_event, ievent, wgt, None
         finally:
             self.parsing = old_parsing
 
@@ -762,7 +937,7 @@ class EventFile(object):
             nb_keep = 0
             trunc_cross = 0
             if use_fast_second_pass:
-                for raw_event, _ievent, wgt in self._iter_raw_events_for_unweight():
+                for raw_event, _ievent, wgt, header_meta in self._iter_raw_events_for_unweight():
                     r = random.random()
                     if abs(wgt) < r * max_wgt:
                         continue
@@ -771,17 +946,27 @@ class EventFile(object):
                         if abs(wgt) > max_wgt:
                             trunc_cross += abs(wgt) - max_wgt
                         if outputpath and (event_target == 0 or nb_keep <= event_target):
-                            event = Event(raw_event, parse_momenta=False)
-                            event.wgt = written_weight(max(wgt, max_wgt))
-                            outfile.write(str(event))
+                            final_wgt = written_weight(max(wgt, max_wgt))
+                            try:
+                                outfile.write(self._rewrite_raw_event_weight(raw_event, final_wgt, header_meta))
+                            except Exception:
+                                # Per-event fallback preserves behavior on malformed blocks.
+                                event = Event(raw_event, parse_momenta=False)
+                                event.wgt = final_wgt
+                                outfile.write(str(event))
                     elif wgt < 0:
                         nb_keep += 1
                         if abs(wgt) > max_wgt:
                             trunc_cross += abs(wgt) - max_wgt
                         if outputpath and (event_target == 0 or nb_keep <= event_target):
-                            event = Event(raw_event, parse_momenta=False)
-                            event.wgt = -1 * written_weight(max(abs(wgt), max_wgt))
-                            outfile.write(str(event))
+                            final_wgt = -1 * written_weight(max(abs(wgt), max_wgt))
+                            try:
+                                outfile.write(self._rewrite_raw_event_weight(raw_event, final_wgt, header_meta))
+                            except Exception:
+                                # Per-event fallback preserves behavior on malformed blocks.
+                                event = Event(raw_event, parse_momenta=False)
+                                event.wgt = final_wgt
+                                outfile.write(str(event))
             else:
                 for event in self:
                     r = random.random()
@@ -1157,6 +1342,7 @@ class MultiEventFile(EventFile):
         self.error = []
         self.across = []
         self.scales = []
+        self._remaining_event_counter = 0
         if start_list:
             if parse:
                 for p in start_list:
@@ -1193,6 +1379,7 @@ class MultiEventFile(EventFile):
         if nb_event:
             obj.len = nb_event
         self._configure = False
+        self._remaining_event_counter = 0
         return obj
         
     def __iter__(self):
@@ -1204,7 +1391,8 @@ class MultiEventFile(EventFile):
     def next(self):
         if not self._configure:
             self.configure()
-        remaining_event = self.total_event_in_files - sum(self.curr_nb_events)
+        # remaining-event tracking avoids repeated sum(self.curr_nb_events)
+        remaining_event = self._remaining_event_counter
         if remaining_event == 0:
             raise StopIteration
         # determine which file need to be read
@@ -1215,6 +1403,7 @@ class MultiEventFile(EventFile):
             sum_nb += self.initial_nb_events[i] - self.curr_nb_events[i]
             if nb_event <= sum_nb:
                 self.curr_nb_events[i] += 1
+                self._remaining_event_counter -= 1
                 event = next(obj)
                 if not self.eventgroup:
                     event.sample_scale = self.scales[i] # for file reweighting
@@ -1413,6 +1602,7 @@ class MultiEventFile(EventFile):
         for i,f in enumerate(self.files):
             self.initial_nb_events[i] = len(f)
         self.total_event_in_files = sum(self.initial_nb_events)
+        self._remaining_event_counter = self.total_event_in_files
     
     def __len__(self):
         
@@ -1427,13 +1617,19 @@ class MultiEventFile(EventFile):
             self.curr_nb_events[i] = 0         
         for f in self.files:
             f.seek(pos)
+        self._remaining_event_counter = self.total_event_in_files
+        if hasattr(self, "_raw_unweight_iterators"):
+            self._raw_unweight_iterators = None
 
     def _iter_raw_events_for_unweight(self):
-        """Yield (raw_event, ievent, scaled_wgt) with MultiEventFile sampling."""
+        """Yield (raw_event, ievent, scaled_wgt, header_meta) with sampling."""
         if not self._configure:
             self.configure()
+        # Keep one raw iterator per file so each file is scanned sequentially once
+        self._raw_unweight_iterators = [None] * len(self.files)
+        remaining_event = self.total_event_in_files
+        self._remaining_event_counter = remaining_event
         while True:
-            remaining_event = self.total_event_in_files - sum(self.curr_nb_events)
             if remaining_event == 0:
                 return
             nb_event = random.randint(1, remaining_event)
@@ -1442,18 +1638,28 @@ class MultiEventFile(EventFile):
                 sum_nb += self.initial_nb_events[i] - self.curr_nb_events[i]
                 if nb_event <= sum_nb:
                     self.curr_nb_events[i] += 1
-                    old_parsing = obj.parsing
-                    obj.parsing = False
+                    remaining_event -= 1
+                    self._remaining_event_counter = remaining_event
                     try:
-                        raw_event = next(obj)
-                    finally:
-                        obj.parsing = old_parsing
-                    ievent, wgt = EventFile._parse_raw_event_header(raw_event)
-                    yield raw_event, ievent, wgt * self.scales[i]
+                        iterator = self._raw_unweight_iterators[i]
+                        if iterator is None:
+                            iterator = obj._iter_raw_events_direct()
+                            self._raw_unweight_iterators[i] = iterator
+                        raw_event, ievent, wgt, header_meta = next(iterator)
+                    except Exception:
+                        old_parsing = obj.parsing
+                        obj.parsing = False
+                        try:
+                            raw_event = next(obj)
+                        finally:
+                            obj.parsing = old_parsing
+                        ievent, wgt = EventFile._parse_raw_event_header(raw_event)
+                        header_meta = None
+                    yield raw_event, ievent, wgt * self.scales[i], header_meta
                     break
             else:
                 raise StopIteration
-            
+
     def unweight(self, outputpath, get_wgt, **opts):
         """unweight the current file according to wgt information wgt.
         which can either be a fct of the event or a tag in the rwgt list.

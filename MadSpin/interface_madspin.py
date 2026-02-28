@@ -27,7 +27,7 @@ import time
 import glob
 import six
 from six.moves import range
-from itertools import filterfalse
+from itertools import chain, filterfalse, product
 
 pjoin = os.path.join
 if '__main__' == __name__:
@@ -1401,8 +1401,6 @@ class MadSpinInterface(extended_cmd.Cmd):
                 logger.info('Will use seed %s' % (self.seed))
                 misc.call(['run.sh', str(int(1.2*nb_event)), str(self.seed)], cwd=decay_dir)     
                 out[i] = lhe_parser.EventFile(pjoin(decay_dir, 'events.lhe.gz'))     
-                print("=======> CHECKING IF FILES ARE THE SAME")
-                print(os.system(f"md5sum {pjoin(decay_dir, 'events.lhe.gz')}"))
             if cumul:
                 break
         time_gen_dec = time.time()-time_gen_dec
@@ -1624,22 +1622,31 @@ class MadSpinInterface(extended_cmd.Cmd):
             if curr_event and self.efficiency and curr_event % 10 == 0 and float(str(curr_event)[1:]) == 0:
                 logger.info("decaying event number %s. Efficiency: %s [%s s]" % (curr_event, 1/self.efficiency, time.time()-start))
 
-            # Cache production density matrix
+            # Per-production-event cache reused across rejection retries.
             prod_density_cached = None
 
             while 1:
                 nb_try += 1
                 decays = self.get_decay_from_file(production, evt_decayfile, nb_event-curr_event)
+                # In density mode do not do full event construction before accept/reject
+                build_event = (not density_method) or self.options['fixed_order']
                 if prod_density_cached is None:
-                    full_evt, wgt, prod_density_cached = self.get_onshell_evt_and_wgt(production, decays, decay_dict)
+                    full_evt, wgt, prod_density_cached = self.get_onshell_evt_and_wgt(
+                        production, decays, decay_dict, build_event=build_event)
                 else:
-                    full_evt, wgt, _ = self.get_onshell_evt_and_wgt(production, decays, decay_dict, prod_density_cached)
+                    full_evt, wgt, _ = self.get_onshell_evt_and_wgt(
+                        production, decays, decay_dict, prod_density_cached, build_event=build_event)
                 #print(f"Spyros wgt = {wgt}")
                 if random.random()*maxwgt < wgt:
+                    if density_method and full_evt is None:
+                        # Build the full Event only after acceptance in density mode.
+                        full_evt = lhe_parser.Event(str(production))
+                        full_evt = full_evt.add_decays(decays)
                     if self.options['fixed_order']:
                         full_evt = [full_evt] + [evt.add_decays(decays) for evt in counterevt]
                     break
-            self.efficiency = curr_event/nb_try
+            # Efficiency = accepted / trials (+1 because current event is already accepted)
+            self.efficiency = float(curr_event + 1) / nb_try
             if self.options['fixed_order']:
                 for evt in full_evt:
                     # change the weight associated to the event
@@ -1655,7 +1662,14 @@ class MadSpinInterface(extended_cmd.Cmd):
                     wgts[key] *= self.branching_ratio            
             output_lhe.write_events(full_evt)
             
-        output_lhe.write('</LesHouchesEvents>\n')    
+        output_lhe.write('</LesHouchesEvents>\n')   
+        # Log unweighting efficiency (can be turned off)
+        accepted = curr_event + 1
+        eff = float(accepted) / nb_try if nb_try else 0.0
+        logger.critical(
+            "MadSpin unweight efficiency: %.4f (%d accepted / %d trials, %.2f trials/event)",
+            eff, accepted, nb_try, (1.0 / eff if eff else float("inf"))
+        )
         self.efficiency = 1 # to let me5 to write the correct number of events
         logger.info('Done so far. output written in %s' % output_lhe.name)
         logger.critical(f"Time for decay = {time.time()-start:.2f} sec")
@@ -1705,11 +1719,22 @@ class MadSpinInterface(extended_cmd.Cmd):
                     decay = next(decay_file)
                     break
                 except StopIteration:
-                    eff = self.efficiency
-                    needed = 1.05 * nb_remain / eff
-                    needed = min(50000, max(needed, 1000))
+                    # Estimate refill size from remaining production events
+                    # efficiency and per-trial consumption if decaying particles
+                    # Take into account identical parents
+                    # Oversample by 10% to reduce refill frequency; cap to limit one refill cost.
+                    eff = max(self.efficiency, 1e-12)
+                    same_pdg = ids.count(particle.pdg)
+                    if nb_decay == 1:
+                        burn = same_pdg
+                    elif nb_decay == same_pdg:
+                        burn = 1.0
+                    else:
+                        burn = max(1.0, float(same_pdg) / float(nb_decay))
+                    needed = int(math.ceil(1.10 * burn * nb_remain / eff))
+                    needed = min(200000, max(needed, 1000))
                     with misc.MuteLogger(["madgraph", "madevent", "ALOHA", "cmdprint"], [50,50,50,50]):
-                        new_file = self.generate_events(particle.pdg, 300000, self.mg5cmd, [decay_file_nb])
+                        new_file = self.generate_events(particle.pdg, needed, self.mg5cmd, [decay_file_nb])
                     evt_decayfile[particle.pdg].update(new_file)
                     decay_file = evt_decayfile[particle.pdg][decay_file_nb]
                     continue
@@ -1758,10 +1783,12 @@ class MadSpinInterface(extended_cmd.Cmd):
                 decays = self.get_decay_from_file(base_event, evt_decayfile, nevents-i)   
                 #carefull base_event is modified by the following function 
                 if density_matrix_prod is None:
-                    _, wgt, density_matrix_prod = self.get_onshell_evt_and_wgt(base_event, decays, decay_dict)
+                    _, wgt, density_matrix_prod = self.get_onshell_evt_and_wgt(
+                        base_event, decays, decay_dict, build_event=False)
                     #print(f"wgt1 = {wgt}")
                 else:
-                    wgt = self.get_onshell_evt_and_wgt(base_event, decays, decay_dict, density_matrix_prod)[1]
+                    wgt = self.get_onshell_evt_and_wgt(
+                        base_event, decays, decay_dict, density_matrix_prod, build_event=False)[1]
                     #print(f"wgt2 = {wgt}")
                 #print(f"Event {i} , PS point {j}, wgt for max = {wgt}")
                 maxwgt = max(wgt, maxwgt)
@@ -1786,10 +1813,11 @@ class MadSpinInterface(extended_cmd.Cmd):
         return base_max_weight
 
             
-    def get_onshell_evt_and_wgt(self, production, decays, decay_dict, prod_density_cached=None):
+    def get_onshell_evt_and_wgt(self, production, decays, decay_dict, prod_density_cached=None, build_event=True):
         """ return the onshell wgt for the production event associated to the decays
             return also the full event with decay. 
-            Carefull this modifies production event (pass to the full one)"""
+            Carefull this modifies production event (pass to the full one)
+            build_event: if False (density mode) compute weight without building event"""
         #print("\n\n\n\n\n======== debug get_onshell_evt_and_wgt =========")
         #print(f"Spyros decays: {decays}")
         decay_me = 1.0
@@ -1832,25 +1860,27 @@ class MadSpinInterface(extended_cmd.Cmd):
                 full_me, _, prod_diag, dec_diag = self.calculate_matrix_element_from_density(production, decays, decay_dict, prod_density_cached)
             #print(f"full_me from density = {full_me}")
             
-            # Create full event from production and decays
-            full_event = lhe_parser.Event(str(production))
-            #print(f"before adding decays to full_event : {decays}")
-            #print(f"full event 1 = {full_event}")            
-            # CAUTION: the next line removes everything from decays dictionary
-            full_event = full_event.add_decays(decays)
-            
-            #print(f"full event 2 = {full_event}")
-            if self.options['density_debug']:
-                me1 = self.calculate_matrix_element(full_event)
-                #print(f"me1 = {me1} , me2 = {full_me} , ratio = {me1/full_me}")
-                if abs(1-me1/full_me) > self.options['density_tolerance']:
-                    print(f"full = {me1} , density = {full_me} , ratio = {me1/full_me}")	    
-                    print(full_event)
-                    print(production)
-                    print(decays)
+            full_event = None
+            if build_event or self.options['density_debug']:
+                # Create full event from production and decays
+                full_event = lhe_parser.Event(str(production))
+                #print(f"before adding decays to full_event : {decays}")
+                #print(f"full event 1 = {full_event}")            
+                # CAUTION: the next line removes everything from decays dictionary
+                full_event = full_event.add_decays(decays)
+                
+                #print(f"full event 2 = {full_event}")
+                if self.options['density_debug']:
+                    me1 = self.calculate_matrix_element(full_event)
+                    #print(f"me1 = {me1} , me2 = {full_me} , ratio = {me1/full_me}")
+                    if abs(1-me1/full_me) > self.options['density_tolerance']:
+                        print(f"full = {me1} , density = {full_me} , ratio = {me1/full_me}")	    
+                        print(full_event)
+                        print(production)
+                        print(decays)
 
-                    print("ERROR matrix element from density does not match with full matrix element")	
-                    raise RuntimeError("ERROR matrix element from density does not match with full matrix element")	 
+                        print("ERROR matrix element from density does not match with full matrix element")	
+                        raise RuntimeError("ERROR matrix element from density does not match with full matrix element")	 
     
         # Calculate production ME and cache it so that if we reject 
         # the decay the production ME will not be recalculated
@@ -1914,31 +1944,63 @@ class MadSpinInterface(extended_cmd.Cmd):
                         mymod.initialise(pjoin(self.path_me, 'Cards', 'param_card.dat'))
 
         # ------------------------------------------------------------------
-        # Production averaging factor (spin/color initial state) from standalone
+        # Cache production-only metadata reused across rejection retries
         # ------------------------------------------------------------------
-        iden_p = self.get_iden(production)
+        decays_key = tuple(decays.keys())
+        prod_static = getattr(production, '_ms_density_static', None)
+        if not prod_static or prod_static.get('decays_key') != decays_key:
+            # Production averaging factor (spin/color initial state) from standalone
+            iden_p = self.get_iden(production)
 
-        # ------------------------------------------------------------------
-        # Symmetry factor for identical final states in production
-        # MG5 standalone "full matrix element" includes 1/(Π n_i!) for identical
-        # final-state particles in the production process; the density pipeline
-        # must include the same factor to match.
-        # We compute Π n_i! over status==1 particles in the production event.
-        # ------------------------------------------------------------------
-        from collections import Counter
-        final_pdgs = [int(p.pid) for p in production if getattr(p, "status", None) == 1]
-        counts_final = Counter(final_pdgs)
-        sym_factor_prod_ident = 1
-        for n in counts_final.values():
-            if n > 1:
-                sym_factor_prod_ident *= math.factorial(n)
+            # Symmetry factor for identical final states in production
+            final_pdgs = [int(p.pid) for p in production if getattr(p, "status", None) == 1]
+            counts_final = collections.Counter(final_pdgs)
+            sym_factor_prod_ident = 1
+            for n in counts_final.values():
+                if n > 1:
+                    sym_factor_prod_ident *= math.factorial(n)
 
-        # ------------------------------------------------------------------
-        # Find particles that should decay (status==1 and pid in decays keys)
-        # ------------------------------------------------------------------
-        init_part = [part for pdg in decays for part in production
-                     if part.pid == pdg and part.status == 1]
-        nchanging = len(init_part)
+            # Find particles that should decay (status==1 and pid in decays keys)
+            init_part = [part for pdg in decays_key for part in production
+                         if part.pid == pdg and part.status == 1]
+            nchanging = len(init_part)
+
+            # Allowed helicities per spin
+            hel_dict = {1: [0], 2: [1, -1], 3: [-1, 0, 1]}
+
+            # Decaying-particle positions (+1 for Fortran), spins, helicities
+            position = [i + 1 for pdg in decays_key
+                        for i in range(len(production))
+                        if production[i].pid == pdg and production[i].status == 1]
+            decaying_pdg = [int(production[i - 1].pid) for i in position]
+            decaying_spins = [self.model.get_particle(i).get('spin') for i in decaying_pdg]
+            helicities = [hel_dict[i] for i in decaying_spins]
+
+            allowed_hel_pairs, allowed_hel = self.get_allowed_hel(helicities)
+
+            prod_static = {
+                'decays_key': decays_key,
+                'iden_p': iden_p,
+                'sym_factor_prod_ident': sym_factor_prod_ident,
+                'init_part': init_part,
+                'nchanging': nchanging,
+                'position': position,
+                'helicities': helicities,
+                'allowed_hel': allowed_hel,
+                'ncomb': len(allowed_hel_pairs),
+                'dimension': math.prod(len(i) for i in helicities),
+            }
+            production._ms_density_static = prod_static
+
+        iden_p = prod_static['iden_p']
+        sym_factor_prod_ident = prod_static['sym_factor_prod_ident']
+        init_part = prod_static['init_part']
+        nchanging = prod_static['nchanging']
+        position = prod_static['position']
+        helicities = prod_static['helicities']
+        allowed_hel = prod_static['allowed_hel']
+        ncomb = prod_static['ncomb']
+        dimension = prod_static['dimension']
 
         # ------------------------------------------------------------------
         # Normalization
@@ -1947,28 +2009,12 @@ class MadSpinInterface(extended_cmd.Cmd):
         prod_color = 1
         prod_denominators = 1
 
-        # Allowed helicities per spin (unchanged)
-        hel_dict = {1: [0],
-                    2: [1, -1],
-                    3: [-1, 0, 1]}
-
-        # Decaying-particle positions (+1 for Fortran), spins, helicities
-        position = [i + 1 for pdg in decays.keys()
-                    for i in range(len(production)) 
-                    if production[i].pid == pdg and production[i].status == 1]
-        decaying_pdg = [int(production[i - 1].pid) for i in position]
-        decaying_spins = [self.model.get_particle(i).get('spin') for i in decaying_pdg]
-        helicities = [hel_dict[i] for i in decaying_spins]
-
-        allowed_hel_pairs, allowed_hel = self.get_allowed_hel(helicities)
-        ncomb = len(allowed_hel_pairs)
-
         density_prod = self.get_density(production,
                                         position,
                                         nchanging,
                                         allowed_hel,
                                         ncomb,
-                                        math.prod(len(i) for i in helicities)) \
+                                        dimension) \
             if prod_density_cached is None else prod_density_cached
 
         # ------------------------------------------------------------------
@@ -1978,19 +2024,17 @@ class MadSpinInterface(extended_cmd.Cmd):
         #   sym_group = (Π_k n_k!) / (N!)
         # and sym_factor_decay = Π_groups sym_group.
         # ------------------------------------------------------------------
+        sym_factor_decay = 1.0
+
+        # Canonical decay-channel signature: sorted final-state PDGs only.
         def _decay_signature(dec_evt):
             pdgs = []
             for p in dec_evt:
-                try:
-                    st = int(p.status)
-                except Exception:
-                    st = None
-                if st == 1:
+                if p.status == 1:
                     pdgs.append(int(p.pid))
-            return tuple(sorted(Counter(pdgs).items()))
-
-        sym_factor_decay = 1.0
-
+            pdgs.sort()
+            return tuple(pdgs)
+        
         # ------------------------------------------------------------------
         # Build total decay density matrix as tensor product
         # ------------------------------------------------------------------
@@ -2002,11 +2046,20 @@ class MadSpinInterface(extended_cmd.Cmd):
 
             # decay symmetry for this PDG group
             if N > 1:
-                sig_counts = Counter(_decay_signature(evt) for evt in decay_event_list)
-                sym = 1
-                for nk in sig_counts.values():
-                    sym *= math.factorial(nk)
-                sym_factor_decay *= (sym / float(math.factorial(N)))
+                # Fast path for N==2 avoids building multiplicity maps.
+                if N == 2:
+                    if _decay_signature(decay_event_list[0]) != _decay_signature(decay_event_list[1]):
+                        sym_factor_decay *= 0.5
+                else:
+                    sig_counts = {}
+                    for evt in decay_event_list:
+                        sig = _decay_signature(evt)
+                        sig_counts[sig] = sig_counts.get(sig, 0) + 1
+                    sym = 1
+                    for nk in sig_counts.values():
+                        if nk > 1:
+                            sym *= math.factorial(nk)
+                    sym_factor_decay *= (sym / float(math.factorial(N)))
 
             # particle properties for this parent PDG
             width = decay_dict[pdg][0]
@@ -2083,18 +2136,34 @@ class MadSpinInterface(extended_cmd.Cmd):
         # [[1,-1], [1,0,-1]] - we need to construct a list of lists with all possible helicities
         # [ [1,1] , [1,0], [1,-1], [-1,1], ... ] which should eventually be converted into a flat list
         # [ 1, 1, 1, 0, 1, -1, ... ]
-        from itertools import product, chain
+        key = tuple(tuple(hels) for hels in list_hels)
+        # Cache allowed helicities - they depend only on spins
+        # avoid rebuilding allowed helicities per trial
+        if not hasattr(self, '_allowed_hel_cache'):
+            self._allowed_hel_cache = {}
+        if key in self._allowed_hel_cache:
+            return self._allowed_hel_cache[key]
+
         helicity_combinations = [list(l) for l in product(*list_hels)]
         concatenated_hel_list = list(chain.from_iterable(helicity_combinations))
-        return helicity_combinations, concatenated_hel_list  
+        out = (helicity_combinations, concatenated_hel_list)
+        self._allowed_hel_cache[key] = out
+        return out  
 
     def get_density(self, event, position, nchanging, allow_hel, ncomb, dimension):
+        orig_order = getattr(event, '_ms_orig_order_for_density', None)
+        if orig_order is None:
+            _, orig_order, _, _ = self.get_pdir(event)
+            event._ms_orig_order_for_density = orig_order
 
-        _, orig_order, _, _ = self.get_pdir(event)  
-        
-        all_p = event.get_all_momenta(orig_order)
-        assert len(all_p) == 1, "Error: get_density can only be called for a single phase-space point"
-        p = all_p[0]
+        # Fast path: single-point momentum extraction without permutation construction.
+        try:
+            p = event.get_momenta(orig_order)
+        except Exception:
+            # Safety fallback for unusual event structures.
+            all_p = event.get_all_momenta(orig_order)
+            assert len(all_p) == 1, "Error: get_density can only be called for a single phase-space point"
+            p = all_p[0]
         P = rwgt_interface.ReweightInterface.invert_momenta(p) 
         pdgs =list(orig_order[0])+list(orig_order[1])
         density_array = self.f2py_module.py_get_density(pdgs=pdgs, 
@@ -2104,7 +2173,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                                                         allow_hel=allow_hel, 
                                                         n_comb=ncomb, 
                                                         alphas=event.aqcd, 
-                                                        n_changing=len(position), 
+                                                        n_changing=nchanging, 
                                                         npdg=len(pdgs))      
         #print(f"density_array = {density_array}") 
         density_matrix = madspin.DensityMatrix(density_array, 
