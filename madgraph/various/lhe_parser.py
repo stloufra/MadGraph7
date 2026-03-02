@@ -229,6 +229,23 @@ class Particle(object):
             return True
         return False
         
+    def __isub__(self, delta):
+        """Change only the fourmomentum of the current particle"""
+
+        self.E -= delta.E
+        self.px -= delta.px
+        self.py -= delta.py
+        self.pz -= delta.pz
+
+    def __iadd__(self, delta):
+        """Change only the fourmomentum of the current particle"""
+
+        self.E += delta.E
+        self.px += delta.px
+        self.py += delta.py
+        self.pz += delta.pz         
+
+
     def set_momentum(self, momentum):
         
         self.E = momentum.E
@@ -2289,7 +2306,8 @@ class Event(list):
                     this_particle.px, this_particle.py, this_particle.pz
                 )
             )
-                 
+        if hasattr(decay_particle, 'new_mass'):
+            this_particle.new_mass = decay_particle.new_mass
         self.nexternal += decay_event.nexternal -1
         old_scales = list(self.parse_matching_scale())
         if old_scales:
@@ -2867,11 +2885,12 @@ class Event(list):
         oldm = [p.mass_sqr for p in momenta]
         newm = [m**2 for m in new_mass]
         tot_mom = sum(momenta, FourMomentum())
-        if tot_mom.pt2 > 1e-5:
-            boost_back = FourMomentum(tot_mom.mass,0,0,0).boost_to_restframe(tot_mom)
-            for i,m in enumerate(momenta):
-                momenta[i] = m.boost_to_restframe(tot_mom)
+        lor = tot_mom.get_lorentz_map(FourMomentum(sqrts, 0, 0, 0))
+        back_lor =FourMomentum(sqrts, 0, 0, 0).get_lorentz_map(tot_mom) 
+        for i,m in enumerate(momenta):
+            momenta[i] = m.apply_lorentzmap(lor) 
         
+        tot_mom2 = sum(momenta, FourMomentum())
         # this is the equation 4.3 of RAMBO paper        
         f = lambda chi: new_sqrts - sum(math.sqrt(max(0, M + chi**2*(p.E**2-m))) 
                                     for M,p,m in zip(newm, momenta,oldm))
@@ -2885,6 +2904,7 @@ class Event(list):
             chi = misc.newtonmethod(f, df, 1.0, error=1e-7,maxiter=1000)
         except:
             return momenta, 0 
+
         # create the new set of momenta # eq. (4.2)        
         new_momenta = []
         for i,p in enumerate(momenta):
@@ -2892,6 +2912,7 @@ class Event(list):
                 FourMomentum(math.sqrt(newm[i]+chi**2*(p.E**2-oldm[i])),
                               chi*p.px, chi*p.py, chi*p.pz))
         
+        new_tot = sum(new_momenta, FourMomentum())
         #if __debug__:
         #    for i,p in enumerate(new_momenta):
         #        misc.sprint(p.mass_sqr, new_mass[i]**2, i,p, momenta[i])
@@ -2904,9 +2925,10 @@ class Event(list):
         jac /= sum(k.norm_sq/k.E for k in new_momenta)
         
         # boost back the events in the lab-frame
-        if tot_mom.pt2 > 1e-5:
-            for i,m in enumerate(new_momenta):
-                new_momenta[i] = m.boost_to_restframe(boost_back)
+        for i,m in enumerate(new_momenta):
+            new_momenta[i] = m.apply_lorentzmap(back_lor) 
+
+        new_tot2 = sum(new_momenta, FourMomentum())
         return new_momenta, jac
         
         
@@ -3009,7 +3031,238 @@ class Event(list):
         else:
             raise Exception
                             
-        return jac        
+        return jac     
+
+
+    def split_event_by_onshell_propagator(self ):
+        """ This split the events in production x decay
+        with format [production, decay1, ...., decayN]
+        ONLY one level is split here (so all decay are attached to the production)
+        if the argument fromlast then the production event does not have
+        any propagator remaining.
+        """
+
+        production=[]
+        out = production
+        particle2event = {}
+
+        nb_final = 0 
+        for particle in self:
+            if particle.status==-1: #initial state -> production
+                production.append(particle)
+                particle2event[particle.event_id] = production
+            elif particle.status==1: #final state -> assign to the event related to mother
+                decay = particle2event[particle.mother1.event_id]
+                decay.append(particle)
+            elif particle.status ==2: # onshell propagator 
+                # need to assign within the "production" part and start a decay part
+                prod = particle2event[particle.mother1.event_id]
+                prod.append(particle)
+                decay = [particle]
+                prod.append(decay) 
+                particle2event[particle.event_id] = decay
+
+        return out, particle2event
+
+
+
+    def reshuffle_momenta(self, final_state_mass):
+        """change the momenta to set the mass of the particle to final_state_mass.
+           if the event has onshell propagator preserve those invariant mass.
+        """
+
+        mod = {}
+        nb_final = 0 
+        for particle in self:
+            if particle.status != 1.0 :
+                continue
+            if particle.mass != final_state_mass[nb_final]:
+                particle.new_mass = final_state_mass[nb_final] 
+                if particle.mother1.event_id in mod:
+                    mod[particle.mother1.event_id].append(particle.event_id)
+                else:
+                    mod[particle.mother1.event_id] = [particle.event_id] 
+            nb_final +=1
+
+        tot_jac =1
+        if 0 in mod:
+            prod, jac  = self.reshufle_keep_onshell()
+            tot_jac*=jac
+        
+        if len(mod) ==2:
+            misc.sprint(self)
+            misc.sprint(prod)
+            raise Exception
+
+
+        misc.sprint(mod , 0 in mod)
+   
+
+    def reshuffle_production(self):
+        """ particle that need new mass have the "new_mass" attribute
+        """
+
+        # create a nice data structure for the reshuffling
+        subdiags, mapping = self.split_event_by_onshell_propagator()
+
+        #filter outsubdecay
+        production = [p for p in subdiags if not isinstance(p, list)]
+
+        old_momenta = [FourMomentum(p) for p in production if p.status!=-1]
+        if all( [not hasattr(p, 'new_mass') for p in production if p.status!=-1]):
+            raise Exception
+            return 
+        new_masses = [getattr(p, 'new_mass', p.mass) for p in production if p.status!=-1]
+        sqrts = self.sqrts
+
+        # apply the RAMBO algo
+        new_mom, jac = self.mass_shuffle(old_momenta, sqrts, new_masses)
+        if __debug__:
+            sum_mom = sum([FourMomentum(p) for p in new_mom], FourMomentum())
+            sum_old = sum([FourMomentum(p) for p in old_momenta], FourMomentum()) 
+            sum2 = FourMomentum(production[0]) + FourMomentum(production[1])
+        
+        #modify the momenta of the particles:
+        ind =0
+        for part in production:
+            if part.status == -1:
+                continue
+            if part.event_id in mapping: # means that particle is itself decaying
+                decay = mapping[part.event_id]
+                decaying = part
+                if getattr(part, 'new_mass', False):
+                    # Need to reshugffle the decay part
+                    old_p = FourMomentum(part)
+                    jac *= self.reshuffle_decay(decay, new_mom[ind], part.new_mass, mapping)
+                    assert part.E == new_mom[ind][0]
+                    ind+=1
+                else:
+                    # Need to rotate/boost the decay part
+                    self.rotateboost_decay(decay, new_mom[ind], mapping)
+                    ind+=1
+            elif part.status == 1.0:
+                part.E, part.px, part.py, part.pz, part.mass = \
+                new_mom[ind].E, new_mom[ind].px, new_mom[ind].py, new_mom[ind].pz,new_mom[ind].mass
+                ind+=1
+
+        return jac
+
+    @staticmethod
+    def reshuffle_decay(subdiag, new_incoming, offshellmass, mapping):
+        """subdiag is a list with the first particle the one to reshuffle the mass
+        the rest are the particles on which it's decaying (and if an element of the list is itself a list 
+        this is a subdecay -- that just need to be boosted accordingly)
+        """
+        
+        old_momenta = []
+        incoming = FourMomentum(subdiag[0])
+        evtid = []
+        masses = []     
+        nb_dec = 0   
+        for decay in subdiag[1:]:
+            if not isinstance(decay, list): #list means that this particle has a subdecay
+                old_momenta.append(FourMomentum(decay))
+                masses.append(decay.mass)
+            
+        
+        old_sqrts = incoming.mass
+        assert old_sqrts != offshellmass
+        #assert offshellmass == new_incoming.mass
+        new_mom, jac = Event.mass_shuffle(old_momenta, old_sqrts, masses, new_sqrts=offshellmass)
+
+        check = sum([FourMomentum(p) for p in new_mom], FourMomentum())
+        transformation = check.get_lorentz_map(new_incoming)
+   
+
+        all_final = [p for p in subdiag[1:] if not isinstance(p, list)]
+
+        #modify the momenta of the final state particles:
+        for ind,particle in enumerate(all_final):
+            pnew = FourMomentum(new_mom[ind]).apply_lorentzmap(transformation)
+            if particle.event_id in mapping:
+                jac *= Event.rotateboost_decay(mapping[particle.event_id], pnew, mapping)
+            else:
+                particle.set_momentum(pnew)
+                particle.mass = pnew.mass
+        
+        # assign now the momenta of the decaying particle
+        subdiag[0].set_momentum(new_incoming)
+        subdiag[0].mass = offshellmass
+
+                            
+        return jac   
+
+    @staticmethod
+    def reshuffle_decay_final(subdiag, new_decay_mom, mapping):
+        """reshuffle the decay part since some final state mass needs to be 
+           modified. If needed apply boost/rotation such that the production
+           momentum match new_decay_mom (note that the invariant mass of that 
+           particle should be preserve)"""
+
+        final = [p for p in subdiag[1:] if not isinstance(p, list)]
+        new_masses = [getattr(p, 'new_mass', p.mass) for p in final]
+        old_momenta = [FourMomentum(p) for p in final]
+        sqrts = subdiag[0].mass
+        
+
+
+        # apply the RAMBO algo
+        new_mom, jac = Event.mass_shuffle(old_momenta, sqrts, new_masses)
+        
+        #modify the momenta of the particles:
+        ind =0
+        for part in final:
+            if part.event_id in mapping: # means that particle is itself decaying
+                decay = mapping[part.event_id]
+                decaying = part
+                if getattr(part, 'new_mass', False):
+                    # Need to reshugffle the decay part
+                    jac *= Event.reshuffle_decay(decay, new_mom[ind], part.new_mass, mapping)
+                    ind+=1
+                else:
+                    # Need to rotate/boost the decay part
+                    jac *= Event.rotateboost_decay(decay, new_mom[ind], mapping)
+                    ind+=1
+            elif part.status == 1.0:
+                part.E, part.px, part.py, part.pz, part.mass = \
+                new_mom[ind].E, new_mom[ind].px, new_mom[ind].py, new_mom[ind].pz,new_mom[ind].mass
+                ind+=1
+
+        return jac       
+
+    @staticmethod
+    def rotateboost_decay(subdiag, new_mom, mapping):
+        """rotate/boost the full subdiag such that the momenta of the decaying 
+        particle correspond to new_mom"""
+
+        
+        # some usefull information
+        decay_particle = subdiag[0]
+        orig_mom = FourMomentum(decay_particle) 
+        #nb_part = len(self) #original number of particle
+        all_particle = [part for part in subdiag if not isinstance(part, list)]
+
+
+        # check if some of the particle are tagged with a new mass
+        if any(hasattr(p, 'new_mass') for p in all_particle[1:]):
+            return Event.reshuffle_decay_final(subdiag, new_mom, mapping)
+
+        lor = orig_mom.get_lorentz_map(new_mom)
+        jac = 1.
+        # add the particle with only handling the 4-momenta
+        for particle in all_particle[1:]:
+            old_momenta = FourMomentum(particle)
+            new_p = old_momenta.apply_lorentzmap(lor)
+            if particle.event_id not in mapping:
+                particle.set_momentum(new_p)
+                particle.mass = new_p.mass
+            else:
+                jac *= Event.rotateboost_decay(mapping[particle.event_id], new_p, mapping)
+        # set initial decay
+        decay_particle.set_momentum(new_mom)
+        decay_particle.mass = new_mom.mass
+
+        return jac
         
     
     def get_helicity(self, get_order=None, allow_reversed=True):
@@ -3179,7 +3432,7 @@ class Event(list):
                
     def __str__(self, event_id=''):
         """return a correctly formatted LHE event"""
-        
+
         out="""<event%(event_flag)s>
 %(scale)s
 %(particles)s
@@ -3498,8 +3751,19 @@ class Event(list):
             return init[0].mass
         elif len(init)==2:
             return math.sqrt((init[0]+init[1])**2)
-                   
     
+    @staticmethod
+    def generate_random_mass(pole, width, min_mass, max_mass):
+        """generate invariant mass according to a breit-wigner"""
+
+        # R = arctan((q^2-m^2)/mGamma)
+        # q^2 = m^2 + m Gamma tan(R)
+        min_R = math.atan((min_mass**2-pole**2)/pole/width)
+        max_R = math.atan((max_mass**2-pole**2)/pole/width) 
+        R = min_R + (max_R-min_R)*random.random()
+        m2 = pole**2 + pole * width * math.tan(R)
+        return math.sqrt(m2)
+
     
     
     def get_momenta_str(self, get_order, allow_reversed=True):
@@ -3549,6 +3813,10 @@ class Event(list):
         self_final.sort()
         other_final.sort()
         return self_final == other_final
+
+
+
+
 
 class FourMomentum(object):
     """a convenient object for 4-momenta operation"""
@@ -3834,6 +4102,8 @@ class FourMomentum(object):
                            pz= -gamma*vz*self.E + gammo*vz*vx/v2*self.px + gammo*vz*vy/v2*self.py + (1+gammo*vz**2/v2)*self.pz)
 
         return out
+
+
         
     def rotate_to_z(self,prot):
 
@@ -3878,6 +4148,241 @@ class FourMomentum(object):
     def threedot(self,a,b):
 
         return a[0]*b[0]+a[1]*b[1]+a[2]*b[2]
+
+
+    def get_lorentz_map(self, p2: "FourMomentum", tol: float = 1e-6) -> "LorentzMap":
+        """
+        Build and return a reusable LorentzMap that maps this momentum (self) to p2.
+        Example:
+            T = p1.get_lorentz_map(p2)
+            for q in particles: q.apply_lorentzmap(T)
+        """
+        return LorentzMap.from_p1_to_p2(self, p2, tol=tol)
+
+    def apply_lorentzmap(self, T: "LorentzMap") -> "FourMomentum":
+        """
+        Apply a prebuilt LorentzMap to this momentum (in place).
+        Example:
+            q.apply_lorentzmap(T)
+        """
+        T.apply_to(self)
+        return self
+
+    # -----------------------
+    # Private helpers used by LorentzMap
+    # -----------------------
+    def _beta(self) -> tuple[float, float, float]:
+        """Return the rotationless-boost β = p/E (assumes E != 0)."""
+        if abs(self.E) < 1e-30:
+            raise ValueError("Cannot compute β = p/E with E ≈ 0.")
+        return (self.px / self.E, self.py / self.E, self.pz / self.E)
+
+    def _spatial_vec(self) -> tuple[float, float, float]:
+        """Return the 3-vector (px, py, pz)."""
+        return (self.px, self.py, self.pz)
+
+    @staticmethod
+    def _dot3(a: tuple[float, float, float], b: tuple[float, float, float]) -> float:
+        return a[0]*b[0] + a[1]*b[1] + a[2]*b[2]
+
+    @staticmethod
+    def _cross3(a: tuple[float, float, float], b: tuple[float, float, float]) -> tuple[float, float, float]:
+        return (
+            a[1]*b[2] - a[2]*b[1],
+            a[2]*b[0] - a[0]*b[2],
+            a[0]*b[1] - a[1]*b[0],
+        )
+
+    @staticmethod
+    def _norm3(a: tuple[float, float, float]) -> float:
+        return math.sqrt(max(0.0, FourMomentum._dot3(a, a)))
+
+    @staticmethod
+    def _rot_from_to(a: tuple[float, float, float],
+                     b: tuple[float, float, float]) -> list[list[float]]:
+        """
+        Build a 3x3 rotation matrix R that maps unit vector a -> unit vector b.
+        Robust Rodrigues formula, handling parallel and antiparallel cases.
+        Returns R as a list-of-lists with row-major order.
+        """
+        ax = (float(a[0]), float(a[1]), float(a[2]))
+        bx = (float(b[0]), float(b[1]), float(b[2]))
+        I = [[1.0,0.0,0.0],[0.0,1.0,0.0],[0.0,0.0,1.0]]
+
+        na, nb = FourMomentum._norm3(ax), FourMomentum._norm3(bx)
+        if na < 1e-30 or nb < 1e-30:
+            return I
+
+        ax = (ax[0]/na, ax[1]/na, ax[2]/na)
+        bx = (bx[0]/nb, bx[1]/nb, bx[2]/nb)
+
+        c = FourMomentum._dot3(ax, bx)          # cosθ
+        v = FourMomentum._cross3(ax, bx)
+        s = FourMomentum._norm3(v)              # sinθ
+
+        if s < 1e-15:
+            # Collinear
+            if c > 0.0:
+                return I
+            # 180° rotation around any axis perpendicular to ax
+            trial = (1.0, 0.0, 0.0) if abs(ax[0]) < 0.9 else (0.0, 1.0, 0.0)
+            k = FourMomentum._cross3(ax, trial)
+            nk = FourMomentum._norm3(k)
+            kx, ky, kz = k[0]/nk, k[1]/nk, k[2]/nk
+            # R = 2 k kᵀ − I
+            return [
+                [2*kx*kx - 1.0, 2*kx*ky,       2*kx*kz],
+                [2*kx*ky,       2*ky*ky - 1.0, 2*ky*kz],
+                [2*kx*kz,       2*ky*kz,       2*kz*kz - 1.0],
+            ]
+
+        # General Rodrigues: R = c I + (1−c) k kᵀ + s K
+        kx, ky, kz = (v[0]/s, v[1]/s, v[2]/s)
+        one_mc = 1.0 - c
+        R = [[0.0]*3 for _ in range(3)]
+        for i in range(3):
+            for j in range(3):
+                R[i][j] = c*(1.0 if i==j else 0.0)
+        # +(1−c) k kᵀ
+        R[0][0] += one_mc*kx*kx; R[0][1] += one_mc*kx*ky; R[0][2] += one_mc*kx*kz
+        R[1][0] += one_mc*ky*kx; R[1][1] += one_mc*ky*ky; R[1][2] += one_mc*ky*kz
+        R[2][0] += one_mc*kz*kx; R[2][1] += one_mc*kz*ky; R[2][2] += one_mc*kz*kz
+        # + sK
+        R[0][1] -= s*kz; R[0][2] += s*ky
+        R[1][0] += s*kz; R[1][2] -= s*kx
+        R[2][0] -= s*ky; R[2][1] += s*kx
+        return R
+
+    # ---- in-place elementary transforms used by LorentzMap ----
+    def _apply_R3(self, R: list[list[float]]) -> None:
+        """Rotate only the spatial part by 3×3 matrix R; E unchanged."""
+        px, py, pz = self.px, self.py, self.pz
+        self.px = R[0][0]*px + R[0][1]*py + R[0][2]*pz
+        self.py = R[1][0]*px + R[1][1]*py + R[1][2]*pz
+        self.pz = R[2][0]*px + R[2][1]*py + R[2][2]*pz
+
+    def _apply_zboost_eta(self, eta: float) -> None:
+        """Pure z-boost with rapidity eta (proper, orthochronous)."""
+        ch = math.cosh(eta)
+        th = math.tanh(eta)
+        E, pz = self.E, self.pz
+        self.E  = ch*E + ch*th*pz
+        self.pz = ch*pz + ch*th*E
+        # px, py unchanged
+
+    def _apply_boost_beta(self, bx: float, by: float, bz: float) -> None:
+        """
+        Rotationless boost with 3-velocity β = (bx, by, bz), c=1, metric (+,-,-,-).
+        """
+        b2 = bx*bx + by*by + bz*bz
+        if b2 < 1e-30:
+            return
+        if b2 >= 1.0:
+            raise ValueError(f"Invalid boost |β|^2={b2} ≥ 1.")
+        gamma = 1.0 / math.sqrt(1.0 - b2)
+
+        E, px, py, pz = self.E, self.px, self.py, self.pz
+        bp = bx*px + by*py + bz*pz
+
+        Ep = gamma * (E + bp)
+        fac = (gamma - 1.0) / b2
+
+        self.px = px + fac*bp*bx + gamma*E*bx
+        self.py = py + fac*bp*by + gamma*E*by
+        self.pz = pz + fac*bp*bz + gamma*E*bz
+        self.E  = Ep
+
+
+class LorentzMap:
+    """
+    Reusable Lorentz transformation represented as an ordered list of steps,
+    each of which is applied via FourMomentum's in-place helpers:
+        - ("boost_beta", (bx, by, bz))
+        - ("rot", R3)
+        - ("zboost_eta", eta)
+    """
+    __slots__ = ("steps",)
+
+    def __init__(self, steps: list[tuple[str, object]]):
+        self.steps = steps
+
+    def apply_to(self, p: FourMomentum) -> FourMomentum:
+        """Apply the map to a single 4-vector (mutates and returns p)."""
+        for kind, payload in self.steps:
+            if kind == "boost_beta":
+                bx, by, bz = payload
+                p._apply_boost_beta(bx, by, bz)
+            elif kind == "rot":
+                R = payload
+                p._apply_R3(R)
+            elif kind == "zboost_eta":
+                eta = payload
+                p._apply_zboost_eta(eta)
+            else:
+                raise RuntimeError(f"LorentzMap: unknown step kind '{kind}'")
+        return p
+
+    def apply_to_many(self, plist: list[FourMomentum]) -> list[FourMomentum]:
+        """Apply the map to a list/iterable of 4-vectors (mutates all)."""
+        for p in plist:
+            self.apply_to(p)
+        return plist
+
+    # ---------- Factory ----------
+    @classmethod
+    def from_p1_to_p2(cls, p1: FourMomentum, p2: FourMomentum, tol: float = 1e-6) -> "LorentzMap":
+        """
+        Build the canonical proper, orthochronous Lorentz transformation that maps p1 -> p2.
+        - Timelike:   Λ = B(β2) · B(−β1)
+        - Lightlike:  Λ = R(n1→z) · Bz(η) · R(z→n2),   η = ln(|p2|/|p1|)
+        Requires p1.mass_sqr == p2.mass_sqr within tolerance.
+        Spacelike inputs are not implemented here.
+        """
+        # Get invariant masses via properties
+        m1_2 = float(p1.mass_sqr)
+        m2_2 = float(p2.mass_sqr)
+
+        if abs(m1_2 - m2_2) > tol * max(abs(m1_2), abs(m2_2)):
+            misc.sprint(abs(abs(m1_2 - m2_2))/max(abs(m1_2), abs(m2_2)), tol)
+            raise ValueError("No Lorentz transformation exists: p1^2 != p2^2.")
+
+        # -------- Timelike (massive) --------
+        if m1_2 > tol:
+            # β = p/E
+            beta1 = p1._beta()
+            beta2 = p2._beta()
+            steps = [
+                ("boost_beta", (-beta1[0], -beta1[1], -beta1[2])),
+                ("boost_beta", ( beta2[0],  beta2[1],  beta2[2])),
+            ]
+            return cls(steps)
+
+        # -------- Lightlike (massless) --------
+        if abs(m1_2) <= tol:
+            v1 = p1._spatial_vec()
+            v2 = p2._spatial_vec()
+            n1 = p1.norm
+            n2 = p2.norm 
+            if n1 < tol or n2 < tol:
+                raise ValueError("Massless case requires nonzero spatial |p| for p1 and p2.")
+
+            # Minimal map (no null-rotation): align -> boost_z -> align back
+            R1 = FourMomentum._rot_from_to(v1, (0.0, 0.0, 1.0))   # n1 → +z
+            R2 = FourMomentum._rot_from_to((0.0, 0.0, 1.0), v2)   # +z → n2
+            eta = math.log(n2 / n1)
+
+            steps = [
+                ("rot", R1),
+                ("zboost_eta", eta),
+                ("rot", R2),
+            ]
+            return cls(steps)
+
+        # -------- Spacelike --------
+        raise NotImplementedError("Spacelike 4-vectors not supported in this minimal implementation.")
+
+
+
 
 class OneNLOWeight(object):
         

@@ -129,6 +129,278 @@ class TestEvent(unittest.TestCase):
         #self.assertEqual(all_p[0][3][3], -9.7070204270e+01)
 
 
+    def test_lorentzmap(self):
+
+
+        a =  FourMomentum(344.7195012263006,-11.177242457883889,-35.77095442776701,-291.5939687237611) 
+        ma = 180.0 
+        b = FourMomentum(301.2293351026085,-9.18287068059191,-29.38829052593879,-239.56442889624947) 
+        mb = 179.99999999999997 
+
+        t = a.get_lorentz_map(b)
+
+        new_a = a.apply_lorentzmap(t)
+        self.assertAlmostEqual(new_a.E, b.E)
+        self.assertAlmostEqual(new_a.px, b.px) 
+        self.assertAlmostEqual(new_a.py, b.py)
+        self.assertAlmostEqual(new_a.pz, b.pz)
+
+    def test_reshuffle_event_1(self):
+        """check that one can reshuffle some event by change some mass..."""
+
+        # Start by reshuffling a single propagator which does not have subdecay
+        tt_onshell = lhe_parser.Event() 
+        input_event = """ <event>
+ 12      1 +4.8368719e+02 1.76709900e+02 7.54677100e-03 1.17102600e-01
+         2 -1    0    0  502    0 +0.0000000000e+00 +0.0000000000e+00 +1.6801959055e+02 1.6801959055e+02 0.0000000000e+00  0.0000e+00 1.0000e+00
+        -2 -1    0    0    0  501 -0.0000000000e+00 -0.0000000000e+00 -3.6057100553e+02 3.6057100553e+02 0.0000000000e+00  0.0000e+00 -1.0000e+00
+         6  2    1    2  502    0 -1.0742571918e+01 -3.4379861756e+01 -2.8025420328e+02 3.3131374285e+02 1.7300000000e+02  0.0000e+00 9.0000e+00
+        -6  1    1    2    0  501 +1.0742571918e+01 +3.4379861756e+01 +8.7702788293e+01 1.9727685323e+02 1.7300000000e+02  0.0000e+00 9.0000e+00
+         5  1    3    3  502    0 -6.3369583864e+00 +5.5362090397e+01 -7.6229914475e+01 9.4542096209e+01 4.7000000000e+00  0.0000e+00 -1.0000e+00
+        24  1    3    3    0    0 -4.4056135319e+00 -8.9741952154e+01 -2.0402428881e+02 2.3677164665e+02 7.9761361725e+01  0.0000e+00 9.0000e+00
+        </event>"""
+        tt_onshell.parse(input_event)
+
+
+        tt_onshell[2].new_mass = 180
+        tt_onshell.reshuffle_production()
+        #check all mass of the events are consistent with momenta
+        for part in tt_onshell:    
+            self.assertAlmostEqual(FourMomentum(part).mass, part.mass)
+        #check that the top is on the new mass
+        self.assertAlmostEqual(tt_onshell[2].mass, 180)
+        #check that the anti-top is on the old mass
+        self.assertAlmostEqual(FourMomentum(tt_onshell[3]).mass, 173)
+        #check that the w are onshell (old mass)
+        self.assertEqual(tt_onshell[5].pid, 24) 
+        self.assertAlmostEqual(FourMomentum(tt_onshell[5]).mass, 7.9761361725e+01)
+
+
+        # check that the top decay is consistent with the decay product
+        tmom = FourMomentum()
+        for particle in tt_onshell:
+            if isinstance(particle.mother1, lhe_parser.Particle):
+                if particle.mother1.event_id == 2:
+                    tmom += FourMomentum(particle)
+            elif particle.mother1 == 3: 
+                tmom += FourMomentum(particle)
+        self.assertAlmostEqual(tmom.E, tt_onshell[2].E)
+        self.assertAlmostEqual(tmom.px, tt_onshell[2].px)
+        self.assertAlmostEqual(tmom.py, tt_onshell[2].py)
+        self.assertAlmostEqual(tmom.pz, tt_onshell[2].pz) 
+
+        # check that initial state is unchanged...
+        self.assertAlmostEqual(tt_onshell[0].E, 1.6801959055e+02)
+        self.assertAlmostEqual(tt_onshell[1].E, 3.6057100553e+02)
+
+
+        # check that the full momenta is consistent
+        tt_onshell.check()
+
+    def test_reshuffle_event_2(self):
+        """test the full top decay (with subdecay)"""
+
+        tt_onshell = lhe_parser.Event() 
+        input_event = """ <event>
+ 12      1 +4.8368719e+02 1.76709900e+02 7.54677100e-03 1.17102600e-01
+         2 -1    0    0  502    0 +0.0000000000e+00 +0.0000000000e+00 +1.6801959055e+02 1.6801959055e+02 0.0000000000e+00  0.0000e+00 1.0000e+00
+        -2 -1    0    0    0  501 -0.0000000000e+00 -0.0000000000e+00 -3.6057100553e+02 3.6057100553e+02 0.0000000000e+00  0.0000e+00 -1.0000e+00
+         6  2    1    2  502    0 -1.0742571918e+01 -3.4379861756e+01 -2.8025420328e+02 3.3131374285e+02 1.7300000000e+02  0.0000e+00 9.0000e+00
+        -6  1    1    2    0  501 +1.0742571918e+01 +3.4379861756e+01 +8.7702788293e+01 1.9727685323e+02 1.7300000000e+02  0.0000e+00 9.0000e+00
+         5  1    3    3  502    0 -6.3369583864e+00 +5.5362090397e+01 -7.6229914475e+01 9.4542096209e+01 4.7000000000e+00  0.0000e+00 -1.0000e+00
+        24  2    3    3    0    0 -4.4056135319e+00 -8.9741952154e+01 -2.0402428881e+02 2.3677164665e+02 7.9761361725e+01  0.0000e+00 9.0000e+00
+         4  1    6    6  503    0 +3.1108736074e+01 -4.1879413499e+01 -5.2796423914e+01 7.4223319201e+01 0.0000000000e+00  0.0000e+00 -1.0000e+00
+        -3  1    6    6    0  503 -3.5514349605e+01 -4.7862538654e+01 -1.5122786489e+02 1.6254832744e+02 0.0000000000e+00  0.0000e+00 1.0000e+00
+        </event>"""
+        tt_onshell.parse(input_event)
+
+        tt_onshell[2].new_mass = 180
+        tt_onshell.reshuffle_production()
+        #check all mass of the events are consistent with momenta
+        for part in tt_onshell:    
+            self.assertAlmostEqual(FourMomentum(part).mass, part.mass)
+        #check that the top is on the new mass
+        self.assertAlmostEqual(tt_onshell[2].mass, 180)
+        #check that the anti-top is on the old mass
+        self.assertAlmostEqual(FourMomentum(tt_onshell[3]).mass, 173)
+        #check that the w are onshell (old mass)
+        self.assertAlmostEqual(FourMomentum(tt_onshell[5]).mass, 7.9761361725e+01)
+        #self.assertAlmostEqual(FourMomentum(tt_onshell[9]).mass, 8.0658633731e+01) 
+
+        # check that the top decay is consistent with the decay product
+        tmom = FourMomentum()
+        for particle in tt_onshell:
+            if isinstance(particle.mother1, lhe_parser.Particle):
+                if particle.mother1.pid == 6:
+                    tmom += FourMomentum(particle)
+            elif particle.mother1 == 3: 
+                tmom += FourMomentum(particle)
+        self.assertAlmostEqual(tmom.E, tt_onshell[2].E)
+        self.assertAlmostEqual(tmom.px, tt_onshell[2].px)
+        self.assertAlmostEqual(tmom.py, tt_onshell[2].py)
+        self.assertAlmostEqual(tmom.pz, tt_onshell[2].pz) 
+
+        # check that the wdecay is consistent with the decay product
+        wmom = FourMomentum()
+        for particle in tt_onshell:
+            if isinstance(particle.mother1, lhe_parser.Particle):
+                if particle.mother1.pid == 24:
+                    wmom += FourMomentum(particle)
+            elif particle.mother1 == 6: 
+                wmom += FourMomentum(particle)
+        self.assertAlmostEqual(wmom.E, tt_onshell[5].E)
+        self.assertAlmostEqual(wmom.px, tt_onshell[5].px)
+        self.assertAlmostEqual(wmom.py, tt_onshell[5].py)
+        self.assertAlmostEqual(wmom.pz, tt_onshell[5].pz) 
+
+
+        # check that initial state is unchanged...
+        self.assertAlmostEqual(tt_onshell[0].E, 1.6801959055e+02)
+        self.assertAlmostEqual(tt_onshell[1].E, 3.6057100553e+02)
+
+        # check that the full momenta is consistent
+        tt_onshell.check()
+
+    def test_reshuffle_event_3(self):
+        """test a reshuffling which is linked to a previous decay (reshuffling within a decay)"""
+
+        tt_onshell = lhe_parser.Event() 
+        input_event = """ <event>
+ 12      1 +4.8368719e+02 1.76709900e+02 7.54677100e-03 1.17102600e-01
+         2 -1    0    0  502    0 +0.0000000000e+00 +0.0000000000e+00 +1.6801959055e+02 1.6801959055e+02 0.0000000000e+00  0.0000e+00 1.0000e+00
+        -2 -1    0    0    0  501 -0.0000000000e+00 -0.0000000000e+00 -3.6057100553e+02 3.6057100553e+02 0.0000000000e+00  0.0000e+00 -1.0000e+00
+         6  2    1    2  502    0 -1.0742571918e+01 -3.4379861756e+01 -2.8025420328e+02 3.3131374285e+02 1.7300000000e+02  0.0000e+00 9.0000e+00
+        -6  1    1    2    0  501 +1.0742571918e+01 +3.4379861756e+01 +8.7702788293e+01 1.9727685323e+02 1.7300000000e+02  0.0000e+00 9.0000e+00
+         5  1    3    3  502    0 -6.3369583864e+00 +5.5362090397e+01 -7.6229914475e+01 9.4542096209e+01 4.7000000000e+00  0.0000e+00 -1.0000e+00
+        24  2    3    3    0    0 -4.4056135319e+00 -8.9741952154e+01 -2.0402428881e+02 2.3677164665e+02 7.9761361725e+01  0.0000e+00 9.0000e+00
+         4  1    6    6  503    0 +3.1108736074e+01 -4.1879413499e+01 -5.2796423914e+01 7.4223319201e+01 0.0000000000e+00  0.0000e+00 -1.0000e+00
+        -3  1    6    6    0  503 -3.5514349605e+01 -4.7862538654e+01 -1.5122786489e+02 1.6254832744e+02 0.0000000000e+00  0.0000e+00 1.0000e+00
+        </event>"""
+        tt_onshell.parse(input_event)
+
+        tt_onshell[5].new_mass = 90
+        tt_onshell.reshuffle_production()
+        #check all mass of the events are consistent with momenta
+        for part in tt_onshell:    
+            self.assertAlmostEqual(FourMomentum(part).mass, part.mass)
+        #check that the top is on the new mass
+        self.assertAlmostEqual(tt_onshell[2].mass, 173)
+        #check that the anti-top is on the old mass
+        self.assertAlmostEqual(FourMomentum(tt_onshell[3]).mass, 173)
+        #check that the w are onshell (old mass)
+        self.assertAlmostEqual(FourMomentum(tt_onshell[5]).mass, 90)
+        #self.assertAlmostEqual(FourMomentum(tt_onshell[9]).mass, 8.0658633731e+01) 
+
+        # check that the top decay is consistent with the decay product
+        tmom = FourMomentum()
+        for particle in tt_onshell:
+            if isinstance(particle.mother1, lhe_parser.Particle):
+                if particle.mother1.pid == 6:
+                    tmom += FourMomentum(particle)
+            elif particle.mother1 == 3: 
+                tmom += FourMomentum(particle)
+        self.assertAlmostEqual(tmom.E, tt_onshell[2].E)
+        self.assertAlmostEqual(tmom.px, tt_onshell[2].px)
+        self.assertAlmostEqual(tmom.py, tt_onshell[2].py)
+        self.assertAlmostEqual(tmom.pz, tt_onshell[2].pz) 
+
+        # check that the wdecay is consistent with the decay product
+        wmom = FourMomentum()
+        for particle in tt_onshell:
+            if isinstance(particle.mother1, lhe_parser.Particle):
+                if particle.mother1.pid == 24:
+                    wmom += FourMomentum(particle)
+            elif particle.mother1 == 6: 
+                wmom += FourMomentum(particle)
+        self.assertAlmostEqual(wmom.E, tt_onshell[5].E)
+        self.assertAlmostEqual(wmom.px, tt_onshell[5].px)
+        self.assertAlmostEqual(wmom.py, tt_onshell[5].py)
+        self.assertAlmostEqual(wmom.pz, tt_onshell[5].pz) 
+
+
+        # check that initial state is unchanged...
+        self.assertAlmostEqual(tt_onshell[0].E, 1.6801959055e+02)
+        self.assertAlmostEqual(tt_onshell[1].E, 3.6057100553e+02)
+
+        # check that the full momenta is consistent
+        tt_onshell.check()
+
+    def test_reshuffle_event_4(self):
+        """test a reshuffling which is linked to a previous decay (reshuffling within a decay)"""
+
+        tt_onshell = lhe_parser.Event() 
+        input_event = """ <event>
+ 12      1 +4.8368719e+02 1.76709900e+02 7.54677100e-03 1.17102600e-01
+         2 -1    0    0  502    0 +0.0000000000e+00 +0.0000000000e+00 +1.6801959055e+02 1.6801959055e+02 0.0000000000e+00  0.0000e+00 1.0000e+00
+        -2 -1    0    0    0  501 -0.0000000000e+00 -0.0000000000e+00 -3.6057100553e+02 3.6057100553e+02 0.0000000000e+00  0.0000e+00 -1.0000e+00
+         6  2    1    2  502    0 -1.0742571918e+01 -3.4379861756e+01 -2.8025420328e+02 3.3131374285e+02 1.7300000000e+02  0.0000e+00 9.0000e+00
+        -6  2    1    2    0  501 +1.0742571918e+01 +3.4379861756e+01 +8.7702788293e+01 1.9727685323e+02 1.7300000000e+02  0.0000e+00 9.0000e+00
+         5  1    3    3  502    0 -6.3369583864e+00 +5.5362090397e+01 -7.6229914475e+01 9.4542096209e+01 4.7000000000e+00  0.0000e+00 -1.0000e+00
+        24  2    3    3    0    0 -4.4056135319e+00 -8.9741952154e+01 -2.0402428881e+02 2.3677164665e+02 7.9761361725e+01  0.0000e+00 9.0000e+00
+         4  1    6    6  503    0 +3.1108736074e+01 -4.1879413499e+01 -5.2796423914e+01 7.4223319201e+01 0.0000000000e+00  0.0000e+00 -1.0000e+00
+        -3  1    6    6    0  503 -3.5514349605e+01 -4.7862538654e+01 -1.5122786489e+02 1.6254832744e+02 0.0000000000e+00  0.0000e+00 1.0000e+00
+        -5  1    4    4    0  501 +3.8227405386e+01 -4.3162289065e+01 +1.1048705041e+01 5.8893816339e+01 4.7000000000e+00  0.0000e+00 1.0000e+00
+       -24  2    4    4    0    0 -2.7484833468e+01 +7.7542150821e+01 +7.6654083251e+01 1.3838303689e+02 8.0658633731e+01  0.0000e+00 9.0000e+00
+         3  1   10   10  504    0 +1.0153668697e+01 -6.8313887972e+00 +3.4927101796e+01 3.7009016480e+01 0.0000000000e+00  0.0000e+00 -1.0000e+00
+        -4  1   10   10    0  504 -3.7638502164e+01 +8.4373539619e+01 +4.1726981455e+01 1.0137402041e+02 0.0000000000e+00  0.0000e+00 1.0000e+00
+        </event>"""
+        tt_onshell.parse(input_event)
+
+
+        tt_onshell[2].new_mass = 180
+        tt_onshell.reshuffle_production()
+        #check all mass of the events are consistent with momenta
+        for part in tt_onshell:    
+            self.assertAlmostEqual(FourMomentum(part).mass, part.mass)
+        #check that the top is on the new mass
+        self.assertAlmostEqual(tt_onshell[2].mass, 180)
+        #check that the anti-top is on the old mass
+        self.assertAlmostEqual(FourMomentum(tt_onshell[3]).mass, 173)
+        #check that the w are onshell (old mass)
+        self.assertAlmostEqual(FourMomentum(tt_onshell[5]).mass, 7.9761361725e+01)
+        self.assertAlmostEqual(FourMomentum(tt_onshell[9]).mass, 8.0658633731e+01) 
+
+        # check that the top decay is consistent with the decay product
+        tmom = FourMomentum()
+        for particle in tt_onshell:
+            if isinstance(particle.mother1, lhe_parser.Particle):
+                if particle.mother1.pid == 6:
+                    tmom += FourMomentum(particle)
+            elif particle.mother1 == 3: 
+                tmom += FourMomentum(particle)
+        self.assertAlmostEqual(tmom.E, tt_onshell[2].E)
+        self.assertAlmostEqual(tmom.px, tt_onshell[2].px)
+        self.assertAlmostEqual(tmom.py, tt_onshell[2].py)
+        self.assertAlmostEqual(tmom.pz, tt_onshell[2].pz) 
+
+        # check that the wdecay is consistent with the decay product
+        wmom = FourMomentum()
+        for particle in tt_onshell:
+            if isinstance(particle.mother1, lhe_parser.Particle):
+                if particle.mother1.pid == 24:
+                    wmom += FourMomentum(particle)
+            elif particle.mother1 == 6: 
+                wmom += FourMomentum(particle)
+        self.assertAlmostEqual(wmom.E, tt_onshell[5].E)
+        self.assertAlmostEqual(wmom.px, tt_onshell[5].px)
+        self.assertAlmostEqual(wmom.py, tt_onshell[5].py)
+        self.assertAlmostEqual(wmom.pz, tt_onshell[5].pz) 
+
+
+        # check that initial state is unchanged...
+        self.assertAlmostEqual(tt_onshell[0].E, 1.6801959055e+02)
+        self.assertAlmostEqual(tt_onshell[1].E, 3.6057100553e+02)
+
+        # check that the full momenta is consistent
+        tt_onshell.check()
+
+        #raise Exception('sucess? does not crash')        
+
+        
+
+
+
+
 
     def test_identical_final_state(self):
         """ test that two event can be identified as identical even if the final state

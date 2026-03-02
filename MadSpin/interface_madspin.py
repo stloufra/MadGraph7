@@ -1647,6 +1647,8 @@ class MadSpinInterface(extended_cmd.Cmd):
                     break
             # Efficiency = accepted / trials (+1 because current event is already accepted)
             self.efficiency = float(curr_event + 1) / nb_try
+            if density_method:
+                full_evt.reshuffle_production()
             if self.options['fixed_order']:
                 for evt in full_evt:
                     # change the weight associated to the event
@@ -1660,6 +1662,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                 wgts = full_evt.parse_reweight()
                 for key in wgts:
                     wgts[key] *= self.branching_ratio            
+            
             output_lhe.write_events(full_evt)
             
         output_lhe.write('</LesHouchesEvents>\n')   
@@ -1854,6 +1857,18 @@ class MadSpinInterface(extended_cmd.Cmd):
             full_me = self.calculate_matrix_element(full_event)
             #print(f"full_me = {full_me}")
         else:
+            #offshell mode
+            for pdg in decays:
+                for dec in decays[pdg]:
+                    pole = self.banner.get('param', 'mass', abs(pdg)).value
+                    width = self.banner.get('param', 'decay', abs(pdg)).value 
+                    if self.options['BW_cut'] <0: 
+                       bw_cut = 15
+                    else:
+                       bw_cut = self.options['BW_cut']     
+                    min_mass = pole - bw_cut * width
+                    max_mass = pole + bw_cut * width
+                    dec[0].new_mass = lhe_parser.Event.generate_random_mass(pole, width, min_mass, max_mass)
             if prod_density_cached is None:
                 full_me, prod_density_cached, prod_diag, dec_diag = self.calculate_matrix_element_from_density(production, decays, decay_dict)
             else:                

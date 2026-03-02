@@ -4462,6 +4462,8 @@ class decay_all_events_density(decay_all_events_onshell):
         return line
 
     def save_to_file(self, *args):
+
+        misc.sprint(args)
         import sys
         with misc.stdchannel_redirected(sys.stdout, os.devnull):
             return super(decay_all_events_onshell,self).save_to_file(*args) 
