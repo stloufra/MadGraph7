@@ -34,6 +34,7 @@ import subprocess
 import copy
 import sys
 import shutil
+import tempfile
 
 import traceback
 import time
@@ -46,6 +47,9 @@ from six.moves import range
 
 #useful shortcut
 pjoin = os.path.join
+
+# define a temporary directory for drawing diagrams
+tempdir = tempfile.TemporaryDirectory()
 
 try:
     import readline
@@ -960,7 +964,7 @@ class CheckValidForCmd(cmd.CheckCmd):
         """
 
         if len(args) < 1:
-            args.append('/tmp')
+            args.append(tempdir.name)
 
         if not self._curr_amps:
             raise self.InvalidCmd("No process generated, please generate a process!")
