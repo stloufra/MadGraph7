@@ -6279,8 +6279,7 @@ This implies that with decay chains:
                               additional_options=add_options+['--force'])            
         else:
             if tool=='madanalysis5' and '--update' not in add_options and \
-                                 ('--no_MA5_further_install' not in add_options or
-                                                        '--no_root_in_MA5' in add_options):
+                                 ('--no_MA5_further_install' not in add_options):
                 if not __debug__:
                     logger.warning('Default installation of Madanalys5 failed.')
                     logger.warning("MG5aMC will now attempt to reinstall it with the options '--no_MA5_further_install --no_root_in_MA5'.")
