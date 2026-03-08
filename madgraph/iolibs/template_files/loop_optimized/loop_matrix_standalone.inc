@@ -133,7 +133,7 @@ C
 C  
 C LOCAL VARIABLES 
 C  
-      INTEGER I,J,K,L,H,HEL_MULT,I_QP_LIB,DUMMY
+      INTEGER I,J,K,L,H,HEL_MULT,I_QP_LIB,DUMMY, index_h
 
       CHARACTER*512 ParamFN,HelConfigFN,LoopFilterFN,ColorNumFN,ColorDenomFN,HelFilterFN
 	  CHARACTER*512 TMP
@@ -1158,7 +1158,11 @@ ENDIF
 C We should compute the color flow either if it contributes to the final result (i.e. not used just for the filtering), or if the computation is only done from the color flows
 IF (((.NOT.DIRECT_ME_COMPUTATION).AND.ME_COMPUTATION_FROM_JAMP).OR.((H.EQ.USERHEL.OR.USERHEL.EQ.-1).and.(POLARIZATIONS(0,0).eq.-1.or.%(proc_prefix)sIS_HEL_SELECTED(H)))) THEN
 C The cumulative quantities must only be computed if that helicity contributes according to user request (second argument of the subroutine below).
+  CALL %(proc_prefix)sFIND_H(NHEL, index_h)
   CALL %(proc_prefix)sCOMPUTE_COLOR_FLOWS(HEL_MULT)
+  WRITE(*,*) "HEL_mULT" , HEL_MULT
+  CALL %(proc_prefix)sSTORE_JAMP(H) !this functions fills COMMON JAMPL_ALL(3, NLOOPFLOWS,NLOOPAMPSO, NCOMB)
+
   IF(ME_COMPUTATION_FROM_JAMP) THEN
     CALL %(proc_prefix)sCOMPUTE_RES_FROM_JAMP(BUFFRES,HEL_MULT)
     IF(((.NOT.DIRECT_ME_COMPUTATION).AND.ME_COMPUTATION_FROM_JAMP)) THEN

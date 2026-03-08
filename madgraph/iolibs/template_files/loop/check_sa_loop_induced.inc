@@ -54,6 +54,28 @@ C sqrt(s)= center of mass energy
       DATA INIT/.TRUE./
       COMMON/INITCHECKSA/INIT
 
+      INTEGER NLOOPFLOWS
+      PARAMETER (NLOOPFLOWS=1)
+      INTEGER    NLOOPAMPSO
+      PARAMETER (NLOOPAMPSO=%(nAmpSO)d)
+      INTEGER NCOMB
+      PARAMETER (NCOMB=%(ncomb)d)
+      INTEGER N_CHANGING
+      PARAMETER (N_CHANGING=2)
+      INTEGER N_COMB
+      PARAMETER (N_COMB=4)
+      INTEGER H
+      INTEGER HELC(NEXTERNAL,NCOMB)
+      DOUBLE PRECISION ALPHAS
+
+      double complex INTER_DENS(0:3,0:NSQUAREDSO)
+      double precision RES(0:3,0:NSQUAREDSO), SUM_INT
+      integer HEL_MULT
+      parameter (HEL_MULT = 1)
+      integer H1, H2
+      DOUBLE COMPLEX JAMPL_ALL(3,NLOOPFLOWS,NLOOPAMPSO,NCOMB)
+      COMMON/%(proc_prefix)sDENSITY_MATRIX/JAMPL_ALL  
+
 C
 C     GLOBAL VARIABLES
 C
@@ -73,7 +95,6 @@ C
       
       INTEGER NHEL(NEXTERNAL)
       INTEGER, allocatable :: POS(:)
-      INTEGER N_CHANGING, N_COMB
       INTEGER, allocatable :: allow_hel(:) 
       double complex, allocatable :: INTER(:)
       integer sol
@@ -204,38 +225,67 @@ C     Now we can call the matrix element
 C
       CALL %(proc_prefix)sSLOOPMATRIX_THRES(P,MATELEM,-1.0d0,PREC_FOUND,RETURNCODE)
 C
-C        write the information on the four momenta 
+C     This part is temporary, you still need to change by hand the values of NCOMB and NCHANGING as well as to fill in NHEL, POS and ALLOW_HEL
 C
+      ALLOCATE( POS(N_CHANGING))
+      ALLOCATE( ALLOW_HEL(N_CHANGING*N_COMB))
+      ALLOCATE(INTER(N_COMB*(N_COMB+1)/2))
 
-C     YOU CAN EDIT THOSE NUMBERS
-      N_CHANGING =1
-      N_COMB=2
+      H1 = 1
+      H2 = 4
+      SUM_INT = 0D0
+      CALL %(proc_prefix)sCOMPUTE_INTER_JAMP(INTER_DENS,HEL_MULT,JAMPL_ALL,1,1)
+      WRITE(*,*) "INTERFERENCE(1,1)", INTER_DENS(1:3,0)
+      SUM_INT = SUM_INT + DREAL(INTER_DENS(1,0))
+      CALL %(proc_prefix)sCOMPUTE_INTER_JAMP(INTER_DENS,HEL_MULT,JAMPL_ALL,2,2)
+      WRITE(*,*) "INTERFERENCE(2,2)", INTER_DENS(1:3,0)
+      SUM_INT = SUM_INT + DREAL(INTER_DENS(1,0))
+      CALL %(proc_prefix)sCOMPUTE_INTER_JAMP(INTER_DENS,HEL_MULT,JAMPL_ALL,3,3)
+      WRITE(*,*) "INTERFERENCE(3,3)", INTER_DENS(1:3,0)
+      SUM_INT = SUM_INT + DREAL(INTER_DENS(1,0))
+      CALL %(proc_prefix)sCOMPUTE_INTER_JAMP(INTER_DENS,HEL_MULT,JAMPL_ALL,4,4)
+      WRITE(*,*) "INTERFERENCE(4,4)", INTER_DENS(1:3,0)
+      SUM_INT = SUM_INT + DREAL(INTER_DENS(1,0))
 
-      allocate( POS(N_CHANGING))
-      allocate( ALLOW_HEL(N_CHANGING*N_COMB))
-      allocate(INTER(N_COMB*(N_COMB+1)/2))
+      WRITE(*,*) "sum interferences diagonal", SUM_INT
+c       The sum of interferences corresponds to the cross section with a normalisation factor of 256 precisely.
+c       256 = 4 helicity states * 8^2 colour states for the gluon ?
+c       Also all the non-finite contributions are zero, which was expected.
 
-c     THIS IS PROCESS SPECIFIC -> need to be tuned... 
+C       This small block checks that %(proc_prefix)sCOMPUTE_RES_FROM_JAMP works properly. It gives the matrix element of the last JAMP computed (so here for H = 4)
+      CALL %(proc_prefix)sCOMPUTE_RES_FROM_JAMP(RES,HEL_MULT)
+      WRITE(*,*) "%(proc_prefix)sCOMPUTE_RES_FROM_JAMP", RES(1:3,0)
+
       NHEL(1) = 1
-      NHEL(2) = -1
-      NHEL(3) = 1
-      NHEL(4) = -1
+      NHEL(2) = 1
+      NHEL(3) = 0
+      POS(1) = 1
+      POS(2) = 2
       ALLOW_HEL(1) = 1
       ALLOW_HEL(2) = -1
-      POS(1) = 3
+      ALLOW_HEL(3) = 1
+      ALLOW_HEL(4) = 1
+      ALLOW_HEL(5) = -1
+      ALLOW_HEL(6) = 1
+      ALLOW_HEL(7) = -1
+      ALLOW_HEL(8) = -1
+      ALPHAS = 0D0
 
-      CALL %(proc_prefix)sGET_ALL_INTER(P, NHEL, POS, N_CHANGING, ALLOW_HEL, N_COMB, INTER)
+      CALL %(proc_prefix)sGET_ALL_INTER(JAMPL_ALL, NHEL, POS, N_CHANGING, ALLOW_HEL, N_COMB, INTER)
+      CALL %(proc_prefix)sGET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL, N_COMB, ALPHAS, INTER)
 
-        NB_INTER=0
-        DO I=1, N_COMB
-           DO J = I, N_COMB
-              NB_INTER = NB_INTER + 1
-              DO L=1, N_CHANGING
-                 WRITE (*,*) 'particle', POS(K), 'has helicity', ALLOW_HEL((I-1)*N_CHANGING+K), ALLOW_HEL((J-1)*N_CHANGING+K)
-             ENDDO
-              write(*,*) 'value is ',NB_INTER , INTER(NB_INTER)
-           ENDDO
-        ENDDO
+C        NB_INTER=0
+C        DO I=1, NCOMB
+C          DO J = I, NCOMB
+C            NB_INTER = NB_INTER + 1
+C            DO L=1, N_CHANGING
+C              WRITE (*,*) 'particle', POS(K), 'has helicity',
+C     $          ALLOW_HEL((I-1)*N_CHANGING+K), ALLOW_HEL((J-1)
+C     $         *N_CHANGING+K)
+C            ENDDO
+C            WRITE(*,*) 'value is ',NB_INTER , INTER(NB_INTER)
+C          ENDDO
+C        ENDDO
 
 
 

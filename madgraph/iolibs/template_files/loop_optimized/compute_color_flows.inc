@@ -21,13 +21,14 @@ C Set of subroutines to project the Feynman diagrama amplitudes AMPL onto the co
       INTEGER NLOOPFLOWS, NEXTERNAL
       PARAMETER (NLOOPFLOWS=%(nLoopFlows)d)   
       PARAMETER (NEXTERNAL=%(nexternal)i)
-      DOUBLE COMPLEX JAMPL_all(3, NLOOPFLOWS,NLOOPAMPSO,3*NEXTERNAL)
-      INTEGER STORE_DENSITY
-      DATA STORE_DENSITY /0/
+      INTEGER NCOMB
+      PARAMETER (NCOMB=%(ncomb)d)
+      DOUBLE COMPLEX JAMPL_all(3, NLOOPFLOWS,NLOOPAMPSO,NCOMB)
+
 C
 C    Common for density
 C
-    COMMON/%(proc_prefix)sDENSITY_MATRIX/JAMPL_all,STORE_DENSITY
+    COMMON/%(proc_prefix)sDENSITY_MATRIX/JAMPL_all
        COMPLEX*16 JAMPL(3,NLOOPFLOWS,NLOOPAMPSO)
        COMMON/ML5_0_JAMPL/JAMPL
 
@@ -438,307 +439,43 @@ c This routine is used as a crosscheck only to make sure the loop ME computed
 c from the JAMP is equal to the amplitude computed directly. It is a consistency
 c check of the color projection and computation.
 
-SUBROUTINE %(proc_prefix)sCOMPUTE_RES_FROM_JAMP(RES,HEL_MULT)
-      implicit none
-C  
-C CONSTANTS 
-C 
-      %(complex_dp_format)s IMAG1
-      PARAMETER (IMAG1=(0.0d0,1.0d0))
-
-      INTEGER    NSQUAREDSO, NLOOPAMPSO, NSO
-      PARAMETER (NSQUAREDSO=%(nSquaredSO)d, NLOOPAMPSO=%(nAmpSO)d, NSO=%(nSO)d)
+      SUBROUTINE %(proc_prefix)sCOMPUTE_RES_FROM_JAMP(RES,HEL_MULT)
+      IMPLICIT NONE
+C     
+C     CONSTANTS 
+C     
+      INTEGER    NSQUAREDSO, NLOOPAMPSO
+      PARAMETER (NSQUAREDSO=%(nSquaredSO)d, NLOOPAMPSO=%(nAmpSO)d)
       INTEGER NLOOPFLOWS
       PARAMETER (NLOOPFLOWS=%(nLoopFlows)d)
-## if(LoopInduced and MadEventOutput){
-      INTEGER NCONFIGS
-      PARAMETER (NCONFIGS=%(nmultichannel_configs)i)
-## }
-## if(not LoopInduced){
-      INTEGER NBORNFLOWS
-      PARAMETER (NBORNFLOWS=%(nBornFlows)d)
-C     We use the same list of amplitude split order for Born and Loop, so that NBORNAMPSO is always equal to NLOOPAMPSO  
-      INTEGER    NBORNAMPSO
-      PARAMETER (NBORNAMPSO=NLOOPAMPSO)
-## }
-C  
-C ARGUMENT 
-C
-      %(real_dp_format)s RES(0:3,0:NSQUAREDSO)
-C HEL_MULT is the helicity multiplier which can be more than one if several helicity configuration are mapped onto the one being currently computed.
-      integer HEL_MULT
-C  
-C LOCAL VARIABLES 
-C
-      INTEGER I, J, M, N, K, ISQSO, DOUBLEFACT
-## if(LoopInduced) {
-      INTEGER LOWERBOUND
-## }
-## if(LoopInduced and MadEventOutput){
-      integer config_i, config_j
-## }
-      INTEGER ORDERS_A(NSO), ORDERS_B(NSO)
-      %(complex_dp_format)s COLOR_COEF
-      %(real_dp_format)s TEMP(3)
-## if(LoopInduced and MadEventOutput){
-      %(real_dp_format)s TEMP_AMP2(3,NCONFIGS)
-## }
-C  
-C FUNCTIONS
-C
-C This function belongs to the loop ME computation (loop_matrix.f) and is prefixed with ML5 
-      INTEGER %(proc_prefix)sML5SQSOINDEX
-C This function belongs to the Born ME computation (born_matrix.f) and is not prefixed at all
-      INTEGER %(proc_prefix)sSQSOINDEX, %(proc_prefix)sSOINDEX_FOR_AMPORDERS
-C
-C GLOBAL VARIABLES
-C
-      character(512) MLPath
-      common/MLPATH/MLPath
-      INTEGER SQSO_TARGET
-      common/%(proc_prefix)sSOCHOICE/SQSO_TARGET
-
-      %(complex_dp_format)s JAMPL(3,NLOOPFLOWS,NLOOPAMPSO)
-      common/%(proc_prefix)sJAMPL/JAMPL
-## if(not LoopInduced){
-      %(complex_dp_format)s JAMPB(NBORNFLOWS,NBORNAMPSO)
-      common/%(proc_prefix)sJAMPB/JAMPB
-## }
-## if(LoopInduced and MadEventOutput){
-      %(real_dp_format)s AMP2_ALL(3,NCONFIGS,0:NSQUAREDSO)    
-      common/%(proc_prefix)sAMP2_ALL/AMP2_ALL
-      %(complex_dp_format)s JAMPL_FOR_AMP2(3,NLOOPFLOWS,NLOOPAMPSO,NCONFIGS)
-      common/%(proc_prefix)sJAMPL_FOR_AMP2/JAMPL_FOR_AMP2
-## }
-
-      LOGICAL UVCT_REQ_SO_DONE,MP_UVCT_REQ_SO_DONE,CT_REQ_SO_DONE,MP_CT_REQ_SO_DONE,LOOP_REQ_SO_DONE,MP_LOOP_REQ_SO_DONE,CTCALL_REQ_SO_DONE,FILTER_SO
-      common/%(proc_prefix)sSO_REQS/UVCT_REQ_SO_DONE,MP_UVCT_REQ_SO_DONE,CT_REQ_SO_DONE,MP_CT_REQ_SO_DONE,LOOP_REQ_SO_DONE,MP_LOOP_REQ_SO_DONE,CTCALL_REQ_SO_DONE,FILTER_SO
-
-C Now a more advanced data structure for storing the projection coefficient
-C This is of course not F77 standard but widely supported by now.
-      TYPE ColorCoeff
-        sequence
-        integer :: Num
-        integer :: Denom          
-      ENDTYPE ColorCoeff
-## if(not LoopInduced){
-      TYPE(ColorCoeff), dimension(NLOOPFLOWS,NBORNFLOWS) :: LoopColorFlowMatrix
-      TYPE(ColorCoeff), dimension(NBORNFLOWS,NBORNFLOWS) :: BornColorFlowMatrix
-## } else {
-      TYPE(ColorCoeff), dimension(NLOOPFLOWS,NLOOPFLOWS) :: LoopColorFlowMatrix
-## }
-      LOGICAL CMInitialized
-## if(not LoopInduced){
-      COMMON/%(proc_prefix)sFLOW_COLOR_MATRIX/LoopColorFlowMatrix, BornColorFlowMatrix, CMInitialized
-## } else {
-      COMMON/%(proc_prefix)sFLOW_COLOR_MATRIX/LoopColorFlowMatrix, CMInitialized
-## }
-
-C ----------
-C BEGIN CODE
-C ----------
-## if(LoopInduced and MadEventOutput){
-C Always reinitialize AMP2_ALL because it is not a cumulative quantity
-CALL %(proc_prefix)sREINITIALIZE_AMP2_ALL()
-## }
-
-C Initialization
-if(.NOT.CMInitialized) then
-  CALL %(proc_prefix)sINITIALIZE_FLOW_COLORMATRIX()
-ENDIF
-
-DO I=0,NSQUAREDSO
-  DO K=0,3
-    RES(K,I)=0.0d0
-  ENDDO
-ENDDO
-
-## if(not LoopInduced){
-c Compute the Born ME from the Born color flow amplitudes (JAMP)
-DO I=1, NBORNFLOWS
-  DO J=I, NBORNFLOWS
-    COLOR_COEF=DCMPLX(BornColorFlowMatrix(I,J)%%Num/DBLE(ABS(BornColorFlowMatrix(I,J)%%Denom)),0.0d0)
-    IF (BornColorFlowMatrix(I,J)%%Denom.LT.0) COLOR_COEF=COLOR_COEF*IMAG1
-    DO M=1,NBORNAMPSO
-C It may be that this AmpSO index does not receive contribution by the Born amps (because we put the loop and Born amplitude split orders in a common list)
-      IF (ABS(JAMPB(I,M)).eq.0.0d0) CYCLE
-      DO N=1,NBORNAMPSO
-        IF (ABS(JAMPB(J,N)).eq.0.0d0) CYCLE
-C First fetch what orders the split order indices M, N correspond to
-        CALL %(proc_prefix)sML5GET_ORDERS_FOR_AMPSOINDEX(M,ORDERS_A)
-        CALL %(proc_prefix)sML5GET_ORDERS_FOR_AMPSOINDEX(N,ORDERS_B)
-C Now figure out to which SQSOINDEX these orders together correspond to *in the Born subroutine* (Notice the absence of the ML5 prefix in the functions used then)
-        ISQSO = %(proc_prefix)sSQSOINDEX(%(proc_prefix)sSOINDEX_FOR_AMPORDERS(ORDERS_A),%(proc_prefix)sSOINDEX_FOR_AMPORDERS(ORDERS_B))
-        IF(J.ne.I) THEN
-          DOUBLEFACT=2 
-        ELSE 
-          DOUBLEFACT=1
-        ENDIF
-        TEMP(1) = DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*JAMPB(I,M)*DCONJG(JAMPB(J,N)))
-        RES(0,ISQSO) = RES(0,ISQSO) + TEMP(1)
-        IF((.not.FILTER_SO).or.SQSO_TARGET.eq.-1.or.SQSO_TARGET.eq.ISQSO) THEN
-          RES(0,0) = RES(0,0) + TEMP(1)
-        ENDIF
-      ENDDO
-    ENDDO
-  ENDDO
-ENDDO
-## }
-
-C Compute the Loop ME from the loop color flow amplitudes (JAMPL)
-DO I=1,NLOOPFLOWS
-## if(not LoopInduced){
-  DO J=1,NBORNFLOWS
-## } else {
-  DO J=I,NLOOPFLOWS
-## }
-    COLOR_COEF=DCMPLX(LoopColorFlowMatrix(I,J)%%Num/DBLE(ABS(LoopColorFlowMatrix(I,J)%%Denom)),0.0d0)
-    IF (LoopColorFlowMatrix(I,J)%%Denom.LT.0) COLOR_COEF=COLOR_COEF*IMAG1
-    DO M=1,NLOOPAMPSO
-## if(not LoopInduced){
-C It may be that this AmpSO index does not receive contribution by the Loop amps (because we put the loop and Born amplitude split orders in a common list)
-      IF((ABS(JAMPL(1,I,M))+ABS(JAMPL(2,I,M))+ABS(JAMPL(3,I,M))).eq.0.0d0) CYCLE
-      DO N=1,NBORNAMPSO
-C Same for contributions of split order index N by the Born amps
-      IF(ABS(JAMPB(J,N)).eq.0.0d0) CYCLE
-## } else {
-      IF (I.eq.J) THEN
-        LOWERBOUND = M
-      ELSE
-        LOWERBOUND = 1
-      ENDIF
-      DO N=LOWERBOUND,NLOOPAMPSO
-## }
-        ISQSO = %(proc_prefix)sML5SQSOINDEX(M,N)
-## if(LoopInduced){
-        IF(J.ne.I) THEN
-          DOUBLEFACT=2 
-        ELSEIF (M.ne.N) THEN
-          DOUBLEFACT=2
-        ELSE
-          DOUBLEFACT=1
-        ENDIF
-        TEMP(1) = DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL(1,I,M)*DCONJG(JAMPL(1,J,N))))
-C Computing the quantities below is not strictly necessary since the result should be finite
-C It is however a good cross-check.
-        TEMP(2) = DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL(2,I,M)*DCONJG(JAMPL(1,J,N)) + JAMPL(1,I,M)*DCONJG(JAMPL(2,J,N))))
-        TEMP(3) = DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL(3,I,M)*DCONJG(JAMPL(1,J,N)) + JAMPL(1,I,M)*DCONJG(JAMPL(3,J,N))+JAMPL(2,I,M)*DCONJG(JAMPL(2,J,N))))
-## if(MadEventOutput) {
-        DO config_i=1,nconfigs
-          DO K=1,3
-            TEMP_AMP2(K,config_i) = 0.0d0
-          ENDDO
-C For the multi-channeling, to choose to square against only among a given configuration, use the do loop below
-          DO config_j=config_i,config_i
-c For the multi-channeling, to choose to square against all other configuration, use the do loop below
-c          DO config_j=1,nconfigs
-            TEMP_AMP2(1,config_i) = TEMP_AMP2(1,config_i) + DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL_FOR_AMP2(1,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(1,J,N,config_j))))
-            TEMP_AMP2(2,config_i) = TEMP_AMP2(2,config_i) + DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL_FOR_AMP2(2,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(1,J,N,config_j)) + JAMPL_FOR_AMP2(1,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(2,J,N,config_j))))
-            TEMP_AMP2(3,config_i) = TEMP_AMP2(3,config_i) + DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL_FOR_AMP2(3,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(1,J,N,config_j)) + JAMPL_FOR_AMP2(1,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(3,J,N,config_j))+JAMPL_FOR_AMP2(2,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(2,J,N,config_j))))
-
-          ENDDO
+C     
+C     ARGUMENT 
+C     
+      DOUBLE COMPLEX RES_CPLX(0:3,0:NSQUAREDSO)
+      REAL*8 RES(0:3,0:NSQUAREDSO)
+C     HEL_MULT is the helicity multiplier which can be more than one
+C      if several helicity configuration are mapped onto the one being
+C      currently computed.
+      INTEGER HEL_MULT
+      DOUBLE COMPLEX JAMPL(3,NLOOPFLOWS,NLOOPAMPSO)
+      COMMON/%(proc_prefix)sJAMPL/JAMPL
+C     
+C     LOCAL VARIABLES 
+C     
+      INTEGER I, J
+C     ----------
+C     BEGIN CODE
+C     ----------
+      CALL %(proc_prefix)sDO_COMPUTE_INTER_JAMP(RES_CPLX, HEL_MULT, JAMPL, JAMPL)
+      DO I=0,3
+        DO J=0, NSQUAREDSO
+          RES(I,J) = DREAL(RES_CPLX(I,J)) !RES is real for matrix element computation and complex for density matrix computation. A conversion is necessary
         ENDDO
-## }
-## }
-        DO K=1,3
-## if(not LoopInduced){      
-          TEMP(K) = 2.0d0*HEL_MULT*DBLE(COLOR_COEF*JAMPL(K,I,M)*DCONJG(JAMPB(J,N)))
-## }
-          RES(K,ISQSO) = RES(K,ISQSO) + TEMP(K)
-## if(LoopInduced and MadEventOutput){
-          DO config_i=1,nconfigs
-            AMP2_ALL(K,config_i,ISQSO) = AMP2_ALL(K,config_i,ISQSO) + TEMP_AMP2(K,config_i)
-          ENDDO
-## }
-        ENDDO
-        IF((.NOT.FILTER_SO).OR.SQSO_TARGET.eq.-1.or.SQSO_TARGET.eq.ISQSO) THEN
-          DO K=1,3
-            RES(K,0) = RES(K,0) + TEMP(K)
-## if(LoopInduced and MadEventOutput){
-C           Notice here that the squared order constraints will apply to the determination of the AMP2 for multichanneling. Place it outside the corresponding statement if this is not desirable.
-            do config_i=1,nconfigs
-              AMP2_ALL(K,config_i,0) = AMP2_ALL(K,config_i,0) + TEMP_AMP2(K,config_i)
-            enddo
-## }
-          ENDDO
-        ENDIF
       ENDDO
-    ENDDO
-  ENDDO
-ENDDO
-
       END SUBROUTINE
 
-## if(LoopInduced and not MadEventOutput){
-SUBROUTINE %(proc_prefix)sGET_ALL_INTER(P, NHEL, POS, N_CHANGING, ALLOW_HEL, N_COMB, INTER)
-      implicit none
-C  
-C CONSTANTS 
-C 
-CF2PY INTENT(IN) :: P(0:3, %(nexternal)i)
-CF2PY INTENT(IN) :: NHEL(%(nexternal)i)
-CF2PY INTENT(IN) :: POS(N_CHANGING)
-CF2PY INTENT(IN) :: N_CHANGING
-CF2PY INTENT(IN) :: ALLOW_HEL(N_CHANGING*N_COMB)
-CF2PY INTENT(IN) :: N_COMB
-CF2PY INTENT(OUT) :: INTER(NCOMB*(NCOMB+1)/2)
-C
-C     ARGUMENTS
-C
-      INTEGER    NEXTERNAL
-      PARAMETER (NEXTERNAL=%(nexternal)i)
-      REAL*8 P(0:3,NEXTERNAL)
-      INTEGER NHEL(NEXTERNAL)
-      INTEGER N_CHANGING, N_COMB
-      INTEGER POS(*)
-      INTEGER ALLOW_HEL(*)
-      DOUBLE COMPLEX INTER(99)
-C
-C     CONSTANT
-C
-      INTEGER    NSQUAREDSO, NLOOPAMPSO, NSO
-      PARAMETER (NSQUAREDSO=%(nSquaredSO)d, NLOOPAMPSO=%(nAmpSO)d, NSO=%(nSO)d)
-      INTEGER NLOOPFLOWS
-      PARAMETER (NLOOPFLOWS=%(nLoopFlows)d)
-C      
-C     Intermediate array
-C
-c       INTEGER NGRAPHS
-c       PARAMETER (NGRAPHS=3)
-       INTEGER NCOLOR
-       PARAMETER (NCOLOR=%(nLoopFlows)i)
-       DOUBLE COMPLEX JAMPL_all(3, NLOOPFLOWS,NLOOPAMPSO,3*NEXTERNAL)
-       INTEGER STORE_DENSITY
-       DATA STORE_DENSITY /0/
-       Double precision matelem(20)
-       REAL*8 , ALLOCATABLE :: PREC_FOUND(:)
-       integer returncode
-C
-C    Common for density
-C
-    COMMON/%(proc_prefix)sDENSITY_MATRIX/JAMPL_all,STORE_DENSITY
-c
-c   local
-c
-       integer i,j,IHEL, n
-       integer %(proc_prefix)sget_hel_index
 
-       ALLOCATE(PREC_FOUND(0:NSQUAREDSO))
-    STORE_DENSITY=0
-    DO I = 1, N_COMB
-        STORE_DENSITY=I
-        DO N = 1, N_CHANGING
-           NHEL(POS(N)) = ALLOW_HEL((I-1)*N_CHANGING+N)
-        enddo
-        !determine the correct ihel
-        IHEL = %(proc_prefix)sGET_HEL_INDEX(NHEL)
-        call %(proc_prefix)sSLOOPMATRIXHEL_THRES(P,IHEL, MATELEM,-1.0D0,PREC_FOUND, RETURNCODE)
-       ENDDO
 
-       DEALLOCATE(PREC_FOUND)
-       RETURN
-END SUBROUTINE
-## }
 
 
 INTEGER FUNCTION %(proc_prefix)sGET_HEL_INDEX(NHEL)
@@ -937,6 +674,237 @@ c         IF (CHOSEN_SO_CONFIGS(I)) THEN
       END SUBROUTINE
 ## }
 
+
+      SUBROUTINE %(proc_prefix)sDO_COMPUTE_INTER_JAMP(INTER,HEL_MULT,JAMPL1,JAMPL2)
+C     Computation of the interference between JAMPL1 and JAMPL2
+C     This subroutine is used to compute the matrix element JAMPL1 = JAMPL2 or the density matrix JAMPL1 != JAMPL2
+      IMPLICIT NONE
+C     
+C     CONSTANTS 
+C     
+      %(complex_dp_format)s IMAG1
+      PARAMETER (IMAG1=(0.0d0,1.0d0))
+
+      INTEGER    NSQUAREDSO, NLOOPAMPSO, NSO
+      PARAMETER (NSQUAREDSO=%(nSquaredSO)d, NLOOPAMPSO=%(nAmpSO)d, NSO=%(nSO)d)
+      INTEGER NLOOPFLOWS
+      PARAMETER (NLOOPFLOWS=%(nLoopFlows)d)
+## if(LoopInduced and MadEventOutput){
+      INTEGER NCONFIGS
+      PARAMETER (NCONFIGS=%(nmultichannel_configs)i)
+## }
+## if(not LoopInduced){
+      INTEGER NBORNFLOWS
+      PARAMETER (NBORNFLOWS=%(nBornFlows)d)
+C     We use the same list of amplitude split order for Born and Loop, so that NBORNAMPSO is always equal to NLOOPAMPSO  
+      INTEGER    NBORNAMPSO
+      PARAMETER (NBORNAMPSO=NLOOPAMPSO)
+## }
+C     
+C     ARGUMENT 
+C     
+      %(complex_dp_format)s INTER(0:3,0:NSQUAREDSO)
+C     HEL_MULT is the helicity multiplier which can be more than one
+C      if several helicity configuration are mapped onto the one being
+C      currently computed.
+      INTEGER HEL_MULT      
+C     
+C     LOCAL VARIABLES 
+C     
+      INTEGER I, J, K, M, N, ISQSO, DOUBLEFACT
+## if(LoopInduced) {
+      INTEGER LOWERBOUND
+## }
+      INTEGER ORDERS_A(NSO), ORDERS_B(NSO)
+      %(complex_dp_format)s COLOR_COEF
+      %(real_dp_format)s TEMP(3)
+## if(LoopInduced and MadEventOutput){
+      %(real_dp_format)s TEMP_AMP2(3,NCONFIGS)
+## }
+C  
+C FUNCTIONS
+C
+C This function belongs to the loop ME computation (loop_matrix.f) and is prefixed with ML5 
+      INTEGER %(proc_prefix)sML5SQSOINDEX
+C This function belongs to the Born ME computation (born_matrix.f) and is not prefixed at all
+      INTEGER %(proc_prefix)sSQSOINDEX, %(proc_prefix)sSOINDEX_FOR_AMPORDERS
+C
+C GLOBAL VARIABLES
+C
+      character(512) MLPath
+      common/MLPATH/MLPath
+      INTEGER SQSO_TARGET
+      common/%(proc_prefix)sSOCHOICE/SQSO_TARGET
+
+
+## if(LoopInduced){
+      %(complex_dp_format)s JAMPL1(3,NLOOPFLOWS,NLOOPAMPSO)
+      %(complex_dp_format)s JAMPL2(3,NLOOPFLOWS,NLOOPAMPSO)
+## }
+## if(not LoopInduced){
+      %(complex_dp_format)s JAMPB1(NBORNFLOWS,NBORNAMPSO)
+      %(complex_dp_format)s JAMPB2(NBORNFLOWS,NBORNAMPSO)
+C      The common block is broken because there are now 2 JAMP
+C      common/%(proc_prefix)sJAMPB/JAMPB
+## }
+## if(LoopInduced and MadEventOutput){
+      %(real_dp_format)s AMP2_ALL(3,NCONFIGS,0:NSQUAREDSO)    
+      common/%(proc_prefix)sAMP2_ALL/AMP2_ALL
+      %(complex_dp_format)s JAMPL_FOR_AMP2(3,NLOOPFLOWS,NLOOPAMPSO,NCONFIGS)
+      common/%(proc_prefix)sJAMPL_FOR_AMP2/JAMPL_FOR_AMP2
+## }
+
+      LOGICAL UVCT_REQ_SO_DONE,MP_UVCT_REQ_SO_DONE,CT_REQ_SO_DONE,MP_CT_REQ_SO_DONE,LOOP_REQ_SO_DONE,MP_LOOP_REQ_SO_DONE,CTCALL_REQ_SO_DONE,FILTER_SO
+      common/%(proc_prefix)sSO_REQS/UVCT_REQ_SO_DONE,MP_UVCT_REQ_SO_DONE,CT_REQ_SO_DONE,MP_CT_REQ_SO_DONE,LOOP_REQ_SO_DONE,MP_LOOP_REQ_SO_DONE,CTCALL_REQ_SO_DONE,FILTER_SO
+
+C Now a more advanced data structure for storing the projection coefficient
+C This is of course not F77 standard but widely supported by now.
+      TYPE ColorCoeff
+        sequence
+        integer :: Num
+        integer :: Denom          
+      ENDTYPE ColorCoeff
+## if(not LoopInduced){
+      TYPE(ColorCoeff), dimension(NLOOPFLOWS,NBORNFLOWS) :: LoopColorFlowMatrix
+      TYPE(ColorCoeff), dimension(NBORNFLOWS,NBORNFLOWS) :: BornColorFlowMatrix
+## } else {
+      TYPE(ColorCoeff), dimension(NLOOPFLOWS,NLOOPFLOWS) :: LoopColorFlowMatrix
+## }
+      LOGICAL CMInitialized
+## if(not LoopInduced){
+      COMMON/%(proc_prefix)sFLOW_COLOR_MATRIX/LoopColorFlowMatrix, BornColorFlowMatrix, CMInitialized
+## } else {
+      COMMON/%(proc_prefix)sFLOW_COLOR_MATRIX/LoopColorFlowMatrix, CMInitialized
+## }
+
+C Initialization
+if(.NOT.CMInitialized) then
+  CALL %(proc_prefix)sINITIALIZE_FLOW_COLORMATRIX()
+ENDIF
+
+DO I=0,NSQUAREDSO
+  DO K=0,3
+    INTER(K,I)=0.0d0
+  ENDDO
+ENDDO
+
+## if(not LoopInduced){
+c Compute the Born ME from the Born color flow amplitudes (JAMP)
+DO I=1, NBORNFLOWS
+  DO J=I, NBORNFLOWS
+    COLOR_COEF=DCMPLX(BornColorFlowMatrix(I,J)%%Num/DBLE(ABS(BornColorFlowMatrix(I,J)%%Denom)),0.0d0)
+    IF (BornColorFlowMatrix(I,J)%%Denom.LT.0) COLOR_COEF=COLOR_COEF*IMAG1
+    DO M=1,NBORNAMPSO
+C It may be that this AmpSO index does not receive contribution by the Born amps (because we put the loop and Born amplitude split orders in a common list)
+      IF (ABS(JAMPB1(I,M)).eq.0.0d0.or.ABS(JAMPB2(I,M)).eq.0.0d0) CYCLE
+      DO N=1,NBORNAMPSO
+        IF (ABS(JAMPB1(J,N)).eq.0.0d0.or.ABS(JAMPB2(J,N)).eq.0.0d0) CYCLE
+C First fetch what orders the split order indices M, N correspond to
+        CALL %(proc_prefix)sML5GET_ORDERS_FOR_AMPSOINDEX(M,ORDERS_A)
+        CALL %(proc_prefix)sML5GET_ORDERS_FOR_AMPSOINDEX(N,ORDERS_B)
+C Now figure out to which SQSOINDEX these orders together correspond to *in the Born subroutine* (Notice the absence of the ML5 prefix in the functions used then)
+        ISQSO = %(proc_prefix)sSQSOINDEX(%(proc_prefix)sSOINDEX_FOR_AMPORDERS(ORDERS_A),%(proc_prefix)sSOINDEX_FOR_AMPORDERS(ORDERS_B))
+        IF(J.ne.I) THEN
+          DOUBLEFACT=2 
+        ELSE 
+          DOUBLEFACT=1
+        ENDIF
+        TEMP(1) = DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*JAMPB1(I,M)*DCONJG(JAMPB2(J,N)))
+        INTER(0,ISQSO) = INTER(0,ISQSO) + TEMP(1)
+        IF((.not.FILTER_SO).or.SQSO_TARGET.eq.-1.or.SQSO_TARGET.eq.ISQSO) THEN
+          INTER(0,0) = INTER(0,0) + TEMP(1)
+        ENDIF
+      ENDDO
+    ENDDO
+  ENDDO
+ENDDO
+## }
+
+C Compute the Loop ME from the loop color flow amplitudes (JAMPL)
+DO I=1,NLOOPFLOWS
+## if(not LoopInduced){
+  DO J=1,NBORNFLOWS
+## } else {
+  DO J=I,NLOOPFLOWS
+## }
+    COLOR_COEF=DCMPLX(LoopColorFlowMatrix(I,J)%%Num/DBLE(ABS(LoopColorFlowMatrix(I,J)%%Denom)),0.0d0)
+    IF (LoopColorFlowMatrix(I,J)%%Denom.LT.0) COLOR_COEF=COLOR_COEF*IMAG1
+    DO M=1,NLOOPAMPSO
+## if(not LoopInduced){
+C It may be that this AmpSO index does not receive contribution by the Loop amps (because we put the loop and Born amplitude split orders in a common list)
+      IF((ABS(JAMPL(1,I,M))+ABS(JAMPL(2,I,M))+ABS(JAMPL(3,I,M))).eq.0.0d0) CYCLE
+      DO N=1,NBORNAMPSO
+C Same for contributions of split order index N by the Born amps
+      IF(ABS(JAMPB(J,N)).eq.0.0d0) CYCLE
+## } else {
+      IF (I.eq.J) THEN
+        LOWERBOUND = M
+      ELSE
+        LOWERBOUND = 1
+      ENDIF
+      DO N=LOWERBOUND,NLOOPAMPSO
+## }
+         ISQSO = %(proc_prefix)sML5SQSOINDEX(M,N)
+## if(LoopInduced){
+        IF(J.ne.I) THEN
+          DOUBLEFACT=2 
+        ELSEIF (M.ne.N) THEN
+          DOUBLEFACT=2
+        ELSE
+          DOUBLEFACT=1
+        ENDIF
+        TEMP(1) = DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL1(1,I,M)*DCONJG(JAMPL2(1,J,N))))
+C Computing the quantities below is not strictly necessary since the result should be finite
+C It is however a good cross-check.
+        TEMP(2) = DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL1(2,I,M)*DCONJG(JAMPL2(1,J,N)) + JAMPL1(1,I,M)*DCONJG(JAMPL2(2,J,N))))
+        TEMP(3) = DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL1(3,I,M)*DCONJG(JAMPL2(1,J,N)) + JAMPL1(1,I,M)*DCONJG(JAMPL2(3,J,N))+JAMPL1(2,I,M)*DCONJG(JAMPL2(2,J,N))))
+## if(MadEventOutput) {
+        DO config_i=1,nconfigs
+          DO K=1,3
+            TEMP_AMP2(K,config_i) = 0.0d0
+          ENDDO
+C For the multi-channeling, to choose to square against only among a given configuration, use the do loop below
+          DO config_j=config_i,config_i
+c For the multi-channeling, to choose to square against all other configuration, use the do loop below
+c          DO config_j=1,nconfigs
+            TEMP_AMP2(1,config_i) = TEMP_AMP2(1,config_i) + DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL_FOR_AMP2(1,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(1,J,N,config_j))))
+            TEMP_AMP2(2,config_i) = TEMP_AMP2(2,config_i) + DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL_FOR_AMP2(2,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(1,J,N,config_j)) + JAMPL_FOR_AMP2(1,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(2,J,N,config_j))))
+            TEMP_AMP2(3,config_i) = TEMP_AMP2(3,config_i) + DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL_FOR_AMP2(3,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(1,J,N,config_j)) + JAMPL_FOR_AMP2(1,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(3,J,N,config_j))+JAMPL_FOR_AMP2(2,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(2,J,N,config_j))))
+
+          ENDDO
+        ENDDO
+## }
+## }
+        DO K=1,3
+## if(not LoopInduced){      
+          TEMP(K) = 2.0d0*HEL_MULT*DBLE(COLOR_COEF*JAMPL(K,I,M)*DCONJG(JAMPB(J,N)))
+## }
+          INTER(K,ISQSO) = INTER(K,ISQSO) + TEMP(K)
+## if(LoopInduced and MadEventOutput){
+          DO config_i=1,nconfigs
+            AMP2_ALL(K,config_i,ISQSO) = AMP2_ALL(K,config_i,ISQSO) + TEMP_AMP2(K,config_i)
+          ENDDO
+## }
+        ENDDO
+        IF((.NOT.FILTER_SO).OR.SQSO_TARGET.eq.-1.or.SQSO_TARGET.eq.ISQSO) THEN
+          DO K=1,3
+            INTER(K,0) = INTER(K,0) + TEMP(K)
+## if(LoopInduced and MadEventOutput){
+C           Notice here that the squared order constraints will apply to the determination of the AMP2 for multichanneling. Place it outside the corresponding statement if this is not desirable.
+            do config_i=1,nconfigs
+              AMP2_ALL(K,config_i,0) = AMP2_ALL(K,config_i,0) + TEMP_AMP2(K,config_i)
+            enddo
+## }
+          ENDDO
+        ENDIF
+      ENDDO
+    ENDDO
+  ENDDO
+ENDDO
+
+      END SUBROUTINE
+
+
 C This subroutine resets to 0 the common arrays JAMPL, JAMPB and possibly JAMPL_FOR_AMP2 if used
 SUBROUTINE %(proc_prefix)sREINITIALIZE_JAMPS()
 implicit none
@@ -1099,3 +1067,290 @@ C ----------
 CONTINUE
 
 END SUBROUTINE
+
+
+
+      SUBROUTINE %(proc_prefix)sGET_ALL_INTER(JAMPL_ALL, NHEL, POS, N_CHANGING,
+     $  ALLOW_HEL, N_COMB, INTER)
+      IMPLICIT NONE
+C     
+C     CONSTANT
+C     
+      INTEGER    NSQUAREDSO, NLOOPAMPSO, NSO
+      PARAMETER (NSQUAREDSO=%(nSquaredSO)d, NLOOPAMPSO=%(nAmpSO)d, NSO=%(nSO)d)
+      INTEGER NLOOPFLOWS
+      PARAMETER (NLOOPFLOWS=%(nLoopFlows)d)
+      INTEGER NCOMB
+      PARAMETER (NCOMB=%(ncomb)d)
+      INTEGER HEL_MULT
+      PARAMETER (HEL_MULT=1)
+C     
+C     ARGUMENTS
+C     
+      INTEGER    NEXTERNAL
+      PARAMETER (NEXTERNAL=%(nexternal)i)
+      INTEGER NHEL(NEXTERNAL)
+      INTEGER N_CHANGING, N_COMB
+      INTEGER POS(*)
+      INTEGER ALLOW_HEL(N_CHANGING * N_COMB)
+      DOUBLE COMPLEX INTER(N_COMB * (N_COMB + 1)/2, 0:NSQUAREDSO)
+
+C     
+C     Intermediate array
+C     
+      DOUBLE COMPLEX JAMPL_ALL(3, NLOOPFLOWS,NLOOPAMPSO, NCOMB)
+      DOUBLE COMPLEX INTER_TMP(0:3,0:NSQUAREDSO)
+
+C     
+C     Common for density
+C     
+      INTEGER HELC(NEXTERNAL,NCOMB), ORDER_HEL(N_COMB)
+      COMMON/%(proc_prefix)sHELCONFIGS/HELC
+C     
+C     local
+C     
+      INTEGER I,J, N, SOL, H, K
+      
+C This block of code determines which helicities are required in each order
+      do I = 1, N_COMB
+      do N = 1, N_CHANGING
+      NHEL(POS(N)) = ALLOW_HEL((I-1)*N_CHANGING+N)
+      enddo
+      CALL %(proc_prefix)sFIND_H(NHEL, H)
+      ORDER_HEL(I) = H
+      enddo
+
+      SOL = 0
+      DO I = 1, N_COMB
+        DO J= I, N_COMB
+         SOL = SOL +1
+         call %(proc_prefix)sCOMPUTE_INTER_JAMP(INTER_TMP,HEL_MULT,JAMPL_ALL,ORDER_HEL(I), ORDER_HEL(J))
+         DO K=0, NSQUAREDSO
+           INTER(SOL,K) = INTER_TMP(1,K) + INTER_TMP(2,K) + INTER_TMP(3,K) !we sum the 3 contributions even though contribution 2 and 3 should be zero
+         ENDDO
+        ENDDO
+      ENDDO
+      WRITE(*,*) "SUM OF DIAGONAL TERMS", (INTER(5,1) + INTER(10,1))
+
+      RETURN
+      END SUBROUTINE
+
+
+
+
+      SUBROUTINE %(proc_prefix)sGET_DENSITY(P, POS, N_CHANGING,
+     $  ALLOW_HEL, N_COMB, ALPHAS, INTER)
+      IMPLICIT NONE
+C     
+C     CONSTANT
+C     
+      INTEGER    NSQUAREDSO, NLOOPAMPSO, NSO
+      PARAMETER (NSQUAREDSO=%(nSquaredSO)d, NLOOPAMPSO=%(nAmpSO)d, NSO=%(nSO)d)
+      INTEGER NLOOPFLOWS
+      PARAMETER (NLOOPFLOWS=%(nLoopFlows)d)
+      INTEGER NCOMB
+      PARAMETER (NCOMB=%(ncomb)d)
+      INTEGER HEL_MULT
+      PARAMETER (HEL_MULT=1)
+      INTEGER NSQSO_BORN
+      PARAMETER (NSQSO_BORN=0)
+      INTEGER AUX_DIMENSION
+      PARAMETER(AUX_DIMENSION=MAX(NSQSO_BORN,NSQUAREDSO))
+C     
+C     ARGUMENTS
+C     
+      INTEGER    NEXTERNAL
+      PARAMETER (NEXTERNAL=%(nexternal)i)
+      INTEGER THISNHEL(NEXTERNAL)
+      INTEGER N_CHANGING, N_COMB
+      INTEGER POS(*)
+      INTEGER ALLOW_HEL(N_CHANGING * N_COMB)
+      DOUBLE COMPLEX INTER(N_COMB * (N_COMB + 1)/2, 0:NSQUAREDSO)
+      DOUBLE COMPLEX TMP_INTER(N_COMB * (N_COMB + 1)/2, 0:NSQUAREDSO)
+      DOUBLE COMPLEX RHO_NORM(N_COMB * (N_COMB + 1)/2, 0:NSQUAREDSO)
+      DOUBLE PRECISION P(0:3, NEXTERNAL)
+      DOUBLE PRECISION ALPHAS
+
+C     
+C     Intermediate array
+C     
+
+      DOUBLE COMPLEX JAMPL_ALL(3, NLOOPFLOWS,NLOOPAMPSO, NCOMB)
+      COMMON/%(proc_prefix)sDENSITY_MATRIX/JAMPL_ALL
+
+      INTEGER HELC(NEXTERNAL,NCOMB), ORDER_HEL(N_COMB)
+      COMMON/%(proc_prefix)sHELCONFIGS/HELC
+      REAL*8 AUX(0:3,0:AUX_DIMENSION)
+
+C     
+C     local
+C     
+      INTEGER I,J,IHEL, N, SOL, H, K, IPART
+      INTEGER ML5_0_GET_HEL_INDEX
+      CALL %(proc_prefix)sSLOOPMATRIX(P, AUX)
+
+
+      do I = 1, N_COMB*(N_COMB+1)/2
+          do J=0, NSQUAREDSO
+            INTER(I,J) = 0D0
+          enddo
+      enddo
+      
+      DO IHEL =1, NCOMB
+        THISNHEL(:) = HELC(:, IHEL)
+	    DO IPART=1,N_CHANGING
+            if(THISNHEL(POS(IPART)).NE.ALLOW_HEL(IPART)) GOTO 10 !BYPASS COMPUTATION FOR HELICITY
+        ENDDO
+        call %(proc_prefix)sGET_ALL_INTER(JAMPL_ALL, THISNHEL, POS, N_CHANGING,
+     $  ALLOW_HEL, N_COMB, TMP_INTER)
+        do I = 1, N_COMB*(N_COMB+1)/2
+          do J=0, NSQUAREDSO
+            INTER(I, J) = INTER(I, J) + TMP_INTER(I, J)
+          enddo
+        enddo 
+ 10   enddo
+      CALL %(proc_prefix)sNORMALISE_RHO(INTER, N_COMB, RHO_NORM)
+      WRITE(*,*) "DENSITY MATRIX = ", RHO_NORM(:,0)
+      RETURN 
+      END
+
+     SUBROUTINE %(proc_prefix)sFIND_H(NHEL, H)
+C     This subroutine parses HELC to find NHEL in it. It returns H, the position of this helicity state.
+C     If it does not find the state in HELC, it returns 0
+      IMPLICIT NONE
+      INTEGER NLOOPFLOWS, NEXTERNAL
+      PARAMETER (NLOOPFLOWS=%(nLoopFlows)d, NEXTERNAL=%(nexternal)i)
+      INTEGER NCOMB
+      PARAMETER (NCOMB=%(ncomb)d)
+      LOGICAL equal
+      INTEGER I, H, J
+      INTEGER HELC(NEXTERNAL,NCOMB), NHEL(NEXTERNAL)
+      COMMON/%(proc_prefix)sHELCONFIGS/HELC
+
+      H = 0
+      DO I = 1, NCOMB
+        DO J = 1, NEXTERNAL
+          equal = (HELC(J,I) == NHEL(J))
+          if (.not.equal) exit
+        ENDDO
+        if (equal) then
+        H = I
+        exit
+        endif
+      ENDDO
+      RETURN
+      END SUBROUTINE
+
+      SUBROUTINE %(proc_prefix)sSTORE_JAMP(H)
+C     This subroutine stores the JAMP with helicity state HELC(:,H) in JAMPL_ALL
+      IMPLICIT NONE
+      INTEGER NLOOPFLOWS, NEXTERNAL
+      PARAMETER (NLOOPFLOWS=%(nLoopFlows)d, NEXTERNAL=%(nexternal)i)
+      INTEGER NCOMB, NSQUAREDSO
+      PARAMETER (NCOMB=%(ncomb)d, NSQUAREDSO=%(nSquaredSO)d)
+      INTEGER    NLOOPAMPSO
+      PARAMETER (NLOOPAMPSO=%(nAmpSO)d)
+      INTEGER H
+      INTEGER HELC(NEXTERNAL,NCOMB)
+
+      DOUBLE COMPLEX JAMPL_ALL(3,NLOOPFLOWS,NLOOPAMPSO,NCOMB)
+      
+      COMMON/%(proc_prefix)sDENSITY_MATRIX/JAMPL_ALL
+      COMMON/%(proc_prefix)sHELCONFIGS/HELC
+      COMPLEX*16 JAMPL(3,NLOOPFLOWS,NLOOPAMPSO)
+      COMMON/%(proc_prefix)sJAMPL/JAMPL
+
+c     THIS JAMPL_ALL CORRESPONDS TO HELC(H)
+      JAMPL_ALL(:,:,:,H) = JAMPL(:,:,:) !this line basically stores JAMPL in JAMPL_ALL
+
+      WRITE(*,*) "JAMP STORED", JAMPL
+      WRITE(*,*) "HELCITY STATE", HELC(:,H)
+      WRITE(*,*) "ALL JAMP", JAMPL_ALL
+      WRITE(*,*) "----------------"
+      RETURN
+      END SUBROUTINE
+
+
+      SUBROUTINE %(proc_prefix)sNORMALISE_RHO(RHO, N_COMB, RHO_NORM)
+C     This subroutine stores the JAMP with helicity state HELC(:,H) in JAMPL_ALL
+      IMPLICIT NONE
+      INTEGER NLOOPFLOWS, NEXTERNAL
+      PARAMETER (NLOOPFLOWS=%(nLoopFlows)d, NEXTERNAL=%(nexternal)i)
+      INTEGER N_COMB
+      INTEGER    NLOOPAMPSO, NSQUAREDSO
+      PARAMETER (NLOOPAMPSO=%(nAmpSO)d, NSQUAREDSO=%(nSquaredSO)d)
+
+      DOUBLE COMPLEX RHO(N_COMB * (N_COMB + 1)/2, 0:NSQUAREDSO)
+      DOUBLE COMPLEX RHO_NORM(N_COMB * (N_COMB + 1)/2, 0:NSQUAREDSO)
+      DOUBLE PRECISION TRACE(0:NSQUAREDSO)
+      INTEGER DIAG_INDICES(N_COMB), COUNTER, IDIAG, I, SOINDEX, J
+
+      COUNTER = 0
+      DO IDIAG = 1, N_COMB
+        DIAG_INDICES(IDIAG) = (IDIAG-1) * N_COMB - COUNTER + 1
+        COUNTER = COUNTER + (IDIAG-1)
+      ENDDO
+
+      TRACE = 0
+      DO SOINDEX = 0, NSQUAREDSO
+        DO I = 1, N_COMB
+          TRACE(SOINDEX) = TRACE(SOINDEX) + DREAL(RHO(DIAG_INDICES(I),SOINDEX))
+        ENDDO
+        DO J = 1, N_COMB * (N_COMB + 1)/2
+          RHO_NORM(J, SOINDEX) = RHO(J, SOINDEX) / TRACE(SOINDEX)
+        ENDDO
+
+      ENDDO
+
+      RETURN
+      END SUBROUTINE
+
+
+      SUBROUTINE %(proc_prefix)sCOMPUTE_INTER_JAMP(INTER,HEL_MULT,JAMPL_ALL,H1,H2)
+C     This function computes the interference between JAMPL_ALL(:,:,:,H1) and JAMPL_ALL(:,:,:,H2)
+      IMPLICIT NONE
+C     
+C     CONSTANTS 
+C     
+      INTEGER    NSQUAREDSO, NLOOPAMPSO
+      PARAMETER (NSQUAREDSO=%(nSquaredSO)d, NLOOPAMPSO=%(nAmpSO)d)
+      INTEGER NLOOPFLOWS
+      PARAMETER (NLOOPFLOWS=%(nLoopFlows)d)
+      INTEGER NCOMB
+      PARAMETER (NCOMB=%(ncomb)d)
+      INTEGER IDEN
+      %(den_factor_line)s
+      INTEGER I, SOINDEX
+C     
+C     ARGUMENTS
+C     
+      DOUBLE COMPLEX INTER(0:3,0:NSQUAREDSO)
+C     HEL_MULT is the helicity multiplier which can be more than one
+C      if several helicity configuration are mapped onto the one being
+C      currently computed.
+      INTEGER HEL_MULT, H1, H2 !helicity states chosen for the 2 JAMPL we compute the interference from
+      DOUBLE COMPLEX JAMPL_ALL(3,NLOOPFLOWS,NLOOPAMPSO,NCOMB)
+      DOUBLE COMPLEX JAMPL1(3,NLOOPFLOWS,NLOOPAMPSO)
+      DOUBLE COMPLEX JAMPL2(3,NLOOPFLOWS,NLOOPAMPSO)
+
+C     ----------
+C     BEGIN CODE
+C     ----------
+C     Initialise JAMPL1 and JAMPL2
+      JAMPL1(:,:,:) = JAMPL_ALL(:,:,:,H1)
+      JAMPL2(:,:,:) = JAMPL_ALL(:,:,:,H2)
+
+      IF (HEL_MULT.ne.1) THEN 
+        ERROR STOP 'HEL_MULT is bigger than 1, it is not yet implemented'
+      ENDIF
+
+      CALL %(proc_prefix)sDO_COMPUTE_INTER_JAMP(INTER,HEL_MULT,JAMPL1,JAMPL2)
+
+      DO SOINDEX = 0, NSQUAREDSO
+        DO I=0, 3
+          INTER(I, SOINDEX) = INTER(I, SOINDEX)/IDEN
+        ENDDO
+      ENDDO
+      
+      RETURN
+      END SUBROUTINE

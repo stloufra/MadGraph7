@@ -2659,6 +2659,11 @@ class LoopProcessOptimizedExporterFortranSA(LoopProcessExporterFortranSA):
                                                   replace_dict['nmultichannels']
         matrix_element.rep_dict['nmultichannel_configs'] = \
                                            replace_dict['nmultichannel_configs']        
+
+        # Extract overall denominator
+        # Averaging initial state color, spin, and identical FS particles
+        den_factor_line = self.get_den_factor_line(matrix_element)
+        replace_dict['den_factor_line'] = den_factor_line
         
         
         file = open(os.path.join(self.template_dir,\
