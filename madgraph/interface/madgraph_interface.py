@@ -2997,6 +2997,7 @@ class MadGraphCmd(HelpToCmd, CheckValidForCmd, CompleteForCmd, CmdExtended):
                        'auto_convert_model': True,
                        'acknowledged_v3.1_syntax': False,
                        'auto_update':7,
+                       'heptools_install_dir': './HEPTools',
                        }
 
     options_madgraph= {'group_subprocesses': 'Auto',
@@ -6026,7 +6027,7 @@ This implies that with decay chains:
             compiler_options.append('--fortran_compiler=%s'%
                                                self.options['fortran_compiler'])
 
-        if 'heptools_install_dir' in self.options:
+        if  self.options['heptools_install_dir']:
             prefix = self.options['heptools_install_dir']
             legacy_config_dir = os.path.join(os.environ['HOME'], '.mg5')
 
@@ -8120,6 +8121,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
             if not self.history or self.history[-1].split() != line.split():
                 self.history.append('set %s' % line)
                 self.avoid_history_duplicate('set %s' % args[0], ['define', 'set'])
+
         return stop
 
     def do_open(self, line):

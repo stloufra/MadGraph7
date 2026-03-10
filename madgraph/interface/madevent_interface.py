@@ -4596,7 +4596,7 @@ Please install this tool with the following MG5_aMC command:
         # Now setup the preamble to make sure that everything will use the locally
         # installed tools (if present) even if the user did not add it to its
         # environment variables.
-        if 'heptools_install_dir' in self.options:
+        if self.options['heptools_install_dir']:
             preamble = misc.get_HEPTools_location_setter(
                                      self.options['heptools_install_dir'],'lib')
         else:
@@ -5919,6 +5919,10 @@ tar -czf split_$1.tar.gz split_$1
 
         # Basic check
         assert os.path.exists(pjoin(self.me_dir,'SubProcesses'))
+
+        if self.options['heptools_install_dir']:
+            os.environ['LD_LIBRARY_PATH'] = pjoin(self.options['heptools_install_dir'], 'lib')+':'+os.environ.get('LD_LIBRARY_PATH','')
+            os.environ['DYLD_LIBRARY_PATH'] = pjoin(self.options['heptools_install_dir'], 'lib')+':'+os.environ.get('DYLD_LIBRARY_PATH','') 
 
         # environmental variables to be included in make_opts
         self.make_opts_var = {}
