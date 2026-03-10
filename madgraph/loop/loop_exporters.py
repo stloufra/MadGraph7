@@ -122,7 +122,7 @@ class LoopExporterFortran(object):
         in argument"""
         
         # special mode
-        if  self.opt['heptools_install_dir'] and self.dependencies =='external':
+        if 'heptools_install_dir' in self.opt and self.dependencies =='external':
             if os.path.exists(pjoin(self.opt['heptools_install_dir'], 'CutTools','lib')) and\
             not os.path.exists(pjoin(self.cuttools_dir,'includects', 'libcts.a')):
                 misc.sprint('Going to use pre-compiled version of CutTools') 
@@ -2047,7 +2047,7 @@ class LoopProcessOptimizedExporterFortranSA(LoopProcessExporterFortranSA):
         elif self.dependencies=='external':
             if not os.path.exists(pjoin(libpath,libname)) and tir_name=='iregi':
                         # special mode
-                if self.opt['heptools_install_dir'] and os.path.exists(pjoin(self.opt['heptools_install_dir'], 'IREGI')):
+                if 'heptools_install_dir' in self.opt and os.path.exists(pjoin(self.opt['heptools_install_dir'], 'IREGI')):
                     misc.sprint('Going to use pre-compiled version of IREGI') 
                     # Create the links to the lib folder
                     ln(os.path.join(self.opt['heptools_install_dir'],'IREGI','src','libiregi.a'),
