@@ -1399,7 +1399,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                 if self.seed > 30081*30081:
                     self.seed -= 30081*30081        
                 logger.info('Will use seed %s' % (self.seed))
-                misc.call(['run.sh', str(int(1.2*nb_event)), str(self.seed)], cwd=decay_dir)     
+                misc.call(['run.sh', str(int(1.2*nb_event)), str(self.seed), '-p', self.options['nb_core'] ], cwd=decay_dir)     
                 out[i] = lhe_parser.EventFile(pjoin(decay_dir, 'events.lhe.gz'))     
             if cumul:
                 break
@@ -1869,6 +1869,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                     min_mass = pole - bw_cut * width
                     max_mass = pole + bw_cut * width
                     dec[0].new_mass = lhe_parser.Event.generate_random_mass(pole, width, min_mass, max_mass)
+                    dec[0].reshuffle_info = (pole, width, min_mass, max_mass)
             if prod_density_cached is None:
                 full_me, prod_density_cached, prod_diag, dec_diag = self.calculate_matrix_element_from_density(production, decays, decay_dict)
             else:                

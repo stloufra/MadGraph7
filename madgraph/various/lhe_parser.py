@@ -2308,6 +2308,7 @@ class Event(list):
             )
         if hasattr(decay_particle, 'new_mass'):
             this_particle.new_mass = decay_particle.new_mass
+            this_particle.reshuffle_info = decay_particle.reshuffle_info
         self.nexternal += decay_event.nexternal -1
         old_scales = list(self.parse_matching_scale())
         if old_scales:
@@ -3098,6 +3099,7 @@ class Event(list):
         misc.sprint(mod , 0 in mod)
    
 
+    nb_reshuffle_issue=0
     def reshuffle_production(self):
         """ particle that need new mass have the "new_mass" attribute
         """
@@ -3114,13 +3116,26 @@ class Event(list):
             return 
         new_masses = [getattr(p, 'new_mass', p.mass) for p in production if p.status!=-1]
         sqrts = self.sqrts
+        
+        if sum(new_masses,0) <=  sqrts:
+            # apply the RAMBO algo
+            new_mom, jac = self.mass_shuffle(old_momenta, sqrts, new_masses)
+        else:
+            jac = -1
+        #if __debug__:
+        #    sum_mom = sum([FourMomentum(p) for p in new_mom], FourMomentum())
+        #    sum_old = sum([FourMomentum(p) for p in old_momenta], FourMomentum()) 
+        #    sum2 = FourMomentum(production[0]) + FourMomentum(production[1])
+        if jac in [0,-1]: 
+            #reshuffle momenta if 
+            for p in production:
+                if p.status !=-1 and hasattr(p, 'new_mass'):
+                    p.new_mass = Event.generate_random_mass(*p.reshuffle_info)
+            Event.nb_reshuffle_issue +=1 
+            if jac != -1:
+                misc.sprint('jac was 0 -> retry', Event.nb_reshuffle_issue)
+            return self.reshuffle_production()
 
-        # apply the RAMBO algo
-        new_mom, jac = self.mass_shuffle(old_momenta, sqrts, new_masses)
-        if __debug__:
-            sum_mom = sum([FourMomentum(p) for p in new_mom], FourMomentum())
-            sum_old = sum([FourMomentum(p) for p in old_momenta], FourMomentum()) 
-            sum2 = FourMomentum(production[0]) + FourMomentum(production[1])
         
         #modify the momenta of the particles:
         ind =0
