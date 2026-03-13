@@ -1130,7 +1130,6 @@ C This block of code determines which helicities are required in each order
          ENDDO
         ENDDO
       ENDDO
-      WRITE(*,*) "SUM OF DIAGONAL TERMS", (INTER(5,1) + INTER(10,1))
 
       RETURN
       END SUBROUTINE
@@ -1138,8 +1137,7 @@ C This block of code determines which helicities are required in each order
 
 
 
-      SUBROUTINE %(proc_prefix)sGET_DENSITY(P, POS, N_CHANGING,
-     $  ALLOW_HEL, N_COMB, ALPHAS, INTER)
+      SUBROUTINE %(proc_prefix)sGET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL, N_COMB, ALPHAS, MU_R2, INTER)
       IMPLICIT NONE
 C     
 C     CONSTANT
@@ -1169,7 +1167,7 @@ C
       DOUBLE COMPLEX TMP_INTER(N_COMB * (N_COMB + 1)/2, 0:NSQUAREDSO)
       DOUBLE COMPLEX RHO_NORM(N_COMB * (N_COMB + 1)/2, 0:NSQUAREDSO)
       DOUBLE PRECISION P(0:3, NEXTERNAL)
-      DOUBLE PRECISION ALPHAS
+      DOUBLE PRECISION ALPHAS, MU_R2
 
 C     
 C     Intermediate array
@@ -1189,6 +1187,9 @@ C
       INTEGER ML5_0_GET_HEL_INDEX
       CALL %(proc_prefix)sSLOOPMATRIX(P, AUX)
 
+      call UPDATE_AS_PARAM2(MU_R2, ALPHAS)
+
+      WRITE(*,*) "START GET DENSITY"
 
       do I = 1, N_COMB*(N_COMB+1)/2
           do J=0, NSQUAREDSO
@@ -1209,6 +1210,8 @@ C
           enddo
         enddo 
  10   enddo
+      WRITE(*,*) "PRODUCTION MATRIX", INTER(:,0)
+      WRITE(*,*) "SHOULD BE THE MATRIX ELEMENT", DREAL(INTER(1,0) + INTER(5,0) + INTER(8,0) + INTER(10,0))
       CALL %(proc_prefix)sNORMALISE_RHO(INTER, N_COMB, RHO_NORM)
       WRITE(*,*) "DENSITY MATRIX = ", RHO_NORM(:,0)
       RETURN 
@@ -1263,10 +1266,9 @@ C     This subroutine stores the JAMP with helicity state HELC(:,H) in JAMPL_ALL
 c     THIS JAMPL_ALL CORRESPONDS TO HELC(H)
       JAMPL_ALL(:,:,:,H) = JAMPL(:,:,:) !this line basically stores JAMPL in JAMPL_ALL
 
-      WRITE(*,*) "JAMP STORED", JAMPL
-      WRITE(*,*) "HELCITY STATE", HELC(:,H)
-      WRITE(*,*) "ALL JAMP", JAMPL_ALL
-      WRITE(*,*) "----------------"
+C      WRITE(*,*) "JAMP STORED", JAMPL
+C      WRITE(*,*) "HELCITY STATE", HELC(:,H)
+C      WRITE(*,*) "----------------"
       RETURN
       END SUBROUTINE
 

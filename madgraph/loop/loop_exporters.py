@@ -1198,6 +1198,31 @@ PARAMETER(MAX_SPIN_EXTERNAL_PARTICLE=%(max_spin_external_particle)d)
             if key not in list(replace_dict.keys()):
                 replace_dict[key]=''
         
+        #initialisation of the parameters for density matrix (dont think it is needed)
+        replace_dict['use_density'] = '.false.'
+        replace_dict['dens_nchanging'] = 1
+        replace_dict['dens_ncomb'] = 2
+        replace_dict['dens_pos'] = '\n'
+        replace_dict['dens_allow_hel'] = '\n'
+
+        if 'density' in self.cmd_options:
+            import math
+            replace_dict['use_density'] = '.true.'
+            changing = [int(i) for i in self.cmd_options['density'].split(',')]
+            replace_dict['dens_nchanging'] = len(changing)
+            replace_dict['dens_pos'] = '\n        '.join(
+                   ['POS(%s) = %i' % (i+1, pos) for i,pos in enumerate(changing)])
+            get_helicity_per_particle = matrix_element.get_helicity_per_particle()
+            changing_hels = [get_helicity_per_particle[pos-1] for pos in changing]
+            replace_dict['dens_ncomb'] = math.prod([len(hel) for hel in changing_hels])
+
+            i = 0
+            replace_dict['dens_allow_hel'] = ''
+            for comb in  itertools.product(*changing_hels):
+                for h in comb:
+                    i += 1
+                    replace_dict['dens_allow_hel'] += ' ALLOW_HEL(%i) = %i\n       ' % (i, h)
+
         if matrix_element.get('processes')[0].get('has_born'):
             file = open(os.path.join(self.template_dir,'check_sa.inc')).read()
         else:
@@ -2933,6 +2958,11 @@ PARAMETER (NSQUAREDSO=%d)"""%matrix_element.rep_dict['nSquaredSO'])
             replace_dict['include_vector'] = "include '../../Source/vector.inc'"
         else:
             replace_dict['include_vector'] = ''
+
+        if 'density' in self.cmd_options:
+            replace_dict['use_density'] = '.true.'
+        else:
+            replace_dict['use_density'] = '.false.'
 
         if write_auxiliary_files:
             # Write out the color matrix
