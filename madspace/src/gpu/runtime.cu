@@ -919,8 +919,8 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
     check_error(gpurandSetPseudoRandomGeneratorSeed(_gpurand_generator, rand_dev()));
     check_error(gpublasCreate(&_gpublas_handle));
 
-    locals_init.resize(function.locals().size());
-    requires_grad_init.resize(function.locals().size());
+    _locals_init.resize(function.locals().size());
+    _requires_grad_init.resize(function.locals().size());
     LastUseOfLocals last_use(function);
     InstructionDependencies dependencies(function);
 
@@ -966,7 +966,7 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
             streams.push_back(new_stream);
         }*/
 
-        instructions.push_back({
+        _instructions.push_back({
             instr.instruction->opcode(),
             input_indices,
             output_indices,
@@ -979,7 +979,7 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
             new_stream, // streams.at(backward_stream_index),
         });
         for (std::size_t local_index : last_use.local_indices(instr_index)) {
-            instructions.push_back(
+            _instructions.push_back(
                 {-1, {local_index}, {}, {}, {}, 0, *this, false, new_stream, new_stream}
             );
         }
@@ -997,10 +997,10 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
                 std::format("Global {} has wrong dtype or shape", name)
             );
         }
-        locals_init.at(value.local_index) = global;
+        _locals_init.at(value.local_index) = global;
         if (context->global_requires_grad(name)) {
-            requires_grad_init.at(value.local_index) = true;
-            grad_global_indices.push_back({name, value.local_index});
+            _requires_grad_init.at(value.local_index) = true;
+            _grad_global_indices.push_back({name, value.local_index});
         }
     }
 
@@ -1009,7 +1009,7 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
             Overloaded{
                 [&](auto val) {
                     Tensor tensor(val, &gpu_device);
-                    locals_init[local.local_index] = tensor;
+                    _locals_init[local.local_index] = tensor;
                 },
                 [](std::monostate val) {}
             },
@@ -1018,7 +1018,7 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
     }
 
     for (auto& out : function.outputs()) {
-        output_indices.push_back(out.local_index);
+        _output_indices.push_back(out.local_index);
     }
 }
 
@@ -1036,10 +1036,10 @@ GpuRuntime::~GpuRuntime() {
 TensorVec GpuRuntime::run(const TensorVec& inputs) const {
     auto& gpu_device = *static_cast<const GpuDevice*>(_context->device());
     gpu_device.activate();
-    auto locals = locals_init;
+    auto locals = _locals_init;
     std::copy(inputs.begin(), inputs.end(), locals.begin());
 
-    for (auto& instr : instructions) {
+    for (auto& instr : _instructions) {
         AsyncGpuDevice device(gpu_device, instr.stream);
         for (auto event : instr.wait_events) {
             check_error(gpuStreamWaitEvent(instr.stream, event));
@@ -1055,7 +1055,7 @@ TensorVec GpuRuntime::run(const TensorVec& inputs) const {
         }
     }
     TensorVec outputs;
-    for (auto index : output_indices) {
+    for (auto index : _output_indices) {
         outputs.push_back(locals[index]);
     }
     check_error(gpuStreamSynchronize(_streams.at(0)));
@@ -1067,16 +1067,16 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> GpuRuntime::run_with_grad(
 ) const {
     auto& gpu_device = *static_cast<const GpuDevice*>(_context->device());
     gpu_device.activate();
-    auto locals = locals_init;
-    auto requires_grad = requires_grad_init;
+    auto locals = _locals_init;
+    auto requires_grad = _requires_grad_init;
     std::vector<bool> store_local(locals.size());
-    std::vector<bool> eval_grad(instructions.size());
+    std::vector<bool> eval_grad(_instructions.size());
     std::copy(inputs.begin(), inputs.end(), locals.begin());
     std::copy(
         input_requires_grad.begin(), input_requires_grad.end(), requires_grad.begin()
     );
 
-    for (auto [instr, instr_eval_grad] : zip(instructions, eval_grad)) {
+    for (auto [instr, instr_eval_grad] : zip(_instructions, eval_grad)) {
         AsyncGpuDevice device(gpu_device, instr.stream);
         if (instr.differentiable) {
             for (auto input_index : instr.input_indices) {
@@ -1114,7 +1114,7 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> GpuRuntime::run_with_grad(
         }
     }
     TensorVec outputs;
-    for (auto index : output_indices) {
+    for (auto index : _output_indices) {
         outputs.push_back(locals[index]);
     }
     check_error(gpuStreamSynchronize(_streams.at(0)));
@@ -1131,11 +1131,11 @@ GpuRuntime::run_backward(
     gpu_device.activate();
     TensorVec local_grads(stored_locals.size());
     TensorVec locals(stored_locals);
-    for (auto [index, grad] : zip(output_indices, output_grads)) {
+    for (auto [index, grad] : zip(_output_indices, output_grads)) {
         local_grads[index] = grad;
     }
     for (auto [instr, instr_eval_grad] :
-         zip(std::views::reverse(instructions), std::views::reverse(eval_grad))) {
+         zip(std::views::reverse(_instructions), std::views::reverse(eval_grad))) {
         if (!instr_eval_grad) {
             continue;
         }
@@ -1161,11 +1161,11 @@ GpuRuntime::run_backward(
         }
     }
     std::vector<std::tuple<std::string, Tensor>> global_grads;
-    for (auto& [name, index] : grad_global_indices) {
+    for (auto& [name, index] : _grad_global_indices) {
         global_grads.push_back({name, local_grads[index]});
     }
     check_error(gpuStreamSynchronize(_streams.at(0)));
-    return {{local_grads.begin(), local_grads.begin() + input_count}, global_grads};
+    return {{local_grads.begin(), local_grads.begin() + _input_count}, global_grads};
 }
 
 extern "C" Runtime*
