@@ -82,7 +82,8 @@ class MadSpinOptions(banner.ConfigFile):
         self.add_param('density_debug', False, comment='Turn on check against full ME calculation')
         self.add_param('density_tolerance', 1E-4, comment='Tolerance for deviation between density and full ME')
         self.add_param('decay_event_mult', 1E0, comment='Produce more events than needed so that MadSpin does not have to regenerate decay events')
-        
+        self.add_param('density_keep_jacobian', False, comment='keep track of the phase-space volume change related to the offshell reshuffling')
+
     ############################################################################
     ##  Special post-processing of the options                                ## 
     ############################################################################
@@ -1636,19 +1637,29 @@ class MadSpinInterface(extended_cmd.Cmd):
                 else:
                     full_evt, wgt, _ = self.get_onshell_evt_and_wgt(
                         production, decays, decay_dict, prod_density_cached, build_event=build_event)
+                jac = 1
+                if density_method and self.options['density_keep_jacobian']:
+                    # Build the full Event for correct jacobian handling
+                    full_evt = lhe_parser.Event(str(production))
+                    full_evt = full_evt.add_decays(decays)
+                    jac = full_evt.reshuffle_production()
+                        
                 #print(f"Spyros wgt = {wgt}")
-                if random.random()*maxwgt < wgt:
-                    if density_method and full_evt is None:
+                if random.random()*maxwgt < wgt*jac:
+                    if density_method and not self.options['density_keep_jacobian']:
                         # Build the full Event only after acceptance in density mode.
                         full_evt = lhe_parser.Event(str(production))
                         full_evt = full_evt.add_decays(decays)
+                        jac = full_evt.reshuffle_production()
                     if self.options['fixed_order']:
                         full_evt = [full_evt] + [evt.add_decays(decays) for evt in counterevt]
                     break
+                #else:
+                #    misc.sprint('fail-> retry')
             # Efficiency = accepted / trials (+1 because current event is already accepted)
             self.efficiency = float(curr_event + 1) / nb_try
-            if density_method:
-                full_evt.reshuffle_production()
+            #if density_method:
+            #    full_evt.reshuffle_production()
             if self.options['fixed_order']:
                 for evt in full_evt:
                     # change the weight associated to the event
@@ -1794,7 +1805,13 @@ class MadSpinInterface(extended_cmd.Cmd):
                         base_event, decays, decay_dict, density_matrix_prod, build_event=False)[1]
                     #print(f"wgt2 = {wgt}")
                 #print(f"Event {i} , PS point {j}, wgt for max = {wgt}")
-                maxwgt = max(wgt, maxwgt)
+                jac = 1 
+                if self.options['density_keep_jacobian']:
+                    # Build the full Event for tracking associated jacobian
+                    full_evt = lhe_parser.Event(str(base_event))
+                    full_evt = full_evt.add_decays(decays)
+                    jac = full_evt.reshuffle_production()
+                maxwgt = max(wgt*jac, maxwgt)
             all_maxwgt.append(maxwgt.real)
         print(f"all_maxwgt = {all_maxwgt}")
         all_maxwgt.sort(reverse=True)
