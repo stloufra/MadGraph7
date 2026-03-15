@@ -204,9 +204,7 @@ void ChannelEventGenerator::unweight_file(std::mt19937& rand_gen) {
     _status.count_unweighted = accept_count;
 }
 
-void ChannelEventGenerator::integrate_and_optimize(
-    const GeneratorBatchJob& job, bool run_optim
-) {
+void ChannelEventGenerator::integrate(const GeneratorBatchJob& job) {
     auto w_view = job.weights.view<double, 1>();
     std::size_t sample_count_after_cuts = 0;
     for (std::size_t i = 0; i < w_view.size(); ++i) {
@@ -243,25 +241,26 @@ void ChannelEventGenerator::integrate_and_optimize(
     if (job.discrete_hist.size() > 0) {
         _discrete_optimizer->add_data(job.discrete_hist);
     }
-    if (run_optim) {
-        if (_vegas_optimizer) {
-            _vegas_optimizer->optimize();
-        }
-        if (_discrete_optimizer) {
-            _discrete_optimizer->optimize();
-        }
-        double rsd = _cross_section.rel_std_dev();
-        if (rsd < _config.optimization_threshold * _best_rsd) {
-            _iters_without_improvement = 0;
-        } else {
-            ++_iters_without_improvement;
-            if (_iters_without_improvement >= _config.optimization_patience) {
-                _status.optimized = true;
-            }
-        }
-        _best_rsd = std::min(rsd, _best_rsd);
-        ++_status.iterations;
+}
+
+void ChannelEventGenerator::optimize_vegas(const GeneratorBatchJob& job) {
+    if (_vegas_optimizer) {
+        _vegas_optimizer->optimize();
     }
+    if (_discrete_optimizer) {
+        _discrete_optimizer->optimize();
+    }
+    double rsd = _cross_section.rel_std_dev();
+    if (rsd < _config.optimization_threshold * _best_rsd) {
+        _iters_without_improvement = 0;
+    } else {
+        ++_iters_without_improvement;
+        if (_iters_without_improvement >= _config.optimization_patience) {
+            _status.optimized = true;
+        }
+    }
+    _best_rsd = std::min(rsd, _best_rsd);
+    ++_status.iterations;
 }
 
 double ChannelEventGenerator::channel_weight_sum(std::size_t event_count) {
@@ -296,7 +295,6 @@ double ChannelEventGenerator::channel_weight_sum(std::size_t event_count) {
 void ChannelEventGenerator::start_job(
     GeneratorBatchJob& job, ResultQueue& result_queue
 ) {
-    job.max_weight = _max_weight;
     _contexts.at(job.context_index)
         ->thread_pool()
         .submit([this, &job, &result_queue]() {
@@ -308,39 +306,55 @@ void ChannelEventGenerator::start_job(
             if (job.vegas_batch_size > 0 && batch_size > job.vegas_batch_size) {
                 batch_size = job.vegas_batch_size;
             }
-            TensorVec events = runtimes.integrand->run({Tensor({batch_size})});
-            job.weights = events.at(0).cpu();
-            if (job.unweight) {
-                std::vector<Tensor> unweighter_args(events.begin(), events.begin() + 6);
-                unweighter_args.push_back(Tensor(job.max_weight, context->device()));
-                TensorVec unw_events = runtimes.unweighter->run(unweighter_args);
-                for (auto& item : unw_events) {
-                    job.unweighted_events.push_back(item.cpu());
-                }
-            }
+            job.events = runtimes.integrand->run({Tensor({batch_size})});
+            job.weights = job.events.at(0).cpu();
             if (runtimes.observable_histograms) {
-                auto hists =
-                    runtimes.observable_histograms->run({events.at(0), events.at(1)});
+                auto hists = runtimes.observable_histograms->run(
+                    {job.events.at(0), job.events.at(1)}
+                );
                 for (auto& item : hists) {
                     job.hists.push_back(item.cpu());
                 }
             }
             if (job.vegas_batch_size != 0) {
                 if (_vegas_optimizer) {
-                    auto hist =
-                        runtimes.vegas_histogram->run({events.at(6), events.at(0)});
+                    auto hist = runtimes.vegas_histogram->run(
+                        {job.events.at(6), job.events.at(0)}
+                    );
                     for (auto& item : hist) {
                         job.vegas_hist.push_back(item.cpu());
                     }
                 }
                 if (_discrete_optimizer) {
-                    TensorVec args{events.begin() + 7, events.end()};
-                    args.push_back(events.at(0));
+                    TensorVec args{job.events.begin() + 7, job.events.end()};
+                    args.push_back(job.events.at(0));
                     auto hist = runtimes.discrete_histogram->run(args);
                     for (auto& item : hist) {
                         job.discrete_hist.push_back(item.cpu());
                     }
                 }
+            }
+            result_queue.push(job.job_id);
+            return std::nullopt;
+        });
+}
+
+void ChannelEventGenerator::start_unweight_job(
+    GeneratorBatchJob& job, ResultQueue& result_queue
+) {
+    job.max_weight = _max_weight;
+    _contexts.at(job.context_index)
+        ->thread_pool()
+        .submit([this, &job, &result_queue]() {
+            auto& runtimes = _runtimes.at(job.context_index);
+            auto& context = _contexts.at(job.context_index);
+            std::vector<Tensor> unweighter_args(
+                job.events.begin(), job.events.begin() + 6
+            );
+            unweighter_args.push_back(Tensor(job.max_weight, context->device()));
+            TensorVec unw_events = runtimes.unweighter->run(unweighter_args);
+            for (auto& item : unw_events) {
+                job.unweighted_events.push_back(item.cpu());
             }
             result_queue.push(job.job_id);
             return std::nullopt;
@@ -414,7 +428,7 @@ void ChannelEventGenerator::update_max_weight(Tensor weights) {
     _large_weights.erase(_large_weights.begin() + count, _large_weights.end());
 }
 
-void ChannelEventGenerator::unweight_and_write(
+void ChannelEventGenerator::write_events(
     const std::vector<Tensor>& unweighted_events, double job_max_weight
 ) {
     auto w_view = unweighted_events.at(0).view<double, 1>();

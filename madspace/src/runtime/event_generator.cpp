@@ -62,11 +62,6 @@ void EventGenerator::survey() {
     std::size_t max_iters = std::max(min_iters, _config.survey_max_iters);
     double target_precision = _config.survey_target_precision;
 
-    std::vector<ThreadPool*> thread_pools;
-    for (auto& context : _contexts) {
-        thread_pools.push_back(&context->thread_pool());
-    }
-
     std::size_t total_event_count = 0;
     std::size_t done_event_count = 0;
     for (auto& channel : _channels) {
@@ -109,30 +104,40 @@ void EventGenerator::survey() {
             auto& job = _running_jobs.at(job_id);
             auto& channel = _channels.at(job.channel_index);
             auto& channel_job_count = _channel_job_counts.at(job.channel_index);
+            auto& context_job_count = _context_job_counts.at(job.context_index);
             if (channel_job_count == job.split_job_count) {
                 channel->clear_events();
             }
             --channel_job_count;
-            --_context_job_counts.at(job.context_index);
+            --context_job_count;
 
-            channel->integrate_and_optimize(job, channel_job_count == 0);
-            if (channel_job_count == 0) {
-                done_event_count += job.vegas_batch_size;
-            }
-            update_integral();
-
-            if (iter >= min_iters - 1) {
+            bool keep_job = false;
+            if (job.unweighted_events.size() == 0) {
+                channel->integrate(job);
+                update_integral();
                 channel->update_max_weight(job.weights);
-                channel->unweight_and_write(job.unweighted_events, job.max_weight);
+                if (job.unweight) {
+                    channel->start_unweight_job(job, _result_queue);
+                    ++context_job_count;
+                    keep_job = true;
+                } else {
+                    done = false;
+                }
+            } else {
+                channel->write_events(job.unweighted_events, job.max_weight);
                 update_counts();
                 if (channel_job_count == 0 &&
                     channel->cross_section().rel_error() < target_precision) {
                     done = false;
                 }
-            } else {
-                done = false;
             }
-            _running_jobs.erase(job_id);
+            if (channel_job_count == 0) {
+                channel->optimize_vegas(job);
+                done_event_count += job.vegas_batch_size;
+            }
+            if (!keep_job) {
+                _running_jobs.erase(job_id);
+            }
             start_jobs();
             print_survey_update(false, done_event_count, total_event_count, iter);
         }
@@ -144,10 +149,8 @@ void EventGenerator::generate() {
     reset_start_time();
     print_gen_init();
 
-    std::vector<ThreadPool*> thread_pools;
     std::size_t target_job_count = 0;
     for (auto& context : _contexts) {
-        thread_pools.push_back(&context->thread_pool());
         target_job_count += 2 * context->thread_pool().thread_count();
     }
     std::size_t channel_index = 0;
@@ -193,23 +196,35 @@ void EventGenerator::generate() {
             auto& job = _running_jobs.at(job_id);
             auto& channel = _channels.at(job.channel_index);
             auto& channel_job_count = _channel_job_counts.at(job.channel_index);
+            auto& context_job_count = _context_job_counts.at(job.context_index);
             if (job.vegas_batch_size > 0 && channel_job_count == job.split_job_count) {
                 channel->clear_events();
             }
             --channel_job_count;
-            --_context_job_counts.at(job.context_index);
+            --context_job_count;
 
-            bool run_optim = job.vegas_batch_size > 0 && channel_job_count == 0;
-            channel->integrate_and_optimize(job, run_optim);
-            if (run_optim) {
+            bool keep_job = false;
+            if (job.unweighted_events.size() == 0) {
+                channel->integrate(job);
+                update_integral();
+                channel->update_max_weight(job.weights);
+                if (job.unweight) {
+                    channel->start_unweight_job(job, _result_queue);
+                    ++context_job_count;
+                    keep_job = true;
+                }
+            } else {
+                channel->write_events(job.unweighted_events, job.max_weight);
+                update_counts();
+            }
+            if (job.vegas_batch_size > 0 && channel_job_count == 0) {
+                channel->optimize_vegas(job);
                 _channel_optimizing.at(job.channel_index) = false;
             }
-            update_integral();
-            channel->update_max_weight(job.weights);
-            channel->unweight_and_write(job.unweighted_events, job.max_weight);
-            update_counts();
             print_gen_update(false);
-            _running_jobs.erase(job_id);
+            if (!keep_job) {
+                _running_jobs.erase(job_id);
+            }
         } else {
             if (_status.done) {
                 unweight_all();
@@ -239,11 +254,11 @@ bool EventGenerator::start_jobs() {
             for (std::size_t i = 0; i < split_job_count; ++i) {
                 auto& job =
                     std::get<0>(_running_jobs.emplace(_job_id, ready_job))->second;
-                job.split_job_count = split_job_count;
+                job.split_job_count = split_job_count * (1 + job.unweight);
                 job.job_id = _job_id;
                 job.context_index = context_index;
                 _channels.at(job.channel_index)->start_job(job, _result_queue);
-                ++_channel_job_counts.at(job.channel_index);
+                _channel_job_counts.at(job.channel_index) += 1 + job.unweight;
                 ++_job_id;
                 ++job_count;
             }

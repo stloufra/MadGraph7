@@ -95,6 +95,7 @@ struct GeneratorBatchJob {
     std::size_t vegas_batch_size;
     std::size_t split_job_count;
     Tensor weights;
+    TensorVec events;
     TensorVec unweighted_events;
     TensorVec hists;
     TensorVec vegas_hist;

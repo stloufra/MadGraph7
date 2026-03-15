@@ -59,13 +59,15 @@ public:
     }
 
     void unweight_file(std::mt19937& rand_gen);
-    void integrate_and_optimize(const GeneratorBatchJob& job, bool run_optim);
+    void integrate(const GeneratorBatchJob& job);
+    void optimize_vegas(const GeneratorBatchJob& job);
     double channel_weight_sum(std::size_t event_count);
     void start_job(GeneratorBatchJob& job, ResultQueue& result_queue);
+    void start_unweight_job(GeneratorBatchJob& job, ResultQueue& result_queue);
     std::size_t next_vegas_batch_size();
     void clear_events();
     void update_max_weight(Tensor weights);
-    void unweight_and_write(const TensorVec& unweighted_events, double job_max_weight);
+    void write_events(const TensorVec& unweighted_events, double job_max_weight);
     void save(const std::string& file_name) const;
 
 private:
