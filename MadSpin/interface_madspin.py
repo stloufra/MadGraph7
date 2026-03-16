@@ -83,6 +83,7 @@ class MadSpinOptions(banner.ConfigFile):
         self.add_param('density_tolerance', 1E-4, comment='Tolerance for deviation between density and full ME')
         self.add_param('decay_event_mult', 1E0, comment='Produce more events than needed so that MadSpin does not have to regenerate decay events')
         self.add_param('density_keep_jacobian', False, comment='keep track of the phase-space volume change related to the offshell reshuffling')
+        self.add_param('density_pole_approximation', True, comment='In density mode, use the multiple approximation, leaving offshell as pure BW (via reshuffling). Set on False, means using offshell matrix-element that impacts the shape of the Breit-Wigner. False is equivalent to the old Madspin mode/decay chain syntax of MadGraph')
 
     ############################################################################
     ##  Special post-processing of the options                                ## 
@@ -1631,15 +1632,18 @@ class MadSpinInterface(extended_cmd.Cmd):
                 decays = self.get_decay_from_file(production, evt_decayfile, nb_event-curr_event)
                 # In density mode do not do full event construction before accept/reject
                 build_event = (not density_method) or self.options['fixed_order']
-                if prod_density_cached is None:
+                
+                if prod_density_cached is None or not self.options['density_pole_approximation']:
                     full_evt, wgt, prod_density_cached = self.get_onshell_evt_and_wgt(
                         production, decays, decay_dict, build_event=build_event)
                 else:
                     full_evt, wgt, _ = self.get_onshell_evt_and_wgt(
                         production, decays, decay_dict, prod_density_cached, build_event=build_event)
                 jac = 1
-                if density_method and self.options['density_keep_jacobian']:
+                if density_method and self.options['density_keep_jacobian'] and self.options['density_pole_approximation']:
                     # Build the full Event for correct jacobian handling
+                    # already done if density_pole_approximation is False, 
+                    # but need to be done here if density_pole_approximation is True and density_keep_jacobian is True
                     full_evt = lhe_parser.Event(str(production))
                     full_evt = full_evt.add_decays(decays)
                     jac = full_evt.reshuffle_production()
@@ -1648,9 +1652,13 @@ class MadSpinInterface(extended_cmd.Cmd):
                 if random.random()*maxwgt < wgt*jac:
                     if density_method and not self.options['density_keep_jacobian']:
                         # Build the full Event only after acceptance in density mode.
-                        full_evt = lhe_parser.Event(str(production))
+                        if self.options['density_pole_approximation']:
+                            full_evt = lhe_parser.Event(str(production))
+                        else:
+                            full_evt = production
                         full_evt = full_evt.add_decays(decays)
-                        jac = full_evt.reshuffle_production()
+                        if self.options['density_pole_approximation']:
+                            jac = full_evt.reshuffle_production()
                     if self.options['fixed_order']:
                         full_evt = [full_evt] + [evt.add_decays(decays) for evt in counterevt]
                     break
@@ -1875,6 +1883,8 @@ class MadSpinInterface(extended_cmd.Cmd):
             #print(f"full_me = {full_me}")
         else:
             #offshell mode
+            full_dqrts = production.sqrts 
+            jac = 1 
             for pdg in decays:
                 for dec in decays[pdg]:
                     pole = self.banner.get('param', 'mass', abs(pdg)).value
@@ -1884,24 +1894,30 @@ class MadSpinInterface(extended_cmd.Cmd):
                     else:
                        bw_cut = self.options['BW_cut']     
                     min_mass = pole - bw_cut * width
-                    max_mass = pole + bw_cut * width
+                    max_mass = min(pole + bw_cut * width,full_dqrts) 
                     dec[0].new_mass = lhe_parser.Event.generate_random_mass(pole, width, min_mass, max_mass)
                     dec[0].reshuffle_info = (pole, width, min_mass, max_mass)
+
+                    full_dqrts -= dec[0].new_mass
+                    gap = math.atan((pole**2-min_mass**2)/pole*width)
+                    gap += math.atan((max_mass**2-pole**2)/pole*width)
+                    jac *= gap/math.pi 
             if prod_density_cached is None:
                 full_me, prod_density_cached, prod_diag, dec_diag = self.calculate_matrix_element_from_density(production, decays, decay_dict)
             else:                
                 full_me, _, prod_diag, dec_diag = self.calculate_matrix_element_from_density(production, decays, decay_dict, prod_density_cached)
             #print(f"full_me from density = {full_me}")
-            
+   
             full_event = None
             if build_event or self.options['density_debug']:
                 # Create full event from production and decays
-                full_event = lhe_parser.Event(str(production))
-                #print(f"before adding decays to full_event : {decays}")
-                #print(f"full event 1 = {full_event}")            
+                if self.options['density_pole_approximation']:
+                    full_event = lhe_parser.Event(str(production))
+                else:
+                    full_event = production          
                 # CAUTION: the next line removes everything from decays dictionary
                 full_event = full_event.add_decays(decays)
-                
+            
                 #print(f"full event 2 = {full_event}")
                 if self.options['density_debug']:
                     me1 = self.calculate_matrix_element(full_event)
@@ -1943,7 +1959,7 @@ class MadSpinInterface(extended_cmd.Cmd):
         #print(f"decay_me = {decay_me}")
         #print(f"wgt = {full_me/(production_me*decay_me)}")
         
-        return full_event, full_me/(production_me*decay_me), prod_density_cached
+        return full_event, full_me/(production_me*decay_me)*jac, prod_density_cached
 
            
     def calculate_matrix_element_from_density(self, production, decays, decay_dict, prod_density_cached=None):
@@ -1980,8 +1996,10 @@ class MadSpinInterface(extended_cmd.Cmd):
         # Cache production-only metadata reused across rejection retries
         # ------------------------------------------------------------------
         decays_key = tuple(decays.keys())
+        MEdenom_prod, MEdenom_decay = None, None
         prod_static = getattr(production, '_ms_density_static', None)
-        if not prod_static or prod_static.get('decays_key') != decays_key:
+        if not self.options['density_pole_approximation'] or \
+            (not prod_static or prod_static.get('decays_key') != decays_key):
             # Production averaging factor (spin/color initial state) from standalone
             iden_p = self.get_iden(production)
 
@@ -2008,6 +2026,34 @@ class MadSpinInterface(extended_cmd.Cmd):
             decaying_pdg = [int(production[i - 1].pid) for i in position]
             decaying_spins = [self.model.get_particle(i).get('spin') for i in decaying_pdg]
             helicities = [hel_dict[i] for i in decaying_spins]
+
+            new_mass = {}
+            for key in decays:
+                #misc.sprint(decays[key])
+                new_mass[key] = [dec[0].new_mass for dec in decays[key]]
+
+            for particle in production:
+                if particle.status == 1 and particle.pid in new_mass:
+                    particle.new_mass = new_mass[particle.pid].pop(0)
+
+            MEdenom_prod, MEdenom_decay = None, None
+            if not self.options['density_pole_approximation']:
+                # compute the denominator and then reshuffle the event before 
+                # computing the numerator 
+                MEdenom_prod = self.calculate_matrix_element(production)  
+                MEdenom_decay = 1.0              
+                for key in decays:
+                    for dec in decays[key]:
+                        MEdenom_decay *= self.calculate_matrix_element(dec)
+                # now doing the reshuffling
+                # doing the reshuffling for each part:
+                jac = 1.0
+                jac *= production.reshuffle_production()
+                for key in decays:
+                    for dec in decays[key]:
+                        jac *= dec.reshuffle_decayevt()
+                if jac == 0:
+                    raise Exception
 
             allowed_hel_pairs, allowed_hel = self.get_allowed_hel(helicities)
 
@@ -2124,10 +2170,13 @@ class MadSpinInterface(extended_cmd.Cmd):
                     density_dec = density_dec.tensor_product(density_dec_tmp)
 
                 # keep your normalization updates
-                dec_diag *= density_dec_tmp.trace().real / (color * spin)
+                if MEdenom_decay is None:
+                    dec_diag *= density_dec_tmp.trace().real
+                dec_diag /= (color * spin)
                 prod_color *= color
                 D = complex(0, mass * width)
                 prod_denominators *= (D * D.conjugate())
+            
 
             decaying_idx += N
 
@@ -2145,8 +2194,13 @@ class MadSpinInterface(extended_cmd.Cmd):
         #print(f"SPYROS ME = {me}")
         #print(f"production = {production}")
         #print(f"decays = {decays}")
-        prod_diag = density_prod.trace().real / (iden_p * sym_factor_prod_ident)
-
+        if MEdenom_prod is None:
+            prod_diag = density_prod.trace().real 
+        else: 
+            prod_diag = MEdenom_prod
+        prod_diag /= (iden_p * sym_factor_prod_ident)
+        if MEdenom_decay is not None:
+            dec_diag *= MEdenom_decay 
         return me, density_prod, prod_diag, dec_diag
 
 

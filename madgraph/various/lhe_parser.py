@@ -3161,6 +3161,24 @@ class Event(list):
                 ind+=1
 
         return jac
+    
+    def reshuffle_decayevt(self):
+        """ particle that need new mass have the "new_mass" attribute
+        """
+
+        # create a nice data structure for the reshuffling
+        subdiags, mapping = self.split_event_by_onshell_propagator()
+
+        #filter outsubdecay
+        main_decay = [p for p in subdiags if not isinstance(p, list)]
+        new_mass = main_decay[0].new_mass
+        new_mom = FourMomentum(new_mass, 0 , 0, 0)
+
+        jac = self.reshuffle_decay(main_decay, new_mom, new_mass, mapping)
+        return jac
+
+  
+
 
     @staticmethod
     def reshuffle_decay(subdiag, new_incoming, offshellmass, mapping):
@@ -3778,7 +3796,6 @@ class Event(list):
         R = min_R + (max_R-min_R)*random.random()
         m2 = pole**2 + pole * width * math.tan(R)
         return math.sqrt(m2)
-
     
     
     def get_momenta_str(self, get_order, allow_reversed=True):

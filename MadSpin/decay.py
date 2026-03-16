@@ -288,7 +288,7 @@ class Event:
         self.diese = ''
         for line in self.inputfile:
             origline = line
-            line = line.lower()
+            line = line.lower().strip()
             if line=="":
                 continue 
             # Find special tag in the line
@@ -4411,7 +4411,9 @@ class decay_all_events_onshell(decay_all_events):
         i=0
         for processes in self.list_branches.values():
             for proc in processes:
-                commandline+="add process %s @%i --no_warning=duplicate --standalone;" % (proc,i)
+                newproc = "add process %s @%i --no_warning=duplicate --standalone;" % (proc,i)
+                commandline += self.adapt_decay(newproc) 
+                #commandline+="add process %s @%i --no_warning=duplicate --standalone;" % (proc,i)
                 i+=1 
         return commandline
 
@@ -4446,20 +4448,55 @@ class decay_all_events_density(decay_all_events_onshell):
         self.density_matrix = True
         return super().__init__(*args, **opts)
 
-    def adapt_production(self, line):
-        to_decay = list(self.mscmd.list_branches.keys())
-        #misc.sprint(to_decay)
-        return line
 
     #def get_full_matrix_command(self, processes): 
     #    "No need of full matrix-element in this mode"
     #    return ""
     
     def adapt_production(self, line):
-        return line
+        """If allowing offshell matrix element add * to the decaying particle."""
+
+        if self.options['density_pole_approximation']:
+             return line
+    
+        out = []
+        input = line.split(';')
+        for oneline in input:
+            if not oneline.strip():
+                continue
+            misc.sprint(oneline)
+            init, final = oneline.rsplit('>',maxsplit=1)
+            end = len(final)
+            if "[" in final:
+                end = min(end, final.index('['))
+            if "$" in final:
+                end = min(end, final.index('$'))
+            if "/" in final:
+                end = min(end, final.index('/'))
+            particle, final = final[:end], final[end:]
+            new_particle = []
+            for p in particle.split():
+                new_particle.append('%s*' % p)
+            out.append("%s > %s %s;" % (init, ' '.join(new_particle), final))
+        misc.sprint(' '.join(out)) 
+        return ' '.join(out)
+
     
     def adapt_decay(self, line):
-        return line
+        '''If allowing offshell matrix element add * to the decaying particle.'''
+        if self.options['density_pole_approximation']:
+             return line
+        
+        out = []
+        input = line.split(';')
+        for oneline in input:
+            if not oneline.strip():
+                continue
+            init, final = oneline.split('>',maxsplit=1)
+            end = len(init)
+            out.append("%s* > %s;" % (init.strip(), final))
+
+        return ' '.join(out)
 
     def save_to_file(self, *args):
 
