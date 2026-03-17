@@ -3111,9 +3111,6 @@ class Event(list):
         production = [p for p in subdiags if not isinstance(p, list)]
 
         old_momenta = [FourMomentum(p) for p in production if p.status!=-1]
-        if all( [not hasattr(p, 'new_mass') for p in production if p.status!=-1]):
-            raise Exception
-            return 
         new_masses = [getattr(p, 'new_mass', p.mass) for p in production if p.status!=-1]
         sqrts = self.sqrts
         

@@ -288,8 +288,8 @@ class Event:
         self.diese = ''
         for line in self.inputfile:
             origline = line
-            line = line.lower().strip()
-            if line=="":
+            line = line.lower()
+            if line.strip()=="":
                 continue 
             # Find special tag in the line
             if line[0]=="#":
