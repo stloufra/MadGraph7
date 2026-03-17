@@ -206,15 +206,18 @@ def run(expression='', re_opt=0, package='./tests/unit_tests', verbosity=1,
     TestSuiteModified.time_limit =  float(timelimit[1])
     TestSuiteModified.mintime_limit =  float(timelimit[0])
 
-    exclude = misc.make_unique(options.exclude[:])
-    for path in options.exclude:
-        if os.path.exists(path):
-            exclude.remove(path)
-            exclude += find_test_in_file(path)
-    exclude = misc.make_unique(exclude)
-    for expr in expression:
-        if expr in exclude:
-            exclude.remove(expr)
+    if options.exclude:
+        exclude = misc.make_unique(options.exclude[:])
+        for path in options.exclude:
+            if os.path.exists(path):
+                exclude.remove(path)
+                exclude += find_test_in_file(path)
+        exclude = misc.make_unique(exclude)
+        for expr in expression:
+            if expr in exclude:
+                exclude.remove(expr)
+    else:
+        exclude = []
 
 
     for test_fct in TestFinder(package=package, expression=expression, \
