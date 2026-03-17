@@ -6,7 +6,10 @@ from madgraph.interface import reweight_interface
 from six.moves import map
 from six.moves import range
 from six.moves import zip
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    np = None
 import pickle
 
 ################################################################################
