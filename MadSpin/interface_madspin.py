@@ -1574,7 +1574,6 @@ class MadSpinInterface(extended_cmd.Cmd):
         self.cross *= self.branching_ratio
         self.error *= self.branching_ratio
         
-        print(f"events_file = {self.events_file}")
 
         # 3. generate the various matrix-elements
         time_me_generation = time.time()
@@ -1599,8 +1598,7 @@ class MadSpinInterface(extended_cmd.Cmd):
 	    #4. determine the maxwgt
         #print(f"Spyros decay file: {evt_decayfile}")
         maxwgt = self.get_maxwgt_for_onshell(orig_lhe, evt_decayfile, decay_dict)
-        print(f"Spyros: maxwgt = {maxwgt}")
-	
+
         #5. generate the decay (for each production event)
         orig_lhe.seek(0)
         output_lhe = lhe_parser.EventFile(orig_lhe.name.replace('.lhe', '_decayed.lhe'), 'w')
@@ -1614,7 +1612,6 @@ class MadSpinInterface(extended_cmd.Cmd):
         nb_try = 0
         #nb_event = len(orig_lhe)
         nb_event = orig_lhe.get_banner().run_card['nevents']
-        print(f"SPYROS NEVENTS = {nb_event}")
 
         start = time.time()
         logger.info("Start generating decays")
@@ -1648,7 +1645,6 @@ class MadSpinInterface(extended_cmd.Cmd):
                     full_evt = full_evt.add_decays(decays)
                     jac = full_evt.reshuffle_production()
                         
-                #print(f"Spyros wgt = {wgt}")
                 if random.random()*maxwgt < wgt*jac:
                     if density_method and not self.options['density_keep_jacobian']:
                         # Build the full Event only after acceptance in density mode.
@@ -1821,7 +1817,6 @@ class MadSpinInterface(extended_cmd.Cmd):
                     jac = full_evt.reshuffle_production()
                 maxwgt = max(wgt*jac, maxwgt)
             all_maxwgt.append(maxwgt.real)
-        print(f"all_maxwgt = {all_maxwgt}")
         all_maxwgt.sort(reverse=True)
         assert all_maxwgt[0] >= all_maxwgt[1], "ERROR: "
         decay_tools=madspin.decay_misc()
@@ -1847,9 +1842,9 @@ class MadSpinInterface(extended_cmd.Cmd):
             Carefull this modifies production event (pass to the full one)
             build_event: if False (density mode) compute weight without building event"""
         #print("\n\n\n\n\n======== debug get_onshell_evt_and_wgt =========")
-        #print(f"Spyros decays: {decays}")
         decay_me = 1.0
         decay_me_debug = 1.0
+        jac = 1.0
         tag, order = production.get_tag_and_order()
         try:
             info = self.generate_all.all_me[tag]
@@ -2191,7 +2186,6 @@ class MadSpinInterface(extended_cmd.Cmd):
         denominator = iden_p * sym_factor_prod_ident * prod_color * prod_denominators * sym_factor_decay
         me = me.real / denominator
 
-        #print(f"SPYROS ME = {me}")
         #print(f"production = {production}")
         #print(f"decays = {decays}")
         if MEdenom_prod is None:

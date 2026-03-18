@@ -7626,7 +7626,6 @@ class AskforEditCard(cmd.OneLinePathCompletion):
                         break
                 else:
                     new_line = re.split(search_pattern,line)[-1].strip()
-                    misc.sprint(new_line)
                     if new_line.startswith(('--before_line=','--after_line')):
                         return self.do_add('%s %s' % (args[0], new_line))   
                     raise Exception('invalid regular expression: not found in file')
