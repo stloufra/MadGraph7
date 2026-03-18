@@ -168,7 +168,7 @@ liball$(ROOTNAME)_$(MENUM)me.$(dylibext): all_matrix.o libMadLoop.$(dylibext) $(
 
 
 libcollier.$(dylibext):
-	ln -s $(LIBDIR)/collier_lib/libcollier.$(dylibext) 
+	ln -s $(LIBDIR)/collier_lib/libcollier.$(dylibext) || echo "libcolier already linked" 
 
 
 
