@@ -4603,7 +4603,7 @@ Please install this tool with the following MG5_aMC command:
         # Now setup the preamble to make sure that everything will use the locally
         # installed tools (if present) even if the user did not add it to its
         # environment variables.
-        if self.options['heptools_install_dir']:
+        if 'heptools_install_dir' in self.options and self.options['heptools_install_dir']:
             preamble = misc.get_HEPTools_location_setter(
                                      self.options['heptools_install_dir'],'lib')
         else:

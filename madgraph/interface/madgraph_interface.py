@@ -1480,6 +1480,8 @@ This will take effect only in a NEW terminal
                         config_dir = legacy_config_dir
                     else:
                         config_dir = os.getenv('XDG_CONFIG_HOME', os.path.join(os.environ['HOME'], '.config'))
+                        if not os.path.exists(config_dir):
+                            os.makedirs(config_dir)
 
                     config_file = os.path.join(config_dir, 'mg5_configuration.txt')
                     args.remove('global')
@@ -6035,6 +6037,8 @@ This implies that with decay chains:
                 config_dir = legacy_config_dir
             else:
                 config_dir = os.getenv('XDG_CONFIG_HOME', os.path.join(os.environ['HOME'], '.config'))
+                if not os.path.exists(config_dir):
+                    os.makedirs(config_dir)
 
             config_file = os.path.join(config_dir, 'mg5_configuration.txt')
         else:
