@@ -2069,7 +2069,7 @@ class decay_all_events(object):
                 self.save_to_file(pickle_info,
                                           (self.all_ME,self.all_decay,self.width_estimator))                
         
-        if not self.options["onlyhelicity"] and self.options['spinmode'] not in  ['onshell', 'density']:
+        if not self.options["onlyhelicity"] and self.options['spinmode'] not in  ['PA','onshell', 'density']:
             resonances = self.width_estimator.resonances
             logger.debug('List of resonances: %s' % resonances)
             self.extract_resonances_mass_width(resonances) 

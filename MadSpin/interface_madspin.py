@@ -67,7 +67,8 @@ class MadSpinOptions(banner.ConfigFile):
         self.add_param('ms_dir', '')
         self.add_param('max_running_process', 100)
         self.add_param('onlyhelicity', False)
-        self.add_param('spinmode', "madspin", allowed=['full','madspin','none','onshell', 'density'])
+        self.add_param('ME_mode', 'auto', allowed=['auto', 'decay_chain', 'density'])
+        self.add_param('spinmode', "PA", allowed=['full','madspin','none','onshell','PA'])
         self.add_param('use_old_dir', False, comment='should be use only for faster debugging')
         self.add_param('run_card', '' , comment='define cut for spinmode==none. Path to run_card to use')
         self.add_param('fixed_order', False, comment='to activate fixed order handling of counter-event')
@@ -648,15 +649,29 @@ class MadSpinInterface(extended_cmd.Cmd):
             self._log_lhe_timers()
             return out
         elif self.options["spinmode"] == "onshell":
-            out = self.run_onshell(line)
+            if self.options['ME_mode'] in ['auto', 'decay_chain']:
+                out = self.run_onshell(line)
+            else:
+                out = self.run_onshell(line, density_method=True)
             self._log_lhe_timers()
             return out
-        elif self.options["spinmode"] == "bridge":
-            raise Exception("Bridge mode not available.")
-        elif self.options["spinmode"] == "density":
+        elif self.options["spinmode"] in ["PA", "madspin"]:
+            self.options['density_pole_approximation'] = True
             out = self.run_onshell(line, density_method=True)
             self._log_lhe_timers()
             return out
+        elif self.options["spinmode"] == "full":
+            if self.options['ME_mode'] in ['auto', 'density']:
+                self.options['density_pole_approximation'] = False 
+                out = self.run_onshell(line, density_method=True)
+                self._log_lhe_timers()
+                return out
+            else:
+                pass
+        elif self.options["spinmode"] == "bridge":
+            raise Exception("Bridge mode not available.")
+        else:
+            raise Exception("spinmode %s not supported" % self.options["spinmode"])
         
         if self.options['ms_dir'] and os.path.exists(pjoin(self.options['ms_dir'], 'madspin.pkl')):
             out = self.run_from_pickle()

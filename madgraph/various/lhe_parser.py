@@ -2931,7 +2931,7 @@ class Event(list):
 
         new_tot2 = sum(new_momenta, FourMomentum())
         for i,m in enumerate(new_momenta):
-            new_momenta[i] = m.apply_lorentzmap(back_lorlor) 
+            new_momenta[i] = m.apply_lorentzmap(back_lor) 
         return new_momenta, jac
         
         
