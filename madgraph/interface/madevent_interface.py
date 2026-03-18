@@ -834,7 +834,7 @@ class AskRun(cmd.ControlSwitch):
         
         self.allowed_madspin = []
         if 'MadSpin'  in self.available_module:
-            self.allowed_madspin = ['OFF',"ON",'onshell',"full", "density"]
+            self.allowed_madspin = ['OFF',"ON",'onshell',"full", "PA"]
         return self.allowed_madspin
     
     def check_value_madspin(self, value):
