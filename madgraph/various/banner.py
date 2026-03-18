@@ -2766,15 +2766,19 @@ class RunCard(ConfigFile):
     def read(self, finput, consistency=True):
         """Read the input file, this can be a path to a file, 
            a file object, a str with the content of the file."""
-           
+        
+        self.path = None
         if isinstance(finput, str):
             if "\n" in finput:
                 finput = finput.split('\n')
             elif os.path.isfile(finput):
+                self.path = finput
                 finput = open(finput)
+                
             else:
                 raise Exception("No such file %s" % finput)
         
+
         for line in finput:
             line = line.split('#')[0]
             line = line.split('!')[0]
@@ -3052,8 +3056,9 @@ class RunCard(ConfigFile):
 
 
     def get_default(self, name, default=None, log_level=None):
-        """return self[name] if exist otherwise default. log control if we 
-        put a warning or not if we use the default value"""
+        """return self[name] if exist otherwise 
+        check run_card_default.dat otherwise python default. 
+        log control if we put a warning or not if we use the default value"""
 
         lower_name = name.lower()
         if lower_name not in self.user_set:
@@ -3072,10 +3077,23 @@ class RunCard(ConfigFile):
                 else:
                     log_level = 20
             if not default:
-                default = dict.__getitem__(self, name.lower())
+                info = ''
+                if hasattr(self, 'path') and self.path:
+                    try:
+                        defaultcard = RunCard(self.path.replace('.dat', '_default.dat'))
+                        previousdefault = defaultcard.__getitem__(name.lower()) 
+                        if name.lower() in defaultcard.user_set:
+                            info = ' from run_card_default.dat' 
+                            default = defaultcard.__getitem__(name.lower())
+                        else:
+                            default = dict.__getitem__(self, name.lower()) 
+                    except Exception as err:
+                        default = dict.__getitem__(self, name.lower())
+                else:
+                    default = dict.__getitem__(self, name.lower())
  
-            logger.log(log_level, '%s missed argument %s. Takes default: %s'
-                                   % (self.filename, name, default))
+            logger.log(log_level, '%s missed argument %s. Takes default: %s%s'
+                                   % (self.filename, name, default, info))
             self[name] = default
             return default
         else:
