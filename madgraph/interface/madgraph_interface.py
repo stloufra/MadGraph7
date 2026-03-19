@@ -7724,7 +7724,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
                 filepath = pjoin(MG5DIR, 'input', 'mg5_configuration.txt')
             
             basedir = MG5DIR
-            if partial_save:
+            if partial_save and os.path.exists(filepath):
                 basefile = filepath
             else:
                 basefile = pjoin(MG5DIR, 'input', '.mg5_configuration_default.txt')
