@@ -6058,7 +6058,7 @@ This implies that with decay chains:
                 logger.warning("==========")
             if self.options['pythia8_path']:
                 add_options.append(
-                               '--with_pythia8=%s'%self.options['pythia8_path'])
+                               '--with_pythia8=%s'%os.path.abspath(self.options['pythia8_path']))
 
         # Special rules for certain tools
         if tool in ['madanalysis5', 'rivet']:
