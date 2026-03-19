@@ -5939,8 +5939,9 @@ tar -czf split_$1.tar.gz split_$1
         assert os.path.exists(pjoin(self.me_dir,'SubProcesses'))
 
         if self.options['heptools_install_dir']:
-            os.environ['LD_LIBRARY_PATH'] = pjoin(self.options['heptools_install_dir'], 'lib')+':'+os.environ.get('LD_LIBRARY_PATH','')
-            os.environ['DYLD_LIBRARY_PATH'] = pjoin(self.options['heptools_install_dir'], 'lib')+':'+os.environ.get('DYLD_LIBRARY_PATH','') 
+            libdir = os.path.abspath(pjoin(self.options['heptools_install_dir'], 'lib'))
+            os.environ['LD_LIBRARY_PATH'] = libdir + ':' + os.environ.get('LD_LIBRARY_PATH','')
+            os.environ['DYLD_LIBRARY_PATH'] = libdir + ':' + os.environ.get('DYLD_LIBRARY_PATH','') 
 
         # environmental variables to be included in make_opts
         self.make_opts_var = {}

@@ -669,6 +669,34 @@ jobs:
             ./tests/test_manager.py test_v4_heft -pA -t0 -l INFO
 
 
+  installpy8:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-22.04
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+
+      # Runs a set of commands using the runners shell
+      - name: test one of the test test_loop_improved_reweighting
+        run: |
+            cd $GITHUB_WORKSPACE
+            cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
+            sudo pip install numpy
+            which f2py
+            echo "f2py_compiler = $(which f2py)" >> input/mg5_configuration.txt
+            cp Template/LO/Source/.make_opts Template/LO/Source/make_opts
+            echo "install lhapdf6" > cmd
+            echo "install pythia8" >> cmd
+            ./bin/mg5_aMC cmd
+
+      - name: Breakpoint
+        uses: namespacelabs/breakpoint-action@v0
+        with:
+          duration: 30m
+          authorized-users: oliviermattelaer
+      # Runs a set of commands using the runners shell
 
   acceptancetest_37:
     # The type of runner that the job will run on
@@ -692,6 +720,7 @@ jobs:
             echo "install pythia8" >> cmd
             ./bin/mg5_aMC cmd
             cat HEPTools/lhapdf6_py3/lhapdf6_install.log
+            cat HEPTools/MG5aMC_PY8_interface/mg5amc_py8_interface_install.log
             ls HEPTools/lhapdf6_py3/bin
             echo "lhapdf-config = /home/runner/work/mg5amcnlo/mg5amcnlo/HEPTools/lhapdf6_py3/bin/lhapdf-config" >> input/mg5_configuration.txt
             export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/runner/work/mg5amcnlo/mg5amcnlo/HEPTools/lhapdf6_py3//lib
@@ -746,11 +775,11 @@ jobs:
             which f2py
             echo "f2py_compiler = $(which f2py)" >> input/mg5_configuration.txt
             cp Template/LO/Source/.make_opts Template/LO/Source/make_opts
-      - name: Breakpoint
-        uses: namespacelabs/breakpoint-action@v0
-        with:
-          duration: 30m
-          authorized-users: oliviermattelaer
+      #- name: Breakpoint
+      #  uses: namespacelabs/breakpoint-action@v0
+      #  with:
+      #    duration: 30m
+      #    authorized-users: oliviermattelaer
       # Runs a set of commands using the runners shell
       - name: test one of the test test_oneloop_reweighting
         run: |
