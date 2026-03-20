@@ -164,6 +164,8 @@ class TestImportUFO(unittest.TestCase):
 
 
 
+
+
 class TestImportUFO_fromcmd(unittest.TestCase):
 
     def test_import_from_cmd(self):
@@ -177,6 +179,34 @@ class TestImportUFO_fromcmd(unittest.TestCase):
         self.cmd.exec_cmd("import model %s" % path, postcmd=True, precmd=True)
 
         self.assertNotIn("j", self.cmd._multiparticles) 
+
+    def test_fd_gauge_import(self):
+        """check that the import of a model with FD gauge does not crash"""
+
+        self.cmd = Cmd.MasterCmd()
+        self.cmd.exec_cmd("import model sm") 
+        self.cmd.exec_cmd("set gauge FD")
+
+
+        qqz = [i for i  in self.cmd._curr_model.get('interactions') \
+               if [p.get_pdg_code() for p in i.get('particles')] == [-81,81,23]]
+
+        nb_lor = [0,0,0,0]
+        for coup in qqz[0].get('couplings').keys():
+            nb_lor[coup[1]] += 1
+
+        self.assertEqual(nb_lor, [1,1,0,0])
+        ttz = [i for i  in self.cmd._curr_model.get('interactions') \
+               if [p.get_pdg_code() for p in i.get('particles')] == [-6,6,23]]
+
+        nb_lor = [0,0,0,0]
+        for coup in ttz[0].get('couplings').keys():
+            nb_lor[coup[1]] += 1
+
+        self.assertEqual(nb_lor, [1,1,1,0])        
+
+        
+
 
 class TestNFlav(unittest.TestCase):
     """Test class for the get_nflav function"""

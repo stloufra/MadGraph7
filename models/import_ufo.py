@@ -875,39 +875,50 @@ class UFOMG5Converter(object):
             else:
                 return '%s*(%s)' %(coeff1,expr1)
 
-        lorentz_structures = ['Gamma(3,2,-1)*ProjP(-1,1)','Gamma(3,2,-1)*ProjM(-1,1)']
+        lorentz_structures = ['Gamma(3,2,-1)*ProjP(-1,1)','Gamma(3,2,-1)*ProjM(-1,1)', 'ProjP(2,1)', 'ProjM(2,1)']
         proj = []
         for structure in lorentz_structures:
             lorentz = [l for l in self.model['lorentz'] if l.get('structure') == structure]
             if lorentz:
                 proj.append(lorentz[0])
             else:
-                proj.append(self.add_lorentz(None, structure, [2,2,3]))
+                proj.append(self.add_lorentz(None, structure, [2,2,3] if 'Gamma' in structure else [2,2,1]))
+            
+        nametospin = {}
+        for namel in interaction.get('lorentz'):
+            lorentz = [l for l in self.model['lorentz'] if l.get('name') == namel] 
+            nametospin[namel] = lorentz[0].get('spins') if lorentz else None
+
 
         #define the new couplings
         #warning self.model['couplings'] is not yet filled need to use self.ufomodel.all_couplings
         all_color = set([c for c, l in interaction.get('couplings')])
         new_coups = {}
         for col in all_color:
-            valid_coup = set([name for (c,l) , name in interaction.get('couplings').items() if c == col])
-            coup = [c for c in self.ufomodel.all_couplings if c.name in valid_coup]
-            assert(len(coup) == 2)
-            expr1 = coup[0].value
-            expr2 = coup[1].value
-            if coup[0].order != coup[1].order:
+
+            valid_coup_ffv = set([name for (c,l) , name in interaction.get('couplings').items() if c == col if nametospin[interaction.get('lorentz')[l]] == [2,2,3]])
+            valid_coup_ffs = set([name for (c,l) , name in interaction.get('couplings').items() if c == col if nametospin[interaction.get('lorentz')[l]] == [2,2,1]]) 
+            coup_ffv = [c for c in self.ufomodel.all_couplings if c.name in valid_coup_ffv]
+            coup_ffs = [c for c in self.ufomodel.all_couplings if c.name in valid_coup_ffs] 
+            # FFV case:
+            assert len(coup_ffv) == 2 
+            expr1_ffv = coup_ffv[0].value
+            expr2_ffv = coup_ffv[1].value
+            if coup_ffv[0].order != coup_ffv[1].order:
                 #not compatible for optimization
                 return
-            
-            new_expr1 = get_new_expr(expr1, ffv_coeff[0][0], expr2, ffv_coeff[1][0])
-            new_expr2 = get_new_expr(expr1, ffv_coeff[0][1], expr2, ffv_coeff[1][1])
+            # FFV case
+            new_expr1 = get_new_expr(expr1_ffv, ffv_coeff[0][0], expr2_ffv, ffv_coeff[1][0])
+            new_expr2 = get_new_expr(expr1_ffv, ffv_coeff[0][1], expr2_ffv, ffv_coeff[1][1])
             if new_expr1 in [c.value for c in self.additional_couplings]:
                 new_coup1 = [c for c in self.additional_couplings if c.value == new_expr1][0]
             else:
-                new_coup1 = self.add_coupling(new_expr1, coup[0].order, 'GC_FFV_%d' % len(self.additional_couplings))
+                new_coup1 = self.add_coupling(new_expr1, coup_ffv[0].order, 'GC_FFV_%d' % len(self.additional_couplings))
             if new_expr2 in [c.value for c in self.additional_couplings]:
                 new_coup2 = [c for c in self.additional_couplings if c.value == new_expr2][0]
             else:
-                new_coup2 = self.add_coupling(new_expr2, coup[0].order, 'GC_FFV_%d' % len(self.additional_couplings))
+                new_coup2 = self.add_coupling(new_expr2, coup_ffv[0].order, 'GC_FFV_%d' % len(self.additional_couplings))
+            assert len(coup_ffs) == 0
 
         for (color, lor) in interaction.get('couplings'):
             new_coups[(col, 0)] = new_coup1.name 
@@ -925,7 +936,8 @@ class UFOMG5Converter(object):
         # remove old interactions
         #self.interactions.remove(interaction)
         # add to the interactions
-        if self.interactions[interaction.get('id')-1] is interaction:
+        
+        if interaction.get('id')-1 < len(self.interactions) and  self.interactions[interaction.get('id')-1] is interaction:
             index = interaction.get('id')-1
         else:
             index = self.interactions.index(interaction)
@@ -964,7 +976,7 @@ class UFOMG5Converter(object):
         if lorentzs[0].get('spins') != [2,2,3]:
             return None
         
-        def projection(lor):
+        def projection(lor, spin):
             def get_coeff(lor):
                 try:
                     return int(re.findall(r'([\+\-]?\s*\d+)\*Gamma\(3,2', lor)[0])
@@ -973,35 +985,86 @@ class UFOMG5Converter(object):
                         return -1
                     else: 
                         return 1
+                    
+            def get_coeffS(lor):
+                try:
+                    return int(re.findall(r'([\+\-]?\s*\d+)\*Proj\w\(2,1\)', lor)[0])
+                except:
+                    if re.search(r'-\s*Proj\w\(2,1\)', lor):
+                        return -1
+                    else: 
+                        return 1
+                    
+            def get_coeffI(lor):
+                try:
+                    return int(re.findall(r'([\+\-]?\s*\d+)\*Identity\([12],[12]\)', lor)[0])
+                except:
+                    if re.search(r'-\s*Identity\(', lor):
+                        return -1
+                    else: 
+                        return 1
             if " - " in lor:
                 p1, p2 = lor.split(" - ")
-                c1, c2 = projection(p1)
-                c3, c4 = projection(p2)
-                return c1-c3, c2-c4
+                c1, c2, s1, s2 = projection(p1, spin)
+                c3, c4, s3, s4 = projection(p2, spin)
+                return c1-c3, c2-c4, s1-s3, s2-s4
             elif " + " in lor:
                 p1, p2 = lor.split(" + ")
-                c1,c2 = projection(p1)
-                c3,c4 = projection(p2)
-                return c1+c3, c2+c4
+                c1,c2, s1, s2 = projection(p1, spin)
+                c3,c4, s3, s4 = projection(p2, spin)
+                return c1+c3, c2+c4, s1+s3, s2+s4   
             elif "ProjP(-1,1)" in lor:
-                return get_coeff(lor), 0
+                return get_coeff(lor), 0, 0, 0
             elif "ProjM(-1,1)" in lor:
-                return 0, get_coeff(lor)
+                return 0, get_coeff(lor), 0, 0
             elif re.search(r"ProjP\((['\"])[\w\s]*\1,1\)" , lor): 
-                return get_coeff(lor), 0
+                return get_coeff(lor), 0, 0, 0
             elif re.search(r"ProjM\((['\"])[\w\s]*\1,1\)" , lor):
-                return 0, get_coeff(lor)
+                return 0, get_coeff(lor), 0, 0
+            elif spin != [2,2,1]:
+                raise Exception("Not implemented")
+            # BELOW IS FOR FD GAUGE SUPPORT (projection on PROJP(2,1) and PROJM(2,1)
+            elif "ProjP(2,1)" in lor:
+                return 0,0 , get_coeffS(lor), 0
+            elif "ProjM(2,1)" in lor:
+                return 0,0, 0, get_coeffS(lor)
+            elif "Identity(1,2)" in lor or "Identity(2,1)" in lor:
+                a = get_coeffI(lor)
+                return a, a
             else:
                 misc.sprint(lor)
-                raise Exception("Not implemented")
+                raise Exception("Not implemented") 
             
         all_c = []
         for lor in lorentzs:
-            c1, c2 = projection(lor.get('structure'))
-            all_c.append((c1,c2))
+            c1, c2, cs1, cs2 = projection(lor.get('structure'), lor.get('spins'))
+            all_c.append((c1,c2,cs1,cs2))
         
         #avoid useless trigger if already  in the right basis
-        if all_c in ([(0,1),(1,0)], [(1,0),(0,1)]):
+        def is_trivial_quadruple(t):
+            """
+            A quadruple (A,B,C,D) is trivial if:
+            - all four entries are zero, OR
+            - exactly one entry is 1 and the others are 0
+            """
+            # Case 1: all zeros
+            if all(x == 0 for x in t):
+                return True
+
+            # Case 2: exactly one 1 and the rest zero
+            return sum(x == 1 for x in t) == 1 and sum(x == 0 for x in t) == 3
+
+
+        def is_trivial_coefficient(coef):
+            """
+            coef = [(A,B,C,D), (E,F,G,H)]
+            """
+            first, second = coef
+            return is_trivial_quadruple(first) and is_trivial_quadruple(second)
+
+
+
+        if is_trivial_coefficient(all_c): 
             return None
         
         return all_c
