@@ -644,7 +644,12 @@ class MadSpinInterface(extended_cmd.Cmd):
         else:
             self.me_run_name = ''
 
-        misc.sprint(self.options['spinmode'], self.options['ME_mode']) 
+        if self.options['onlyhelicity']:
+            self.options['spinmode'] = 'full'
+            self.options['ME_mode'] = 'decay_chain'
+
+
+
         if self.options["spinmode"] in ["none"]:
             out = self.run_bridge(line)
             self._log_lhe_timers()

@@ -7006,7 +7006,6 @@ class UFO_model_to_mg4(object):
             vector_size = self.opt['output_options']['vector_size']
             self.vector_size = banner_mod.ConfigFile.format_variable(vector_size, int, 'vector_size')
         except KeyError as error:
-            misc.sprint(error)
             self.vector_size = 0
 
         try:
