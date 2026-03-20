@@ -2146,7 +2146,6 @@ c     local variable
       double precision nq
       double complex w0(0:4), w1(0:4)
 
-      double precision d
       double complex js1, js2
 
       double complex ci
@@ -2165,8 +2164,6 @@ c     local variable
       w0(0:4) = win(3:7)
       
       nq = n(0)*dble(q(0))-n(1)*dble(q(1))-n(2)*dble(q(2))-n(3)*dble(q(3))
-
-      call calculate_propagator_factor(q, m, d)
       
       js1 = (n(0)*w0(0)-n(1)*w0(1)-n(2)*w0(2)-n(3)*w0(3)) / nq
       js2 = (q(0)*w0(0)-q(1)*w0(1)-q(2)*w0(2)-q(3)*w0(3) 
@@ -2212,21 +2209,4 @@ c     local variable
 
       end
 
-      subroutine calculate_propagator_factor(q,mass,d)
-
-      implicit none
-
-      double complex q(0:4)
-      double precision mass
-
-      double precision d
-
-      double precision q2
-
-      q2 = dble(q(0))**2 -(dble(q(1))**2 + dble(q(2))**2+dble(q(3))**2 )
-
-      d = 1.d0/(q2-mass**2)
-
-      return
-      end
       
