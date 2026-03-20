@@ -1921,12 +1921,13 @@ param_card.inc: ../Cards/param_card.dat\n\t../bin/madevent treatcards param\n'''
 
             for one_initial_state in initial_states:
                 for i,pdg in enumerate(list(one_initial_state)):
-                    if pdg in self.model['merged_particles']:
-                        one_initial_state.remove(pdg)
-                        one_initial_state += self.model['merged_particles'][pdg]
-                    elif -pdg in self.model['merged_particles']:
-                        one_initial_state.remove(pdg)
-                        one_initial_state += [-i for i in self.model['merged_particles'][-pdg]]
+                    if hasattr(self.model, 'merged_particles'):
+                        if pdg in self.model['merged_particles']:
+                            one_initial_state.remove(pdg)
+                            one_initial_state += self.model['merged_particles'][pdg]
+                        elif -pdg in self.model['merged_particles']:
+                            one_initial_state.remove(pdg)
+                            one_initial_state += [-i for i in self.model['merged_particles'][-pdg]]
 
 
             if tuple(initial_states) in [([-11],[11]), ([11],[-11]), ([-13],[13]),([13],[-13])]:

@@ -329,7 +329,7 @@ class TestModUFO(unittest.TestCase):
 
 
     def setUp(self):
-        self.debug=False
+        #self.debug=False
         if self.debug:
             self.path = "/tmp/"
         else:   

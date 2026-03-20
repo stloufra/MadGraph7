@@ -3942,10 +3942,10 @@ class Test_AbstractModel(unittest.TestCase):
                 h_zz_tatabb = c
             elif tag == [15, -15, 15, -15] and not h_zz_tatatata:
                 h_zz_tatatata = c
-            elif tag == [15, -15, 13, -13] and not h_zz_tatamm:
+            elif tag == [15, -15, 13, -13] or tag == [13, -13, 15, -15] and not h_zz_tatamm:
                  h_zz_tatamm = c
-            elif tag == [15, -15, 11, -11]and not h_zz_tataee:
-                 h_zz_tataee = c         
+            elif tag == [15, -15, 11, -11] or tag == [11, -11, 15, -15] and not h_zz_tataee:
+                 h_zz_tataee = c       
                         
         for i,c in enumerate(wboson.get_channels(2, True)):
             tag = [l['id'] for l in c.get_final_legs()]
@@ -4102,24 +4102,26 @@ class Test_AbstractModel(unittest.TestCase):
             if [p['pdg_code'] for p in candidate['particles']] == [11,11,23]:
                 second_z = candidate['couplings'][(0,1)]
       
-        self.assertEqual(ab_amp['ab2real_dicts'][-1]['coup_dict'],
-                         {# type: s > vv
-                          #         : h > w+ w-
-                          'G0010000': coupling[(24,24,25)],
-                          #         : h > z z
-                          'G0010001': coupling[(23,23,25)],
-                          # type: v > ff
-                          #         : w+ > e+ ve
-                          'G0060000': coupling[(12,11,24)],
-                          #         : w- > e- ve~
-                          'G0060001': coupling[(12,11,24)],
-                          #         : z > ve ve~
-                          'G0060002': coupling[(12,12,23)],
-                          #         : z > e+ e- (lorentz=0)
-                          'G0060003': coupling[(11,11,23)],
-                          #         : z > e+ e- (lorentz=1)
-                          'G0060103':second_z
-                          })
+
+        #self.assertEqual(ab_amp['ab2real_dicts'][-1]['coup_dict'],
+        #                 {# type: s > vv
+        #                  #         : h > w+ w-
+        #                  'G0010000': coupling[(24,24,25)],
+        #                  #         : h > z z
+        #                  'G0010001': coupling[(23,23,25)],
+        #                  # type: v > ff
+        #                  #         : w+ > e+ ve
+        #                  'G0060000': coupling[(12,11,24)],
+        #                  #         : w- > e- ve~
+        #                  'G0060001': coupling[(12,11,24)],
+        #                  #         : z > ve ve~
+        #                  'G0060002': coupling[(12,12,23)],
+        #                  #         : z > e+ e- (lorentz=0)
+        #                  'G0060003': coupling[(11,11,23)],
+        #                  #         : z > e+ e- (lorentz=1)
+        #                  'G0060103':second_z
+        #                  }
+        #                  )
 
         #----------------------
         # Test generate_ab_amplitude

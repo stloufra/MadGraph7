@@ -41,7 +41,7 @@ class TestMatrixElementChecker(unittest.TestCase):
 
     def setUp(self):
         
-        self.base_model = import_ufo.import_model('sm')
+        self.base_model = import_ufo.import_model('sm', options={'apply_flavor_grouping':False})
         #sm_path = import_ufo.find_ufo_path('sm')
         #self.base_model = import_ufo.import_model(sm_path)
     

@@ -362,7 +362,12 @@ def import_model(model_name, decay=False, restrict=True, prefix='mdl_',
         else:
             model.merge_flavor([11,13,15])
 
-        model.merge_flavor([12,14,16])
+        if model.get_particle(12).get('mass') != 'ZERO' or \
+            model.get_particle(14).get('mass') != 'ZERO' or \
+            model.get_particle(16).get('mass') != 'ZERO':
+            logger.info('no grouping neutrino due to mass')
+        else:
+            model.merge_flavor([12,14,16])
         #misc.sprint('W merging')
         #model.merge_part_antipart(24)  # W+/W-
 
@@ -2751,17 +2756,24 @@ class RestrictModel(model_reader.ModelReader):
         
     def locate_coupling(self):
         """ create a dict couplings_name -> vertex or (particle, counterterm_key) """
-        
+
+        def add_coupling(coupling_pos, coupling):
+            if coupling.startswith('-'):
+                coupling = coupling[1:]
+            if coupling in coupling_pos:
+                if vertex not in coupling_pos[coupling]:
+                    coupling_pos[coupling].append(vertex)
+            else:
+                coupling_pos[coupling] = [vertex]
+
         self.coupling_pos = {}
         for vertex in self['interactions']:
             for key, coupling in vertex['couplings'].items():
-                if coupling.startswith('-'):
-                    coupling = coupling[1:]
-                if coupling in self.coupling_pos:
-                    if vertex not in self.coupling_pos[coupling]:
-                        self.coupling_pos[coupling].append(vertex)
+                if isinstance(coupling, base_objects.FLV_Coupling):
+                    for flv in coupling.get('flavors'):
+                        add_coupling(self.coupling_pos, coupling.get('flavors')[flv])
                 else:
-                    self.coupling_pos[coupling] = [vertex]
+                    add_coupling(self.coupling_pos, coupling)
         
         for particle in self['particles']:
             for key, coupling_dict in particle['counterterm'].items():
@@ -2853,7 +2865,10 @@ class RestrictModel(model_reader.ModelReader):
 
         for v in self['interactions']:
             for c in v['couplings'].values():
-                self.coupling_order_dict[c] = v['orders']
+                if isinstance(c, base_objects.FLV_Coupling):
+                    continue
+                else:
+                    self.coupling_order_dict[c] = v['orders']
         
         if cname not in self.coupling_order_dict:
             self.coupling_order_dict[cname] = None
@@ -3147,11 +3162,27 @@ class RestrictModel(model_reader.ModelReader):
                     if coupling in zero_couplings:
                         modify=True
                         del vertex['couplings'][key]
+                    elif isinstance(coupling, base_objects.FLV_Coupling):
+                        # loop over all flavor to see which are kept
+                        for flav in list(coupling.get('flavors').keys()):
+                            coup =coupling.get('flavors')[flav]
+                            if coup in zero_couplings:
+                                del coupling.get('flavors')[flav]
+                            elif coup.startswith('-'):
+                                coup = coup[1:]
+                                if coup in zero_couplings:
+                                    del coupling.get('flavors')[flav] 
+                        # check if no flavor remain
+                        if len(coupling.get('flavors')) == 0:
+                            modify=True
+                            del vertex['couplings'][key]
+
                     elif coupling.startswith('-'):
                         coupling = coupling[1:]
                         if coupling in zero_couplings:
                             modify=True
-                            del vertex['couplings'][key]                      
+                            del vertex['couplings'][key]
+
                         
                 if modify:
                     mod_vertex.append(vertex)
@@ -3357,6 +3388,8 @@ class RestrictModel(model_reader.ModelReader):
         # for the same color structure. 
         to_lor = {}
         for (color, lor), coup in interaction['couplings'].items():
+            if isinstance(coup, base_objects.FLV_Coupling):
+                continue
             abscoup, coeff = (coup[1:],-1) if coup.startswith('-') else (coup, 1)
             key = (color, abscoup)
             if key in to_lor:

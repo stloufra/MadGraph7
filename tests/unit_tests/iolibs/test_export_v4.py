@@ -9798,7 +9798,7 @@ C     used fake id
                           
 
         import models.import_ufo
-        mymodel = models.import_ufo.import_model('sm')
+        mymodel = models.import_ufo.import_model('sm', options={'apply_flavor_grouping':False})
 
         wf_dict = {}
         for (idiag, diagram) in enumerate(diagrams):

@@ -1316,6 +1316,8 @@ def call_systematics(args, result=sys.stdout, running=True,
 
 
     input, output = args[0:2]
+    if input.endswith('.gz') and not os.path.exists(input):
+        input = input[:-3]
     
     start_opts = 2
     if output and output.startswith('-'):
