@@ -643,7 +643,8 @@ class MadSpinInterface(extended_cmd.Cmd):
             self.me_run_name = options.name # Only use by MG5aMC
         else:
             self.me_run_name = ''
-        
+
+        misc.sprint(self.options['spinmode'], self.options['ME_mode']) 
         if self.options["spinmode"] in ["none"]:
             out = self.run_bridge(line)
             self._log_lhe_timers()
