@@ -282,6 +282,7 @@ C
       COMPLEX*16 W(20,NWAVEFUNCS)
       COMPLEX*16 DUM0,DUM1
       DATA DUM0, DUM1/(0d0, 0d0), (1d0, 0d0)/
+      double precision bwcutoff
 C  
 C GLOBAL VARIABLES
 C  
@@ -289,6 +290,7 @@ C
 %(global_variable)s
 C  
 C
+     bwcutoff=15 ! use if $ syntax is defined in the process
 %(helas_calls)s
 %(amp2_lines)s
       END
