@@ -496,8 +496,8 @@ class MadSpinInterface(extended_cmd.Cmd):
                 raise self.InvalidCmd('second argument should be a path to a existing directory')
         
         elif args[0] == "spinmode":
-            if args[1].lower() not in ["full", "onshell", "none", "madspin", "density"]:
-                raise self.InvalidCmd("spinmode can only take one of those 4 values: full/onshell/none/density")
+            if args[1].lower() not in ["full", "onshell", "none", "madspin", "density", "pa"]:
+                raise self.InvalidCmd("spinmode can only take one of those 6 values: full/onshell/none/density/PA")
              
         elif args[0] == "run_card":
             if self.options['spinmode'] == "madspin":
