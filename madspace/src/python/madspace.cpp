@@ -282,6 +282,8 @@ PYBIND11_MODULE(_madspace_py, m) {
             //.def("instruction", &FunctionBuilder::instruction, py::arg("name"),
             // py::arg("args"))
             .def("product", &FunctionBuilder::product, py::arg("values"))
+            .def("current_stream", &FunctionBuilder::current_stream)
+            .def("set_current_stream", &FunctionBuilder::set_current_stream)
             .def("function", &FunctionBuilder::function);
     add_instructions(fb);
 

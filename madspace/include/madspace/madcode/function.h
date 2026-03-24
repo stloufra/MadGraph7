@@ -16,6 +16,7 @@ struct InstructionCall {
     InstructionPtr instruction;
     ValueVec inputs;
     ValueVec outputs;
+    std::size_t stream_index;
 };
 
 class Function {
@@ -77,6 +78,10 @@ public:
     global(const std::string& name, DataType dtype, const std::vector<int>& shape);
     ValueVec instruction(const std::string& name, const ValueVec& args);
     ValueVec instruction(InstructionPtr instruction, const ValueVec& args);
+    std::size_t current_stream() const { return _current_stream; }
+    void set_current_stream(std::size_t stream_index) {
+        _current_stream = stream_index;
+    }
     Function function();
 
     Value sum(const ValueVec& values);
@@ -85,16 +90,17 @@ public:
 #include "function_builder_mixin.h"
 
 private:
-    std::vector<Type> output_types;
-    ValueVec inputs;
-    std::vector<std::optional<Value>> outputs;
-    std::map<LiteralValue, Value> literals;
-    ValueVec locals;
-    std::unordered_map<std::string, Value> globals;
-    std::vector<InstructionCall> instructions;
-    std::map<std::vector<std::size_t>, std::vector<std::size_t>> instruction_cache;
-    std::vector<int> local_sources;
-    std::vector<bool> instruction_used;
+    std::vector<Type> _output_types;
+    ValueVec _inputs;
+    std::vector<std::optional<Value>> _outputs;
+    std::map<LiteralValue, Value> _literals;
+    ValueVec _locals;
+    std::unordered_map<std::string, Value> _globals;
+    std::vector<InstructionCall> _instructions;
+    std::map<std::vector<std::size_t>, std::vector<std::size_t>> _instruction_cache;
+    std::vector<int> _local_sources;
+    std::vector<std::size_t> _instruction_use_count;
+    std::size_t _current_stream;
 
     void register_local(Value& val);
 };

@@ -66,8 +66,11 @@ std::ostream& madspace::operator<<(std::ostream& out, const ValueVec& list) {
 }
 
 std::ostream& madspace::operator<<(std::ostream& out, const InstructionCall& call) {
-    out << call.outputs << " = " << call.instruction->name() << "(" << call.inputs
-        << ")";
+    out << call.outputs << " = " << call.instruction->name();
+    if (call.stream_index != 0) {
+        out << "@" << call.stream_index;
+    }
+    out << "(" << call.inputs << ")";
     return out;
 }
 
@@ -96,6 +99,7 @@ void madspace::to_json(json& j, const InstructionCall& call) {
         {"name", call.instruction->name()},
         {"inputs", call.inputs},
         {"outputs", call.outputs},
+        {"stream_index", call.stream_index},
     };
 }
 
@@ -197,6 +201,7 @@ void madspace::from_json(const json& j, Function& func) {
                                              : j_input.get<Value>()
             );
         }
+        fb.set_current_stream(j_instr.at("stream_index").get<std::size_t>());
         auto instr_outputs =
             fb.instruction(j_instr.at("name").get<std::string>(), instr_inputs);
         for (auto [j_output, output] : zip(j_instr.at("outputs"), instr_outputs)) {
@@ -215,24 +220,24 @@ void madspace::from_json(const json& j, Function& func) {
 FunctionBuilder::FunctionBuilder(
     const std::vector<Type> input_types, const std::vector<Type> _output_types
 ) :
-    output_types(_output_types) {
+    _output_types(_output_types), _current_stream(0) {
     for (auto input_type : input_types) {
-        Value value(input_type, locals.size());
-        locals.push_back(value);
-        local_sources.push_back(-1);
-        inputs.push_back(value);
+        Value value(input_type, _locals.size());
+        _locals.push_back(value);
+        _local_sources.push_back(-1);
+        _inputs.push_back(value);
     }
-    for (auto output_type : output_types) {
-        outputs.push_back(std::nullopt);
+    for (auto output_type : _output_types) {
+        _outputs.push_back(std::nullopt);
     }
 }
 
 FunctionBuilder::FunctionBuilder(const Function& function) :
-    inputs(function.inputs()), locals(function.inputs()) {
+    _inputs(function.inputs()), _locals(function.inputs()), _current_stream(0) {
     TypeVec output_types;
     for (auto& output : function.outputs()) {
         output_types.push_back(output.type);
-        outputs.push_back(std::nullopt);
+        _outputs.push_back(std::nullopt);
     }
 }
 
@@ -254,7 +259,7 @@ FunctionBuilder::instruction(InstructionPtr instruction, const ValueVec& args) {
         ++arg_index;
 
         if (arg.local_index != -1) {
-            if (arg.local_index < 0 || arg.local_index > locals.size()) {
+            if (arg.local_index < 0 || arg.local_index > _locals.size()) {
                 throw std::invalid_argument(
                     std::format(
                         "{}, argument {}: inconsistent value (local index)",
@@ -263,7 +268,7 @@ FunctionBuilder::instruction(InstructionPtr instruction, const ValueVec& args) {
                     )
                 );
             }
-            auto local_value = locals.at(arg.local_index);
+            auto local_value = _locals.at(arg.local_index);
             if (local_value.type != arg.type ||
                 local_value.literal_value != arg.literal_value) {
                 throw std::invalid_argument(
@@ -342,28 +347,30 @@ FunctionBuilder::instruction(InstructionPtr instruction, const ValueVec& args) {
     }
 
     // create local variables for constants
-    std::vector<std::size_t> opcode_and_input_locals;
-    opcode_and_input_locals.push_back(opcode);
+    std::vector<std::size_t> cache_key;
+    cache_key.push_back(opcode);
+    cache_key.push_back(_current_stream);
     for (auto& arg : params) {
         register_local(arg);
-        opcode_and_input_locals.push_back(arg.local_index);
+        cache_key.push_back(arg.local_index);
     }
 
     // simplify square(sqrt(x))
     if (opcode == opcodes::square) {
-        auto& source_instr = instructions.at(local_sources.at(args.at(0).local_index));
+        auto& source_instr =
+            _instructions.at(_local_sources.at(args.at(0).local_index));
         if (source_instr.instruction->opcode() == opcodes::sqrt) {
-            return {locals.at(source_instr.inputs.at(0).local_index)};
+            return {_locals.at(source_instr.inputs.at(0).local_index)};
         }
     }
 
     // check for cached result (for deterministic instructions)
     if (opcode != opcodes::random && opcode != opcodes::unweight) {
-        auto find_instr = instruction_cache.find(opcode_and_input_locals);
-        if (find_instr != instruction_cache.end()) {
+        auto find_instr = _instruction_cache.find(cache_key);
+        if (find_instr != _instruction_cache.end()) {
             ValueVec call_outputs;
             for (auto output_local_index : find_instr->second) {
-                call_outputs.push_back(locals.at(output_local_index));
+                call_outputs.push_back(_locals.at(output_local_index));
             }
             return call_outputs;
         }
@@ -374,19 +381,21 @@ FunctionBuilder::instruction(InstructionPtr instruction, const ValueVec& args) {
     ValueVec call_outputs;
     std::vector<std::size_t> output_locals;
     for (const auto& type : output_types) {
-        Value value(type, locals.size());
-        locals.push_back(value);
-        local_sources.push_back(instructions.size());
+        Value value(type, _locals.size());
+        _locals.push_back(value);
+        _local_sources.push_back(_instructions.size());
         call_outputs.push_back(value);
         output_locals.push_back(value.local_index);
     }
-    instructions.push_back(InstructionCall{instruction, params, call_outputs});
-    instruction_used.push_back(false);
-    instruction_cache[opcode_and_input_locals] = output_locals;
+    _instructions.push_back(
+        InstructionCall{instruction, params, call_outputs, _current_stream}
+    );
+    _instruction_use_count.push_back(0);
+    _instruction_cache[cache_key] = output_locals;
     for (auto& param : params) {
-        int param_source = local_sources.at(param.local_index);
+        int param_source = _local_sources.at(param.local_index);
         if (param_source != -1) {
-            instruction_used.at(param_source) = true;
+            ++_instruction_use_count.at(param_source);
         }
     }
     return call_outputs;
@@ -395,7 +404,7 @@ FunctionBuilder::instruction(InstructionPtr instruction, const ValueVec& args) {
 Function FunctionBuilder::function() {
     ValueVec func_outputs;
     int output_index = 1;
-    for (auto output : outputs) {
+    for (auto output : _outputs) {
         if (output) {
             func_outputs.push_back(output.value());
         } else {
@@ -406,82 +415,96 @@ Function FunctionBuilder::function() {
         ++output_index;
     }
 
+    for (auto [instr, use_count] :
+         zip(std::views::reverse(_instructions),
+             std::views::reverse(_instruction_use_count))) {
+        if (use_count > 0) {
+            continue;
+        }
+        for (auto& input : instr.inputs) {
+            int input_source = _local_sources.at(input.local_index);
+            if (input_source != -1) {
+                --_instruction_use_count.at(input_source);
+            }
+        }
+    }
+
     std::vector<InstructionCall> filtered_instructions;
-    for (auto [instr, used] : zip(instructions, instruction_used)) {
-        if (used) {
+    for (auto [instr, use_count] : zip(_instructions, _instruction_use_count)) {
+        if (use_count > 0) {
             filtered_instructions.push_back(instr);
         }
     }
 
-    return Function(inputs, func_outputs, locals, globals, filtered_instructions);
+    return Function(_inputs, func_outputs, _locals, _globals, filtered_instructions);
 }
 
 Value FunctionBuilder::input(int index) const {
-    if (index < 0 || index >= inputs.size()) {
+    if (index < 0 || index >= _inputs.size()) {
         throw std::out_of_range(
             std::format(
                 "Input index expected to be in range 0 to {}, got {}",
-                inputs.size() - 1,
+                _inputs.size() - 1,
                 index
             )
         );
     }
-    return inputs.at(index);
+    return _inputs.at(index);
 }
 
 ValueVec FunctionBuilder::input_range(int start_index, int end_index) const {
-    if (start_index < 0 || start_index > inputs.size()) {
+    if (start_index < 0 || start_index > _inputs.size()) {
         throw std::out_of_range(
             std::format(
                 "Start index expected to be in range 0 to {}, got {}",
-                inputs.size(),
+                _inputs.size(),
                 start_index
             )
         );
     }
-    if (end_index < start_index || end_index > inputs.size()) {
+    if (end_index < start_index || end_index > _inputs.size()) {
         throw std::out_of_range(
             std::format(
                 "End index expected to be in range {} to {}, got {}",
                 start_index,
-                inputs.size() - 1,
+                _inputs.size() - 1,
                 end_index
             )
         );
     }
-    return ValueVec(inputs.begin() + start_index, inputs.begin() + end_index);
+    return ValueVec(_inputs.begin() + start_index, _inputs.begin() + end_index);
 }
 
 void FunctionBuilder::output(int index, Value value) {
-    if (index < 0 || index >= outputs.size()) {
+    if (index < 0 || index >= _outputs.size()) {
         throw std::out_of_range(
             std::format(
                 "Output index expected to be in range 0 to {}, got {}",
-                outputs.size() - 1,
+                _outputs.size() - 1,
                 index
             )
         );
     }
-    auto& out_type = output_types.at(index);
+    auto& out_type = _output_types.at(index);
     if (out_type.dtype != value.type.dtype || out_type.shape != value.type.shape) {
         throw std::invalid_argument(
             std::format("Wrong output type for output {}", index + 1)
         );
     }
     register_local(value);
-    outputs.at(index) = value;
-    int value_source = local_sources.at(value.local_index);
+    _outputs.at(index) = value;
+    int value_source = _local_sources.at(value.local_index);
     if (value_source != -1) {
-        instruction_used.at(value_source) = true;
+        ++_instruction_use_count.at(value_source);
     }
 }
 
 void FunctionBuilder::output_range(int start_index, const ValueVec& values) {
-    if (start_index < 0 || start_index > outputs.size() - values.size()) {
+    if (start_index < 0 || start_index > _outputs.size() - values.size()) {
         throw std::out_of_range(
             std::format(
                 "Start index expected to be in range 0 to {}, got {}",
-                outputs.size() - values.size(),
+                _outputs.size() - values.size(),
                 start_index
             )
         );
@@ -498,7 +521,7 @@ Value FunctionBuilder::global(
 ) {
     Type type(dtype, BatchSize::one, shape);
 
-    if (auto search = globals.find(name); search != globals.end()) {
+    if (auto search = _globals.find(name); search != _globals.end()) {
         auto& found_global = search->second;
         if (type != found_global.type) {
             throw std::invalid_argument(
@@ -508,11 +531,11 @@ Value FunctionBuilder::global(
         return found_global;
     }
 
-    int local_index = locals.size();
+    int local_index = _locals.size();
     Value new_global(type, local_index);
-    locals.push_back(new_global);
-    local_sources.push_back(-1);
-    globals[name] = new_global;
+    _locals.push_back(new_global);
+    _local_sources.push_back(-1);
+    _globals[name] = new_global;
     return new_global;
 }
 
@@ -532,13 +555,13 @@ void FunctionBuilder::register_local(Value& val) {
         return;
     }
 
-    auto find_literal = literals.find(val.literal_value);
-    if (find_literal == literals.end()) {
-        int local_index = locals.size();
+    auto find_literal = _literals.find(val.literal_value);
+    if (find_literal == _literals.end()) {
+        int local_index = _locals.size();
         val = Value(val.type, val.literal_value, local_index);
-        locals.push_back(val);
-        local_sources.push_back(-1);
-        literals[val.literal_value] = val;
+        _locals.push_back(val);
+        _local_sources.push_back(-1);
+        _literals[val.literal_value] = val;
     } else {
         val = find_literal->second;
     }
