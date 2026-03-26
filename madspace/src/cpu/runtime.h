@@ -40,7 +40,7 @@ public:
     ) const override;
 
     Context& context() { return *_context; }
-    std::mt19937& rand_gen(std::size_t thread_id) { return _rand_gens.get(thread_id); }
+    std::mt19937& rand_gen() { return _rand_gens.get(); }
 
 private:
     TensorVec run_single(const TensorVec& inputs) const;

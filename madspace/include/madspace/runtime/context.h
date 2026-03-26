@@ -74,9 +74,7 @@ public:
         ));
     }
 
-    void* process_instance(std::size_t index) const {
-        return _instances.get(index).get();
-    }
+    void* process_instance() const { return _instances.get().get(); }
 
 private:
     MatrixElementApi(

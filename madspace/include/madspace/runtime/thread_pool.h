@@ -66,8 +66,13 @@ template <typename T>
 class ThreadResource {
 public:
     ThreadResource() = default;
-    ThreadResource(ThreadPool& pool, std::function<T()> constructor) :
+    ThreadResource(
+        ThreadPool& pool,
+        std::function<T()> constructor,
+        std::optional<std::function<void(T&)>> destructor = std::nullopt
+    ) :
         _pool(&pool),
+        _destructor(destructor),
         _listener_id(pool.add_listener([this, constructor](std::size_t thread_count) {
             while (_resources.size() < thread_count) {
                 _resources.push_back(constructor());
@@ -79,13 +84,19 @@ public:
     }
     ~ThreadResource() {
         if (_pool) {
+            if (_destructor) {
+                for (auto& item : _resources) {
+                    _destructor.value()(item);
+                }
+            }
             _pool->remove_listener(_listener_id);
         }
     }
     ThreadResource(ThreadResource&& other) noexcept :
         _pool(std::move(other._pool)),
         _resources(std::move(other._resources)),
-        _listener_id(std::move(other._listener_id)) {
+        _listener_id(std::move(other._listener_id)),
+        _destructor(std::move(other._destructor)) {
         other._pool = nullptr;
     }
 
@@ -93,18 +104,20 @@ public:
         _pool = std::move(other._pool);
         _resources = std::move(other._resources);
         _listener_id = std::move(other._listener_id);
+        _destructor = std::move(other._destructor);
         other._pool = nullptr;
         return *this;
     }
     ThreadResource(const ThreadResource&) = delete;
     ThreadResource& operator=(const ThreadResource&) = delete;
-    T& get(std::size_t thread_id) { return _resources.at(thread_id); }
-    const T& get(std::size_t thread_id) const { return _resources.at(thread_id); }
+    T& get() { return _resources.at(ThreadPool::thread_index()); }
+    const T& get() const { return _resources.at(ThreadPool::thread_index()); }
 
 private:
     ThreadPool* _pool = nullptr;
     std::vector<T> _resources;
     std::size_t _listener_id;
+    std::optional<std::function<void(T&)>> _destructor;
 };
 
 inline ThreadPool& default_thread_pool() {

@@ -21,16 +21,14 @@ public:
         std::size_t batch_size_index;
         GpuRuntime& runtime;
         bool differentiable;
-        gpuStream_t stream;
-        gpuStream_t backward_stream;
-        std::vector<gpuEvent_t> wait_events;
-        gpuEvent_t record_event;
-        std::vector<gpuEvent_t> backward_wait_events;
-        gpuEvent_t backward_record_event;
+        std::size_t stream;
+        SizeVec wait_events;
+        int record_event;
+        SizeVec backward_wait_events;
+        int backward_record_event;
     };
 
     GpuRuntime(const Function& function, ContextPtr context);
-    ~GpuRuntime();
     TensorVec run(const TensorVec& inputs) const override;
     std::tuple<TensorVec, TensorVec, std::vector<bool>> run_with_grad(
         const TensorVec& inputs, const std::vector<bool>& input_requires_grad
@@ -41,8 +39,8 @@ public:
         const std::vector<bool>& eval_grad
     ) const override;
     Context& context() { return *_context; }
-    gpublasHandle_t gpublas_handle() { return _gpublas_handle; }
-    gpurandGenerator_t gpurand_generator() { return _gpurand_generator; }
+    gpublasHandle_t gpublas_handle() { return _gpublas_handle.get(); }
+    gpurandGenerator_t gpurand_generator() { return _gpurand_generator.get(); }
 
 private:
     std::vector<Instruction> _instructions;
@@ -52,10 +50,12 @@ private:
     std::vector<bool> _requires_grad_init;
     std::vector<std::tuple<std::string, std::size_t>> _grad_global_indices;
     ContextPtr _context;
-    std::vector<gpuStream_t> _streams;
-    std::vector<gpuEvent_t> _events;
-    gpublasHandle_t _gpublas_handle;
-    gpurandGenerator_t _gpurand_generator;
+    ThreadResource<std::vector<gpuStream_t>> _streams;
+    ThreadResource<std::vector<gpuEvent_t>> _events;
+    std::vector<std::size_t> _wait_events;
+    std::vector<std::size_t> _backward_wait_events;
+    ThreadResource<gpublasHandle_t> _gpublas_handle;
+    ThreadResource<gpurandGenerator_t> _gpurand_generator;
 };
 
 extern "C" Runtime*

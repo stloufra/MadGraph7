@@ -455,11 +455,7 @@ void EventGenerator::combine_to_lhe(
                     out_buffer.clear();
                     for (std::size_t i = 0; i < in_buffer.event_count(); ++i) {
                         fill_lhe_event(
-                            lhe_completer,
-                            lhe_event,
-                            in_buffer,
-                            i,
-                            rand_gens.get(ThreadPool::thread_index())
+                            lhe_completer, lhe_event, in_buffer, i, rand_gens.get()
                         );
                         lhe_event.format_to(out_buffer);
                     }

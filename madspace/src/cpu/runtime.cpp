@@ -124,7 +124,7 @@ void op_matrix_element(
          &matrix_element,
          batch_size](std::size_t count, std::size_t offset) {
             matrix_element.call(
-                matrix_element.process_instance(ThreadPool::thread_index()),
+                matrix_element.process_instance(),
                 count,
                 batch_size,
                 offset,
@@ -450,7 +450,7 @@ void op_random(
         [flat_view, &runtime](std::size_t count, std::size_t offset) mutable {
             auto output_view = TensorView<double, 1>(flat_view);
             std::uniform_real_distribution<double> dist;
-            auto& rand_gen = runtime.rand_gen(ThreadPool::thread_index());
+            auto& rand_gen = runtime.rand_gen();
             for (std::size_t i = offset; i < offset + count; ++i) {
                 output_view[i] = dist(rand_gen);
             }
@@ -493,7 +493,7 @@ void op_unweight(
         TensorView<me_int_t, 1> indices_view(indices_view_flat);
         TensorView<double, 1> uw_weights_view(uw_weights_view_flat);
         std::uniform_real_distribution<double> dist;
-        auto& rand_gen = runtime.rand_gen(ThreadPool::thread_index());
+        auto& rand_gen = runtime.rand_gen();
         std::size_t count = 0;
         for (std::size_t i = 0; i < batch_size; ++i) {
             double w = weights_view[i], w_max = max_weight_view[i];
