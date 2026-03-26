@@ -22,10 +22,12 @@ private:
 class LastUseOfLocals {
 public:
     LastUseOfLocals(const Function& function);
-    std::vector<int>& local_indices(std::size_t index) { return last_used[index]; }
+    std::vector<std::size_t>& local_indices(std::size_t index) {
+        return last_used.at(index);
+    }
 
 private:
-    std::vector<std::vector<int>> last_used;
+    std::vector<std::vector<std::size_t>> last_used;
 };
 
 } // namespace madspace
