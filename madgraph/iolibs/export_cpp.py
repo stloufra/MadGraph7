@@ -195,7 +195,8 @@ class UFOModelConverterCPP(object):
         for key, coup_list in self.model['couplings'].items():
             if "aS" in key:
                 for c in coup_list:
-                    if not wanted_couplings or c.name in wanted_couplings:
+                    if not wanted_couplings or c.name in wanted_couplings \
+                        or f"-{c.name}" in wanted_couplings:
                         self.coups_dep[c.name] = base_objects.ModelVariable(\
                                                                    c.name,
                                                                    c.expr,
@@ -203,7 +204,8 @@ class UFOModelConverterCPP(object):
                                                                    c.depend)
             else:
                 for c in coup_list:
-                    if not wanted_couplings or c.name in wanted_couplings:
+                    if not wanted_couplings or c.name in wanted_couplings \
+                        or f"-{c.name}" in wanted_couplings:
                         self.coups_indep.append(base_objects.ModelVariable(\
                                                                    c.name,
                                                                    c.expr,

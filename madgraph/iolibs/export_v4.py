@@ -7310,12 +7310,14 @@ class UFO_model_to_mg4(object):
                     used_running_key.update(set(key))
             else:
                 self.coups_indep_noloop += [c for c in coup_list if
-                                     (not wanted_couplings or c.name in \
-                                      wanted_couplings) and \
+                                     (not wanted_couplings \
+                                      or c.name in wanted_couplings \
+                                      or f"-{c.name}" in wanted_couplings) and \
                                       not any([tag in c.name.lower() for tag in ['uv', 'r2']])]
                 self.coups_indep_loop += [c for c in coup_list if
-                                     (not wanted_couplings or c.name in \
-                                      wanted_couplings) and \
+                                     (not wanted_couplings \
+                                      or c.name in wanted_couplings \
+                                      or f"-{c.name}" in wanted_couplings) and \
                                       any([tag in c.name.lower() for tag in ['uv', 'r2']])]
 
         # keep track of all couplings (for backward compatibility and/or tests
