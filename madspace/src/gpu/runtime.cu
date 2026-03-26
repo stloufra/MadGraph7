@@ -909,20 +909,20 @@ public:
         _stream_count(stream_count), _sync_matrix(stream_count * stream_count, true) {}
 
     bool is_in_sync_with(std::size_t this_stream, std::size_t other_stream) const {
-        return _sync_matrix.at(this_stream * stream_count + other_stream);
+        return _sync_matrix.at(this_stream * _stream_count + other_stream);
     }
     void desynchronize(std::size_t this_stream) {
         for (std::size_t other_stream = 0; other_stream < _stream_count;
-             ++_other_stream) {
+             ++other_stream) {
             if (this_stream != other_stream) {
-                _sync_matrix.at(other_stream * stream_count + this_stream) = false;
+                _sync_matrix.at(other_stream * _stream_count + this_stream) = false;
             }
         }
     }
     void synchronize(std::size_t this_stream, std::size_t other_stream) {
         for (std::size_t i = 0; i < _stream_count; ++i) {
             if (is_in_sync_with(other_stream, i)) {
-                _sync_matrix.at(this_stream * stream_count + i) = true;
+                _sync_matrix.at(this_stream * _stream_count + i) = true;
             }
         }
     }
@@ -931,14 +931,15 @@ public:
 private:
     std::size_t _stream_count;
     std::vector<bool> _sync_matrix;
-}
+};
 
 } // namespace
 
 GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
     _context(context),
-    _input_count(function.inputs().size()) _gpublas_handle(
-        context.thread_pool(),
+    _input_count(function.inputs().size()),
+    _gpublas_handle(
+        context->thread_pool(),
         []() {
             gpublasHandle_t handle;
             check_error(gpublasCreate(&handle));
@@ -947,7 +948,7 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
         [](gpublasHandle_t handle) { check_error(gpublasDestroy(handle)); }
     ),
     _gpurand_generator(
-        context.thread_pool(),
+        context->thread_pool(),
         []() {
             gpurandGenerator_t handle;
             check_error(gpurandCreateGenerator(&handle, GPURAND_RNG_PSEUDO_DEFAULT));
@@ -971,51 +972,39 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
     std::size_t stream_count = 0, event_count = 0, backward_event_count = 0;
     for (auto& instr : function.instructions()) {
         if (instr.stream_index >= stream_count) {
-            stream_count = instr.stream_index;
+            stream_count = instr.stream_index + 1;
         }
     }
     SyncTracker sync_tracker(stream_count);
     std::vector<int> local_source_streams(function.locals().size(), -1);
     SizeVec last_stream_instrs(stream_count);
-    nested_vector2<std::size_t> local_consumer_streams(function.locals().size());
     nested_vector2<std::size_t> backward_wait_events(function.instructions().size());
     std::vector<int> backward_record_events(function.instructions().size(), -1);
 
-    for (auto& instr : function.instructions()) {
-        if (instr.stream_index >= stream_count) {
-            stream_count = instr.stream_index + 1;
-        }
-    }
-
-    auto update_sync = [&](std::size_t local_index,
+    auto update_sync_backward = [&](std::size_t local_index,
                            std::size_t stream_index,
-                           SizeVec& wait_events,
-                           auto get_event) {
+                           SizeVec& wait_events) {
         int source_stream = local_source_streams.at(local_index);
-        auto& consumer_streams = local_consumer_streams.at(local_index);
-        if (std::find(consumer_streams.begin(), consumer_streams.end(), stream_index) ==
-            consumer_streams.end()) {
-            consumer_streams.push_back(stream_index);
+        if (source_stream == -1) {
+            return;
         }
         if (!sync_tracker.is_in_sync_with(stream_index, source_stream)) {
-            wait_events.push_back(get_event(source_stream));
+            int& event = backward_record_events.at(last_stream_instrs.at(source_stream));
+            if (event == -1) {
+                event = backward_event_count;
+                ++backward_event_count;
+            }
+            wait_events.push_back(event);
             sync_tracker.synchronize(stream_index, source_stream);
         }
-    } auto get_event_backward = [&](std::size_t source_stream) -> int {
-        int& event = backward_record_events.at(last_stream_instrs.at(source_stream));
-        if (event == -1) {
-            event = backward_event_count;
-            ++backward_event_count;
-        }
-        return event;
     };
 
     for (std::size_t instr_index = 0; auto [instr, bw_wait_events] :
                                       zip(std::views::reverse(function.instructions()),
                                           std::views::reverse(backward_wait_events))) {
         for (auto& out : instr.outputs) {
-            update_sync(
-                out.local_index, instr.stream_index, bw_wait_events, get_event_backward
+            update_sync_backward(
+                out.local_index, instr.stream_index, bw_wait_events
             );
         }
         for (auto& in : instr.inputs) {
@@ -1026,25 +1015,38 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
         ++instr_index;
     }
     for (auto& in : function.inputs()) {
-        update_sync(in.local_index, 0, _wait_events, get_event_forward);
+        update_sync_backward(in.local_index, 0, _backward_wait_events);
     }
 
     sync_tracker.reset();
-    local_source_streams.clear();
-    last_stream_instrs.clear();
-    local_consumer_streams.clear();
+    std::fill(local_source_streams.begin(), local_source_streams.end(), -1);
+    nested_vector2<std::size_t> local_consumer_streams(function.locals().size());
 
-    auto get_event_forward = [&](std::size_t source_stream) -> int {
-        int& event =
-            _instructions.at(last_stream_instrs.at(source_stream)).record_event;
-        if (event == -1) {
-            event = event_count;
-            ++event_count;
+    auto update_sync = [&](std::size_t local_index,
+                           std::size_t stream_index,
+                           SizeVec& wait_events) {
+        int source_stream = local_source_streams.at(local_index);
+        if (source_stream == -1) {
+            return;
         }
-        return event;
+        auto& consumer_streams = local_consumer_streams.at(local_index);
+        if (std::find(consumer_streams.begin(), consumer_streams.end(), stream_index) ==
+            consumer_streams.end()) {
+            consumer_streams.push_back(stream_index);
+        }
+        if (!sync_tracker.is_in_sync_with(stream_index, source_stream)) {
+            int& event =
+                _instructions.at(last_stream_instrs.at(source_stream)).record_event;
+            if (event == -1) {
+                event = event_count;
+                ++event_count;
+            }
+            wait_events.push_back(event);
+            sync_tracker.synchronize(stream_index, source_stream);
+        }
     };
 
-    SizeVec free_queue;
+    std::vector<std::size_t> free_queue;
     for (std::size_t instr_index = 0;
          auto [instr, bw_wait_events, bw_record_event] :
          zip(function.instructions(), backward_wait_events, backward_record_events)) {
@@ -1056,7 +1058,7 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
                 batch_size_index = in.local_index;
             }
             update_sync(
-                in.local_index, instr.stream_index, bw_wait_events, get_event_forward
+                in.local_index, instr.stream_index, bw_wait_events
             );
         }
         SizeVec output_indices;
@@ -1070,6 +1072,7 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
         }
 
         sync_tracker.desynchronize(instr.stream_index);
+        last_stream_instrs.at(instr.stream_index) = _instructions.size();
         _instructions.push_back({
             instr.instruction->opcode(),
             input_indices,
@@ -1083,10 +1086,10 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
             wait_events,
             -1,
             bw_wait_events,
-            bw_record_events,
+            bw_record_event,
         });
 
-        auto locals_to_free = last_use.local_indices(instr_index);
+        SizeVec locals_to_free = last_use.local_indices(instr_index);
         free_queue.insert(
             free_queue.end(), locals_to_free.begin(), locals_to_free.end()
         );
@@ -1118,7 +1121,8 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
                     );
                     return true;
                 }
-            )
+            ),
+            free_queue.end()
         );
 
         ++instr_index;
@@ -1157,11 +1161,11 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
 
     for (auto& out : function.outputs()) {
         _output_indices.push_back(out.local_index);
-        update_sync(out.local_index, 0, _wait_events, get_event_forward);
+        update_sync(out.local_index, 0, _wait_events);
     }
 
     _streams = ThreadResource<std::vector<gpuStream_t>>(
-        context.thread_pool(),
+        context->thread_pool(),
         [stream_count]() {
             std::vector<gpuStream_t> streams(stream_count);
             for (auto& item : streams) {
@@ -1177,7 +1181,7 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
     );
     std::size_t max_event_count = std::max(event_count, backward_event_count);
     _events = ThreadResource<std::vector<gpuEvent_t>>(
-        context.thread_pool(),
+        context->thread_pool(),
         [max_event_count]() {
             std::vector<gpuEvent_t> events(max_event_count);
             for (auto& item : events) {
@@ -1291,7 +1295,7 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> GpuRuntime::run_with_grad(
     for (auto index : _output_indices) {
         outputs.push_back(locals[index]);
     }
-    check_error(gpuStreamSynchronize(main_stream);
+    check_error(gpuStreamSynchronize(main_stream));
     return {outputs, locals, eval_grad};
 }
 
@@ -1312,7 +1316,7 @@ GpuRuntime::run_backward(
     }
     for (auto [instr, instr_eval_grad] :
          zip(std::views::reverse(_instructions), std::views::reverse(eval_grad))) {
-        gpuStream_t stream = streams.at(instr.backward_stream);
+        gpuStream_t stream = streams.at(instr.stream);
         for (auto event : instr.backward_wait_events) {
             check_error(gpuStreamWaitEvent(stream, events.at(event)));
         }
@@ -1332,8 +1336,8 @@ GpuRuntime::run_backward(
 #include "runtime_backward_mixin.h"
             }
         }
-        if (instr.backward_record_event) {
-            check_error(gpuEventRecord(instr.backward_record_event, stream));
+        if (instr.backward_record_event != -1) {
+            check_error(gpuEventRecord(events.at(instr.backward_record_event), stream));
         }
     }
     gpuStream_t main_stream = streams.at(0);
