@@ -4018,6 +4018,8 @@ RESTART = %(mint_mode)s
                 files.ln(pjoin(self.options['pythia8_path'], 'xmldoc'), rundir)
             else: # this is PY8.2xxx
                 files.ln(pjoin(self.options['pythia8_path'], 'share/Pythia8/xmldoc'), rundir)
+                files.ln(pjoin(self.options['pythia8_path'], 'share/Pythia8/tunes'), rundir)
+
         #link the hwpp exe in the rundir
         if shower == 'HERWIGPP':
             try:
@@ -5021,6 +5023,8 @@ RESTART = %(mint_mode)s
                     input_files.append(pjoin(self.options['pythia8_path'], 'xmldoc'))
                 else:
                     input_files.append(pjoin(self.options['pythia8_path'], 'share/Pythia8/xmldoc'))
+                if os.path.exists(pjoin(self.options['pythia8_path'], 'share', 'Pythia8', 'tunes')):
+                    input_files.append(pjoin(self.options['pythia8_path'], 'share', 'Pythia8', 'tunes'))
             else:
                 input_files.append(pjoin(cwd, 'MCATNLO_%s_EXE' % shower))
                 input_files.append(pjoin(cwd, 'MCATNLO_%s_input' % shower))
