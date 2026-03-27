@@ -18,8 +18,12 @@ Notes on the header template:
   - Any surrounding <LesHouchesEvents> wrapper and any <init> block in the
     template are stripped before insertion into the output file.
   - Lines containing only <![CDATA[ or only ]]> are removed.
-  - The line containing the iseed setting is rewritten to match --seed. If no
-    seed is provided, 0 is written.
+  - The line containing the iseed setting is rewritten to match the requested
+    seed. If no seed is provided, 0 is written.
+
+This module can be used in two ways:
+  1. Imported and called via collect_events(...)
+  2. Run as a CLI script
 """
 
 from __future__ import annotations
@@ -32,7 +36,7 @@ import sys
 from dataclasses import dataclass
 from multiprocessing import Process
 from pathlib import Path
-from typing import Iterable, List, Optional, Sequence, Tuple
+from typing import Iterable, List, Optional, Sequence, Tuple, Union
 
 
 PATT_LHE_OPEN = re.compile(rb"<\s*LesHouchesEvents\b[^>]*>", re.I)
@@ -46,6 +50,9 @@ PATT_EVENT_CLOSE = re.compile(rb"</\s*event\s*>", re.I)
 PATT_XML_DECL = re.compile(rb"^\s*<\?xml[^>]*>\s*", re.I | re.S)
 PATT_CDATA_LINE = re.compile(rb"(?m)^\s*(<!\[CDATA\[|\]\]>)\s*(?:\r?\n)?")
 PATT_ISEED_LINE = re.compile(rb"(?m)^(?P<indent>\s*).*=\s*iseed\b.*(?:\r?\n)?")
+
+
+PathLike = Union[str, Path]
 
 
 @dataclass(frozen=True)
@@ -118,7 +125,7 @@ def _extract_special_header_blocks(blob: bytes) -> bytes:
 
     region = bytes(blob[m_open.end():m_header.start()])
     pieces: List[bytes] = []
-    for tag in ("initrwgt", "scalesfunctionalform", "MonteCarloMasses"):
+    for tag in ("initrwgt", "scalesfunctionalform"):
         pieces.extend(_extract_tag_blocks(region, tag))
     return b"".join(pieces)
 
@@ -193,7 +200,7 @@ def index_lhe_file(path: Path, file_idx: int) -> IndexedLHE:
                 if not mc:
                     raise RuntimeError(f"{path} has an <event> block without a closing </event>")
                 e = mc.end()
-                if e < size and mm[e:e+1] == b"\n":
+                if e < size and mm[e:e + 1] == b"\n":
                     e += 1
                 events.append(EventRef(file_idx=file_idx, start=s, end=e))
                 pos = e
@@ -345,6 +352,102 @@ def write_randomized_events(
 
 
 # ============================
+# Public API
+# ============================
+
+def collect_events(
+    output: PathLike,
+    header_template: PathLike,
+    input_files: Sequence[PathLike],
+    seed: Optional[int] = None,
+    subset: Optional[int] = None,
+    workers: int = 1,
+    verbose: bool = False,
+) -> Path:
+    """
+    Collect LHE events from multiple files, shuffle them, and write a new LHE file.
+
+    Parameters
+    ----------
+    output:
+        Path to the output LHE file.
+    header_template:
+        Path to the separate template used to build the final <header> block.
+    input_files:
+        Sequence of input LHE files.
+    seed:
+        Shuffle seed. Also used to rewrite the iseed line in the template.
+        If None, the template iseed line is rewritten to 0.
+    subset:
+        If given, keep only this many events after shuffling.
+    workers:
+        Number of parallel worker processes for event copying. Must be >= 1.
+    verbose:
+        If True, print progress messages.
+
+    Returns
+    -------
+    Path
+        The resolved path of the written output file.
+    """
+    output_path = Path(output).resolve()
+    header_template_path = Path(header_template).resolve()
+    input_paths = [Path(x).resolve() for x in input_files]
+    workers = max(1, workers)
+
+    if not header_template_path.is_file():
+        raise RuntimeError(f"Header template file not found: {header_template_path}")
+    if not input_paths:
+        raise RuntimeError("No input files provided.")
+    for path in input_paths:
+        if not path.is_file():
+            raise RuntimeError(f"Input file not found: {path}")
+
+    if verbose:
+        print(f"[1/3] Indexing {len(input_paths)} input file(s) ...")
+
+    indexed_files: List[IndexedLHE] = []
+    all_refs: List[EventRef] = []
+    for i, path in enumerate(input_paths):
+        item = index_lhe_file(path, i)
+        indexed_files.append(item)
+        all_refs.extend(item.events)
+        if verbose:
+            print(f"      {path.name}: {len(item.events)} event(s)")
+
+    if verbose:
+        print("[2/3] Building output header and init block ...")
+
+    open_tag, header_block = build_output_header(
+        header_template=header_template_path,
+        first_indexed_file=indexed_files[0],
+        seed=seed,
+    )
+    init_block = indexed_files[0].init_block
+
+    n_target = len(all_refs) if subset is None else min(subset, len(all_refs))
+    if verbose:
+        print(f"[3/3] Writing {n_target} shuffled event(s) -> {output_path} (workers={workers}, seed={seed})")
+
+    write_randomized_events(
+        input_paths=input_paths,
+        refs=all_refs,
+        output_path=output_path,
+        open_tag=open_tag,
+        header_block=header_block,
+        init_block=init_block,
+        seed=seed,
+        subset=subset,
+        workers=workers,
+    )
+
+    if verbose:
+        print("Done.")
+
+    return output_path
+
+
+# ============================
 # CLI
 # ============================
 
@@ -363,49 +466,15 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
 
 def main(argv: Optional[Iterable[str]] = None) -> int:
     ns = parse_args(argv)
-
-    output_path = Path(ns.output).resolve()
-    header_template = Path(ns.header_template).resolve()
-    input_paths = [Path(x).resolve() for x in ns.inputs]
-    workers = max(1, ns.workers)
-
-    if not header_template.is_file():
-        raise RuntimeError(f"Header template file not found: {header_template}")
-    if not input_paths:
-        raise RuntimeError("No input files provided.")
-
-    print(f"[1/3] Indexing {len(input_paths)} input file(s) ...")
-    indexed_files: List[IndexedLHE] = []
-    all_refs: List[EventRef] = []
-    for i, path in enumerate(input_paths):
-        item = index_lhe_file(path, i)
-        indexed_files.append(item)
-        all_refs.extend(item.events)
-        print(f"      {path.name}: {len(item.events)} event(s)")
-
-    print("[2/3] Building output header and init block ...")
-    open_tag, header_block = build_output_header(
-        header_template=header_template,
-        first_indexed_file=indexed_files[0],
-        seed=ns.seed,
-    )
-    init_block = indexed_files[0].init_block
-
-    n_target = len(all_refs) if ns.subset is None else min(ns.subset, len(all_refs))
-    print(f"[3/3] Writing {n_target} shuffled event(s) -> {output_path} (workers={workers}, seed={ns.seed})")
-    write_randomized_events(
-        input_paths=input_paths,
-        refs=all_refs,
-        output_path=output_path,
-        open_tag=open_tag,
-        header_block=header_block,
-        init_block=init_block,
+    collect_events(
+        output=ns.output,
+        header_template=ns.header_template,
+        input_files=ns.inputs,
         seed=ns.seed,
         subset=ns.subset,
-        workers=workers,
+        workers=ns.workers,
+        verbose=True,
     )
-
-    print("Done.")
     return 0
 
 
