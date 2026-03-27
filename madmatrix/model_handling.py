@@ -878,12 +878,12 @@ class PLUGIN_UFOModelConverter(export_cpp.UFOModelConverterGPU):
     ###aloha_writer = 'cudac' # WriterFactory will use ALOHAWriterForGPU
     aloha_writer = PLUGIN_ALOHAWriter # WriterFactory will use ALOHAWriterForGPU
 
-    # AV - use template files from PLUGINDIR instead of MG5DIR; strip leading copyright lines
+    # use template files from MG5DIR; strip leading copyright lines
     def read_aloha_template_files(self, ext):
         """Read all ALOHA template files with extension ext, strip them of
         compiler options and namespace options, and return in a list"""
         ###path = pjoin(MG5DIR, 'aloha','template_files')
-        path = pjoin(PLUGINDIR, 'aloha', 'template_files')
+        path = pjoin('aloha', 'template_files')
         out = []        
         if not fd_gauge:
             helas_temp_file = self.helas_h
@@ -1432,11 +1432,11 @@ class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
     ###support_multichannel = False
     ###multichannel_var = ',fptype& multi_chanel_num, fptype& multi_chanel_denom'
 
-    # AV - use template files from PLUGINDIR instead of MG5DIR
+    # AV - use template files from MG5DIR
     ###template_path = os.path.join(_file_path, 'iolibs', 'template_files')
     ###__template_path = os.path.join(_file_path, 'iolibs', 'template_files')
-    template_path = os.path.join( PLUGINDIR, 'madgraph', 'iolibs', 'template_files' )
-    __template_path = os.path.join( PLUGINDIR, 'madgraph', 'iolibs', 'template_files' )
+    template_path = os.path.join('madgraph', 'iolibs', 'template_files' )
+    __template_path = os.path.join('madgraph', 'iolibs', 'template_files' )
 
     # AV - overload export_cpp.OneProcessExporterGPU constructor (rename gCPPProcess to CPPProcess, set include_multi_channel)
     def __init__(self, *args, **kwargs):
@@ -1860,19 +1860,6 @@ class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
         files.ln(pjoin(self.path, 'cudacpp.mk'), self.path, 'makefile')
         # Add link to makefile_original.mk, PR #1052
         files.ln(pjoin(self.path, '..', 'makefile_original.mk'), self.path, 'makefile_original.mk')
-        # Add symbolic links in the test directory
-        files.ln(pjoin(self.path + '/../../test', 'cudacpp_test.mk'), self.path + '/../../test', 'makefile')
-        # Add reference file in the test directory (if it exists for this process)
-        import pathlib
-        pathlib.Path(self.path + '/../../test/ref/.keepme').touch()
-        ###template_ref = 'dump_CPUTest.'+self.process_name+'.txt'
-        template_ref = self.template_path + '/../../../test/ref/' + 'dump_CPUTest.' + self.process_name + '.txt'
-        for ref in template_ref, template_ref + '2' : # two different reference files for tests without/with multichannel #896
-            if os.path.exists( ref ):
-                ###misc.sprint( 'Copying test reference file: ', ref )
-                PLUGIN_export_cpp.cp( ref, self.path + '/../../test/ref' )
-            ###else:
-                ###misc.sprint( 'Test reference file does not exist and will not be copied: ', ref )
 
     # SR - generate CMakeLists.txt file inside the P* directory
     def edit_CMakeLists(self):
