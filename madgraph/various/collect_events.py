@@ -125,7 +125,7 @@ def _extract_special_header_blocks(blob: bytes) -> bytes:
 
     region = bytes(blob[m_open.end():m_header.start()])
     pieces: List[bytes] = []
-    for tag in ("initrwgt", "scalesfunctionalform"):
+    for tag in ("initrwgt", "scalesfunctionalform", "MonteCarloMasses"):
         pieces.extend(_extract_tag_blocks(region, tag))
     return b"".join(pieces)
 

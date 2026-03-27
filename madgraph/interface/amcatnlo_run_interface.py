@@ -3898,28 +3898,8 @@ RESTART = %(mint_mode)s
             seed=self.get_randinit_seed(),
             subset=None,
             workers=self.nb_core,
-            verbose=True,
+            verbose=False,
         )
-
-#        misc.compile(['collect_events'], 
-#                    cwd=pjoin(self.me_dir, 'SubProcesses'), nocompile=options['nocompile'])
-#        p = misc.Popen(['./collect_events'], cwd=pjoin(self.me_dir, 'SubProcesses'),
-#                stdin=subprocess.PIPE, 
-#                stdout=subprocess.PIPE,
-#                stderr=subprocess.PIPE)
-#        if event_norm.lower() == 'sum':
-#            out, err = p.communicate(input = '1\n'.encode())
-#        elif event_norm.lower() == 'unity':
-#            out, err = p.communicate(input = '3\n'.encode())
-#        elif event_norm.lower() == 'bias':
-#            out, err = p.communicate(input = '0\n'.encode())
-#        else:
-#            out, err = p.communicate(input = '2\n'.encode())
-#        
-#        out = out.decode(errors='ignore')
-#        data = str(out)
-#        #get filename from collect events
-#        filename = data.split()[-1].strip().replace('\\n','').replace('"','').replace("'",'')
         
         if not os.path.exists(pjoin(self.me_dir, 'SubProcesses', filename)):
             raise aMCatNLOError('An error occurred during event generation. ' + \
@@ -4839,7 +4819,7 @@ RESTART = %(mint_mode)s
         #  number of events is not 0
         evt_files = [line.split()[0] for line in lines[:-1] if line.split()[1] != '0']
         evt_wghts = [float(line.split()[3]) for line in lines[:-1] if line.split()[1] != '0']
-        if self.run_card['event_norm'].lower()=='bias' and self.run_card['nevents'] != 0:
+        if (self.run_card['event_norm'].lower()=='bias' or self.run_card['event_norm'].lower()=='average') and self.run_card['nevents'] != 0:
             evt_wghts[:]=[1./float(self.run_card['nevents']) for wgt in evt_wghts]
         #prepare the job_dict
         job_dict = {}

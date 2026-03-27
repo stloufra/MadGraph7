@@ -332,7 +332,7 @@ c Write here the reweight information if need be
       integer ifile,nevents,i,ii,ii2,iistr,itemp
       double precision temp
       character*10 MonteCarlo
-      character*80 string,string0
+      character*180 string,string0
       character*3 event_norm
       common/cevtnorm/event_norm
       character*80 muR_id_str,muF1_id_str,muF2_id_str,QES_id_str
@@ -469,7 +469,7 @@ c Avoid overloading read_lhef_header, meant to be used in utilities
       logical already_found
       integer ifile,nevents,i,ii,ii2,iistr,ipart,itempsc,itempPDF
       character*10 MonteCarlo
-      character*80 string,string0
+      character*180 string,string0
       character*3 event_norm
       common/cevtnorm/event_norm
       double precision temp,remcmass(-16:21)
