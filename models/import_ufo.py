@@ -2886,13 +2886,13 @@ class RestrictModel(model_reader.ModelReader):
 
             value = limit_to_6_digit(value)
 
-            if value in dict_value_coupling or -1*value in dict_value_coupling:
-                if value in dict_value_coupling:
+            if value in dict_value_coupling:# or -1*value in dict_value_coupling:
+                #if value in dict_value_coupling:
                     iden_key.add(value)
                     dict_value_coupling[value].append((name,1))
-                else:
-                    iden_key.add(-1*value)
-                    dict_value_coupling[-1*value].append((name,-1))
+                #else:
+                #    iden_key.add(-1*value)
+                #    dict_value_coupling[-1*value].append((name,-1))
             else:
                 dict_value_coupling[value] = [(name,1)]
         for key in iden_key:
