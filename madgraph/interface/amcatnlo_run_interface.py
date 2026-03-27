@@ -82,6 +82,7 @@ except ImportError:
     import internal.shower_card as shower_card
     import internal.FO_analyse_card as analyse_card 
     import internal.lhe_parser as lhe_parser
+    import internal.collect_events as collect_events
 else:
     # import from madgraph directory
     aMCatNLO = False
@@ -98,6 +99,7 @@ else:
     import madgraph.various.FO_analyse_card as analyse_card
     import madgraph.various.lhe_parser as lhe_parser
     from madgraph import InvalidCmd, aMCatNLOError, MadGraph5Error,MG5DIR
+    import madgraph.various.collect_events as collect_events
 
 class aMCatNLOError(Exception):
     pass
@@ -2351,6 +2353,7 @@ RESTART = %(mint_mode)s
             jobs_to_run_new,jobs_to_collect_new= \
                     self.check_the_need_to_split(jobs_to_run_new,jobs_to_collect)
             self.prepare_directories(jobs_to_run_new,mode,fixed_order)
+            self.write_nevents_unweighted_file(jobs_to_collect_new,jobs_to_collect)
         else:
             if fixed_order and self.run_card['req_acc_FO'] > 0:
                 jobs_to_run_new,jobs_to_collect= \
@@ -2366,6 +2369,28 @@ RESTART = %(mint_mode)s
             with open(pjoin(self.me_dir,"SubProcesses","job_status2.pkl"),'wb') as f:
                 pickle.dump(jobs_to_collect_new,f)
         return jobs_to_run_new,jobs_to_collect_new
+
+
+    def write_nevents_unweighted_file(self,jobs,jobs0events):
+        """writes the nevents_unweighted file in the SubProcesses directory.
+           We also need to write the jobs that will generate 0 events,
+           because that makes sure that the cross section from those channels
+           is taken into account in the event weights (by collect_events.f).
+        """
+        content=[]
+        for job in jobs:
+            path=pjoin(job['dirname'].split('/')[-2],job['dirname'].split('/')[-1])
+            lhefile=pjoin(path,'events.lhe')
+            content.append(' %s     %d     %9e     %9e' % \
+                (lhefile.ljust(40),job['nevents'],job['resultABS']*job['wgt_frac'],job['wgt_frac']))
+        for job in jobs0events:
+            if job['nevents']==0:
+                path=pjoin(job['dirname'].split('/')[-2],job['dirname'].split('/')[-1])
+                lhefile=pjoin(path,'events.lhe')
+                content.append(' %s     %d     %9e     %9e' % \
+                               (lhefile.ljust(40),job['nevents'],job['resultABS'],1.))
+        with open(pjoin(self.me_dir,'SubProcesses',"nevents_unweighted"),'w') as f:
+            f.write('\n'.join(content)+'\n')
 
     def combine_split_order_run(self,jobs_to_run):
         """Combines jobs and grids from split jobs that have been run"""
@@ -3850,37 +3875,57 @@ RESTART = %(mint_mode)s
         """this function calls the reweighting routines and creates the event file in the 
         Event dir. Return the name of the event file created
         """
-        scale_pdf_info=[]
         if any(self.run_card['reweight_scale']) or any(self.run_card['reweight_PDF']) or \
            len(self.run_card['dynamical_scale_choice']) > 1 or len(self.run_card['lhaid']) > 1\
            or self.run_card['store_rwgt_info']:
-            scale_pdf_info = self.run_reweight(options['reweightonly'])
-        self.update_status('Collecting events', level='parton', update_results=True)
-        misc.compile(['collect_events'], 
-                    cwd=pjoin(self.me_dir, 'SubProcesses'), nocompile=options['nocompile'])
-        p = misc.Popen(['./collect_events'], cwd=pjoin(self.me_dir, 'SubProcesses'),
-                stdin=subprocess.PIPE, 
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE)
-        if event_norm.lower() == 'sum':
-            out, err = p.communicate(input = '1\n'.encode())
-        elif event_norm.lower() == 'unity':
-            out, err = p.communicate(input = '3\n'.encode())
-        elif event_norm.lower() == 'bias':
-            out, err = p.communicate(input = '0\n'.encode())
+            scale_pdf_info,evt_files = self.run_reweight(options['reweightonly'])
         else:
-            out, err = p.communicate(input = '2\n'.encode())
+            scale_pdf_info=[]
+            with open(pjoin(self.me_dir, 'SubProcesses', 'nevents_unweighted')) as file:
+                lines = file.read().split('\n')
+            evt_files = [pjoin(self.me_dir,'SubProcesses',line.split()[0]) for line in lines[:-1] if line.split()[1] != '0']
+
+        self.update_status('Collecting events', level='parton', update_results=True)
+
+        filename=pjoin(self.me_dir, 'SubProcesses', 'combined_lhe')
+        banner=pjoin(self.me_dir, 'Events', self.run_name, 
+                          '%s_%s_banner.txt' % (self.run_name, self.run_tag))
         
-        out = out.decode(errors='ignore')
-        data = str(out)
-        #get filename from collect events
-        filename = data.split()[-1].strip().replace('\\n','').replace('"','').replace("'",'')
+        collect_events.collect_events(
+            output=filename,
+            header_template=banner,
+            input_files=evt_files,
+            seed=self.get_randinit_seed(),
+            subset=None,
+            workers=self.nb_core,
+            verbose=True,
+        )
+
+#        misc.compile(['collect_events'], 
+#                    cwd=pjoin(self.me_dir, 'SubProcesses'), nocompile=options['nocompile'])
+#        p = misc.Popen(['./collect_events'], cwd=pjoin(self.me_dir, 'SubProcesses'),
+#                stdin=subprocess.PIPE, 
+#                stdout=subprocess.PIPE,
+#                stderr=subprocess.PIPE)
+#        if event_norm.lower() == 'sum':
+#            out, err = p.communicate(input = '1\n'.encode())
+#        elif event_norm.lower() == 'unity':
+#            out, err = p.communicate(input = '3\n'.encode())
+#        elif event_norm.lower() == 'bias':
+#            out, err = p.communicate(input = '0\n'.encode())
+#        else:
+#            out, err = p.communicate(input = '2\n'.encode())
+#        
+#        out = out.decode(errors='ignore')
+#        data = str(out)
+#        #get filename from collect events
+#        filename = data.split()[-1].strip().replace('\\n','').replace('"','').replace("'",'')
         
         if not os.path.exists(pjoin(self.me_dir, 'SubProcesses', filename)):
             raise aMCatNLOError('An error occurred during event generation. ' + \
                     'The event file has not been created: \n %s' % data)
         evt_file = pjoin(self.me_dir, 'Events', self.run_name, 'events.lhe.gz')
-        misc.gzip(pjoin(self.me_dir, 'SubProcesses', filename), stdout=evt_file)
+        misc.gzip(filename, stdout=evt_file)
         if not options['reweightonly']:
             self.print_summary(options, 2, mode, scale_pdf_info)
             res_files = misc.glob('res*.txt', pjoin(self.me_dir, 'SubProcesses'))
@@ -4788,21 +4833,8 @@ RESTART = %(mint_mode)s
         """runs the reweight_xsec_events executables on each sub-event file generated
         to compute on the fly scale and/or PDF uncertainities"""
         logger.info('   Doing reweight')
-
-        nev_unw = pjoin(self.me_dir, 'SubProcesses', 'nevents_unweighted')
-        # if only doing reweight, copy back the nevents_unweighted file
-        if only:
-            if os.path.exists(nev_unw + '.orig'):
-                files.cp(nev_unw + '.orig', nev_unw)
-            else:
-                raise aMCatNLOError('Cannot find event file information')
-
-        #read the nevents_unweighted file to get the list of event files
-        file = open(nev_unw)
-        lines = file.read().split('\n')
-        file.close()
-        # make copy of the original nevent_unweighted file
-        files.cp(nev_unw, nev_unw + '.orig')
+        with open(pjoin(self.me_dir, 'SubProcesses', 'nevents_unweighted')) as file:
+            lines = file.read().split('\n')
         # loop over lines (all but the last one whith is empty) and check that the
         #  number of events is not 0
         evt_files = [line.split()[0] for line in lines[:-1] if line.split()[1] != '0']
@@ -4829,14 +4861,7 @@ RESTART = %(mint_mode)s
                 raise aMCatNLOError('An error occurred during reweighting. Check the' + \
                         '\'reweight_xsec_events.output\' files inside the ' + \
                         '\'SubProcesses/P*/G*/\' directories for details')
-
-        #update file name in nevents_unweighted
-        newfile = open(nev_unw, 'w')
-        for line in lines:
-            if line:
-                newfile.write(line.replace(line.split()[0], line.split()[0] + '.rwgt') + '\n')
-        newfile.close()
-        return self.pdf_scale_from_reweighting(evt_files,evt_wghts)
+        return self.pdf_scale_from_reweighting(evt_files,evt_wghts),[pjoin(self.me_dir,'SubProcesses',evt_file+'.rwgt') for evt_file in evt_files]
 
     def pdf_scale_from_reweighting(self, evt_files,evt_wghts):
         """This function takes the files with the scale and pdf values
@@ -5019,29 +5044,6 @@ RESTART = %(mint_mode)s
             for job in jobs_to_resubmit:
                 logger.debug('Resubmitting ' + job['dirname'] + '\n')
             self.run_all_jobs(jobs_to_resubmit,2,fixed_order=False)
-
-
-    def find_jobs_to_split(self, pdir, job, arg):
-        """looks into the nevents_unweighed_splitted file to check how many
-        split jobs are needed for this (pdir, job). arg is F, B or V"""
-        # find the number of the integration channel
-        splittings = []
-        ajob = open(pjoin(self.me_dir, 'SubProcesses', pdir, job)).read()
-        pattern = re.compile(r'for i in (\d+) ; do')
-        match = re.search(pattern, ajob)
-        channel = match.groups()[0]
-        # then open the nevents_unweighted_splitted file and look for the 
-        # number of splittings to be done
-        nevents_file = open(pjoin(self.me_dir, 'SubProcesses', 'nevents_unweighted_splitted')).read()
-        # This skips the channels with zero events, because they are
-        # not of the form GFXX_YY, but simply GFXX
-        pattern = re.compile(r"%s_(\d+)/events.lhe" % \
-                          pjoin(pdir, 'G%s%s' % (arg,channel)))
-        matches = re.findall(pattern, nevents_file)
-        for m in matches:
-            splittings.append(m)
-        return splittings
-
 
     def run_exe(self, exe, args, run_type, cwd=None):
         """this basic function launch locally/on cluster exe with args as argument.
