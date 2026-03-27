@@ -1165,7 +1165,7 @@ class PLUGIN_UFOModelConverter(PLUGIN_export_cpp.UFOModelConverterGPU):
         bsmparam_indep_complex_used = dict.fromkeys( bsmparam_indep_complex_used ) 
         # Then do everything else
         replace_dict = self.default_replace_dict
-        replace_dict['info_lines'] = PLUGIN_export_cpp.get_mg5_info_lines()
+        replace_dict['info_lines'] = self.get_mg5_info_lines()
         params_indep = [ line.replace('aS, ','')
                          for line in self.write_parameters(self.params_indep).split('\n') ]
         replace_dict['independent_parameters'] = '// Model parameters independent of aS\n    //double aS; // now retrieved event-by-event (as G) from Fortran (running alphas #373)\n' + '\n'.join( params_indep )
@@ -1392,7 +1392,7 @@ class PLUGIN_UFOModelConverter(PLUGIN_export_cpp.UFOModelConverterGPU):
                                      'HelAmps_%s.%s' % (self.model_name, self.cc_ext))
         replace_dict = {}
         replace_dict['output_name'] = self.output_name
-        replace_dict['info_lines'] = PLUGIN_export_cpp.get_mg5_info_lines()
+        replace_dict['info_lines'] = self.get_mg5_info_lines()
         replace_dict['namespace'] = self.namespace
         replace_dict['model_name'] = self.model_name
         # Read in the template .h and .cc files, stripped of compiler commands and namespaces
@@ -1453,6 +1453,9 @@ class PLUGIN_UFOModelConverter(PLUGIN_export_cpp.UFOModelConverterGPU):
         running_wanted_couplings = [value for value in all_str(wanted_couplings) if value in self.coups_dep]
         ordered_dict = [(k, self.coups_dep[k]) for k in running_wanted_couplings]
         self.coups_dep = dict((x, y) for x, y in ordered_dict)
+
+    def get_mg5_info_lines(self):
+        return super().get_mg5_info_lines().replace('# ', '//')
 
 #------------------------------------------------------------------------------------
 

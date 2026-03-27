@@ -274,7 +274,7 @@ class UFOModelConverterCPP(object):
 
         replace_dict = self.default_replace_dict
 
-        replace_dict['info_lines'] = get_mg5_info_lines()
+        replace_dict['info_lines'] = self.get_mg5_info_lines()
         replace_dict['model_name'] = self.model_name
 
         replace_dict['independent_parameters'] = \
@@ -419,7 +419,7 @@ class UFOModelConverterCPP(object):
         replace_dict = {}
 
         replace_dict['output_name'] = self.output_name
-        replace_dict['info_lines'] = get_mg5_info_lines()
+        replace_dict['info_lines'] = self.get_mg5_info_lines()
         replace_dict['namespace'] = self.namespace
         replace_dict['model_name'] = self.model_name
 
@@ -520,6 +520,12 @@ class UFOModelConverterCPP(object):
 
         return line
 
+    def get_mg5_info_lines(self):
+        """Return info lines for MG5, suitable to place at beginning of
+        Fortran files"""
+
+        return OneProcessExporterCPP.get_mg5_info_lines()
+
     #===============================================================================
     # Global helper methods
     #===============================================================================
@@ -528,7 +534,6 @@ class UFOModelConverterCPP(object):
         """Open a template file and return the contents."""
          
         return OneProcessExporterCPP.read_template_file(filename, classpath)
-
 
 #===============================================================================
 # UFOModelConverterGPU
@@ -718,6 +723,23 @@ class OneProcessExporterCPP(object):
         
         return open(os.path.join(file_path, filename)).read()
         
+
+    @staticmethod
+    def get_mg5_info_lines():
+        info = misc.get_pkg_info()
+        info_lines = ""
+        if info and 'version' in info and  'date' in info:
+            info_lines = "#  MadGraph5_aMC@NLO v. %s, %s\n" % \
+                         (info['version'], info['date'])
+            info_lines = info_lines + \
+                         "#  By the MadGraph5_aMC@NLO Development Team\n" + \
+                         "#  Visit launchpad.net/madgraph5 and amcatnlo.web.cern.ch"
+        else:
+            info_lines = "#  MadGraph5_aMC@NLO\n" + \
+                         "#  By the MadGraph5_aMC@NLO Development Team\n" + \
+                         "#  Visit launchpad.net/madgraph5 and amcatnlo.web.cern.ch"        
+
+        return info_lines
         
                   
     @staticmethod
@@ -813,7 +835,7 @@ class OneProcessExporterCPP(object):
         replace_dict = self.get_default_converter()
 
         # Extract version number and date from VERSION file
-        info_lines = get_mg5_info_lines()
+        info_lines = self.get_mg5_info_lines()
         replace_dict['info_lines'] = info_lines
 
         # Extract process file name
@@ -2785,6 +2807,10 @@ class ProcessExporterCPP(VirtualExporter):
         """Open a template file and return the contents."""
          
         return cls.oneprocessclass.read_template_file(*args, **opts) 
+
+    @classmethod
+    def get_mg5_info_lines(cls):
+        return cls.oneprocessclass.get_mg5_info_lines()
         
     #===============================================================================
     # generate_subprocess_directory
@@ -2884,7 +2910,7 @@ class ProcessExporterPythia8(ProcessExporterCPP):
         replace_dict = {}
     
         # Extract version number and date from VERSION file
-        info_lines = get_mg5_info_lines()
+        info_lines = ProcessExporterPythia8.get_mg5_info_lines()
         replace_dict['info_lines'] = info_lines
     
         # Extract model name
@@ -2939,7 +2965,7 @@ class ProcessExporterPythia8(ProcessExporterCPP):
         replace_dict = {}
     
         # Extract version number and date from VERSION file
-        replace_dict['info_lines'] = get_mg5_info_lines()
+        replace_dict['info_lines'] = ProcessExporterPythia8.get_mg5_info_lines()
     
         replace_dict['main_file'] = main_file
     
@@ -2967,25 +2993,6 @@ class ProcessExporterPythia8(ProcessExporterCPP):
     def finalize(self, *args, **opts):
         pass
   
-def get_mg5_info_lines():
-    """Return info lines for MG5, suitable to place at beginning of
-    Fortran files"""
-
-    info = misc.get_pkg_info()
-    info_lines = ""
-    if info and 'version' in info and  'date' in info:
-        info_lines = "#  MadGraph5_aMC@NLO v. %s, %s\n" % \
-                     (info['version'], info['date'])
-        info_lines = info_lines + \
-                     "#  By the MadGraph5_aMC@NLO Development Team\n" + \
-                     "#  Visit launchpad.net/madgraph5 and amcatnlo.web.cern.ch"
-    else:
-        info_lines = "#  MadGraph5_aMC@NLO\n" + \
-                     "#  By the MadGraph5_aMC@NLO Development Team\n" + \
-                     "#  Visit launchpad.net/madgraph5 and amcatnlo.web.cern.ch"        
-
-    return info_lines
-
 
 #===============================================================================
 # UFOModelConverterPythia8
@@ -3119,7 +3126,7 @@ class UFOModelConverterPythia8(UFOModelConverterCPP):
 
         replace_dict = {}
 
-        replace_dict['info_lines'] = get_mg5_info_lines()
+        replace_dict['info_lines'] = self.get_mg5_info_lines()
         replace_dict['model'] = self.model_name
 
         if self.default_replace_dict['version'] == "8.2":
