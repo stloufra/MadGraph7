@@ -1840,6 +1840,10 @@ class aMCatNLOCmd(CmdExtended, HelpToCmd, CompleteForCmd, common_run.CommonRunCm
         self.results.add_detail('run_mode', mode)
         self.update_status('Starting run', level=None, update_results=True)
 
+        self.banner.add(pjoin(self.me_dir,'Cards','param_card.dat'))
+        self.banner.add(pjoin(self.me_dir,'Cards','run_card.dat'))
+        self.banner.add(pjoin(self.me_dir,'Cards','proc_card_mg5.dat'))
+        
         if '+' in mode:
             mode = mode.split('+')[0]
         self.compile(mode, options) 
@@ -2108,6 +2112,7 @@ class aMCatNLOCmd(CmdExtended, HelpToCmd, CompleteForCmd, common_run.CommonRunCm
                     for nj in range(1,njobs+1):
                         job={}
                         job['p_dir']=p_dir
+                        job['p_label']=p_dir[1:].split('_')[0]
                         job['channel']=str(nj)
                         job['nchans']=(int(lch/njobs)+1 if nj <= lch%njobs else int(lch/njobs))
                         job['configs']=' '.join(channels[:job['nchans']])
@@ -2135,6 +2140,7 @@ class aMCatNLOCmd(CmdExtended, HelpToCmd, CompleteForCmd, common_run.CommonRunCm
                     for channel in channels:
                         job={}
                         job['p_dir']=p_dir
+                        job['p_label']=p_dir[1:].split('_')[0]
                         job['channel']=channel
                         job['split']=0
                         job['accuracy']=0.03
@@ -2238,8 +2244,23 @@ RESTART = %(mint_mode)s
 %(mint_mode)s          ! MINT imode: 0 to set-up grids, 1 to perform integral, 2 generate events
 %(fold_string)s      ! if imode is 1: Folding parameters for xi_i, y_ij and phi_i
 %(run_mode)s        ! all, born, real, virt
-""" \
-                    % job
+""" % job
+            # For the event generation step, add extra info to determine event weights and <init> block
+            if job['mint_mode'] == 2:
+                content=content+\
+"""%(p_label)s %(nevents)i ! process label and number of events requested for this job
+""" % job
+                content=content+\
+"""%(nevents)i %(xseca)10.8e %(erra)6.4e %(xsect)10.8e %(errt)6.4e ! total nevents, xsecABS, errABS, xsec, err
+""" % self.cross_sect_dict
+                content=content+\
+"""%i ! number of separate processes for <init> block
+""" % (len(self.cross_sect_dict['p_labels']))
+                for p_label in self.cross_sect_dict['p_labels']:
+                    content=content+\
+"""%(p_label)s %(xseca)10.8e %(erra)6.4e %(xsect)10.8e %(errt)6.4e ! nevents, xsecABS, errABS, xsec, err
+""" % self.cross_sect_dict[p_label]
+                    
         with open(pjoin(job['dirname'], 'input_app.txt'), 'w') as input_file:
             input_file.write(content)
 
@@ -2330,8 +2351,6 @@ RESTART = %(mint_mode)s
             jobs_to_run_new,jobs_to_collect_new= \
                     self.check_the_need_to_split(jobs_to_run_new,jobs_to_collect)
             self.prepare_directories(jobs_to_run_new,mode,fixed_order)
-            self.write_nevents_unweighted_file(jobs_to_collect_new,jobs_to_collect)
-            self.write_nevts_files(jobs_to_run_new)
         else:
             if fixed_order and self.run_card['req_acc_FO'] > 0:
                 jobs_to_run_new,jobs_to_collect= \
@@ -2347,37 +2366,6 @@ RESTART = %(mint_mode)s
             with open(pjoin(self.me_dir,"SubProcesses","job_status2.pkl"),'wb') as f:
                 pickle.dump(jobs_to_collect_new,f)
         return jobs_to_run_new,jobs_to_collect_new
-
-
-    def write_nevents_unweighted_file(self,jobs,jobs0events):
-        """writes the nevents_unweighted file in the SubProcesses directory.
-           We also need to write the jobs that will generate 0 events,
-           because that makes sure that the cross section from those channels
-           is taken into account in the event weights (by collect_events.f).
-        """
-        content=[]
-        for job in jobs:
-            path=pjoin(job['dirname'].split('/')[-2],job['dirname'].split('/')[-1])
-            lhefile=pjoin(path,'events.lhe')
-            content.append(' %s     %d     %9e     %9e' % \
-                (lhefile.ljust(40),job['nevents'],job['resultABS']*job['wgt_frac'],job['wgt_frac']))
-        for job in jobs0events:
-            if job['nevents']==0:
-                path=pjoin(job['dirname'].split('/')[-2],job['dirname'].split('/')[-1])
-                lhefile=pjoin(path,'events.lhe')
-                content.append(' %s     %d     %9e     %9e' % \
-                               (lhefile.ljust(40),job['nevents'],job['resultABS'],1.))
-        with open(pjoin(self.me_dir,'SubProcesses',"nevents_unweighted"),'w') as f:
-            f.write('\n'.join(content)+'\n')
-
-    def write_nevts_files(self,jobs):
-        """write the nevts files in the SubProcesses/P*/G*/ directories"""
-        for job in jobs:
-            with open(pjoin(job['dirname'],'nevts'),'w') as f:
-                if self.run_card['event_norm'].lower()=='bias':
-                    f.write('%i %f\n' % (job['nevents'],self.cross_sect_dict['xseca']))
-                else:
-                    f.write('%i\n' % job['nevents'])
 
     def combine_split_order_run(self,jobs_to_run):
         """Combines jobs and grids from split jobs that have been run"""
@@ -2865,24 +2853,51 @@ RESTART = %(mint_mode)s
         for ddir, res in dir_dict.items():
             content.append(('%20s' % ddir) + '   %(result)10.8e    %(error)6.4e ' %  res)
 
-        totABS=0
-        errABS=0
-        tot=0
-        err=0
         for job in jobs:
-            totABS+= job['resultABS']*job['wgt_frac']
-            errABS+= math.pow(job['errorABS'],2)*job['wgt_frac']
-            tot+= job['result']*job['wgt_frac']
-            err+= math.pow(job['error'],2)*job['wgt_frac']
+            try:
+                cross_sect_dict['xseca'] += job['resultABS']*job['wgt_frac']
+                cross_sect_dict['erra'] += math.pow(job['errorABS'],2)*job['wgt_frac']
+                cross_sect_dict['xsect'] += job['result']*job['wgt_frac']
+                cross_sect_dict['errt'] += math.pow(job['error'],2)*job['wgt_frac']
+            except:
+                cross_sect_dict = {
+                        'xsect' : job['result']*job['wgt_frac'],
+                        'xseca' : job['resultABS']*job['wgt_frac'],
+                        'errt' : math.pow(job['error'], 2)*job['wgt_frac'],
+                        'erra' : math.pow(job['errorABS'], 2)*job['wgt_frac']}
+            try:
+                cross_sect_dict[job['p_label']]['xseca'] += job['resultABS']*job['wgt_frac']
+                cross_sect_dict[job['p_label']]['erra'] += math.pow(job['errorABS'],2)*job['wgt_frac']
+                cross_sect_dict[job['p_label']]['xsect'] += job['result']*job['wgt_frac']
+                cross_sect_dict[job['p_label']]['errt'] += math.pow(job['error'],2)*job['wgt_frac']
+            except KeyError:
+                cross_sect_dict[job['p_label']] = {
+                        'xsect' : job['result']*job['wgt_frac'],
+                        'xseca' : job['resultABS']*job['wgt_frac'],
+                        'errt' : math.pow(job['error'], 2)*job['wgt_frac'],
+                        'erra' : math.pow(job['errorABS'], 2)*job['wgt_frac'],
+                        'p_label' : job['p_label']}
+                try:
+                    cross_sect_dict['p_labels'].append(job['p_label'])
+                except:
+                    cross_sect_dict['p_labels']=[job['p_label']]
+
+        cross_sect_dict['erra'] = math.sqrt(cross_sect_dict['erra'])
+        cross_sect_dict['errt'] = math.sqrt(cross_sect_dict['errt'])
+        cross_sect_dict['fraca'] = (cross_sect_dict['erra']/cross_sect_dict['xseca']*100. if cross_sect_dict['xseca'] != 0. else 100.)
+        cross_sect_dict['fract'] = (cross_sect_dict['errt']/cross_sect_dict['xsect']*100. if cross_sect_dict['xsect'] != 0. else 100.)
+        for p_label in cross_sect_dict['p_labels']:
+            cross_sect_dict[p_label]['erra'] = math.sqrt(cross_sect_dict[p_label]['erra'])
+            cross_sect_dict[p_label]['errt'] = math.sqrt(cross_sect_dict[p_label]['errt'])
+
         if jobs:
-            content.append('\nTotal ABS and \nTotal: \n                      %10.8e +- %6.4e  (%6.4e%%)\n                      %10.8e +- %6.4e  (%6.4e%%) \n' %\
-                           (totABS, math.sqrt(errABS), math.sqrt(errABS)/totABS *100.  if totABS !=0. else 100.,\
-                            tot, math.sqrt(err), math.sqrt(err)/tot *100. if tot !=0. else 100.))
+            content.append('\nTotal ABS and \nTotal: \n                      %(xseca)10.8e +- %(erra)6.4e  (%(fraca)6.4e%%)\n                      %(xsect)10.8e +- %(errt)6.4e  (%(fract)6.4e%%) \n' % cross_sect_dict)
         with open(pjoin(self.me_dir,'SubProcesses','res_%s.txt' % integration_step),'w') as res_file:
             res_file.write('\n'.join(content))
         randinit=self.get_randinit_seed()
-        return {'xsect':tot,'xseca':totABS,'errt':math.sqrt(err),\
-                'erra':math.sqrt(errABS),'randinit':randinit}
+        cross_sect_dict['randinit']=randinit
+        cross_sect_dict['nevents']=self.run_card['nevents']
+        return cross_sect_dict
         
 
     def collect_scale_pdf_info(self,options,jobs):
