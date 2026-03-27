@@ -9,86 +9,25 @@ import sys
 
 import math
 import re
-from aloha import unitary_gauge
-
-#FD gauge check
-fd_gauge = (unitary_gauge == 3)
-
-# AV - PLUGIN_NAME can be one of PLUGIN/CUDACPP_OUTPUT or MG5aMC_PLUGIN/CUDACPP_OUTPUT
-PLUGIN_NAME = __name__.rsplit('.',1)[0]
-
-# AV - use templates for source code, scripts and Makefiles from PLUGINDIR instead of MG5DIR
-###from madgraph import MG5DIR
-PLUGINDIR = os.path.dirname( __file__ )
 
 # AV - create a plugin-specific logger
 import logging
+PLUGIN_NAME = __name__.rsplit('.',1)[0]
 logger = logging.getLogger('madgraph.%s.model_handling'%PLUGIN_NAME)
 
-#------------------------------------------------------------------------------------
-
-# AV - import the independent 2nd copy of the export_cpp module (as PLUGIN_export_cpp), previously loaded in output.py
-###import madgraph.iolibs.export_cpp as export_cpp # 1st copy
-######import madgraph.iolibs.export_cpp as PLUGIN_export_cpp # this is not enough to define an independent 2nd copy: id(export_cpp)==id(PLUGIN_export_cpp)
-######import PLUGIN.CUDACPP_OUTPUT.PLUGIN_export_cpp as PLUGIN_export_cpp # 2nd copy loaded in the plugin's output.py (but not enough for MG5aMC_PLUGIN case)
-__import__('%s.PLUGIN_export_cpp'%PLUGIN_NAME)
-PLUGIN_export_cpp = sys.modules['%s.PLUGIN_export_cpp'%PLUGIN_NAME] # 2nd copy loaded in the plugin's output.py (modified for MG5aMC_PLUGIN case)
-###print('id(export_cpp)=%s'%id(export_cpp))
-###print('id(PLUGIN_export_cpp)=%s'%id(PLUGIN_export_cpp))
-
-#------------------------------------------------------------------------------------
-
-# AV - modify export_cpp.get_mg5_info_lines (replace '# ' by '//')
-def PLUGIN_get_mg5_info_lines():
-    return DEFAULT_get_mg5_info_lines().replace('# ','//')
-
-DEFAULT_get_mg5_info_lines = PLUGIN_export_cpp.get_mg5_info_lines
-PLUGIN_export_cpp.get_mg5_info_lines = PLUGIN_get_mg5_info_lines
-
-#------------------------------------------------------------------------------------
-
-# AV - load an independent 2nd copy of the writers module (as PLUGIN_writers) and use that within the plugin (workaround for #341)
-# See https://stackoverflow.com/a/11285504
-###import madgraph.iolibs.file_writers as writers # 1st copy
-import importlib.util
-SPEC_WRITERS = importlib.util.find_spec('madgraph.iolibs.file_writers')
-PLUGIN_writers = importlib.util.module_from_spec(SPEC_WRITERS)
-SPEC_WRITERS.loader.exec_module(PLUGIN_writers)
-###sys.modules['%s.PLUGIN_writers'%PLUGIN_NAME] = PLUGIN_writers # would allow 'import <PLUGIN_NAME>.PLUGIN_writers' (not needed)
-del SPEC_WRITERS
-
-# AV - use the independent 2nd copy of the writers module within the PLUGIN_export_cpp module (workaround for #341)
-###DEFAULT_writers = PLUGIN_export_cpp.writers # not needed
-PLUGIN_export_cpp.writers = PLUGIN_writers
-
-#------------------------------------------------------------------------------------
-
-# AV - modify writers.FileWriter.__init__ (add a debug printout)
-def PLUGIN_FileWriter__init__( self, name, opt = 'w' ):
-    print( 'FileWriter %s for %s'%( type(self), name) )
-    return DEFAULT_FileWriter__init__( self, name, opt )
-
-DEFAULT_FileWriter__init__ = PLUGIN_writers.FileWriter.__init__
-PLUGIN_writers.FileWriter.__init__ = PLUGIN_FileWriter__init__
-
-#------------------------------------------------------------------------------------
-
-# AV - replace writers.CPPWriter by PLUGIN_CPPWriter (remove formatting)
-class PLUGIN_CPPWriter(PLUGIN_writers.FileWriter):
-    """Custom CPPWriter based on the default FileWriter with minimal modifications"""
-
-DEFAULT_CPPWriter = PLUGIN_writers.CPPWriter
-###PLUGIN_writers.CPPWriter = DEFAULT_CPPWriter # WITH FORMATTING
-PLUGIN_writers.CPPWriter = PLUGIN_CPPWriter # WITHOUT FORMATTING
-
-#------------------------------------------------------------------------------------
+from madgraph.iolibs import export_cpp
+from madgraph.iolibs import file_writers as writers
 
 import aloha
-import aloha.aloha_writers as aloha_writers
+from aloha import aloha_writers
+from aloha import unitary_gauge
 
 from collections import defaultdict
 from fractions import Fraction
 from six import StringIO
+
+# FD gauge check
+fd_gauge = (unitary_gauge == 3)
 
 # AV - define a custom ALOHAWriter
 # (NB: enable this via PLUGIN_UFOModelConverter.aloha_writer)
@@ -906,7 +845,7 @@ from os.path import join as pjoin
 
 # AV - define a custom UFOModelConverter
 # (NB: enable this via PLUGIN_ProcessExporter.create_model_class in output.py)
-class PLUGIN_UFOModelConverter(PLUGIN_export_cpp.UFOModelConverterGPU):
+class PLUGIN_UFOModelConverter(export_cpp.UFOModelConverterGPU):
     # Class structure information
     #  - object
     #  - UFOModelConverterCPP(object) [in madgraph/iolibs/export_cpp.py]
@@ -1433,7 +1372,7 @@ class PLUGIN_UFOModelConverter(PLUGIN_export_cpp.UFOModelConverterGPU):
         file_h = '\n'.join( file_h_lines[:-3]) # skip the trailing '//---'
         file_h += file_cc # append the contents of HelAmps_sm.cc directly to HelAmps_sm.h!
         file_h = file_h[:-1] # skip the trailing empty line
-        PLUGIN_writers.CPPWriter(model_h_file).writelines(file_h)
+        writers.CPPWriter(model_h_file).writelines(file_h)
         logger.info('Created file %s in directory %s' \
                     % (os.path.split(model_h_file)[-1], os.path.split(model_h_file)[0] ) )
 
@@ -1467,7 +1406,7 @@ import madgraph.core.base_objects as base_objects
 # (NB: enable this via PLUGIN_ProcessExporter.oneprocessclass in output.py)
 # (NB: use this directly also in PLUGIN_UFOModelConverter.read_template_file)
 # (NB: use this directly also in PLUGIN_GPUFOHelasCallWriter.super_get_matrix_element_calls)
-class PLUGIN_OneProcessExporter(PLUGIN_export_cpp.OneProcessExporterGPU):
+class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
     # Class structure information
     #  - object
     #  - OneProcessExporterCPP(object) [in madgraph/iolibs/export_cpp.py]
@@ -1536,7 +1475,7 @@ class PLUGIN_OneProcessExporter(PLUGIN_export_cpp.OneProcessExporterGPU):
     # AV - replace export_cpp.OneProcessExporterGPU method (fix CPPProcess.cc)
     def get_process_function_definitions(self, write=True):
         """The complete class definition for the process"""
-        replace_dict = super(PLUGIN_export_cpp.OneProcessExporterGPU,self).get_process_function_definitions(write=False) # defines replace_dict['initProc_lines']
+        replace_dict = super(export_cpp.OneProcessExporterGPU,self).get_process_function_definitions(write=False) # defines replace_dict['initProc_lines']
         replace_dict['hardcoded_initProc_lines'] = replace_dict['initProc_lines'].replace( 'm_pars->', 'Parameters::')
         couplings2order_indep = []
         ###replace_dict['ncouplings'] = len(self.couplings2order)
@@ -1906,7 +1845,7 @@ class PLUGIN_OneProcessExporter(PLUGIN_export_cpp.OneProcessExporterGPU):
             if self.matrix_elements[0].get('has_mirror_process'):
                 self.matrix_elements[0].set('has_mirror_process', False)
                 self.nprocesses/=2
-        super(PLUGIN_export_cpp.OneProcessExporterGPU, self).generate_process_files()
+        super(export_cpp.OneProcessExporterGPU, self).generate_process_files()
         self.edit_CMakeLists()
         self.edit_check_sa()
         self.edit_mgonGPU()
@@ -2134,7 +2073,7 @@ class PLUGIN_OneProcessExporter(PLUGIN_export_cpp.OneProcessExporterGPU):
     # AV - replace the export_cpp.OneProcessExporterGPU method (replace HelAmps.cu by HelAmps.cc)
     def super_write_process_cc_file(self, writer):
         """Write the class member definition (.cc) file for the process described by matrix_element"""
-        replace_dict = super(PLUGIN_export_cpp.OneProcessExporterGPU, self).write_process_cc_file(False)
+        replace_dict = super(export_cpp.OneProcessExporterGPU, self).write_process_cc_file(False)
         ###replace_dict['hel_amps_def'] = '\n#include \"../../src/HelAmps_%s.cu\"' % self.model_name
         replace_dict['hel_amps_h'] = '#include \"HelAmps_%s.h\"' % self.model_name # AV
         if writer:

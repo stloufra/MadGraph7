@@ -8,31 +8,11 @@ import os
 import sys
 import subprocess
 
-# AV - PLUGIN_NAME can be one of PLUGIN/CUDACPP_OUTPUT or MG5aMC_PLUGIN/CUDACPP_OUTPUT
 PLUGIN_NAME = __name__.rsplit('.',1)[0]
-
-# AV - load an independent 2nd copy of the export_cpp module (as PLUGIN_export_cpp) and use that within the plugin (workaround for #341)
-# See https://stackoverflow.com/a/11285504
-###import madgraph.iolibs.export_cpp as export_cpp # 1st copy
-######import madgraph.iolibs.export_cpp as PLUGIN_export_cpp # this is not enough to define an independent 2nd copy: id(export_cpp)==id(PLUGIN_export_cpp)
-import importlib.util
-SPEC_EXPORTCPP = importlib.util.find_spec('madgraph.iolibs.export_cpp')
-PLUGIN_export_cpp = importlib.util.module_from_spec(SPEC_EXPORTCPP)
-SPEC_EXPORTCPP.loader.exec_module(PLUGIN_export_cpp)
-###sys.modules['PLUGIN.CUDACPP_OUTPUT.PLUGIN_export_cpp'] = PLUGIN_export_cpp # allow 'import PLUGIN.CUDACPP_OUTPUT.PLUGIN_export_cpp' in model_handling.py
-sys.modules['%s.PLUGIN_export_cpp'%PLUGIN_NAME] = PLUGIN_export_cpp # allow 'import <PLUGIN_NAME>.PLUGIN_export_cpp' in model_handling.py
-del SPEC_EXPORTCPP
-###print('id(export_cpp)=%s'%id(export_cpp))
-###print('id(PLUGIN_export_cpp)=%s'%id(PLUGIN_export_cpp))
-
-# AV - use template files from PLUGINDIR instead of MG5DIR
-###from madgraph import MG5DIR
 PLUGINDIR = os.path.dirname( __file__ )
 
 # AV - model_handling includes the custom FileWriter, ALOHAWriter, UFOModelConverter, OneProcessExporter and HelasCallWriter, plus additional patches
-###import PLUGIN.CUDACPP_OUTPUT.model_handling as model_handling # AV modify this to also allow MG5aMC_PLUGIN
-__import__('%s.model_handling'%PLUGIN_NAME)
-model_handling = sys.modules['%s.model_handling'%PLUGIN_NAME]
+from . import model_handling
 
 # AV - create a plugin-specific logger
 import logging
@@ -43,6 +23,7 @@ from madgraph import MG5DIR
 from os.path import join as pjoin
 import madgraph.iolibs.files as files
 import madgraph.iolibs.export_v4 as export_v4
+import madgraph.iolibs.export_cpp as export_cpp
 import madgraph.various.misc as misc
 
 from . import launch_plugin
@@ -50,12 +31,12 @@ from . import launch_plugin
 
 # AV - define the plugin's process exporter
 # (NB: this is the plugin's main class, enabled in the new_output dictionary in __init__.py)
-class PLUGIN_ProcessExporter(PLUGIN_export_cpp.ProcessExporterCPP):
+class ProcessExporterMadMatrix(export_cpp.ProcessExporterCPP):
     # Class structure information
     #  - object
     #  - VirtualExporter(object) [in madgraph/iolibs/export_v4.py]
     #  - ProcessExporterCPP(VirtualExporter) [in madgraph/iolibs/export_cpp.py]
-    #  - PLUGIN_ProcessExporter(ProcessExporterCPP)
+    #  - ProcessExporterMadMatrix(ProcessExporterCPP)
     #      This class
 
     # Below are the class variable that are defined in export_v4.VirtualExporter
@@ -173,12 +154,12 @@ class PLUGIN_ProcessExporter(PLUGIN_export_cpp.ProcessExporterCPP):
     # AV (default from OM's tutorial) - add a debug printout
     def __init__(self, *args, **kwargs):
         self.in_madevent_mode = False # see MR #747
-        misc.sprint('Entering PLUGIN_ProcessExporter.__init__ (initialise the exporter)')
-        return super().__init__(*args, **kwargs)
+        misc.sprint('Entering ProcessExporterMadMatrix.__init__ (initialise the exporter)')
+        super().__init__(*args, **kwargs)
 
     # AV - overload the default version: create CMake directory, do not create lib directory
     def copy_template(self, model):
-        misc.sprint('Entering PLUGIN_ProcessExporter.copy_template (initialise the directory)')
+        misc.sprint('Entering ProcessExporterMadMatrix.copy_template (initialise the directory)')
         try: os.mkdir(self.dir_path)
         except os.error as error: logger.warning(error.strerror + ' ' + self.dir_path)
         with misc.chdir(self.dir_path):
@@ -191,7 +172,7 @@ class PLUGIN_ProcessExporter(PLUGIN_export_cpp.ProcessExporterCPP):
             # Copy files in various subdirectories
             for key in self.from_template:
                 for f in self.from_template[key]:
-                    PLUGIN_export_cpp.cp(f, key) # NB this assumes directory key exists...
+                    export_cpp.cp(f, key) # NB this assumes directory key exists...
             # Copy src makefile
             if self.template_src_make:
                 makefile_src = self.read_template_file(self.template_src_make) % {'model': self.get_model_name(model.get('name'))}
@@ -220,7 +201,7 @@ class PLUGIN_ProcessExporter(PLUGIN_export_cpp.ProcessExporterCPP):
 
     # AV - add debug printouts (in addition to the default one from OM's tutorial)
     def generate_subprocess_directory(self, subproc_group, fortran_model, me=None):
-        misc.sprint('Entering PLUGIN_ProcessExporter.generate_subprocess_directory (create the directory)')
+        misc.sprint('Entering ProcessExporterMadMatrix.generate_subprocess_directory (create the directory)')
         misc.sprint('  type(subproc_group)=%s'%type(subproc_group)) # e.g. madgraph.core.helas_objects.HelasMatrixElement
         misc.sprint('  type(fortran_model)=%s'%type(fortran_model)) # e.g. madgraph.iolibs.helas_call_writers.GPUFOHelasCallWriter
         misc.sprint('  type(me)=%s me=%s'%(type(me) if me is not None else None, me)) # e.g. int
@@ -240,7 +221,7 @@ class PLUGIN_ProcessExporter(PLUGIN_export_cpp.ProcessExporterCPP):
             cmdhistory is the list of command used so far.
             MG5options are all the options of the main interface
             outputflags is a list of options provided when doing the output command"""
-        ###misc.sprint('Entering PLUGIN_ProcessExporter.finalize', self.in_madevent_mode, type(self))
+        ###misc.sprint('Entering ProcessExporterMadMatrix.finalize', self.in_madevent_mode, type(self))
         if self.in_madevent_mode:
             # Modify makefiles and symlinks to avoid doing
             # make -f makefile -f cudacpp_overlay.mk to include the overlay
@@ -290,7 +271,7 @@ done"""
             - True/False if the matrix_element was modified
             - the new(or old) matrix element"""
         # Irrelevant here since group_mode=False so this function is never called
-        misc.sprint('Entering PLUGIN_ProcessExporter.modify_grouping')
+        misc.sprint('Entering ProcessExporterMadMatrix.modify_grouping')
         return False, matrix_element
 
     # OM adding a new way to "patch" python file such that the launch command of MG5aMC is working
