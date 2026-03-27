@@ -3307,8 +3307,11 @@ def ExportCPPFactory(cmd, group_subprocesses=False, cmd_options={}):
         return  ProcessExporterCPP(cmd._export_dir, opt)
     elif cformat == 'matchbox_cpp':
         return  ProcessExporterMatchbox(cmd._export_dir, opt)
-    elif cformat == 'mg7':
+    elif cformat == 'mg7_v5':
         return ProcessExporterMG7(cmd._export_dir, opt)
+    elif cformat == 'mg7':
+        from madmatrix.output import ProcessExporterMadMatrix
+        return ProcessExporterMadMatrix(cmd._export_dir, opt)
     else:
         return cmd._export_plugin(cmd._export_dir, opt)
 
