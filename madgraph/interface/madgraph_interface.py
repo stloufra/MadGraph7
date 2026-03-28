@@ -624,6 +624,11 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info(" o core process, decay1, (decay2, (decay2', ...)), ...  etc")
         logger.info(" o Example: generate p p > t~ t QED=0, (t~ > W- b~, W- > l- vl~), t > j j b @2",'$MG:color:GREEN')
         logger.info(" > Note that identical particles will all be decayed.")
+        logger.info("Polarized process syntax:",'$MG:BOLD')
+        logger.info(" > Fix the helicity polarizations of external particles (massless or massive) or massive internal particles")
+        logger.info("   before decay chain by adding '{X}' to (multi)particles in process definitions.")
+        logger.info(" > Example: generate t{L} > w+{T} b{R}, w+ > ta+ vt",'$MG:color:GREEN')
+        logger.info(" > For further help, see 'help polarization'")
         logger.info("Loop processes syntax:",'$MG:BOLD')
         logger.info(" o core process [ <NLO_mode=> LoopOrder1 LoopOrder2 ... ] SQUAREDCOUPi=ORDERi")
         logger.info(" o Example: generate p p > t~ t QED=0 QCD=2 [ all= QCD ] QCD=6",'$MG:color:GREEN')
@@ -661,6 +666,11 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info(" o core process, decay1, (decay2, (decay2', ...)), ...  etc")
         logger.info(" o Example: add process p p > t~ t QED=0, (t~ > W- b~, W- > l- vl~), t > j j b @2",'$MG:color:GREEN')
         logger.info(" > Note that identical particles will all be decayed.")
+        logger.info("Polarized process syntax:",'$MG:BOLD')
+        logger.info(" > Fix the helicity polarizations of external particles (massless or massive) or massive internal particles")
+        logger.info("   before decay chain by adding '{X}' to (multi)particles in process definitions.")
+        logger.info(" > Example: add process t{L} > w+{T} b{R}, w+ > ta+ vt",'$MG:color:GREEN')
+        logger.info(" > For further help, see 'help polarization'")
         logger.info("Loop processes syntax:",'$MG:BOLD')
         logger.info(" o core process [ <NLO_mode=> LoopOrder1 LoopOrder2 ... ] SQUAREDCOUPi=ORDERi")
         logger.info(" o Example: add process p p > t~ t QED=0 QCD=2 [ all= QCD ] QCD=6",'$MG:color:GREEN')
@@ -751,6 +761,22 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info("Example: define p = g u u~ c c~ d d~ s s~ b b~",'$MG:color:GREEN')
         logger.info("Special syntax: Use | for OR (used for required s-channels)")
         logger.info("Special syntax: Use / to remove particles. Example: define q = p / g")
+
+    def help_polarization(self):
+        logger.info("Polarized process syntax:",'$MG:BOLD')
+        logger.info(" > Fix the helicity polarizations of external particles (massless or massive) or massive internal particles")
+        logger.info("   before decay chain by adding '{X}' to (multi)particles in process definitions.")
+        logger.info(" > Example: generate t{L} > w+{T} b{R}, w+ > ta+ vt",'$MG:color:GREEN')
+        logger.info(" > Example: generate p p > z{T} z{A}, z > e+ e-",'$MG:color:GREEN')
+        logger.info(" > Example: generate p p > z{0} z{T}, z > e+ e-, z > mu+ mu-",'$MG:color:GREEN')
+        logger.info(" > Users need to set 'group_subprocesses False', 'nhel=1' (run_card), and 'me_frame' (run_card)")
+        logger.info(" > For the proces 'p p > w+ z j j, w+ > l+ vl, z > l+ l-', the WZ rest frame is given by me_frame = [3,4,5,6]")
+        logger.info(" > For further details, see appendices of [arXiv:1912.01725] and [arXiv:2512.10015],")
+        logger.info("   and for possibilities with loop-induced processes, see [2401.17365].")
+    
+    def help_polarisation(self):
+        logger.info("Polarized process syntax:",'$MG:BOLD')
+        logger.info(" > See 'help polarization'")
 
     def help_set(self):
         logger.info("-- set options for generation or output.",'$MG:color:BLUE')
@@ -5085,22 +5111,48 @@ This implies that with decay chains:
                     if ignore or p==',':
                         ignore= False
                         continue
-                    if p in ['t','T']:
+                    if p.upper() in ['T']:
                         if spin == 3:
                             polarization += [1,-1]
                         else:
                             raise self.InvalidCmd('"T" (transverse) polarization are only supported for spin one particle.')
-                    elif p in ['l', 'L']:
+                    elif p.upper() in ['L']:
                         if spin == 3:
-                            logger.warning('"L" polarization is interpreted as Left for Longitudinal please use "0".')
+                            logger.warning('"L" polarization is interpreted as left (-1); for longitudinal (0) please use "0".')
                         polarization += [-1]
                     elif p in ['R','r']:
                         polarization += [1]
-                    elif p in ["A",'a']:
+                    elif p.upper() in ["A"]:
                         if spin == 3:
                             polarization += [99]
                         else:
-                            raise self.InvalidCmd('"A" (auxiliary) polarization are only supported for spin one particle.')
+                            raise self.InvalidCmd('"A" (auxiliary) polarization is only supported for spin one particles.')
+                    elif p.upper() in ['G']:
+                        if spin == 3:
+                            polarization += [4]
+                        else:
+                            raise self.InvalidCmd('"G" (metric) polarization is only supported for spin one particles.')
+                    elif p.upper() in ['H']:
+                        if spin == 3:
+                            polarization += [5]
+                        else:
+                            raise self.InvalidCmd('"H" (Theta) polarization is only supported for spin one particles.')
+                    elif p.upper() in ['Q']:
+                        if spin == 3:
+                            polarization += [6]
+                        else:
+                            raise self.InvalidCmd('"Q" (qq = longitudinal - Theta) polarization is only supported for spin one particles.')
+                    elif p.upper() in ['W']:
+                        if spin == 3:
+                            polarization += [7]
+                        else:
+                            raise self.InvalidCmd('"W" (Ward-protected full prop) polarization is only supported for spin one particles.')
+                    elif p.upper() in ['S']:
+                        if spin == 3:
+                            polarization += [9]
+                        else:
+                            raise self.InvalidCmd('"S" (scalar=aux+width) polarization is only supported for spin one particles.')
+
                     elif p in ['+']:
                         if i +1 < len(pol) and pol[i+1].isdigit():
                             p = int(pol[i+1])
