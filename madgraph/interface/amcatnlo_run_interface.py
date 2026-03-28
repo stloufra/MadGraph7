@@ -5346,7 +5346,7 @@ PYTHIA8LINKLIBS=%(pythia8_prefix)s/lib/libpythia8.a -lz -ldl"""%{'pythia8_prefix
                 logger.warning('https://answers.launchpad.net/mg5amcnlo/+faq/3324')
 
                 # this is if the PDFs from ePDF/eMELA are employed
-                self.make_opts_var['epdf'] = self.options['eMELA']
+                self.make_opts_var['epdf'] = os.path.abspath(self.options['eMELA'])
                 self.update_make_opts()
                 # link the LHAPDF libraries, but unset the corresponding keys in make_opts
                 self.link_lhapdf(libdir)
