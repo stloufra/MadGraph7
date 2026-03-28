@@ -3887,25 +3887,23 @@ RESTART = %(mint_mode)s
 
         self.update_status('Collecting events', level='parton', update_results=True)
 
-        filename=pjoin(self.me_dir, 'SubProcesses', 'combined_lhe')
+        evt_file=pjoin(self.me_dir, 'Events', self.run_name, 'events.lhe.gz')
         banner=pjoin(self.me_dir, 'Events', self.run_name, 
                           '%s_%s_banner.txt' % (self.run_name, self.run_tag))
         
         collect_events.collect_events(
-            output=filename,
+            output=evt_file,
             header_template=banner,
             input_files=evt_files,
             seed=self.get_randinit_seed(),
             subset=None,
             workers=self.nb_core,
+            mode="auto",
+            prefer_pigz=True,
+            gzip_level=6,
             verbose=False,
         )
         
-        if not os.path.exists(pjoin(self.me_dir, 'SubProcesses', filename)):
-            raise aMCatNLOError('An error occurred during event generation. ' + \
-                    'The event file has not been created: \n %s' % data)
-        evt_file = pjoin(self.me_dir, 'Events', self.run_name, 'events.lhe.gz')
-        misc.gzip(filename, stdout=evt_file)
         if not options['reweightonly']:
             self.print_summary(options, 2, mode, scale_pdf_info)
             res_files = misc.glob('res*.txt', pjoin(self.me_dir, 'SubProcesses'))
