@@ -3010,10 +3010,15 @@ Beware that MG5aMC now changes your runtime options to a multi-core mode with on
         decay_lines = []
         comment = collections.defaultdict(str)
         line_number = 0
+        detect_decays = False
         # Read and remove all decays from the param_card                     
         while line_number < len(param_card):
-            line = param_card[line_number]
+            line = param_card[line_number].strip() 
+            if detect_decays and line.lower().startswith('block'):
+                detect_decays = line_number
+                break
             if line.lower().startswith('decay'):
+                detect_decays = True
                 # Read decay if particle in decay_info 
                 # DECAY  6   1.455100e+00                                    
                 line = param_card.pop(line_number)
@@ -3028,7 +3033,7 @@ Beware that MG5aMC now changes your runtime options to a multi-core mode with on
                         particle = 0
                 # Read BRs for this decay
                 line = param_card[line_number]
-                while re.search(r'^(#|\s|\d)', line):
+                while re.search(r'^(#|\s|\d)', line.strip()):
                     line = param_card.pop(line_number)
                     if not particle or line.startswith('#'):
                         line=param_card[line_number]
@@ -3053,8 +3058,11 @@ Beware that MG5aMC now changes your runtime options to a multi-core mode with on
                     decay_info[particle] = [[[], width]]
             else: # Not decay
                 line_number += 1
+        
+        post_card = param_card[detect_decays:] if detect_decays else []
+        param_card = param_card[:detect_decays] if detect_decays else param_card
         # Clean out possible remaining comments at the end of the card
-        while not param_card[-1] or param_card[-1].startswith('#'):
+        while not param_card[-1] or param_card[-1].strip().startswith('#'):
             param_card.pop(-1)
 
         # Append calculated and read decays to the param_card   
@@ -3076,6 +3084,7 @@ Beware that MG5aMC now changes your runtime options to a multi-core mode with on
                                        "  ".join([str(v) for v in val[1]]),
                                        val[0] * width
                                        ))
+        param_card += post_card
         decay_table = open(output, 'w')
         decay_table.write("\n".join(param_card) + "\n")
         decay_table.close()
