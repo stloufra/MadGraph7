@@ -8,7 +8,7 @@
 #include "../kernels/kernels.h"
 #include "../kernels/operations.h"
 #include "device.h"
-#include "madspace/madcode/optimizer.h"
+#include "madspace/compgraphs/optimizer.h"
 #include "madspace/util.h"
 
 extern "C" void dgemm_(

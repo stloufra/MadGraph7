@@ -5,9 +5,9 @@
 
 #include "function_runtime.h"
 #include "instruction_set.h"
-#include "madspace/madcode.h"
+#include "madspace/compgraphs.h"
+#include "madspace/driver.h"
 #include "madspace/phasespace.h"
-#include "madspace/runtime.h"
 #include "madspace/util.h"
 
 namespace py = pybind11;

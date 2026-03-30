@@ -1,8 +1,8 @@
 #pragma once
 
 #include "device.h"
-#include "madspace/madcode/type.h"
-#include "madspace/runtime/tensor.h"
+#include "madspace/compgraphs/type.h"
+#include "madspace/driver/tensor.h"
 
 #include <algorithm>
 

@@ -4,8 +4,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "madspace/madcode.h"
-#include "madspace/runtime/backend.h"
+#include "madspace/compgraphs.h"
+#include "madspace/driver/backend.h"
 
 namespace py = pybind11;
 using namespace madspace;

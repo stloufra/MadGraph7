@@ -1,6 +1,6 @@
 #pragma once
 
-#include "madspace/runtime/tensor.h"
+#include "madspace/driver/tensor.h"
 #include "madspace/util.h"
 
 namespace madspace {

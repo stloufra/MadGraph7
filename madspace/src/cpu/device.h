@@ -1,7 +1,7 @@
 #pragma once
 
-#include "madspace/runtime/tensor.h"
-#include "madspace/runtime/thread_pool.h"
+#include "madspace/driver/tensor.h"
+#include "madspace/driver/thread_pool.h"
 #include "simd.h"
 
 namespace madspace {

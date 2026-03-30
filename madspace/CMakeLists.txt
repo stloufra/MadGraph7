@@ -108,24 +108,24 @@ find_package(BLAS REQUIRED)
 add_library(
     madspace
     SHARED
-    src/runtime/adam_optimizer.cpp
-    src/runtime/format.cpp
-    src/runtime/tensor.cpp
-    src/runtime/context.cpp
-    src/runtime/event_generator.cpp
-    src/runtime/channel_generator.cpp
-    src/runtime/generator_data.cpp
-    src/runtime/thread_pool.cpp
-    src/runtime/io.cpp
-    src/runtime/vegas_optimizer.cpp
-    src/runtime/discrete_optimizer.cpp
-    src/runtime/backend.cpp
-    src/runtime/lhe_output.cpp
-    src/madcode/type.cpp
-    src/madcode/function.cpp
-    src/madcode/instruction.cpp
-    src/madcode/optimizer.cpp
-    src/madcode/instruction_set_mixin.h
+    src/driver/adam_optimizer.cpp
+    src/driver/format.cpp
+    src/driver/tensor.cpp
+    src/driver/context.cpp
+    src/driver/event_generator.cpp
+    src/driver/channel_generator.cpp
+    src/driver/generator_data.cpp
+    src/driver/thread_pool.cpp
+    src/driver/io.cpp
+    src/driver/vegas_optimizer.cpp
+    src/driver/discrete_optimizer.cpp
+    src/driver/backend.cpp
+    src/driver/lhe_output.cpp
+    src/compgraphs/type.cpp
+    src/compgraphs/function.cpp
+    src/compgraphs/instruction.cpp
+    src/compgraphs/optimizer.cpp
+    src/compgraphs/instruction_set_mixin.h
     src/phasespace/base.cpp
     src/phasespace/invariants.cpp
     src/phasespace/two_particle.cpp
@@ -153,28 +153,28 @@ add_library(
     src/phasespace/cross_section.cpp
     src/phasespace/scale.cpp
     include/madspace/util.h
-    include/madspace/runtime.h
-    include/madspace/runtime/adam_optimizer.h
-    include/madspace/runtime/format.h
-    include/madspace/runtime/tensor.h
-    include/madspace/runtime/context.h
-    include/madspace/runtime/thread_pool.h
-    include/madspace/runtime/event_generator.h
-    include/madspace/runtime/channel_generator.h
-    include/madspace/runtime/generator_data.h
-    include/madspace/runtime/io.h
-    include/madspace/runtime/vegas_optimizer.h
-    include/madspace/runtime/discrete_optimizer.h
-    include/madspace/runtime/backend.h
-    include/madspace/runtime/lhe_output.h
-    include/madspace/runtime/logger.h
-    include/madspace/madcode.h
-    include/madspace/madcode/type.h
-    include/madspace/madcode/function.h
-    include/madspace/madcode/function_builder_mixin.h
-    include/madspace/madcode/opcode_mixin.h
-    include/madspace/madcode/instruction.h
-    include/madspace/madcode/optimizer.h
+    include/madspace/driver.h
+    include/madspace/driver/adam_optimizer.h
+    include/madspace/driver/format.h
+    include/madspace/driver/tensor.h
+    include/madspace/driver/context.h
+    include/madspace/driver/thread_pool.h
+    include/madspace/driver/event_generator.h
+    include/madspace/driver/channel_generator.h
+    include/madspace/driver/generator_data.h
+    include/madspace/driver/io.h
+    include/madspace/driver/vegas_optimizer.h
+    include/madspace/driver/discrete_optimizer.h
+    include/madspace/driver/backend.h
+    include/madspace/driver/lhe_output.h
+    include/madspace/driver/logger.h
+    include/madspace/compgraphs.h
+    include/madspace/compgraphs/type.h
+    include/madspace/compgraphs/function.h
+    include/madspace/compgraphs/function_builder_mixin.h
+    include/madspace/compgraphs/opcode_mixin.h
+    include/madspace/compgraphs/instruction.h
+    include/madspace/compgraphs/optimizer.h
     include/madspace/phasespace.h
     include/madspace/phasespace/base.h
     include/madspace/phasespace/invariants.h
@@ -248,7 +248,7 @@ set(
 
 
 ########################################################################################
-# GPU runtimes                                                                         #
+# GPU backends                                                                         #
 ########################################################################################
 
 if(COMPILE_CUDA)
@@ -298,7 +298,7 @@ endif()
 
 
 ########################################################################################
-# CPU runtime                                                                          #
+# CPU backend                                                                          #
 ########################################################################################
 
 if(NOT USE_SIMD)

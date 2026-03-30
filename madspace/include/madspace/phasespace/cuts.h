@@ -1,6 +1,6 @@
 #pragma once
 
-#include "madspace/madcode.h"
+#include "madspace/compgraphs.h"
 #include "madspace/phasespace/base.h"
 #include "madspace/phasespace/observable.h"
 

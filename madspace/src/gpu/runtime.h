@@ -1,9 +1,9 @@
 #pragma once
 
 #include "gpu_abstraction.h"
-#include "madspace/madcode/function.h"
-#include "madspace/runtime/backend.h"
-#include "madspace/runtime/tensor.h"
+#include "madspace/compgraphs/function.h"
+#include "madspace/driver/backend.h"
+#include "madspace/driver/tensor.h"
 
 #include <memory>
 

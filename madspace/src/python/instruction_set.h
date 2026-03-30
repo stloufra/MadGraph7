@@ -5,7 +5,7 @@
 
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-#include "madspace/madcode.h"
+#include "madspace/compgraphs.h"
 
 namespace py = pybind11;
 using madspace::FunctionBuilder;

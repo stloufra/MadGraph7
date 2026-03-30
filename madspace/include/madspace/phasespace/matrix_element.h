@@ -1,7 +1,7 @@
 #pragma once
 
+#include "madspace/driver/context.h"
 #include "madspace/phasespace/base.h"
-#include "madspace/runtime/context.h"
 
 namespace madspace {
 

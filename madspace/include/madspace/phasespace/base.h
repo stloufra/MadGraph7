@@ -1,6 +1,6 @@
 #pragma once
 
-#include "madspace/madcode.h"
+#include "madspace/compgraphs.h"
 
 namespace madspace {
 

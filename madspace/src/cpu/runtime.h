@@ -2,10 +2,10 @@
 
 #include <random>
 
-#include "madspace/madcode/function.h"
-#include "madspace/runtime/backend.h"
-#include "madspace/runtime/context.h"
-#include "madspace/runtime/tensor.h"
+#include "madspace/compgraphs/function.h"
+#include "madspace/driver/backend.h"
+#include "madspace/driver/context.h"
+#include "madspace/driver/tensor.h"
 
 namespace madspace {
 namespace cpu {
