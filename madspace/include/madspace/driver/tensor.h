@@ -71,11 +71,30 @@ struct PackedTensorView {
     Sizes shape;
 };
 
+template <typename T>
+class ScalarView {
+public:
+    using DType = T;
+    static constexpr bool is_scalar_view = true;
+
+    ScalarView(T data) : _data(data) {}
+    const ScalarView<T> operator[](std::size_t index) const { return _data; }
+    template <typename... I>
+    const ScalarView<T> get(I... index) const {
+        return _data;
+    }
+    operator T() const { return _data; }
+
+private:
+    T _data;
+};
+
 template <ScalarType T, int _dim>
 class TensorView {
 public:
     using DType = T;
     static const int dim = _dim;
+    static constexpr bool is_scalar_view = false;
 
     TensorView(T* data, std::size_t* stride, std::size_t* shape) :
         _data(data), _stride(stride), _shape(shape) {}
@@ -181,10 +200,10 @@ public:
     virtual DeviceType device_type() const = 0;
     virtual void activate() const = 0;
     virtual void adam_step(
-        const TensorVec& parameters,
         const TensorVec& gradients,
-        const TensorVec& exp_avgs,
-        const TensorVec& exp_avg_sqs,
+        TensorVec& parameters,
+        TensorVec& exp_avgs,
+        TensorVec& exp_avg_sqs,
         double step_size,
         double beta1,
         double beta2,

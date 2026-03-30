@@ -29,10 +29,10 @@ public:
     DeviceType device_type() const override { return DeviceType::cpu; }
     void activate() const override {}
     void adam_step(
-        const TensorVec& parameters,
         const TensorVec& gradients,
-        const TensorVec& exp_avgs,
-        const TensorVec& exp_avg_sqs,
+        TensorVec& parameters,
+        TensorVec& exp_avgs,
+        TensorVec& exp_avg_sqs,
         double step_size,
         double beta1,
         double beta2,

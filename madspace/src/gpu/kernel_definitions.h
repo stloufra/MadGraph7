@@ -47,6 +47,7 @@ using ::erf;
 using ::exp;
 using ::expm1;
 using ::fabs;
+using ::fma;
 using ::log;
 using ::log1p;
 using ::pow;

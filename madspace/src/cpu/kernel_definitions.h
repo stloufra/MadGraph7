@@ -44,6 +44,7 @@ using std::erf;
 using std::exp;
 using std::expm1;
 using std::fabs;
+using std::fma;
 using std::log;
 using std::log1p;
 using std::pow;

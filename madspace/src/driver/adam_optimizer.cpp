@@ -22,7 +22,15 @@ AdamOptimizer::AdamOptimizer(
     _step_count(step_count),
     _beta1(beta1),
     _beta2(beta2),
-    _eps(eps) {}
+    _eps(eps) {
+    DevicePtr device = context->device();
+    for (auto& [name, value] : function.globals()) {
+        Tensor global = context->global(name);
+        _parameters.push_back(global);
+        _exp_avgs.emplace_back(global.dtype(), global.shape(), device).zero();
+        _exp_avg_sqs.emplace_back(global.dtype(), global.shape(), device).zero();
+    }
+}
 
 TensorVec AdamOptimizer::step(const TensorVec& inputs) {
     double lr = learning_rate();
@@ -34,12 +42,13 @@ TensorVec AdamOptimizer::step(const TensorVec& inputs) {
     auto [outputs, stored_locals, eval_grad] =
         _runtime->run_with_grad(inputs, std::vector<bool>(inputs.size(), false));
     TensorVec output_grads(outputs.size());
-    // output_grads.at(0) = ...
+    DevicePtr device = _context->device();
+    output_grads.at(0) = Tensor(1.0, device);
     auto [input_grads, global_grads] =
         _runtime->run_backward(output_grads, stored_locals, eval_grad);
-    _context->device()->adam_step(
-        _parameters,
+    device->adam_step(
         global_grads,
+        _parameters,
         _exp_avgs,
         _exp_avg_sqs,
         step_size,
@@ -48,6 +57,7 @@ TensorVec AdamOptimizer::step(const TensorVec& inputs) {
         _eps,
         bias_corr2_sqrt
     );
+    return outputs;
 }
 
 double AdamOptimizer::learning_rate() const {

@@ -69,16 +69,35 @@ void CpuDevice::tensor_add(const Tensor& source, Tensor& target) const {
 }
 
 void CpuDevice::adam_step(
-    const TensorVec& parameters,
     const TensorVec& gradients,
-    const TensorVec& exp_avgs,
-    const TensorVec& exp_avg_sqs,
+    TensorVec& parameters,
+    TensorVec& exp_avgs,
+    TensorVec& exp_avg_sqs,
     double step_size,
     double beta1,
     double beta2,
     double eps,
     double bias_corr2_sqrt
-) const {}
+) const {
+    for (auto [parameter, gradient, exp_avg, exp_avg_sq] :
+         zip(parameters, gradients, exp_avgs, exp_avg_sqs)) {
+        tensor_foreach_dynamic<
+            kernel_adam_step<CpuTypes>,
+            kernel_adam_step<SimdTypes>,
+            1,
+            3>(
+            {&gradient},
+            {&parameter, &exp_avg, &exp_avg_sq},
+            1,
+            *this,
+            step_size,
+            beta1,
+            beta2,
+            eps,
+            bias_corr2_sqrt
+        );
+    }
+}
 
 void AsyncCpuDevice::tensor_copy(const Tensor& source, Tensor& target) const {
     tensor_copy_impl(source, target, *this);

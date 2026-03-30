@@ -218,3 +218,6 @@ inline FVec exp(FVec arg1) { return Sleef_expd8_u10avx512f(arg1); }
 inline FVec log1p(FVec arg1) { return Sleef_log1pd8_u10avx512f(arg1); }
 inline FVec expm1(FVec arg1) { return Sleef_expm1d8_u10avx512f(arg1); }
 inline FVec erf(FVec arg1) { return Sleef_erfd8_u10avx512f(arg1); }
+inline FVec fma(FVec arg1, FVec arg2, FVec arg3) {
+    return _mm512_fmadd_pd(arg1, arg2, arg3);
+}

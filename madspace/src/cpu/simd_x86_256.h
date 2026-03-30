@@ -217,3 +217,6 @@ inline FVec exp(FVec arg1) { return Sleef_expd4_u10avx2(arg1); }
 inline FVec log1p(FVec arg1) { return Sleef_log1pd4_u10avx2(arg1); }
 inline FVec expm1(FVec arg1) { return Sleef_expm1d4_u10avx2(arg1); }
 inline FVec erf(FVec arg1) { return Sleef_erfd4_u10avx2(arg1); }
+inline FVec fma(FVec arg1, FVec arg2, FVec arg3) {
+    return _mm256_fmadd_pd(arg1, arg2, arg3);
+}
