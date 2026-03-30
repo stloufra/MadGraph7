@@ -20,6 +20,8 @@ Notes on the header template:
   - Lines containing only <![CDATA[ or only ]]> are removed.
   - The line containing the iseed setting is rewritten to match the requested
     seed. If no seed is provided, 0 is written.
+  - Template-header XML blocks can be filtered to an explicit allowlist while
+    keeping non-XML text outside those blocks.
 
 This module can be used in two ways:
   1. Imported and called via collect_events(...)
@@ -45,6 +47,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import xml.etree.ElementTree as ET
 from contextlib import contextmanager
 from dataclasses import dataclass
 from multiprocessing import Process
@@ -227,12 +230,64 @@ def _rewrite_iseed_line(blob: bytes, seed: Optional[int]) -> bytes:
     return PATT_ISEED_LINE.sub(repl, blob)
 
 
-def _sanitize_header_template(blob: bytes, seed: Optional[int]) -> Tuple[Optional[bytes], bytes]:
+def _xml_local_name(tag: object) -> str:
+    if not isinstance(tag, str):
+        return ""
+    return tag.rsplit("}", 1)[-1] if tag.startswith("{") else tag
+
+
+def _filter_template_header_xml_blocks(blob: bytes, keep_tags: Optional[Sequence[str]]) -> bytes:
+    """
+    Keep only the requested top-level XML blocks from the template header,
+    while preserving raw non-XML text between them.
+
+    This deliberately does *not* require the whole header fragment to be valid
+    XML. Some MG header fragments contain raw text that ElementTree rejects.
+    We therefore identify top-level blocks by tag boundaries in the raw bytes and
+    copy kept blocks verbatim.
+    """
+    if not keep_tags:
+        return blob
+
+    keep = {tag.strip() for tag in keep_tags if tag and tag.strip()}
+    if not keep:
+        return blob
+
+    tag_name = rb"(?:[A-Za-z_][\w.:-]*)"
+    block_re = re.compile(
+        rb"<\s*(?P<name>" + tag_name + rb")\b[^>]*"
+        rb"(?:/\s*>|>.*?</\s*(?P=name)\s*>)",
+        re.I | re.S,
+    )
+
+    out: List[bytes] = []
+    pos = 0
+    for m in block_re.finditer(blob):
+        start, end = m.span()
+        if start > pos:
+            out.append(blob[pos:start])
+        full_name = m.group("name").decode("ascii", "ignore")
+        local_name = full_name.rsplit(":", 1)[-1]
+        if local_name in keep:
+            out.append(blob[start:end])
+        pos = end
+
+    if pos < len(blob):
+        out.append(blob[pos:])
+
+    return b"".join(out)
+
+
+def _sanitize_header_template(blob: bytes, seed: Optional[int], template_header_keep_tags: Optional[Sequence[str]] = None) -> Tuple[Optional[bytes], bytes]:
     """
     Accepts either a full LHE file, a <header>...</header> block, or a raw header
     fragment. Returns:
       - optional <LesHouchesEvents ...> opening tag from the template
       - the header *inner* content to place inside the output <header>
+
+    If template_header_keep_tags is given, only those XML blocks are retained
+    from the template header content. Non-XML text outside the dropped blocks
+    is preserved.
     """
     open_tag = _extract_open_tag(blob)
 
@@ -248,6 +303,7 @@ def _sanitize_header_template(blob: bytes, seed: Optional[int]) -> Tuple[Optiona
         header_inner = cleaned
 
     header_inner = PATT_CDATA_LINE.sub(b"", header_inner)
+    header_inner = _filter_template_header_xml_blocks(header_inner, template_header_keep_tags)
     header_inner = _rewrite_iseed_line(header_inner, seed)
     header_inner = header_inner.strip()
     return open_tag, (_ensure_trailing_newline(header_inner) if header_inner else b"")
@@ -333,9 +389,14 @@ def build_output_header(
     header_template: Path,
     first_input_file: Union[IndexedLHE, LHEPreamble],
     seed: Optional[int],
+    template_header_keep_tags: Optional[Sequence[str]] = None,
 ) -> Tuple[bytes, bytes]:
     template_bytes = header_template.read_bytes()
-    template_open_tag, template_header_inner = _sanitize_header_template(template_bytes, seed)
+    template_open_tag, template_header_inner = _sanitize_header_template(
+        template_bytes,
+        seed,
+        template_header_keep_tags=template_header_keep_tags,
+    )
 
     open_tag = template_open_tag or first_input_file.open_tag or b'<LesHouchesEvents version="3.0">\n'
 
@@ -679,6 +740,7 @@ def collect_events(
     external_run_capacity: int = EXTERNAL_RUN_RECORD_CAPACITY,
     prefer_pigz: bool = True,
     gzip_level: int = 6,
+    template_header_keep_tags: Optional[Sequence[str]] = None,
 ) -> Path:
     """
     Collect LHE events from multiple files, shuffle them, and write a new LHE file.
@@ -709,6 +771,10 @@ def collect_events(
         If True and the output path ends in .gz, prefer pigz when available.
     gzip_level:
         Compression level used for .gz output (0-9).
+    template_header_keep_tags:
+        If given, keep only these XML blocks from the template header content.
+        Non-XML text outside those blocks is preserved. Tag matching ignores
+        namespaces and uses local tag names.
 
     Returns
     -------
@@ -751,6 +817,7 @@ def collect_events(
         header_template=header_template_path,
         first_input_file=first_preamble,
         seed=seed,
+        template_header_keep_tags=template_header_keep_tags,
     )
     init_block = first_preamble.init_block
 
@@ -845,6 +912,16 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
         default=6,
         help="Compression level for .gz output (0-9).",
     )
+    ap.add_argument(
+        "--template-header-tag",
+        action="append",
+        default=None,
+        metavar="TAG",
+        help=(
+            "Keep only this XML block from the template header. "
+            "Repeat to keep multiple block types. Non-XML text outside those blocks is preserved."
+        ),
+    )
     ap.add_argument("inputs", nargs="+", help="Input LHE file(s).")
     return ap.parse_args(argv)
 
@@ -863,6 +940,7 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         external_run_capacity=ns.external_run_capacity,
         prefer_pigz=not ns.no_pigz,
         gzip_level=ns.gzip_level,
+        template_header_keep_tags=ns.template_header_tag,
     )
     return 0
 

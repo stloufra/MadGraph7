@@ -3894,6 +3894,7 @@ RESTART = %(mint_mode)s
         collect_events.collect_events(
             output=evt_file,
             header_template=banner,
+            template_header_keep_tags=['MGVersion','MG5ProcCard','MGRunCard','slha','MGShowerCard'],
             input_files=evt_files,
             seed=self.get_randinit_seed(),
             subset=None,
