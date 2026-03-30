@@ -1138,7 +1138,7 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
         _locals_init.at(value.local_index) = global;
         if (context->global_requires_grad(name)) {
             _requires_grad_init.at(value.local_index) = true;
-            _grad_global_indices.push_back({name, value.local_index});
+            _grad_global_indices.push_back(value.local_index);
         }
     }
 
@@ -1295,8 +1295,7 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> GpuRuntime::run_with_grad(
     return {outputs, locals, eval_grad};
 }
 
-std::tuple<TensorVec, std::vector<std::tuple<std::string, Tensor>>>
-GpuRuntime::run_backward(
+std::pair<TensorVec, TensorVec> GpuRuntime::run_backward(
     const TensorVec& output_grads,
     const TensorVec& stored_locals,
     const std::vector<bool>& eval_grad
@@ -1340,9 +1339,10 @@ GpuRuntime::run_backward(
     for (auto event : _backward_wait_events) {
         check_error(gpuStreamWaitEvent(main_stream, events.at(event)));
     }
-    std::vector<std::tuple<std::string, Tensor>> global_grads;
-    for (auto& [name, index] : _grad_global_indices) {
-        global_grads.push_back({name, local_grads[index]});
+    TensorVec global_grads;
+    global_grads.reserve(_grad_global_indices.size());
+    for (std::size_t index : _grad_global_indices) {
+        global_grads.push_back(local_grads[index]);
     }
     check_error(gpuStreamSynchronize(main_stream));
     return {{local_grads.begin(), local_grads.begin() + _input_count}, global_grads};

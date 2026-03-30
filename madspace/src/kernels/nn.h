@@ -655,5 +655,24 @@ kernel_one_hot(IIn<T, 0> index, IIn<T, 0> option_count, FOut<T, 1> output) {
     }
 }
 
+template <typename T>
+KERNELSPEC void kernel_adam_step(
+    FIn<T, 0> parameter,
+    FOut<T, 0> gradient,
+    FOut<T, 0> exp_avg,
+    FOut<T, 0> exp_avg_sq,
+    double step_size,
+    double beta1,
+    double beta2,
+    double eps,
+    double bias_corr2_sqrt
+) {
+    auto gradient2 = gradient * gradient;
+    exp_avg = fma(beta1, exp_avg, fma(-beta1, gradient, gradient));
+    exp_avg_sq = fma(beta2, exp_avg_sq, fma(-beta2, gradient2, gradient2));
+    auto denom = sqrt(exp_avg_sq) / bias_corr2_sqrt + eps;
+    parameter = parameter - step_size * exp_avg / denom;
+}
+
 } // namespace kernels
 } // namespace madspace

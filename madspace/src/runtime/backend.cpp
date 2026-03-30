@@ -1,4 +1,4 @@
-#include "madspace/runtime/runtime_base.h"
+#include "madspace/runtime/backend.h"
 
 #include <cstdlib>
 #include <dlfcn.h>
@@ -9,12 +9,12 @@ using namespace madspace;
 
 namespace {
 
-struct LoadedRuntime {
+struct LoadedBackend {
     inline static std::string lib_path = "";
     inline static int vector_size = -1;
-    inline static std::unordered_map<DevicePtr, LoadedRuntime*> device_runtimes;
+    inline static std::unordered_map<DevicePtr, LoadedBackend*> device_backends;
 
-    LoadedRuntime(const std::string& file) {
+    LoadedBackend(const std::string& file) {
 #ifdef __APPLE__
         std::string so_ext = "dylib";
 #else
@@ -59,7 +59,7 @@ struct LoadedRuntime {
         }
 
         for (int i = 0; i < device_count(); ++i) {
-            device_runtimes[get_device(i)] = this;
+            device_backends[get_device(i)] = this;
         }
     }
 
@@ -71,8 +71,8 @@ struct LoadedRuntime {
     );
 };
 
-const LoadedRuntime& cpu_runtime() {
-    static LoadedRuntime runtime = [&] {
+const LoadedBackend& cpu_backend() {
+    static LoadedBackend backend = [&] {
         std::vector<int> supported_vector_sizes{1};
 #ifdef SIMD_AVAILABLE
 #ifdef __APPLE__
@@ -87,7 +87,7 @@ const LoadedRuntime& cpu_runtime() {
 #endif // __APPLE__
 #endif // SIMD_AVAILABLE
 
-        int vector_size = LoadedRuntime::vector_size;
+        int vector_size = LoadedBackend::vector_size;
         if (vector_size == -1) {
             if (char* env_var = std::getenv("SIMD_VECTOR_SIZE")) {
                 vector_size = std::atoi(env_var);
@@ -112,52 +112,52 @@ const LoadedRuntime& cpu_runtime() {
 
         switch (vector_size) {
         case 2:
-            return LoadedRuntime("libmadspace_cpu_neon");
+            return LoadedBackend("libmadspace_cpu_neon");
         case 4:
-            return LoadedRuntime("libmadspace_cpu_avx2");
+            return LoadedBackend("libmadspace_cpu_avx2");
         case 8:
-            return LoadedRuntime("libmadspace_cpu_avx512");
+            return LoadedBackend("libmadspace_cpu_avx512");
         default:
-            return LoadedRuntime("libmadspace_cpu");
+            return LoadedBackend("libmadspace_cpu");
         }
     }();
-    return runtime;
+    return backend;
 }
 
-const LoadedRuntime& cuda_runtime() {
-    static LoadedRuntime runtime("libmadspace_cuda");
-    return runtime;
+const LoadedBackend& cuda_backend() {
+    static LoadedBackend backend("libmadspace_cuda");
+    return backend;
 }
 
-const LoadedRuntime& hip_runtime() {
-    static LoadedRuntime runtime("libmadspace_hip");
-    return runtime;
+const LoadedBackend& hip_backend() {
+    static LoadedBackend backend("libmadspace_hip");
+    return backend;
 }
 
 } // namespace
 
 RuntimePtr
 madspace::build_runtime(const Function& function, ContextPtr context, bool concurrent) {
-    auto& loaded_runtime = LoadedRuntime::device_runtimes.at(context->device());
-    Runtime* runtime = loaded_runtime->build_runtime(function, context, concurrent);
-    runtime->shared_lib = loaded_runtime->shared_lib;
+    auto& loaded_backend = LoadedBackend::device_backends.at(context->device());
+    Runtime* runtime = loaded_backend->build_runtime(function, context, concurrent);
+    runtime->shared_lib = loaded_backend->shared_lib;
     return RuntimePtr(runtime);
 }
 
-DevicePtr madspace::cpu_device() { return cpu_runtime().get_device(0); }
+DevicePtr madspace::cpu_device() { return cpu_backend().get_device(0); }
 
 DevicePtr madspace::cuda_device(std::size_t index) {
-    return cuda_runtime().get_device(index);
+    return cuda_backend().get_device(index);
 }
 
 DevicePtr madspace::hip_device(std::size_t index) {
-    return hip_runtime().get_device(index);
+    return hip_backend().get_device(index);
 }
 
 void madspace::set_lib_path(const std::string& lib_path) {
-    LoadedRuntime::lib_path = lib_path;
+    LoadedBackend::lib_path = lib_path;
 }
 
 void madspace::set_simd_vector_size(int vector_size) {
-    LoadedRuntime::vector_size = vector_size;
+    LoadedBackend::vector_size = vector_size;
 }

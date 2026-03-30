@@ -436,7 +436,13 @@ Function FunctionBuilder::function() {
         }
     }
 
-    return Function(_inputs, func_outputs, _locals, _globals, filtered_instructions);
+    return Function(
+        _inputs,
+        func_outputs,
+        _locals,
+        {_globals.begin(), _globals.end()},
+        filtered_instructions
+    );
 }
 
 Value FunctionBuilder::input(int index) const {

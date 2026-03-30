@@ -28,7 +28,9 @@ public:
     const ValueVec& inputs() const { return _inputs; }
     const ValueVec& outputs() const { return _outputs; }
     const ValueVec& locals() const { return _locals; }
-    const std::unordered_map<std::string, Value>& globals() const { return _globals; }
+    const std::vector<std::pair<std::string, Value>>& globals() const {
+        return _globals;
+    }
     const std::vector<InstructionCall>& instructions() const { return _instructions; }
 
     void save(const std::string& file) const;
@@ -39,7 +41,7 @@ private:
         const ValueVec& inputs,
         const ValueVec& outputs,
         const ValueVec& locals,
-        const std::unordered_map<std::string, Value>& globals,
+        const std::vector<std::pair<std::string, Value>>& globals,
         const std::vector<InstructionCall>& instructions
     ) :
         _inputs(inputs),
@@ -51,7 +53,7 @@ private:
     ValueVec _inputs;
     ValueVec _outputs;
     ValueVec _locals;
-    std::unordered_map<std::string, Value> _globals;
+    std::vector<std::pair<std::string, Value>> _globals;
     std::vector<InstructionCall> _instructions;
 };
 

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "runtime/adam_optimizer.h"
+#include "runtime/backend.h"
 #include "runtime/context.h"
 #include "runtime/discrete_optimizer.h"
 #include "runtime/event_generator.h"

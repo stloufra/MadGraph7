@@ -5,7 +5,7 @@
 #include <vector>
 
 #include "madspace/madcode.h"
-#include "madspace/runtime/runtime_base.h"
+#include "madspace/runtime/backend.h"
 
 namespace py = pybind11;
 using namespace madspace;
@@ -29,9 +29,9 @@ Tensor dlpack_to_tensor(
 );
 
 struct FunctionRuntime {
-    FunctionRuntime(Function function) : function(function), context(nullptr) {}
+    FunctionRuntime(Function function) : _function(function), _context(nullptr) {}
     FunctionRuntime(Function function, ContextPtr context) :
-        function(function), context(context) {}
+        _function(function), _context(context) {}
     std::vector<Tensor> call(std::vector<py::object> args);
     std::tuple<
         std::vector<Tensor>,
@@ -50,10 +50,10 @@ struct FunctionRuntime {
         const std::vector<bool>& eval_grad
     );
 
-    Function function;
-    ContextPtr context;
-    std::unordered_map<DevicePtr, RuntimePtr> runtimes;
-    bool dlpack_version_cache = false;
+    Function _function;
+    ContextPtr _context;
+    std::unordered_map<DevicePtr, RuntimePtr> _runtimes;
+    bool _dlpack_version_cache = false;
 };
 
 } // namespace madspace_py

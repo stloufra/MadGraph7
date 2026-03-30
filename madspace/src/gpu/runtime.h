@@ -2,7 +2,7 @@
 
 #include "gpu_abstraction.h"
 #include "madspace/madcode/function.h"
-#include "madspace/runtime/runtime_base.h"
+#include "madspace/runtime/backend.h"
 #include "madspace/runtime/tensor.h"
 
 #include <memory>
@@ -33,7 +33,7 @@ public:
     std::tuple<TensorVec, TensorVec, std::vector<bool>> run_with_grad(
         const TensorVec& inputs, const std::vector<bool>& input_requires_grad
     ) const override;
-    std::tuple<TensorVec, std::vector<std::tuple<std::string, Tensor>>> run_backward(
+    std::pair<TensorVec, TensorVec> run_backward(
         const TensorVec& output_grads,
         const TensorVec& stored_locals,
         const std::vector<bool>& eval_grad
@@ -48,7 +48,7 @@ private:
     std::size_t _input_count;
     TensorVec _locals_init;
     std::vector<bool> _requires_grad_init;
-    std::vector<std::tuple<std::string, std::size_t>> _grad_global_indices;
+    SizeVec _grad_global_indices;
     ContextPtr _context;
     ThreadResource<std::vector<gpuStream_t>> _streams;
     ThreadResource<std::vector<gpuEvent_t>> _events;

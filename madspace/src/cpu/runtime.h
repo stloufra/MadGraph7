@@ -3,8 +3,8 @@
 #include <random>
 
 #include "madspace/madcode/function.h"
+#include "madspace/runtime/backend.h"
 #include "madspace/runtime/context.h"
-#include "madspace/runtime/runtime_base.h"
 #include "madspace/runtime/tensor.h"
 
 namespace madspace {
@@ -33,7 +33,7 @@ public:
     std::tuple<TensorVec, TensorVec, std::vector<bool>> run_with_grad(
         const TensorVec& inputs, const std::vector<bool>& input_requires_grad
     ) const override;
-    std::tuple<TensorVec, std::vector<std::tuple<std::string, Tensor>>> run_backward(
+    std::pair<TensorVec, TensorVec> run_backward(
         const TensorVec& output_grads,
         const TensorVec& stored_locals,
         const std::vector<bool>& eval_grad
@@ -52,14 +52,12 @@ private:
         const std::vector<bool>& input_requires_grad,
         bool with_grad
     ) const;
-    std::tuple<TensorVec, std::vector<std::tuple<std::string, Tensor>>>
-    run_backward_single(
+    std::pair<TensorVec, TensorVec> run_backward_single(
         const TensorVec& output_grads,
         const TensorVec& stored_locals,
         const std::vector<bool>& eval_grad
     ) const;
-    std::tuple<TensorVec, std::vector<std::tuple<std::string, Tensor>>>
-    run_backward_concurrent(
+    std::pair<TensorVec, TensorVec> run_backward_concurrent(
         const TensorVec& output_grads,
         const TensorVec& stored_locals,
         const std::vector<bool>& eval_grad
@@ -70,7 +68,7 @@ private:
     std::size_t _input_count;
     TensorVec _locals_init;
     std::vector<bool> _requires_grad_init;
-    std::vector<std::tuple<std::string, std::size_t>> _grad_global_indices;
+    SizeVec _grad_global_indices;
     ContextPtr _context;
     ThreadResource<std::mt19937> _rand_gens;
     bool _concurrent;

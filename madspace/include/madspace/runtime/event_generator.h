@@ -9,12 +9,12 @@
 
 #include "madspace/madcode.h"
 #include "madspace/phasespace.h"
+#include "madspace/runtime/backend.h"
 #include "madspace/runtime/channel_generator.h"
 #include "madspace/runtime/discrete_optimizer.h"
 #include "madspace/runtime/format.h"
 #include "madspace/runtime/generator_data.h"
 #include "madspace/runtime/io.h"
-#include "madspace/runtime/runtime_base.h"
 #include "madspace/runtime/vegas_optimizer.h"
 
 namespace madspace {

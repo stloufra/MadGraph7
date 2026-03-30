@@ -162,6 +162,7 @@ private:
 };
 
 class Tensor;
+using TensorVec = std::vector<Tensor>;
 
 enum class DeviceType { cpu, cuda, hip };
 
@@ -179,10 +180,21 @@ public:
     virtual void sync_barrier() const {}
     virtual DeviceType device_type() const = 0;
     virtual void activate() const = 0;
+    virtual void adam_step(
+        const TensorVec& parameters,
+        const TensorVec& gradients,
+        const TensorVec& exp_avgs,
+        const TensorVec& exp_avg_sqs,
+        double step_size,
+        double beta1,
+        double beta2,
+        double eps,
+        double bias_corr2_sqrt
+    ) const = 0;
 };
 
 using DevicePtr = const Device*;
-// defined in runtime_base.cpp, but need to declare them here
+// defined in backend.cpp, but need to declare them here
 DevicePtr cpu_device();
 DevicePtr cuda_device(std::size_t index);
 DevicePtr hip_device(std::size_t index);
@@ -598,7 +610,5 @@ private:
 
     TensorImpl* impl;
 };
-
-using TensorVec = std::vector<Tensor>;
 
 } // namespace madspace

@@ -28,6 +28,17 @@ public:
     DevicePtr device_ptr() const override { return &instance(); }
     DeviceType device_type() const override { return DeviceType::cpu; }
     void activate() const override {}
+    void adam_step(
+        const TensorVec& parameters,
+        const TensorVec& gradients,
+        const TensorVec& exp_avgs,
+        const TensorVec& exp_avg_sqs,
+        double step_size,
+        double beta1,
+        double beta2,
+        double eps,
+        double bias_corr2_sqrt
+    ) const override;
 
     template <typename F>
     void foreach (std::size_t batch_size, F func, bool single_job = false) const {

@@ -68,6 +68,18 @@ void CpuDevice::tensor_add(const Tensor& source, Tensor& target) const {
     tensor_add_impl(source, target, *this);
 }
 
+void CpuDevice::adam_step(
+    const TensorVec& parameters,
+    const TensorVec& gradients,
+    const TensorVec& exp_avgs,
+    const TensorVec& exp_avg_sqs,
+    double step_size,
+    double beta1,
+    double beta2,
+    double eps,
+    double bias_corr2_sqrt
+) const {}
+
 void AsyncCpuDevice::tensor_copy(const Tensor& source, Tensor& target) const {
     tensor_copy_impl(source, target, *this);
 }

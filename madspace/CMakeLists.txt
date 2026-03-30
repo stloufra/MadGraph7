@@ -108,6 +108,7 @@ find_package(BLAS REQUIRED)
 add_library(
     madspace
     SHARED
+    src/runtime/adam_optimizer.cpp
     src/runtime/format.cpp
     src/runtime/tensor.cpp
     src/runtime/context.cpp
@@ -118,7 +119,7 @@ add_library(
     src/runtime/io.cpp
     src/runtime/vegas_optimizer.cpp
     src/runtime/discrete_optimizer.cpp
-    src/runtime/runtime_base.cpp
+    src/runtime/backend.cpp
     src/runtime/lhe_output.cpp
     src/madcode/type.cpp
     src/madcode/function.cpp
@@ -153,6 +154,7 @@ add_library(
     src/phasespace/scale.cpp
     include/madspace/util.h
     include/madspace/runtime.h
+    include/madspace/runtime/adam_optimizer.h
     include/madspace/runtime/format.h
     include/madspace/runtime/tensor.h
     include/madspace/runtime/context.h
@@ -163,7 +165,7 @@ add_library(
     include/madspace/runtime/io.h
     include/madspace/runtime/vegas_optimizer.h
     include/madspace/runtime/discrete_optimizer.h
-    include/madspace/runtime/runtime_base.h
+    include/madspace/runtime/backend.h
     include/madspace/runtime/lhe_output.h
     include/madspace/runtime/logger.h
     include/madspace/madcode.h
