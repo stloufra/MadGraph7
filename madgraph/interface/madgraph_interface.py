@@ -1674,7 +1674,7 @@ This will take effect only in a NEW terminal
             raise self.InvalidCmd('No default path for this file')
 
 
-    def check_output(self, args, default='madevent'):
+    def check_output(self, args, default='mg7'):
         """ check the validity of the line"""
 
         if args and args[0] in self._export_formats:
