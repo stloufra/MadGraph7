@@ -11,6 +11,8 @@
         This has no impact if sde_strategy=1 but avoids issue with sde_strategy=2.
         We still recomend sde_strategy=1 when using $ syntax since you can have spurious writting of resonances
         in the lhef with sde_stragegy=2.
+    RF: Refactored the code that collects all the events from the various channels
+        into a single event file at the end of an MC@NLO run.
 
 
 3.7.0 (05/01/26):
