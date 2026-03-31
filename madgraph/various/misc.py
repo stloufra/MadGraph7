@@ -2006,8 +2006,10 @@ class EasterEgg(object):
                     return
             elif msgtype=='loading' and date in self.special_banner:
                 self.change_banner(date)
+                self.post_banner(date)
                 return
             else:
+                self.post_banner(date)
                 return
             if MADEVENT:
                 return
@@ -2055,6 +2057,36 @@ class EasterEgg(object):
         else:
             madgraph_interface.CmdExtended.intro_banner= self.default_banner_1 + self.special_banner[date] + self.default_banner_2
         
+    def post_banner(self, date):
+
+        if MADEVENT:
+            return ""
+        from madgraph import MG5DIR
+        import madgraph.interface.madgraph_interface as madgraph_interface
+        to_add = []
+        ff = open(pjoin(MG5DIR,'input','authors.md'), 'r')
+        for line in ff:
+            author, fdate = line.split()
+            print(author, fdate)
+            year, month, day = [int(i) for i in fdate.split('-')]
+            if (day, month) == date:
+                to_add.append((author, year))
+        ff.close()
+
+        print(date, to_add)
+        if not to_add:
+            return ""
+        
+        text= """
+*                CONTIBUTOR OF THE DAY:                    *
+"""
+        for author, year in to_add:
+            one = "*  - %s (first contribution in %s)" % (author, year) 
+            text += '%s%s*\n' % (one, ' '* (59-len(one)))
+        text += "************************************************************"
+
+        madgraph_interface.CmdExtended.intro_banner += text
+
 
     def call_apple(self, msg):
         
