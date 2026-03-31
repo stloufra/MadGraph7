@@ -1,37 +1,22 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Collect events from multiple LHE files, randomize them, and write a new LHE file.
+Collect events from multiple LHE files, shuffle them, and write a new LHE file.
 
-Behavior:
-  - Events are copied verbatim. No weight manipulation is performed.
-  - The output header is built from a separate template file.
-  - The <initrwgt> and <scalesfunctionalform> blocks are extracted from the
-    first input file only. They are taken from the region between the
-    <LesHouchesEvents ...> opening tag and the <header> block, and then placed
-    inside the final output <header> block.
-  - The <init> block is taken directly from the first input event file.
+Key behavior
+------------
+- Events are copied verbatim.
+- The output header is built from a separate template file.
+- The <initrwgt> and <scalesfunctionalform> blocks are extracted from the
+  first input file and inserted into the final <header> block.
+- The <init> block is taken from the first input file.
+- Template lines containing only <![CDATA[ or ]]> are removed.
+- The template iseed line is rewritten from the requested seed.
+- Output can be written uncompressed or as .gz.
+- mode="auto" chooses between an in-memory shuffle path and a scalable
+  disk-backed shuffle path.
 
-Notes on the header template:
-  - The template may be a full LHE file, a <header>...</header> block, or a raw
-    header fragment.
-  - Any surrounding <LesHouchesEvents> wrapper and any <init> block in the
-    template are stripped before insertion into the output file.
-  - Lines containing only <![CDATA[ or only ]]> are removed.
-  - The line containing the iseed setting is rewritten to match the requested
-    seed. If no seed is provided, 0 is written.
-  - Template-header XML blocks can be filtered to an explicit allowlist while
-    keeping non-XML text outside those blocks.
-
-This module can be used in two ways:
-  1. Imported and called via collect_events(...)
-  2. Run as a CLI script
-
-Strategy selection:
-  - mode="memory": build the full in-memory event index and use random.shuffle.
-  - mode="external": use a scalable disk-backed shuffle path.
-  - mode="auto" (default): choose automatically based on the number of files
-    and the total size of the input files.
+This module can be imported and called via collect_events(...), or run as a CLI.
 """
 
 from __future__ import annotations
@@ -47,13 +32,11 @@ import struct
 import subprocess
 import sys
 import tempfile
-import xml.etree.ElementTree as ET
 from contextlib import contextmanager
 from dataclasses import dataclass
-from multiprocessing import Process
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Iterable, Iterator, List, Optional, Sequence, Tuple, Union
-
 
 PATT_LHE_OPEN = re.compile(rb"<\s*LesHouchesEvents\b[^>]*>", re.I)
 PATT_LHE_CLOSE = re.compile(rb"</\s*LesHouchesEvents\s*>", re.I)
@@ -76,13 +59,11 @@ EXTERNAL_RUN_RECORD_CAPACITY = 250_000
 
 PathLike = Union[str, Path]
 
-
 @dataclass(frozen=True)
 class EventRef:
     file_idx: int
     start: int
     end: int
-
 
 @dataclass
 class IndexedLHE:
@@ -92,7 +73,6 @@ class IndexedLHE:
     init_block: bytes
     events: List[EventRef]
 
-
 @dataclass
 class LHEPreamble:
     path: Path
@@ -100,14 +80,12 @@ class LHEPreamble:
     special_header_blocks: bytes
     init_block: bytes
 
-
 # ============================
 # Generic helpers
 # ============================
 
 def _wants_gzip_output(output_path: Path) -> bool:
     return output_path.suffix.lower() == ".gz"
-
 
 @contextmanager
 def _open_output_stream(
@@ -164,24 +142,14 @@ def _open_output_stream(
         with gzip.GzipFile(fileobj=raw_out, mode="wb", compresslevel=gzip_level, mtime=0) as fout:
             yield fout
 
-
 def _ensure_trailing_newline(blob: bytes) -> bytes:
     return blob if blob.endswith(b"\n") else blob + b"\n"
-
-
-def _indent_bytes(blob: bytes, prefix: bytes = b"  ") -> bytes:
-    lines = blob.splitlines(keepends=True)
-    if not lines:
-        return b""
-    return b"".join(prefix + line if line.strip() else line for line in lines)
-
 
 def _extract_open_tag(blob: bytes) -> Optional[bytes]:
     m = PATT_LHE_OPEN.search(blob)
     if not m:
         return None
     return _ensure_trailing_newline(m.group(0))
-
 
 def _extract_header_inner(blob: bytes) -> bytes:
     m = PATT_HEADER_FULL.search(blob)
@@ -190,7 +158,6 @@ def _extract_header_inner(blob: bytes) -> bytes:
     inner = m.group(1).strip()
     return _ensure_trailing_newline(inner) if inner else b""
 
-
 def _extract_tag_blocks(blob: bytes, tag: str) -> List[bytes]:
     tag_re = re.escape(tag.encode("utf-8"))
     full_re = re.compile(rb"<\s*" + tag_re + rb"\b[^>]*>.*?</\s*" + tag_re + rb"\s*>", re.I | re.S)
@@ -198,7 +165,6 @@ def _extract_tag_blocks(blob: bytes, tag: str) -> List[bytes]:
     out = full_re.findall(blob)
     out.extend(self_re.findall(blob))
     return [_ensure_trailing_newline(x.strip()) for x in out if x.strip()]
-
 
 def _extract_special_header_blocks(blob: bytes) -> bytes:
     """
@@ -219,7 +185,6 @@ def _extract_special_header_blocks(blob: bytes) -> bytes:
         pieces.extend(_extract_tag_blocks(region, tag))
     return b"".join(pieces)
 
-
 def _rewrite_iseed_line(blob: bytes, seed: Optional[int]) -> bytes:
     out_seed = 0 if seed is None else seed
 
@@ -228,13 +193,6 @@ def _rewrite_iseed_line(blob: bytes, seed: Optional[int]) -> bytes:
         return indent + f"{out_seed}    = iseed       ! rnd seed (0=assigned automatically=default))\n".encode("utf-8")
 
     return PATT_ISEED_LINE.sub(repl, blob)
-
-
-def _xml_local_name(tag: object) -> str:
-    if not isinstance(tag, str):
-        return ""
-    return tag.rsplit("}", 1)[-1] if tag.startswith("{") else tag
-
 
 def _filter_template_header_xml_blocks(blob: bytes, keep_tags: Optional[Sequence[str]]) -> bytes:
     """
@@ -277,7 +235,6 @@ def _filter_template_header_xml_blocks(blob: bytes, keep_tags: Optional[Sequence
 
     return b"".join(out)
 
-
 def _sanitize_header_template(blob: bytes, seed: Optional[int], template_header_keep_tags: Optional[Sequence[str]] = None) -> Tuple[Optional[bytes], bytes]:
     """
     Accepts either a full LHE file, a <header>...</header> block, or a raw header
@@ -307,7 +264,6 @@ def _sanitize_header_template(blob: bytes, seed: Optional[int], template_header_
     header_inner = _rewrite_iseed_line(header_inner, seed)
     header_inner = header_inner.strip()
     return open_tag, (_ensure_trailing_newline(header_inner) if header_inner else b"")
-
 
 # ============================
 # LHE inspection / indexing
@@ -340,7 +296,6 @@ def read_lhe_preamble(path: Path) -> LHEPreamble:
         init_block=init_block,
     )
 
-
 def iter_lhe_events(path: Path, file_idx: int) -> Iterator[EventRef]:
     with open(path, "rb") as f:
         mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
@@ -368,7 +323,6 @@ def iter_lhe_events(path: Path, file_idx: int) -> Iterator[EventRef]:
         finally:
             mm.close()
 
-
 def index_lhe_file(path: Path, file_idx: int) -> IndexedLHE:
     preamble = read_lhe_preamble(path)
     events = list(iter_lhe_events(path, file_idx))
@@ -379,7 +333,6 @@ def index_lhe_file(path: Path, file_idx: int) -> IndexedLHE:
         init_block=preamble.init_block,
         events=events,
     )
-
 
 # ============================
 # Header construction
@@ -414,7 +367,6 @@ def build_output_header(
 
     return open_tag, header_block
 
-
 # ============================
 # In-memory path
 # ============================
@@ -434,7 +386,6 @@ def _split_chunks(arr: List[EventRef], k: int) -> List[List[EventRef]]:
         start = end
     return chunks
 
-
 def _copy_event_refs(input_paths: Sequence[str], refs: Sequence[EventRef], fout) -> None:
     handles = {}
     mmaps = {}
@@ -451,11 +402,9 @@ def _copy_event_refs(input_paths: Sequence[str], refs: Sequence[EventRef], fout)
         for fh in handles.values():
             fh.close()
 
-
 def _write_part(input_paths: Sequence[str], refs: Sequence[EventRef], part_path: str) -> None:
     with open(part_path, "wb") as fout:
         _copy_event_refs(input_paths, refs, fout)
-
 
 def write_randomized_events_memory(
     input_paths: Sequence[Path],
@@ -491,19 +440,15 @@ def write_randomized_events_memory(
     chunks = _split_chunks(shuffled, workers)
     part_paths = [output_path.with_suffix(output_path.suffix + f".part{i}") for i in range(len(chunks))]
 
-    procs: List[Process] = []
-    for chunk, part in zip(chunks, part_paths):
-        p = Process(target=_write_part, args=(str_paths, chunk, str(part)))
-        p.daemon = False
-        p.start()
-        procs.append(p)
-
-    for p in procs:
-        p.join()
-        if p.exitcode != 0:
-            raise RuntimeError("A worker process failed while writing event chunks.")
+    if verbose:
+        print(f"      writing event chunks with {len(chunks)} thread worker(s)")
 
     try:
+        with ThreadPoolExecutor(max_workers=len(chunks)) as executor:
+            futures = [executor.submit(_write_part, str_paths, chunk, str(part)) for chunk, part in zip(chunks, part_paths)]
+            for future in futures:
+                future.result()
+
         with _open_output_stream(output_path, prefer_pigz=prefer_pigz, gzip_level=gzip_level, verbose=verbose) as fout:
             fout.write(open_tag)
             fout.write(header_block)
@@ -523,7 +468,6 @@ def write_randomized_events_memory(
             except Exception:
                 pass
 
-
 # ============================
 # Disk-backed scalable path
 # ============================
@@ -531,28 +475,14 @@ def write_randomized_events_memory(
 def _pack_record(key: int, file_idx: int, start: int, end: int) -> bytes:
     return INDEX_RECORD.pack(key, file_idx, start, end)
 
-
 def _unpack_record(blob: bytes) -> Tuple[int, int, int, int]:
     return INDEX_RECORD.unpack(blob)
-
 
 def _flush_sorted_run(records: List[Tuple[int, int, int, int]], run_path: Path) -> None:
     records.sort()
     with open(run_path, "wb") as fout:
         for rec in records:
             fout.write(_pack_record(*rec))
-
-
-def _iter_run_records(run_path: Path) -> Iterator[Tuple[int, int, int, int]]:
-    with open(run_path, "rb") as fin:
-        while True:
-            blob = fin.read(INDEX_RECORD.size)
-            if not blob:
-                break
-            if len(blob) != INDEX_RECORD.size:
-                raise RuntimeError(f"Corrupt temporary shuffle index: {run_path}")
-            yield _unpack_record(blob)
-
 
 def _iter_merged_run_records(run_paths: Sequence[Path]) -> Iterator[Tuple[int, int, int, int]]:
     files = [open(path, "rb") for path in run_paths]
@@ -574,7 +504,6 @@ def _iter_merged_run_records(run_paths: Sequence[Path]) -> Iterator[Tuple[int, i
     finally:
         for fin in files:
             fin.close()
-
 
 def _copy_record_iter(
     input_paths: Sequence[str],
@@ -601,7 +530,6 @@ def _copy_record_iter(
         for fh in handles.values():
             fh.close()
     return written
-
 
 def _build_external_shuffle_runs(
     input_paths: Sequence[Path],
@@ -668,7 +596,6 @@ def _build_external_shuffle_runs(
 
     return run_paths, total_events
 
-
 def write_randomized_events_external(
     input_paths: Sequence[Path],
     output_path: Path,
@@ -708,7 +635,6 @@ def write_randomized_events_external(
 
     return total_events
 
-
 # ============================
 # Strategy selection / public API
 # ============================
@@ -726,7 +652,6 @@ def _choose_mode(mode: str, input_paths: Sequence[Path]) -> str:
     if total_bytes > AUTO_MAX_INPUT_BYTES_FOR_MEMORY:
         return "external"
     return "memory"
-
 
 def collect_events(
     output: PathLike,
@@ -759,7 +684,7 @@ def collect_events(
     subset:
         If given, keep only this many events after shuffling.
     workers:
-        Number of parallel worker processes for event copying. Must be >= 1.
+        Number of parallel worker threads for event copying. Must be >= 1.
         Used only in memory mode.
     verbose:
         If True, print progress messages.
@@ -880,7 +805,6 @@ def collect_events(
 
     return output_path
 
-
 # ============================
 # CLI
 # ============================
@@ -893,7 +817,7 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     ap.add_argument("--header-template", required=True, help="Separate file used to build the output header.")
     ap.add_argument("--seed", type=int, default=None, help="Shuffle seed.")
     ap.add_argument("--subset", type=int, default=None, help="Keep only this many events after shuffling.")
-    ap.add_argument("--workers", type=int, default=1, help="Parallel writer processes (>=1). Used only in memory mode.")
+    ap.add_argument("--workers", type=int, default=1, help="Parallel writer threads (>=1). Used only in memory mode.")
     ap.add_argument("--mode", choices=["auto", "memory", "external"], default=DEFAULT_MODE, help="Shuffle strategy.")
     ap.add_argument(
         "--external-run-capacity",
@@ -925,7 +849,6 @@ def parse_args(argv: Optional[Iterable[str]] = None) -> argparse.Namespace:
     ap.add_argument("inputs", nargs="+", help="Input LHE file(s).")
     return ap.parse_args(argv)
 
-
 def main(argv: Optional[Iterable[str]] = None) -> int:
     ns = parse_args(argv)
     collect_events(
@@ -943,7 +866,6 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
         template_header_keep_tags=ns.template_header_tag,
     )
     return 0
-
 
 if __name__ == "__main__":
     try:
