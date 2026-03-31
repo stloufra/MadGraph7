@@ -408,7 +408,7 @@ def build_output_header(
 
     if header_parts:
         header_inner = b"".join(header_parts)
-        header_block = b"<header>\n" + _indent_bytes(header_inner, prefix=b"  ") + b"</header>\n"
+        header_block = b"<header>\n" + header_inner + b"</header>\n"
     else:
         header_block = b"<header/>\n"
 
