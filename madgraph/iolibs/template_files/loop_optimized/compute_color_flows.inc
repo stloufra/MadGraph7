@@ -15,24 +15,6 @@ C Set of subroutines to project the Feynman diagrama amplitudes AMPL onto the co
         CALL %(proc_prefix)sCOMPUTE_AMPL2(HEL_MULT)
         CALL %(proc_prefix)sCOMPUTE_JAMP2(HEL_MULT)  
 ## }
-## if(LoopInduced and not MadEventOutput) {
-      INTEGER    NSQUAREDSO, NLOOPAMPSO
-      PARAMETER (NSQUAREDSO=%(nSquaredSO)d, NLOOPAMPSO=%(nAmpSO)d)
-      INTEGER NLOOPFLOWS, NEXTERNAL
-      PARAMETER (NLOOPFLOWS=%(nLoopFlows)d)   
-      PARAMETER (NEXTERNAL=%(nexternal)i)
-      INTEGER NCOMB
-      PARAMETER (NCOMB=%(ncomb)d)
-      DOUBLE COMPLEX JAMPL_all(3, NLOOPFLOWS,NLOOPAMPSO,NCOMB)
-
-C
-C    Common for density
-C
-    COMMON/%(proc_prefix)sDENSITY_MATRIX/JAMPL_all
-       COMPLEX*16 JAMPL(3,NLOOPFLOWS,NLOOPAMPSO)
-       COMMON/ML5_0_JAMPL/JAMPL
-
-## }        
         CONTINUE
       END SUBROUTINE
       
@@ -213,6 +195,7 @@ C Initialize the BornColorProjector
 
 ENDIF
 
+c Here we calculate JAMPB
 ## if(not LoopInduced){
 C Start by projecting the Born amplitudes
 DO I=1,NBORNFLOWS
@@ -715,6 +698,9 @@ C
 ## if(LoopInduced) {
       INTEGER LOWERBOUND
 ## }
+## if(LoopInduced and MadEventOutput){
+      integer config_i, config_j
+## }
       INTEGER ORDERS_A(NSO), ORDERS_B(NSO)
       %(complex_dp_format)s COLOR_COEF
       %(real_dp_format)s TEMP(3)
@@ -737,14 +723,13 @@ C
       common/%(proc_prefix)sSOCHOICE/SQSO_TARGET
 
 
-## if(LoopInduced){
       %(complex_dp_format)s JAMPL1(3,NLOOPFLOWS,NLOOPAMPSO)
       %(complex_dp_format)s JAMPL2(3,NLOOPFLOWS,NLOOPAMPSO)
-## }
+
 ## if(not LoopInduced){
       %(complex_dp_format)s JAMPB1(NBORNFLOWS,NBORNAMPSO)
       %(complex_dp_format)s JAMPB2(NBORNFLOWS,NBORNAMPSO)
-C      The common block is broken because there are now 2 JAMP
+C      The common block is broken because there are now 2 JAMP, see how to fix it, Valentin D.
 C      common/%(proc_prefix)sJAMPB/JAMPB
 ## }
 ## if(LoopInduced and MadEventOutput){
@@ -775,6 +760,14 @@ C This is of course not F77 standard but widely supported by now.
       COMMON/%(proc_prefix)sFLOW_COLOR_MATRIX/LoopColorFlowMatrix, BornColorFlowMatrix, CMInitialized
 ## } else {
       COMMON/%(proc_prefix)sFLOW_COLOR_MATRIX/LoopColorFlowMatrix, CMInitialized
+## }
+
+C ----------
+C BEGIN CODE
+C ----------
+## if(LoopInduced and MadEventOutput){
+C Always reinitialize AMP2_ALL because it is not a cumulative quantity
+CALL %(proc_prefix)sREINITIALIZE_AMP2_ALL()
 ## }
 
 C Initialization
@@ -901,11 +894,67 @@ C           Notice here that the squared order constraints will apply to the det
     ENDDO
   ENDDO
 ENDDO
-
       END SUBROUTINE
 
 
+## if(UseDensity){
+
+C This subroutine resets to 0 the common arrays JAMPL_ALL for the density matrix
+SUBROUTINE %(proc_prefix)sREINITIALIZE_JAMP_ALL()
+implicit none
+C  
+C CONSTANTS 
+C 
+      %(complex_dp_format)s CMPLXZERO
+      PARAMETER (CMPLXZERO=(0.0d0,0.0d0))
+      %(real_dp_format)s ZERO
+      PARAMETER (ZERO=0.0d0)
+      INTEGER    NLOOPAMPSO
+      PARAMETER (NLOOPAMPSO=%(nAmpSO)d)
+      INTEGER NLOOPFLOWS
+      PARAMETER (NLOOPFLOWS=%(nLoopFlows)d)
+      INTEGER NCOMB
+      PARAMETER (NCOMB=%(ncomb)d)
+## if(LoopInduced and MadEventOutput){
+      INTEGER NCONFIGS
+      PARAMETER (NCONFIGS=%(nmultichannel_configs)i)
+## }
+## if(not LoopInduced){
+      INTEGER NBORNFLOWS
+      PARAMETER (NBORNFLOWS=%(nBornFlows)d)
+C     We use the same list of amplitude split order for Born and Loop, so that NBORNAMPSO is always equal to NLOOPAMPSO
+      INTEGER    NBORNAMPSO
+      PARAMETER (NBORNAMPSO=NLOOPAMPSO)
+## }
+C
+C LOCAL VARIABLES
+C
+      INTEGER I,J,K,L
+C
+C GLOBAL VARIABLES
+C
+      DOUBLE COMPLEX JAMPL_ALL(3, NLOOPFLOWS,NLOOPAMPSO, NCOMB)
+      COMMON/%(proc_prefix)sDENSITY_MATRIX/JAMPL_ALL
+
+C ----------
+C BEGIN CODE
+C ----------
+
+DO I=1,NLOOPAMPSO
+  DO J=1,NLOOPFLOWS
+    DO K=1,3
+      DO L=1,NCOMB
+        JAMPL_ALL(K,J,I,L)=CMPLXZERO
+      ENDDO
+    ENDDO
+  ENDDO
+ENDDO
+write(*,*) "JAMPL_ALL reinitialised"
+END SUBROUTINE
+## }
+
 C This subroutine resets to 0 the common arrays JAMPL, JAMPB and possibly JAMPL_FOR_AMP2 if used
+c The common array JAMPL_ALL is reseted to 0 in the previous subroutine
 SUBROUTINE %(proc_prefix)sREINITIALIZE_JAMPS()
 implicit none
 C  
@@ -1069,10 +1118,12 @@ CONTINUE
 END SUBROUTINE
 
 
-
+## if(UseDensity) {
       SUBROUTINE %(proc_prefix)sGET_ALL_INTER(JAMPL_ALL, NHEL, POS, N_CHANGING,
-     $  ALLOW_HEL, N_COMB, INTER)
+     $  ALLOW_HEL, N_COMB_RHO, INTER)
       IMPLICIT NONE
+
+      INCLUDE 'MadLoopParams.inc'
 C     
 C     CONSTANT
 C     
@@ -1090,10 +1141,10 @@ C
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=%(nexternal)i)
       INTEGER NHEL(NEXTERNAL)
-      INTEGER N_CHANGING, N_COMB
+      INTEGER N_CHANGING, N_COMB_RHO
       INTEGER POS(*)
-      INTEGER ALLOW_HEL(N_CHANGING * N_COMB)
-      DOUBLE COMPLEX INTER(N_COMB * (N_COMB + 1)/2, 0:NSQUAREDSO)
+      INTEGER ALLOW_HEL(N_CHANGING * N_COMB_RHO)
+      DOUBLE COMPLEX INTER(N_COMB_RHO * (N_COMB_RHO + 1)/2, 0:NSQUAREDSO)
 
 C     
 C     Intermediate array
@@ -1104,15 +1155,66 @@ C
 C     
 C     Common for density
 C     
-      INTEGER HELC(NEXTERNAL,NCOMB), ORDER_HEL(N_COMB)
+      INTEGER HELC(NEXTERNAL,NCOMB), ORDER_HEL(N_COMB_RHO)
       COMMON/%(proc_prefix)sHELCONFIGS/HELC
+
+C
+C     Common for GOODHEL
+C
+c     the common for goodhel is not good because there is some treatment afterwards in loop_matrix
+      INTEGER GOODHEL(NCOMB)
+      common/%(proc_prefix)sFilters/GOODHEL
+C     The parameter below sets the convention for the helicity filter
+C     For a given helicity, the attached integer 'i' means
+C     'i' in ]-inf;-HELOFFSET[ -> Helicity is equal, up to a sign, to helicity number abs(i+HELOFFSET)
+C     'i' == -HELOFFSET        -> Helicity is analytically zero
+C     'i' in ]-HELOFFSET,inf[  -> Helicity is contributing with weight 'i'. If it is zero, it is skipped.
+C     Typically, the hel_offset is 10000
+      INTEGER HELOFFSET
+	DATA HELOFFSET/%(hel_offset)d/
+      CHARACTER*512 Proc_Prefix
+      PARAMETER ( Proc_Prefix='%(proc_prefix)s')
 C     
 C     local
 C     
-      INTEGER I,J, N, SOL, H, K
+      INTEGER I,J, N, SOL, H, K, NUMBERCALL
+      CHARACTER*512 HelFilterFN, MLPATH, TMP
+      COMMON/MLPATH/MLPATH
       
-C This block of code determines which helicities are required in each order
-      do I = 1, N_COMB
+
+C Here we setup GOODHEL. If GOODHEL(H) = -10000, its JAMP is 0 so we can skip all its computations
+      CALL JOINPATH(MLPATH,PROC_PREFIX,TMP)
+      CALL JOINPATH(TMP,'HelFilter.dat',HELFILTERFN)
+
+      OPEN(1, FILE=HelFilterFN, err=102, status='OLD',action='READ')
+      DO I=1,NCOMB
+      READ(1,*,END=103) GOODHEL(I)
+      ENDDO
+      GOTO 103
+      102  CONTINUE
+      DO J=1,NCOMB
+            GOODHEL(J)=1
+      ENDDO
+      103  CONTINUE
+      CLOSE(1)
+
+      IF (HelicityFilterLevel.eq.1) THEN
+        DO J=1,NCOMB
+          IF ((GOODHEL(J).GT.1).OR.(GOODHEL(J).LT.-HELOFFSET)) THEN
+            GOODHEL(J)=1
+          ENDIF
+        ENDDO
+      ELSE IF (HelicityFilterLevel.eq.0) THEN
+        DO J=1,NCOMB
+          GOODHEL(J)=1
+        ENDDO
+      ELSE
+        WRITE(*,*) '### ERROR The parameter HelicityFilterLevel only accepts values of 0 and 1. The value was set to', HelicityFilterLevel
+C       We cant stop the code here because in the initialisation phase, HelicityFilterLevel = 2.
+      ENDIF
+
+c     Here we determine which helicity state we want to compute and which position it has in the JAMPL_ALL structure
+      do I = 1, N_COMB_RHO
       do N = 1, N_CHANGING
       NHEL(POS(N)) = ALLOW_HEL((I-1)*N_CHANGING+N)
       enddo
@@ -1120,24 +1222,61 @@ C This block of code determines which helicities are required in each order
       ORDER_HEL(I) = H
       enddo
 
-      SOL = 0
-      DO I = 1, N_COMB
-        DO J= I, N_COMB
-         SOL = SOL +1
-         call %(proc_prefix)sCOMPUTE_INTER_JAMP(INTER_TMP,HEL_MULT,JAMPL_ALL,ORDER_HEL(I), ORDER_HEL(J))
-         DO K=0, NSQUAREDSO
-           INTER(SOL,K) = INTER_TMP(1,K) + INTER_TMP(2,K) + INTER_TMP(3,K) !we sum the 3 contributions even though contribution 2 and 3 should be zero
-         ENDDO
-        ENDDO
+
+
+c Mettre ici GOODHEL(I,J) pour skipper certains calculs
+c JAMPL est deja calcule avec le parametre a 1, il faut juste que je propage GOODHEL à cette fonction et que j'utilise une condition du type GOODHEL(H).GT.-HELOFFSET.AND.GOODHEL(H).NE.0, sinon je met directement 0
+c Je peux peut être faire une seule boucle au lieu de 2 ?
+
+c      SOL = 0
+c      DO I = 1, N_COMB_RHO
+c        DO J= I, N_COMB_RHO
+c         SOL = SOL +1
+c         call %(proc_prefix)sCOMPUTE_INTER_JAMP(INTER_TMP,HEL_MULT,JAMPL_ALL,ORDER_HEL(I), ORDER_HEL(J))
+c         DO K=0, NSQUAREDSO
+c           INTER(SOL,K) = INTER_TMP(1,K) + INTER_TMP(2,K) + INTER_TMP(3,K) !we sum the 3 contributions even though contribution 2 and 3 should be zero
+c         ENDDO
+c        ENDDO
+c      ENDDO
+
+
+
+      NUMBERCALL = 0
+      SOL = 0 
+      DO I = 1, N_COMB_RHO
+        IF (GOODHEL(ORDER_HEL(I)).lt.0) THEN
+          DO J = I, N_COMB_RHO
+            SOL = SOL + 1
+            DO K=0, NSQUAREDSO
+              INTER(SOL,K) = 0D0
+            ENDDO
+          ENDDO
+        ELSE
+          DO J= I, N_COMB_RHO
+            SOL = SOL + 1
+            IF (GOODHEL(ORDER_HEL(J)).lt.0) THEN
+              DO K=0, NSQUAREDSO
+                INTER(SOL,K) = 0D0
+              ENDDO
+            ELSE
+              call %(proc_prefix)sCOMPUTE_INTER_JAMP(INTER_TMP,HEL_MULT,JAMPL_ALL,ORDER_HEL(I), ORDER_HEL(J))
+              NUMBERCALL = NUMBERCALL + 1
+              DO K=0, NSQUAREDSO
+                INTER(SOL,K) = INTER_TMP(1,K) + INTER_TMP(2,K) + INTER_TMP(3,K) !we sum the 3 contributions even though contribution 2 and 3 should be zero
+              ENDDO
+            ENDIF
+          ENDDO
+        ENDIF
       ENDDO
 
+c      WRITE(*,*) "NUMBERCALL", NUMBERCALL
       RETURN
       END SUBROUTINE
 
 
 
 
-      SUBROUTINE %(proc_prefix)sGET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL, N_COMB, ALPHAS, MU_R2, INTER)
+      SUBROUTINE %(proc_prefix)sGET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL, N_COMB_RHO, ALPHAS, MU_R2, INTER)
       IMPLICIT NONE
 C     
 C     CONSTANT
@@ -1160,12 +1299,12 @@ C
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=%(nexternal)i)
       INTEGER THISNHEL(NEXTERNAL)
-      INTEGER N_CHANGING, N_COMB
+      INTEGER N_CHANGING, N_COMB_RHO
       INTEGER POS(*)
-      INTEGER ALLOW_HEL(N_CHANGING * N_COMB)
-      DOUBLE COMPLEX INTER(N_COMB * (N_COMB + 1)/2, 0:NSQUAREDSO)
-      DOUBLE COMPLEX TMP_INTER(N_COMB * (N_COMB + 1)/2, 0:NSQUAREDSO)
-      DOUBLE COMPLEX RHO_NORM(N_COMB * (N_COMB + 1)/2, 0:NSQUAREDSO)
+      INTEGER ALLOW_HEL(N_CHANGING * N_COMB_RHO)
+      DOUBLE COMPLEX INTER(N_COMB_RHO * (N_COMB_RHO + 1)/2, 0:NSQUAREDSO)
+      DOUBLE COMPLEX TMP_INTER(N_COMB_RHO * (N_COMB_RHO + 1)/2, 0:NSQUAREDSO)
+      DOUBLE COMPLEX RHO_NORM(N_COMB_RHO * (N_COMB_RHO + 1)/2, 0:NSQUAREDSO)
       DOUBLE PRECISION P(0:3, NEXTERNAL)
       DOUBLE PRECISION ALPHAS, MU_R2
 
@@ -1176,7 +1315,7 @@ C
       DOUBLE COMPLEX JAMPL_ALL(3, NLOOPFLOWS,NLOOPAMPSO, NCOMB)
       COMMON/%(proc_prefix)sDENSITY_MATRIX/JAMPL_ALL
 
-      INTEGER HELC(NEXTERNAL,NCOMB), ORDER_HEL(N_COMB)
+      INTEGER HELC(NEXTERNAL,NCOMB), ORDER_HEL(N_COMB_RHO)
       COMMON/%(proc_prefix)sHELCONFIGS/HELC
       REAL*8 AUX(0:3,0:AUX_DIMENSION)
 
@@ -1189,9 +1328,7 @@ C
 
       call UPDATE_AS_PARAM2(MU_R2, ALPHAS)
 
-      WRITE(*,*) "START GET DENSITY"
-
-      do I = 1, N_COMB*(N_COMB+1)/2
+      do I = 1, N_COMB_RHO*(N_COMB_RHO+1)/2
           do J=0, NSQUAREDSO
             INTER(I,J) = 0D0
           enddo
@@ -1203,17 +1340,15 @@ C
             if(THISNHEL(POS(IPART)).NE.ALLOW_HEL(IPART)) GOTO 10 !BYPASS COMPUTATION FOR HELICITY
         ENDDO
         call %(proc_prefix)sGET_ALL_INTER(JAMPL_ALL, THISNHEL, POS, N_CHANGING,
-     $  ALLOW_HEL, N_COMB, TMP_INTER)
-        do I = 1, N_COMB*(N_COMB+1)/2
+     $  ALLOW_HEL, N_COMB_RHO, TMP_INTER)
+        do I = 1, N_COMB_RHO*(N_COMB_RHO+1)/2
           do J=0, NSQUAREDSO
             INTER(I, J) = INTER(I, J) + TMP_INTER(I, J)
           enddo
         enddo 
  10   enddo
-      WRITE(*,*) "PRODUCTION MATRIX", INTER(:,0)
-      WRITE(*,*) "SHOULD BE THE MATRIX ELEMENT", DREAL(INTER(1,0) + INTER(5,0) + INTER(8,0) + INTER(10,0))
-      CALL %(proc_prefix)sNORMALISE_RHO(INTER, N_COMB, RHO_NORM)
-      WRITE(*,*) "DENSITY MATRIX = ", RHO_NORM(:,0)
+      CALL %(proc_prefix)sNORMALISE_RHO(INTER, N_COMB_RHO, RHO_NORM)
+c      WRITE(*,*) "DENSITY MATRIX = ", RHO_NORM(:,0)
       RETURN 
       END
 
@@ -1266,39 +1401,40 @@ C     This subroutine stores the JAMP with helicity state HELC(:,H) in JAMPL_ALL
 c     THIS JAMPL_ALL CORRESPONDS TO HELC(H)
       JAMPL_ALL(:,:,:,H) = JAMPL(:,:,:) !this line basically stores JAMPL in JAMPL_ALL
 
-C      WRITE(*,*) "JAMP STORED", JAMPL
-C      WRITE(*,*) "HELCITY STATE", HELC(:,H)
-C      WRITE(*,*) "----------------"
+c      WRITE(*,*) "JAMP STORED", JAMPL
+c      WRITE(*,*) "HELCITY STATE", HELC(:,H)
+c      WRITE(*,*) "JAMPL ALL", JAMPL_ALL
+c      WRITE(*,*) "----------------"
       RETURN
       END SUBROUTINE
 
 
-      SUBROUTINE %(proc_prefix)sNORMALISE_RHO(RHO, N_COMB, RHO_NORM)
+      SUBROUTINE %(proc_prefix)sNORMALISE_RHO(RHO, N_COMB_RHO, RHO_NORM)
 C     This subroutine stores the JAMP with helicity state HELC(:,H) in JAMPL_ALL
       IMPLICIT NONE
       INTEGER NLOOPFLOWS, NEXTERNAL
       PARAMETER (NLOOPFLOWS=%(nLoopFlows)d, NEXTERNAL=%(nexternal)i)
-      INTEGER N_COMB
+      INTEGER N_COMB_RHO
       INTEGER    NLOOPAMPSO, NSQUAREDSO
       PARAMETER (NLOOPAMPSO=%(nAmpSO)d, NSQUAREDSO=%(nSquaredSO)d)
 
-      DOUBLE COMPLEX RHO(N_COMB * (N_COMB + 1)/2, 0:NSQUAREDSO)
-      DOUBLE COMPLEX RHO_NORM(N_COMB * (N_COMB + 1)/2, 0:NSQUAREDSO)
+      DOUBLE COMPLEX RHO(N_COMB_RHO * (N_COMB_RHO + 1)/2, 0:NSQUAREDSO)
+      DOUBLE COMPLEX RHO_NORM(N_COMB_RHO * (N_COMB_RHO + 1)/2, 0:NSQUAREDSO)
       DOUBLE PRECISION TRACE(0:NSQUAREDSO)
-      INTEGER DIAG_INDICES(N_COMB), COUNTER, IDIAG, I, SOINDEX, J
+      INTEGER DIAG_INDICES(N_COMB_RHO), COUNTER, IDIAG, I, SOINDEX, J
 
       COUNTER = 0
-      DO IDIAG = 1, N_COMB
-        DIAG_INDICES(IDIAG) = (IDIAG-1) * N_COMB - COUNTER + 1
+      DO IDIAG = 1, N_COMB_RHO
+        DIAG_INDICES(IDIAG) = (IDIAG-1) * N_COMB_RHO - COUNTER + 1
         COUNTER = COUNTER + (IDIAG-1)
       ENDDO
 
       TRACE = 0
       DO SOINDEX = 0, NSQUAREDSO
-        DO I = 1, N_COMB
+        DO I = 1, N_COMB_RHO
           TRACE(SOINDEX) = TRACE(SOINDEX) + DREAL(RHO(DIAG_INDICES(I),SOINDEX))
         ENDDO
-        DO J = 1, N_COMB * (N_COMB + 1)/2
+        DO J = 1, N_COMB_RHO * (N_COMB_RHO + 1)/2
           RHO_NORM(J, SOINDEX) = RHO(J, SOINDEX) / TRACE(SOINDEX)
         ENDDO
 
@@ -1306,6 +1442,7 @@ C     This subroutine stores the JAMP with helicity state HELC(:,H) in JAMPL_ALL
 
       RETURN
       END SUBROUTINE
+
 
 
       SUBROUTINE %(proc_prefix)sCOMPUTE_INTER_JAMP(INTER,HEL_MULT,JAMPL_ALL,H1,H2)
@@ -1345,7 +1482,6 @@ C     Initialise JAMPL1 and JAMPL2
       IF (HEL_MULT.ne.1) THEN 
         ERROR STOP 'HEL_MULT is bigger than 1, it is not yet implemented'
       ENDIF
-
       CALL %(proc_prefix)sDO_COMPUTE_INTER_JAMP(INTER,HEL_MULT,JAMPL1,JAMPL2)
 
       DO SOINDEX = 0, NSQUAREDSO
@@ -1356,3 +1492,5 @@ C     Initialise JAMPL1 and JAMPL2
       
       RETURN
       END SUBROUTINE
+
+## }

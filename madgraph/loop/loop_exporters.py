@@ -817,12 +817,14 @@ class LoopProcessExporterFortranSA(LoopExporterFortran,
         # Even when not reducing at the amplitude level, the TIR caching
         # is useful when there is more than one squared split order config.
         TIRCaching = AmplitudeReduction or n_squared_split_orders>1
+        UseDensity =  'density' in self.cmd_options
         MadEventOutput = False
         return {'LoopInduced': LoopInduced,
                 'ComputeColorFlows': ComputeColorFlows,
                 'AmplitudeReduction': AmplitudeReduction,
                 'TIRCaching': TIRCaching,
-                'MadEventOutput': MadEventOutput}
+                'MadEventOutput': MadEventOutput,
+                'UseDensity': UseDensity}
 
 
     #===========================================================================
@@ -1233,7 +1235,8 @@ PARAMETER(MAX_SPIN_EXTERNAL_PARTICLE=%(max_spin_external_particle)d)
             else:
                replace_dict["include_vector"] = '' 
         file=file%replace_dict
-        writer.writelines(file)
+        #we add the context to distinguish density mode from regular mode
+        writer.writelines(file, context=self.get_context(matrix_element))
          
         # We can always write the f2py wrapper if present (in loop optimized mode, it is)
         if not os.path.isfile(pjoin(self.template_dir,'check_py.f.inc')):
@@ -2689,6 +2692,16 @@ class LoopProcessOptimizedExporterFortranSA(LoopProcessExporterFortranSA):
         # Averaging initial state color, spin, and identical FS particles
         den_factor_line = self.get_den_factor_line(matrix_element)
         replace_dict['den_factor_line'] = den_factor_line
+
+        # Helicity offset convention
+        # For a given helicity, the attached integer 'i' means
+        # 'i' in ]-inf;-HELOFFSET[ -> Helicity is equal, up to a sign, 
+        #                             to helicity number abs(i+HELOFFSET)
+        # 'i' == -HELOFFSET        -> Helicity is analytically zero
+        # 'i' in ]-HELOFFSET,inf[  -> Helicity is contributing with weight 'i'.
+        #                             If it is zero, it is skipped.
+        # Typically, the hel_offset is 10000
+        replace_dict['hel_offset'] = 10000
         
         
         file = open(os.path.join(self.template_dir,\

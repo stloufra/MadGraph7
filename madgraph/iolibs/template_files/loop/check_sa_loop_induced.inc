@@ -34,6 +34,8 @@ C integer    n_max_cg
       INCLUDE "ngraphs.inc" 
       include "nsquaredSO.inc"
 
+      include 'MadLoopParams.inc'
+
 C     
 C     LOCAL
 C     
@@ -62,13 +64,14 @@ C sqrt(s)= center of mass energy
       PARAMETER (NCOMB=%(ncomb)d)
       INTEGER N_CHANGING
       PARAMETER (N_CHANGING=2)
-      INTEGER N_COMB
-      PARAMETER (N_COMB=4)
+      INTEGER N_COMB_RHO
+      PARAMETER (N_COMB_RHO=%(dens_ncomb)i)
       INTEGER H
       INTEGER HELC(NEXTERNAL,NCOMB)
       DOUBLE PRECISION ALPHAS, MU_R2
 
       double complex INTER_DENS(0:3,0:NSQUAREDSO)
+      DOUBLE COMPLEX RMATRIX((N_COMB_RHO*(N_COMB_RHO+1))/2, 0:NSQUAREDSO)
       double precision RES(0:3,0:NSQUAREDSO), SUM_INT
       integer HEL_MULT
       parameter (HEL_MULT = 1)
@@ -227,9 +230,6 @@ C
 C
 C     This part is temporary, you still need to change by hand the values of NCOMB and NCHANGING as well as to fill in NHEL, POS and ALLOW_HEL
 C
-      ALLOCATE( POS(N_CHANGING))
-      ALLOCATE( ALLOW_HEL(N_CHANGING*N_COMB))
-      ALLOCATE(INTER(N_COMB*(N_COMB+1)/2))
 
 
 c       The sum of interferences corresponds to the cross section with a normalisation factor of 256 precisely.
@@ -240,13 +240,7 @@ C       This small block checks that %(proc_prefix)sCOMPUTE_RES_FROM_JAMP works 
       CALL %(proc_prefix)sCOMPUTE_RES_FROM_JAMP(RES,HEL_MULT)
 C      WRITE(*,*) "%(proc_prefix)sCOMPUTE_RES_FROM_JAMP", RES(1:3,0)
 
-      if (%(use_density)s)then
-          call get_density_matrix(P)
-      endif
 
-      deallocate (POS)
-      deallocate(ALLOW_HEL)
-      deallocate(INTER)
       if (K.eq.NPSPOINTS) then
       write (*,*)
       write (*,*) " Phase space point:"
@@ -304,8 +298,14 @@ C      WRITE(*,*) "%(proc_prefix)sCOMPUTE_RES_FROM_JAMP", RES(1:3,0)
       write (*,*) "---------------------------------"
       write (*,*) "Matrix element finite = ", MATELEM(1,0), " GeV^",-(2*nexternal-8)
       write (*,*) "---------------------------------"
-
-
+## if(UseDensity) {
+      IF ((HelicityFilterLevel.eq.0).OR.(HelicityFilterLevel.eq.1)) THEN
+        write (*,*) "Spin-density matrix (non normalised)."
+        write (*,*) "Only the independent coefficients are calculated."
+        write (*,*) "---------------------------------"
+      call get_density_matrix(P, RMATRIX)
+      ENDIF
+## }
       open(69, file="result.dat", err=976, action='WRITE')
       do i=1,nexternal      
           write (69,'(a2,1x,5ES30.15E3)') 'PS',P(0,i),P(1,i),P(2,i),P(3,i)
@@ -322,7 +322,14 @@ C      WRITE(*,*) "%(proc_prefix)sCOMPUTE_RES_FROM_JAMP", RES(1:3,0)
       write (69,*) 'Born_kept F'
       write (69,*) 'Loop_kept',(CHOSEN_LOOP_SO_CONFIGS(I),I=1,NSQUAREDSO)
       %(write_so_born_results)s
-      %(write_so_loop_results)s   
+      %(write_so_loop_results)s
+
+## if(UseDensity) {
+c      write(*,*) "RHO written", RMATRIX(:, 0)
+      IF ((HelicityFilterLevel.eq.0).OR.(HelicityFilterLevel.eq.1)) THEN
+        write (69,*) "RHO", RMATRIX(:, 0)
+      ENDIF
+## }
       close(69)
       else
           write (*,*) "PS Point #",K," done."
@@ -362,27 +369,56 @@ C      &-(2*nexternal-8)
 C      write (*,*) "-------------------------------------------------"
 
       end
+
+## if(UseDensity) {
+
+      SUBROUTINE get_density_trace(TRACE, RHO)
+C     This subrouitne allows to compute the trace of a density matrix to
+C     check that is is equal to the matrix element
+      implicit none
+      INTEGER N_COMB_RHO
+      PARAMETER (N_COMB_RHO=%(dens_ncomb)i)
+      INTEGER NSQUAREDSO
+      PARAMETER (NSQUAREDSO=%(nSquaredSO)d)
+
+      DOUBLE COMPLEX RHO((N_COMB_RHO*(N_COMB_RHO+1))/2, 0:NSQUAREDSO)
+      DOUBLE PRECISION TRACE
+
+      INTEGER COUNTER, IDIAG, I
+      INTEGER DIAG_INDICES(N_COMB_RHO)
+
+      COUNTER = 0
+      DO IDIAG = 1, N_COMB_RHO
+        DIAG_INDICES(IDIAG) = (IDIAG-1) * N_COMB_RHO - COUNTER + 1
+        COUNTER = COUNTER + (IDIAG-1)
+      ENDDO
+
+      TRACE = 0
+      DO I = 1, N_COMB_RHO
+        TRACE = TRACE + DREAL(RHO(DIAG_INDICES(I),0))
+      ENDDO
+      END
       
-      SUBROUTINE get_density_matrix(P)
+      SUBROUTINE get_density_matrix(P, RMATRIX)
       implicit none
 
-
-      INTEGER N_CHANGING  ! might need changing
+      INTEGER N_CHANGING
       PARAMETER (N_CHANGING=%(dens_nchanging)i)
-      INTEGER N_COMB
-      PARAMETER (N_COMB=%(dens_ncomb)i) ! total number of different helicity  combination to consider
+      INTEGER N_COMB_RHO
+      PARAMETER (N_COMB_RHO=%(dens_ncomb)i) ! total number of different helicity combination to consider
       INTEGER NEXTERNAL
       PARAMETER (NEXTERNAL=%(nexternal)d)
       INTEGER NSQUAREDSO
       PARAMETER (NSQUAREDSO=%(nSquaredSO)d)
 
       INTEGER POS(N_CHANGING)
-      INTEGER ALLOW_HEL(N_CHANGING*N_COMB)
-      DOUBLE COMPLEX INTER((N_COMB*(N_COMB+1))/2, 0:NSQUAREDSO)
+      INTEGER ALLOW_HEL(N_CHANGING*N_COMB_RHO)
+      DOUBLE COMPLEX RMATRIX((N_COMB_RHO*(N_COMB_RHO+1))/2, 0:NSQUAREDSO)
       REAL*8 P(0:3,NEXTERNAL)   ! four momenta. Energy is the zeroth component.
 
       INTEGER I,J,K,SOL
       DOUBLE PRECISION ALPHAS, MU_R2
+      DOUBLE PRECISION TRACE
 
       %(dens_pos)s
 
@@ -392,22 +428,28 @@ c      density matrix helicity index value for particle
       ALPHAS = 0D0
       MU_R2 = 0D0
 
-      CALL %(proc_prefix)sGET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL, N_COMB, ALPHAS, MU_R2, INTER)
+      CALL %(proc_prefix)sGET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL, N_COMB_RHO, ALPHAS, MU_R2, RMATRIX)
+
+      CALL get_density_trace(TRACE, RMATRIX)
+
+      write(*,*) "Trace of the non-normalised spin-density matrix =", TRACE
+      write(*,*) "It should be equal to the matrix element"
+      write (*,*) "---------------------------------"
 
       SOL=0
-      DO I=1, N_COMB
-         DO J = I, N_COMB
+      DO I=1, N_COMB_RHO
+         DO J = I, N_COMB_RHO
             SOL= SOL + 1
             DO K =1, N_CHANGING
                WRITE (*,*) 'particle', POS(K), 'has helicity', ALLOW_HEL((I-1)*N_CHANGING+K), ALLOW_HEL((J-1)*N_CHANGING+K)
            ENDDO
-            write(*,*) 'value is ',SOL , INTER(SOL, 0)
+            write(*,*) 'value is ',SOL , RMATRIX(SOL, 0)
          ENDDO
       ENDDO
       return
       END
         
-        
+## }        
         
          double precision function dot(p1,p2)
 C *************************************************************

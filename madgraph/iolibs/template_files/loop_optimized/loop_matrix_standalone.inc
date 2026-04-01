@@ -1160,11 +1160,12 @@ IF (((.NOT.DIRECT_ME_COMPUTATION).AND.ME_COMPUTATION_FROM_JAMP).OR.((H.EQ.USERHE
 C The cumulative quantities must only be computed if that helicity contributes according to user request (second argument of the subroutine below).
   CALL %(proc_prefix)sCOMPUTE_COLOR_FLOWS(HEL_MULT)
 
-  if (%(use_density)s)then
+## if(UseDensity) {
+  IF ((HelicityFilterLevel.eq.0).OR.(HelicityFilterLevel.eq.1)) THEN
     CALL %(proc_prefix)sFIND_H(NHEL, index_h)
-    WRITE(*,*) "HEL_MULT" , HEL_MULT
     CALL %(proc_prefix)sSTORE_JAMP(H) !this functions fills COMMON JAMPL_ALL(3, NLOOPFLOWS,NLOOPAMPSO, NCOMB)
-  endif
+  ENDIF
+## }
 
   IF(ME_COMPUTATION_FROM_JAMP) THEN
     CALL %(proc_prefix)sCOMPUTE_RES_FROM_JAMP(BUFFRES,HEL_MULT)
