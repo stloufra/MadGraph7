@@ -64,8 +64,7 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterCPP):
     exporter = 'gpu'
 
     # AV - use a custom OneProcessExporter
-    ###oneprocessclass = PLUGIN_export_cpp.OneProcessExporterGPU # responsible for P directory
-    oneprocessclass = model_handling.PLUGIN_OneProcessExporter
+    oneprocessclass = model_handling.MadMatrixOneProcessExporter
 
     # Information to find the template file that we want to include from madgraph
     # you can include additional file from the plugin directory as well
@@ -139,13 +138,12 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterCPP):
     template_tst_make = pjoin('madgraph', 'iolibs', 'template_files','gpu','cudacpp_test.mk')
 
     # AV - use a custom UFOModelConverter (model/aloha exporter)
-    ###create_model_class =  PLUGIN_export_cpp.UFOModelConverterGPU
-    create_model_class = model_handling.PLUGIN_UFOModelConverter
+    create_model_class = model_handling.MadMatrixUFOModelConverter
 
     # AV - use a custom GPUFOHelasCallWriter
     # (NB: use "helas_exporter" - see class MadGraphCmd in madgraph_interface.py - not "aloha_exporter" that is never used!)
     ###helas_exporter = None
-    helas_exporter = model_handling.PLUGIN_GPUFOHelasCallWriter # this is one of the main fixes for issue #341!
+    helas_exporter = model_handling.MadMatrixUFOHelasCallWriter # this is one of the main fixes for issue #341!
 
     # AV (default from OM's tutorial) - add a debug printout
     def __init__(self, *args, **kwargs):

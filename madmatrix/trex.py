@@ -52,7 +52,7 @@ import madgraph.interface.common_run_interface as common_run_interface
 
 from . import launch_plugin
 
-class TREX_OneProcessExporter(model_handling.PLUGIN_OneProcessExporter):
+class TREX_OneProcessExporter(model_handling.MadMatrixOneProcessExporter):
     """A custom OneProcessExporter for the TREX reweighting"""
     
     rex_path = os.path.join( PLUGINDIR, 'MadtRex' )
@@ -168,7 +168,7 @@ class TREX_OneProcessExporter(model_handling.PLUGIN_OneProcessExporter):
     
     def edit_rwgt_runner(self):
         """Create the rwgt_runner.cc file for the tRex reweighting"""
-        ###misc.sprint('Entering PLUGIN_OneProcessExporterRwgt.edit_rwgt_runner')
+        ###misc.sprint('Entering MadMatrixOneProcessExporterRwgt.edit_rwgt_runner')
         # Create the rwgt_runner.cc file
         replace_dict = super().get_process_class_definitions(write=False)
         replace_dict['process_namespace'] = self.get_proc_dir()
@@ -190,7 +190,7 @@ class TREX_OneProcessExporter(model_handling.PLUGIN_OneProcessExporter):
         self.edit_rwgt_header()
         self.edit_rwgt_runner()
         
-class TREX_ProcessExporter(output.PLUGIN_ProcessExporter):
+class TREX_ProcessExporter(output.ProcessExporterMadMatrix):
     
     oneprocessclass = TREX_OneProcessExporter
     
@@ -201,14 +201,14 @@ class TREX_ProcessExporter(output.PLUGIN_ProcessExporter):
     t = PLUGINDIR + '/MadtRex/'
     r = PLUGINDIR + '/MadtRex/template_files/'
     m = PLUGINDIR + '/MadtRex/makefiles/'
-    from_template = dict(output.PLUGIN_ProcessExporter.from_template)
+    from_template = dict(output.ProcessExporterMadMatrix.from_template)
     from_template['src'] = from_template['src'] + [t+'librex.so', t+'libtearex.so',
                                                    t+'Rex.h', t+'teaRex.h',
                                                     r+'rwgt_instance.h', r+'rwgt_instance.cc']
     from_template['SubProcesses'] = from_template['SubProcesses'] + [m+'cudacpp_driver.mk',
                                                                      r+'rwgt_instance.h', t+'Rex.h', t+'teaRex.h']
 
-    to_link_in_P = output.PLUGIN_ProcessExporter.to_link_in_P + ['rwgt_instance.h', 'Rex.h', 'teaRex.h']
+    to_link_in_P = output.ProcessExporterMadMatrix.to_link_in_P + ['rwgt_instance.h', 'Rex.h', 'teaRex.h']
 
     template_src_make = pjoin(m,'cudacpp_rex_src.mk')
     # template_tst_make = pjoin(m,'cudacpp_test.mk')

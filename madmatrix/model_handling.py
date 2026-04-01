@@ -30,14 +30,14 @@ from six import StringIO
 fd_gauge = (unitary_gauge == 3)
 
 # AV - define a custom ALOHAWriter
-# (NB: enable this via PLUGIN_UFOModelConverter.aloha_writer)
-class PLUGIN_ALOHAWriter(aloha_writers.ALOHAWriterForGPU):
+# (NB: enable this via MadMatrixUFOModelConverter.aloha_writer)
+class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
     # Class structure information
     #  - object
     #  - WriteALOHA(object) [in aloha/aloha_writers.py]
     #  - ALOHAWriterForCPP(WriteALOHA) [in aloha/aloha_writers.py]
     #  - ALOHAWriterForGPU(ALOHAWriterForCPP) [in aloha/aloha_writers.py]
-    #  - PLUGIN_ALOHAWriter(ALOHAWriterForGPU)
+    #  - MadMatrixALOHAWriter(ALOHAWriterForGPU)
     #      This class
 
     # AV - keep defaults from aloha_writers.ALOHAWriterForGPU
@@ -844,13 +844,13 @@ class PLUGIN_ALOHAWriter(aloha_writers.ALOHAWriterForGPU):
 from os.path import join as pjoin
 
 # AV - define a custom UFOModelConverter
-# (NB: enable this via PLUGIN_ProcessExporter.create_model_class in output.py)
-class PLUGIN_UFOModelConverter(export_cpp.UFOModelConverterGPU):
+# (NB: enable this via ProcessExporterMadMatrix.create_model_class in output.py)
+class MadMatrixUFOModelConverter(export_cpp.UFOModelConverterGPU):
     # Class structure information
     #  - object
     #  - UFOModelConverterCPP(object) [in madgraph/iolibs/export_cpp.py]
     #  - UFOModelConverterGPU(UFOModelConverterCPP) [in madgraph/iolibs/export_cpp.py]
-    #  - PLUGIN_UFOModelConverter(UFOModelConverterGPU)
+    #  - MadMatrixUFOModelConverter(UFOModelConverterGPU)
     #      This class
 
     # AV - keep defaults from export_cpp.UFOModelConverterCPP
@@ -876,7 +876,7 @@ class PLUGIN_UFOModelConverter(export_cpp.UFOModelConverterGPU):
 
     # AV - use a custom ALOHAWriter (NB: this is an argument to WriterFactory.__new__, either a string or a class!)
     ###aloha_writer = 'cudac' # WriterFactory will use ALOHAWriterForGPU
-    aloha_writer = PLUGIN_ALOHAWriter # WriterFactory will use ALOHAWriterForGPU
+    aloha_writer = MadMatrixALOHAWriter # WriterFactory will use ALOHAWriterForGPU
 
     # use template files from MG5DIR; strip leading copyright lines
     def read_aloha_template_files(self, ext):
@@ -896,12 +896,12 @@ class PLUGIN_UFOModelConverter(export_cpp.UFOModelConverterGPU):
         out.append( file )
         return out
 
-    # AV - use the plugin's PLUGIN_OneProcessExporter template_path and __template_path (for aloha_template_h/cc)
+    # AV - use the plugin's MadMatrixOneProcessExporter template_path and __template_path (for aloha_template_h/cc)
     @classmethod
     def read_template_file(cls, filename, classpath=False):
         """Open a template file and return the contents."""
         ###return OneProcessExporterCPP.read_template_file(filename, classpath)
-        return PLUGIN_OneProcessExporter.read_template_file(filename, classpath)
+        return MadMatrixOneProcessExporter.read_template_file(filename, classpath)
 
     # AV - overload export_cpp.UFOModelConverterCPP method (improve formatting)
     def write_parameters(self, params):
@@ -1315,7 +1315,7 @@ class PLUGIN_UFOModelConverter(export_cpp.UFOModelConverterGPU):
     # - export_cpp.py 128 in write_files => self.write_aloha_routines()
     # - export_cpp.py 392 in write_aloha_routines => h_rout, cc_rout = abstracthelas.write(output_dir=None,
     # - create_aloha.py 97 in write => text = writer.write(mode=mode, **opt)
-    #   [this is PLUGIN_ALOHAWriter.write which defaults to ALOHAWriterForCPP.write]
+    #   [this is MadMatrixALOHAWriter.write which defaults to ALOHAWriterForCPP.write]
     #   [therein, cc_text comes from WriteALOHA.write, while h_text comes from get_h_text]
     def write_aloha_routines(self):
         """Generate the hel_amps_model.h and hel_amps_model.cc files, which
@@ -1359,8 +1359,8 @@ class PLUGIN_UFOModelConverter(export_cpp.UFOModelConverterGPU):
         file_cc = self.read_template_file(self.aloha_template_cc) % replace_dict
         file_cc = '\n'.join( file_cc.split('\n')[9:] ) # skip first 9 lines in cpp_hel_amps_cc.inc (copyright including ALOHA)
         # Write the HelAmps_sm.h and HelAmps_sm.cc files
-        ###PLUGIN_writers.CPPWriter(model_h_file).writelines(file_h)
-        ###PLUGIN_writers.CPPWriter(model_cc_file).writelines(file_cc)
+        ###MadMatrixwriters.CPPWriter(model_h_file).writelines(file_h)
+        ###MadMatrixwriters.CPPWriter(model_cc_file).writelines(file_cc)
         ###logger.info('Created files %s and %s in directory' \
         ###            % (os.path.split(model_h_file)[-1],
         ###               os.path.split(model_cc_file)[-1]))
@@ -1403,15 +1403,15 @@ import madgraph.various.misc as misc
 import madgraph.iolibs.export_v4 as export_v4
 import madgraph.core.base_objects as base_objects
 # AV - define a custom OneProcessExporter
-# (NB: enable this via PLUGIN_ProcessExporter.oneprocessclass in output.py)
-# (NB: use this directly also in PLUGIN_UFOModelConverter.read_template_file)
-# (NB: use this directly also in PLUGIN_GPUFOHelasCallWriter.super_get_matrix_element_calls)
-class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
+# (NB: enable this via ProcessExporterMadMatrix.oneprocessclass in output.py)
+# (NB: use this directly also in MadMatrixUFOModelConverter.read_template_file)
+# (NB: use this directly also in MadMatrixGPUFOHelasCallWriter.super_get_matrix_element_calls)
+class MadMatrixOneProcessExporter(export_cpp.OneProcessExporterGPU):
     # Class structure information
     #  - object
     #  - OneProcessExporterCPP(object) [in madgraph/iolibs/export_cpp.py]
     #  - OneProcessExporterGPU(OneProcessExporterCPP) [in madgraph/iolibs/export_cpp.py]
-    #  - PLUGIN_OneProcessExporter(OneProcessExporterGPU)
+    #  - MadMatrixOneProcessExporter(OneProcessExporterGPU)
     #      This class
 
     # AV - change defaults from export_cpp.OneProcessExporterGPU
@@ -1440,7 +1440,7 @@ class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
 
     # AV - overload export_cpp.OneProcessExporterGPU constructor (rename gCPPProcess to CPPProcess, set include_multi_channel)
     def __init__(self, *args, **kwargs):
-        ###misc.sprint('Entering PLUGIN_OneProcessExporter.__init__')
+        ###misc.sprint('Entering MadMatrixOneProcessExporter.__init__')
         for kwarg in kwargs: misc.sprint( 'kwargs[%s] = %s' %( kwarg, kwargs[kwarg] ) )
         super().__init__(*args, **kwargs)
         self.process_class = 'CPPProcess'
@@ -1644,7 +1644,7 @@ class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
 
     # AV - modify export_cpp.OneProcessExporterGPU method (add debug printouts for multichannel #342)
     def get_sigmaKin_lines(self, color_amplitudes, write=True):
-        ###misc.sprint('Entering PLUGIN_OneProcessExporter.get_sigmaKin_lines')
+        ###misc.sprint('Entering MadMatrixOneProcessExporter.get_sigmaKin_lines')
         ###misc.sprint(self.include_multi_channel)
         ###misc.sprint(self.support_multichannel)
         replace_dict = super().get_sigmaKin_lines(color_amplitudes, write=False)
@@ -1835,7 +1835,7 @@ class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
     # AV - replace the export_cpp.OneProcessExporterGPU method (invert .cc/.cu, add debug printouts)
     def generate_process_files(self):
         """Generate mgOnGpuConfig.h, CPPProcess.cc, CPPProcess.h, check_sa.cc, gXXX.cu links"""
-        ###misc.sprint('Entering PLUGIN_OneProcessExporter.generate_process_files')
+        ###misc.sprint('Entering MadMatrixOneProcessExporter.generate_process_files')
         ###if self.include_multi_channel:
         ###    misc.sprint('self.include_multi_channel is already defined: this is madevent+second_exporter mode') # FIXME? use self.in_madevent_mode instead?
         if not self.include_multi_channel:
@@ -1864,7 +1864,7 @@ class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
     # SR - generate CMakeLists.txt file inside the P* directory
     def edit_CMakeLists(self):
         """Generate CMakeLists.txt"""
-        ###misc.sprint('Entering PLUGIN_OneProcessExporter.edit_CMakeLists')
+        ###misc.sprint('Entering MadMatrixOneProcessExporter.edit_CMakeLists')
         template = open(pjoin(self.template_path,'CMake/SubProcesses/CMakeLists_P.txt'),'r').read()
         ff = open(pjoin(self.path, 'CMakeLists.txt'),'w')
         ff.write(template)
@@ -1873,7 +1873,7 @@ class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
     # AV - replace the export_cpp.OneProcessExporterGPU method (invert .cc/.cu, add debug printouts)
     def edit_check_sa(self):
         """Generate check_sa.cc and fcheck_sa.f"""
-        ###misc.sprint('Entering PLUGIN_OneProcessExporter.edit_check_sa')
+        ###misc.sprint('Entering MadMatrixOneProcessExporter.edit_check_sa')
         ff = open(pjoin(self.path, 'check_sa.cc'),'w')
         template = open(pjoin(self.template_path,'gpu','check_sa.cc'),'r').read()
         ff.write(template) # nothing to replace in check_sa.cc
@@ -1890,7 +1890,7 @@ class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
     # AV - replace the export_cpp.OneProcessExporterGPU method (add debug printouts and multichannel handling #473) 
     def edit_mgonGPU(self):
         """Generate mgOnGpuConfig.h"""
-        ###misc.sprint('Entering PLUGIN_OneProcessExporter.edit_mgonGPU')
+        ###misc.sprint('Entering MadMatrixOneProcessExporter.edit_mgonGPU')
         template = open(pjoin(self.template_path,'gpu','mgOnGpuConfig.h'),'r').read()
         replace_dict = {}
         nexternal, nincoming = self.matrix_elements[0].get_nexternal_ninitial()
@@ -1910,7 +1910,7 @@ class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
     # AV - new method
     def edit_processidfile(self):
         """Generate epoch_process_id.h"""
-        ###misc.sprint('Entering PLUGIN_OneProcessExporter.edit_processidfile')
+        ###misc.sprint('Entering MadMatrixOneProcessExporter.edit_processidfile')
         template = open(pjoin(self.template_path,'gpu','epoch_process_id.h'),'r').read()
         replace_dict = {}
         replace_dict['processid'] = self.get_process_name()
@@ -1922,7 +1922,7 @@ class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
     # AV - new method
     def edit_colorsum(self):
         """Generate color_sum.cc"""
-        ###misc.sprint('Entering PLUGIN_OneProcessExporter.edit_colorsum')
+        ###misc.sprint('Entering MadMatrixOneProcessExporter.edit_colorsum')
         template = open(pjoin(self.template_path,'gpu','color_sum.cc'),'r').read()
         replace_dict = {}
         # Extract color matrix again (this was also in get_matrix_single_process called within get_all_sigmaKin_lines)
@@ -1933,7 +1933,7 @@ class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
         
     def edit_processConfig(self):
         """Generate process_config.h"""
-        ###misc.sprint('Entering PLUGIN_OneProcessExporter.edit_processConfig')
+        ###misc.sprint('Entering MadMatrixOneProcessExporter.edit_processConfig')
         template = open(pjoin(self.template_path,'gpu','processConfig.h'),'r').read()
         replace_dict = {}
         replace_dict['ndiagrams'] = len(self.matrix_elements[0].get('diagrams'))
@@ -1954,7 +1954,7 @@ class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
     def edit_coloramps(self, config_subproc_map):
         """Generate coloramps.h"""
 
-        ###misc.sprint('Entering PLUGIN_OneProcessExporter.edit_coloramps')
+        ###misc.sprint('Entering MadMatrixOneProcessExporter.edit_coloramps')
         template = open(pjoin(self.template_path,'gpu','coloramps.h'),'r').read()
         ff = open(pjoin(self.path, 'coloramps.h'),'w')
         # The following five lines from OneProcessExporterCPP.get_sigmaKin_lines (using OneProcessExporterCPP.get_icolamp_lines)
@@ -2017,7 +2017,7 @@ class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
     # AV - new method
     def edit_testxxx(self):
         """Generate testxxx.cc"""
-        ###misc.sprint('Entering PLUGIN_OneProcessExporter.edit_testxxx')
+        ###misc.sprint('Entering MadMatrixOneProcessExporter.edit_testxxx')
         template = open(pjoin(self.template_path,'gpu','testxxx.cc'),'r').read()
         replace_dict = {}
         replace_dict['model_name'] = self.model_name
@@ -2028,7 +2028,7 @@ class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
     # AV - new method
     def edit_memorybuffers(self):
         """Generate MemoryBuffers.h"""
-        ###misc.sprint('Entering PLUGIN_OneProcessExporter.edit_memorybuffers')
+        ###misc.sprint('Entering MadMatrixOneProcessExporter.edit_memorybuffers')
         template = open(pjoin(self.template_path,'gpu','MemoryBuffers.h'),'r').read()
         replace_dict = {}
         replace_dict['model_name'] = self.model_name
@@ -2039,7 +2039,7 @@ class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
     # AV - new method
     def edit_memoryaccesscouplings(self):
         """Generate MemoryAccessCouplings.h"""
-        ###misc.sprint('Entering PLUGIN_OneProcessExporter.edit_memoryaccesscouplings')
+        ###misc.sprint('Entering MadMatrixOneProcessExporter.edit_memoryaccesscouplings')
         template = open(pjoin(self.template_path,'gpu','MemoryAccessCouplings.h'),'r').read()
         replace_dict = {}
         replace_dict['model_name'] = self.model_name
@@ -2051,7 +2051,7 @@ class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
     # [*NB export_cpp.UFOModelConverterGPU.write_process_h_file is not called!*]
     def write_process_h_file(self, writer):
         """Generate final CPPProcess.h"""
-        ###misc.sprint('Entering PLUGIN_OneProcessExporter.write_process_h_file')
+        ###misc.sprint('Entering MadMatrixOneProcessExporter.write_process_h_file')
         out = super().write_process_h_file(writer)
         writer.seek(-1, os.SEEK_CUR)
         writer.truncate()
@@ -2073,7 +2073,7 @@ class PLUGIN_OneProcessExporter(export_cpp.OneProcessExporterGPU):
     # AV - overload the export_cpp.OneProcessExporterGPU method (add debug printout and truncate last \n)
     def write_process_cc_file(self, writer):
         """Generate CPPProcess.cc"""
-        ###misc.sprint('Entering PLUGIN_OneProcessExporter.write_process_cc_file')
+        ###misc.sprint('Entering MadMatrixOneProcessExporter.write_process_cc_file')
         ###out = super().write_process_cc_file(writer)
         out = self.super_write_process_cc_file(writer)
         writer.seek(-1, os.SEEK_CUR)
@@ -2179,8 +2179,8 @@ import madgraph.core.helas_objects as helas_objects
 import madgraph.iolibs.helas_call_writers as helas_call_writers
 
 # AV - define a custom HelasCallWriter
-# (NB: enable this via PLUGIN_ProcessExporter.helas_exporter in output.py - this fixes #341)
-class PLUGIN_GPUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
+# (NB: enable this via ProcessExporterMadMatrix.helas_exporter in output.py - this fixes #341)
+class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
     """ A Custom HelasCallWriter """
     # Class structure information
     #  - object
@@ -2190,7 +2190,7 @@ class PLUGIN_GPUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
     #  - UFOHelasCallWriter(HelasCallWriter) [in madgraph/iolibs/helas_call_writers.py]
     #  - CPPUFOHelasCallWriter(UFOHelasCallWriter) [in madgraph/iolibs/helas_call_writers.py]
     #  - GPUFOHelasCallWriter(CPPUFOHelasCallWriter) [in madgraph/iolibs/helas_call_writers.py]
-    #  - PLUGIN_GPUFOHelasCallWriter(GPUFOHelasCallWriter)
+    #  - MadMatrixUFOHelasCallWriter(GPUFOHelasCallWriter)
     #      This class
 
 
@@ -2435,7 +2435,7 @@ class PLUGIN_GPUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
                     res.append("// Here the code base generated with multichannel support updates numerators_sv and denominators_sv (#473)")
                     res.append("#endif")
                 for njamp, coeff in color[namp].items():
-                    scoeff = PLUGIN_OneProcessExporter.coeff(*coeff) # AV
+                    scoeff = MadMatrixOneProcessExporter.coeff(*coeff) # AV
                     if scoeff[0] == '+' : scoeff = scoeff[1:]
                     scoeff = scoeff.replace('(','( ')
                     scoeff = scoeff.replace(')',' )')
