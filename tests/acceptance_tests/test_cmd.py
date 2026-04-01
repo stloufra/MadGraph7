@@ -1591,8 +1591,10 @@ set boost_choice [6, -6]
         command_card.write(text)
         command_card.close()
 
+        
+        logfile = 'test_density_mode_ttbar.log'
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '/tmp/mg5_cmd.txt'])
+                         '/tmp/mg5_cmd.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
 
 
         ## With the chosen seed, the event must be:
@@ -1662,8 +1664,10 @@ set axis_referential [-1, -2]
         command_card.write(text)
         command_card.close()
 
+
+        logfile = 'test_density_mode_wpwm.log'
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '/tmp/mg5_cmd.txt'])
+                         '/tmp/mg5_cmd.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
 
 
         ## Read a test event for g g > t t~
@@ -1750,8 +1754,9 @@ set boost_choice [5, -6]
         command_card.write(text)
         command_card.close()
 
+        logfile = 'test_density_mode_decay1.log'
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '/tmp/mg5_cmd.txt'])
+                         '/tmp/mg5_cmd.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
 
 
         ## With the chosen seed, the event must be:
@@ -1821,8 +1826,9 @@ set boost_choice [24, -6]
         command_card.write(text)
         command_card.close()
 
+        logfile = 'test_density_mode_decay2.log'
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '/tmp/mg5_cmd.txt'])
+                         '/tmp/mg5_cmd.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
 
 
         ## With the chosen seed, the event must be:
@@ -1893,9 +1899,9 @@ set boost_choice [6, -6] pt [0, 0]
         command_card.write(text)
         command_card.close()
 
+        logfile = 'test_density_mode_doublettbar.log'
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '/tmp/mg5_cmd.txt'])
-
+                         '/tmp/mg5_cmd.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
 
         ## With the chosen seed, the event must be:
         event_random = """<event>

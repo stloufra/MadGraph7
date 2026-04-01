@@ -375,13 +375,14 @@ CF2PY INTENT(IN) :: JAMP_2
       PARAMETER (NCOLOR=%(ncolor)d)
       INTEGER CF_INDEX
       INTEGER %(proc_prefix)sCF(NCOLOR*(NCOLOR+1)/2)
-      INTEGER %(proc_prefix)sDENOM
+      INTEGER %(proc_prefix)sDENOM, IDEN
+      %(den_factor_line)s
       common /%(proc_prefix)scolor_matrix/ %(proc_prefix)sCF,%(proc_prefix)sDENOM
       COMPLEX*16 JAMP_1(NCOLOR),JAMP_2(NCOLOR),INTER
 
 C COLOR DATA
 C  
-      
+
       INTER = (0.D0,0.D0)
       CF_INDEX = 0  
       DO I = 1, NCOLOR 
@@ -391,7 +392,7 @@ C        ZTEMP = DCONJG(JAMP_2(I))
           INTER = INTER + %(proc_prefix)sCF(CF_INDEX) * (JAMP_1(J) * DCONJG(JAMP_2(I)) +JAMP_1(I) * DCONJG(JAMP_2(J))) 
         ENDDO 
       ENDDO
-      INTER = INTER/ (2d0*%(proc_prefix)sDENOM)
+      INTER = INTER/ (2d0*%(proc_prefix)sDENOM*IDEN)
 
       END       
 
