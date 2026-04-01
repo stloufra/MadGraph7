@@ -1992,6 +1992,8 @@ class EasterEgg(object):
             date = now.tm_mday, now.tm_mon 
             if date in [(1,4)]:
                 madgraph.iolibs.drawing_eps.EpsDiagramDrawer.april_fool = True
+                if msgtype == 'loading':
+                   self.post_banner(date) 
                 if msgtype in EasterEgg.message_aprilfirst:
                     choices = EasterEgg.message_aprilfirst[msgtype]
                     if len(choices) == 0:
@@ -2067,13 +2069,11 @@ class EasterEgg(object):
         ff = open(pjoin(MG5DIR,'input','authors.md'), 'r')
         for line in ff:
             author, fdate = line.split()
-            print(author, fdate)
             year, month, day = [int(i) for i in fdate.split('-')]
             if (day, month) == date:
                 to_add.append((author, year))
         ff.close()
 
-        print(date, to_add)
         if not to_add:
             return ""
         
