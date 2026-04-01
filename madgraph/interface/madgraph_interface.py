@@ -1726,14 +1726,14 @@ This will take effect only in a NEW terminal
             # Check for special directory treatment
             if path == 'auto' and self._export_format in \
                      ['madevent', 'standalone', 'standalone_cpp', 'matchbox_cpp', 'madweight',
-                      'matchbox', 'plugin', 'me7']:
+                      'matchbox', 'plugin', 'me7', 'mg7', 'mg7_v5']:
                 self.get_default_path()
                 if '-noclean' not in args and os.path.exists(self._export_dir):
                     args.append('-noclean')
             elif path != 'auto':
                 if path in ['HELAS', 'tests', 'MadSpin', 'madgraph', 'mg5decay', 'vendor','madevent_gpu', 'madevent_simd']:
                     if os.getcwd() == MG5DIR:
-                        raise self.InvalidCmd("This name correspond to a buildin MG5 directory. Please choose another name")
+                        raise self.InvalidCmd("This name correspond to a builtin MG5 directory. Please choose another name")
                 self._export_dir = path
             elif path == 'auto':
                 if self.options['pythia8_path']:
@@ -1872,6 +1872,11 @@ This will take effect only in a NEW terminal
 
         if self._export_format in ['NLO', 'ewsudsa']:
             name_dir = lambda i: 'PROCNLO_%s_%s' % \
+                                    (self._curr_model['name'], i)
+            auto_path = lambda i: pjoin(self.writing_dir,
+                                               name_dir(i))
+        elif self._export_format in ['mg7', 'mg7_v5']:
+            name_dir = lambda i: 'PROCMG7_%s_%s' % \
                                     (self._curr_model['name'], i)
             auto_path = lambda i: pjoin(self.writing_dir,
                                                name_dir(i))
@@ -9232,6 +9237,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
         config['matchbox_cpp'] =   {'check': True, 'exporter': 'cpp', 'output': 'Template'}
         config['matchbox'] =       {'check': True, 'exporter': 'v4',  'output': 'Template'}
         config['madweight'] =      {'check': True, 'exporter': 'v4',  'output':'Template'}
+        config['mg7_v5'] =         {'check': True, 'exporter': 'cpp', 'output': 'Template'}
         config['mg7'] =            {'check': True, 'exporter': 'cpp', 'output': 'Template'}
 
         if self._export_format == 'plugin':
