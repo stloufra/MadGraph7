@@ -3076,17 +3076,34 @@ class RunCard(ConfigFile):
                         log_level = 10
                 else:
                     log_level = 20
+
+            def get_template_default(name):
+                try:
+                    if name.lower() in self.parameter_in_block:
+                            block = self.parameter_in_block[name.lower()]
+                            if block.status(self) != block.status(defaultcard):
+                                return  'python'
+                    if name.lower() in defaultcard.user_set:
+                        return 'defaultcard'
+                    else: 
+                        return 'python'
+                except Exception as err:
+                    return 'python'
+
+            
             if not default:
                 info = ''
                 if hasattr(self, 'path') and self.path:
                     try:
                         defaultcard = RunCard(self.path.replace('.dat', '_default.dat'))
-                        previousdefault = defaultcard.__getitem__(name.lower()) 
-                        if name.lower() in defaultcard.user_set:
+                        previousdefault = defaultcard.__getitem__(name.lower())
+                        #check special case for parameter in block where the default card shows one block
+                        # but the user card shows another block. In that case we do not want to take the default value from the default card.
+                        if get_template_default(name) == 'defaultcard':
                             info = ' from run_card_default.dat' 
-                            default = defaultcard.__getitem__(name.lower())
+                            default = previousdefault
                         else:
-                            default = dict.__getitem__(self, name.lower()) 
+                            default = dict.__getitem__(self, name.lower())
                     except Exception as err:
                         default = dict.__getitem__(self, name.lower())
                 else:
