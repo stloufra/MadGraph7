@@ -33,12 +33,13 @@ def relative_path_list(relative_path, files_list):
 
 # AV - define the plugin's process exporter
 # (NB: this is the plugin's main class, enabled in the new_output dictionary in __init__.py)
-class ProcessExporterMadMatrix(export_cpp.ProcessExporterCPP):
+class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
     # Class structure information
     #  - object
     #  - VirtualExporter(object) [in madgraph/iolibs/export_v4.py]
     #  - ProcessExporterCPP(VirtualExporter) [in madgraph/iolibs/export_cpp.py]
-    #  - ProcessExporterMadMatrix(ProcessExporterCPP)
+    #  - ProcessExporterMG7(ProcessExporterCPP) [in madgraph/iolibs/export_cpp.py]
+    #  - ProcessExporterMadMatrix(ProcessExporterMG7)
     #      This class
 
     # Below are the class variable that are defined in export_v4.VirtualExporter
