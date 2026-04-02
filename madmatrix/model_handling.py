@@ -1850,10 +1850,6 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
         replace_dict['nbhel'] = self.matrix_elements[0].get_helicity_combinations() # number of helicity combinations
         ###replace_dict['nwavefunc'] = self.matrix_elements[0].get_number_of_wavefunctions() # this is the correct P1-specific nwf, now in CPPProcess.h (#644)
         replace_dict['wavefuncsize'] = 6
-        if self.include_multi_channel:
-            replace_dict['mgongpu_supports_multichannel'] = '#define MGONGPU_SUPPORTS_MULTICHANNEL 1'
-        else:
-            replace_dict['mgongpu_supports_multichannel'] = '#undef MGONGPU_SUPPORTS_MULTICHANNEL'
         ff = open(pjoin(self.path, '..','..','src','mgOnGpuConfig.h'),'w')
         ff.write(template % replace_dict)
         ff.close()
