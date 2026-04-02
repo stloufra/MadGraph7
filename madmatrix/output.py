@@ -28,6 +28,8 @@ import madgraph.various.misc as misc
 
 from . import launch_plugin
 
+def relative_path_list(relative_path, files_list):
+    return list(map(lambda f: pjoin(relative_path, f), files_list))
 
 # AV - define the plugin's process exporter
 # (NB: this is the plugin's main class, enabled in the new_output dictionary in __init__.py)
@@ -71,40 +73,23 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterCPP):
     # AV - use template files from PLUGINDIR instead of MG5DIR and add gpu/mgOnGpuVectors.h
     # [NB: mgOnGpuConfig.h, check_sa.cc and fcheck_sa.f are handled through dedicated methods]
     ###s = MG5DIR + '/madgraph/iolibs/template_files/'
-    s = 'madgraph/iolibs/template_files/madmatrix/'
-    from_template = {'.': [s+'.clang-format', s+'CMake/CMakeLists.txt',
-                           s+'COPYRIGHT', s+'COPYING', s+'COPYING.LESSER' ],
-                     'src': [s+'rambo.h', s+'read_slha.h', s+'read_slha.cc',
-                             s+'mgOnGpuFptypes.h', s+'mgOnGpuCxtypes.h', s+'mgOnGpuVectors.h',
-                             s+'constexpr_math.h',
-                             s+'cudacpp_config.mk', ],
-                     'SubProcesses': [s+'nvtx.h', s+'timer.h', s+'timermap.h',
-                                      s+'ompnumthreads.h', s+'GpuRuntime.h', s+'GpuAbstraction.h',
-                                      s+'color_sum.h',
-                                      s+'MemoryAccessHelpers.h', s+'MemoryAccessVectors.h',
-                                      s+'MemoryAccessMatrixElements.h', s+'MemoryAccessMomenta.h',
-                                      s+'MemoryAccessRandomNumbers.h', s+'MemoryAccessWeights.h',
-                                      s+'MemoryAccessAmplitudes.h', s+'MemoryAccessWavefunctions.h',
-                                      s+'MemoryAccessGs.h', s+'MemoryAccessCouplingsFixed.h',
-                                      s+'MemoryAccessNumerators.h', s+'MemoryAccessDenominators.h',
-                                      s+'MemoryAccessChannelIds.h', s+'MemoryAccessIflavorVec.h',
-                                      s+'EventStatistics.h', s+'CommonRandomNumbers.h',
-                                      s+'CrossSectionKernels.cc', s+'CrossSectionKernels.h',
-                                      s+'MatrixElementKernels.cc', s+'MatrixElementKernels.h',
-                                      s+'RamboSamplingKernels.cc', s+'RamboSamplingKernels.h',
-                                      s+'RandomNumberKernels.h', s+'CommonRandomNumberKernel.cc',
-                                      s+'CurandRandomNumberKernel.cc', s+'HiprandRandomNumberKernel.cc',
-                                      s+'Bridge.h', s+'BridgeKernels.cc', s+'BridgeKernels.h',
-                                      s+'fbridge.cc', s+'fbridge.h', s+'fbridge.inc', s+'fsampler.cc', s+'fsampler.inc',
-                                      s+'MadgraphTest.h', s+'runTest.cc',
-                                      s+'testmisc.cc', s+'testxxx_cc_ref.txt', s+'valgrind.h',
-                                      s+'perf.py', s+'profile.sh',
-                                      s+'cudacpp_overlay.mk', s+'makefile_wrapper.mk',
-                                      s+'umami.h', s+'umami.cc', ] }
+    templates_path = pjoin(MG5DIR, 'madgraph', 'iolibs', 'template_files', 'madmatrix')
+    home_path = pjoin(MG5DIR, "madmatrix")
+    from_template = {'.': relative_path_list(home_path, ['COPYRIGHT', 'COPYING', 'COPYING.LESSER']),
+                     'src': relative_path_list(templates_path, ['mgOnGpuFptypes.h', 'mgOnGpuCxtypes.h', 'mgOnGpuVectors.h', 'constexpr_math.h', 'cudacpp_config.mk']),
+                     'SubProcesses': relative_path_list(templates_path, ['nvtx.h', 'GpuRuntime.h', 'GpuAbstraction.h', 'color_sum.h',
+                                      'MemoryAccessHelpers.h', 'MemoryAccessVectors.h',
+                                      'MemoryAccessMatrixElements.h', 'MemoryAccessMomenta.h',
+                                      'MemoryAccessRandomNumbers.h', 'MemoryAccessWeights.h',
+                                      'MemoryAccessAmplitudes.h', 'MemoryAccessWavefunctions.h',
+                                      'MemoryAccessGs.h', 'MemoryAccessCouplingsFixed.h',
+                                      'MemoryAccessNumerators.h', 'MemoryAccessDenominators.h',
+                                      'MemoryAccessChannelIds.h', 'MemoryAccessIflavorVec.h',
+                                      'CrossSectionKernels.cc', 'CrossSectionKernels.h',
+                                      'MatrixElementKernels.cc', 'MatrixElementKernels.h',
+                                      'umami.h', 'umami.cc']) }
 
-    to_link_in_P = ['nvtx.h', 'timer.h', 'timermap.h',
-                    'ompnumthreads.h', 'GpuRuntime.h', 'GpuAbstraction.h',
-                    'color_sum.h',
+    to_link_in_P = ['nvtx.h', 'GpuRuntime.h', 'GpuAbstraction.h', 'color_sum.h',
                     'MemoryAccessHelpers.h', 'MemoryAccessVectors.h',
                     'MemoryAccessMatrixElements.h', 'MemoryAccessMomenta.h',
                     'MemoryAccessRandomNumbers.h', 'MemoryAccessWeights.h',
@@ -112,30 +97,14 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterCPP):
                     'MemoryAccessGs.h', 'MemoryAccessCouplingsFixed.h',
                     'MemoryAccessNumerators.h', 'MemoryAccessDenominators.h',
                     'MemoryAccessChannelIds.h', 'MemoryAccessIflavorVec.h',
-                    'EventStatistics.h', 'CommonRandomNumbers.h',
                     'CrossSectionKernels.cc', 'CrossSectionKernels.h',
                     'MatrixElementKernels.cc', 'MatrixElementKernels.h',
-                    'RamboSamplingKernels.cc', 'RamboSamplingKernels.h',
-                    'RandomNumberKernels.h', 'CommonRandomNumberKernel.cc',
-                    'CurandRandomNumberKernel.cc', 'HiprandRandomNumberKernel.cc',
-                    'Bridge.h', 'BridgeKernels.cc', 'BridgeKernels.h',
-                    'fbridge.cc', 'fbridge.h', 'fbridge.inc', 'fsampler.cc', 'fsampler.inc',
-                    'MadgraphTest.h', 'runTest.cc',
-                    'testmisc.cc', 'testxxx_cc_ref.txt', 'valgrind.h',
-                    'cudacpp.mk', # this is generated from a template in Subprocesses but we still link it in P1
-                    'cudacpp_overlay.mk', # this is generated from a template in Subprocesses but we still link it in P1
-                    'testxxx.cc', # this is generated from a template in Subprocesses but we still link it in P1
                     'MemoryBuffers.h', # this is generated from a template in Subprocesses but we still link it in P1
                     'MemoryAccessCouplings.h', # this is generated from a template in Subprocesses but we still link it in P1
-                    'umami.h', 'umami.cc',
-                    'perf.py', 'profile.sh']
+                    'umami.h', 'umami.cc']
 
-    # AV - use template files from PLUGINDIR instead of MG5DIR and change their names
-    ###template_src_make = pjoin(MG5DIR, 'madgraph' ,'iolibs', 'template_files','gpu','Makefile_src')
-    ###template_Sub_make = pjoin(MG5DIR, 'madgraph', 'iolibs', 'template_files','gpu','Makefile')
-    template_src_make = pjoin('madgraph' ,'iolibs', 'template_files','gpu','cudacpp_src.mk')
-    template_Sub_make = pjoin('madgraph', 'iolibs', 'template_files','gpu','cudacpp.mk')
-    template_tst_make = pjoin('madgraph', 'iolibs', 'template_files','gpu','cudacpp_test.mk')
+    template_src_make = pjoin(templates_path, 'cudacpp_src.mk')
+    template_Sub_make = pjoin(templates_path, 'cudacpp.mk')
 
     # AV - use a custom UFOModelConverter (model/aloha exporter)
     create_model_class = model_handling.MadMatrixUFOModelConverter
@@ -158,7 +127,7 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterCPP):
         except os.error as error: logger.warning(error.strerror + ' ' + self.dir_path)
         with misc.chdir(self.dir_path):
             logger.info('Creating subdirectories in directory %s' % self.dir_path)
-            for d in ['src', 'Cards', 'SubProcesses', 'CMake', 'test', 'test/ref']: # AV - added CMake, test, test/ref; removed lib
+            for d in ['src', 'Cards', 'SubProcesses']:
                 try: os.mkdir(d)
                 except os.error as error: logger.warning(error.strerror + ' ' + os.path.join(self.dir_path,d))
             # Write param_card
@@ -167,27 +136,6 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterCPP):
             for key in self.from_template:
                 for f in self.from_template[key]:
                     export_cpp.cp(f, key) # NB this assumes directory key exists...
-            # Copy src makefile
-            if self.template_src_make:
-                makefile_src = self.read_template_file(self.template_src_make) % {'model': self.get_model_name(model.get('name'))}
-                open(os.path.join('src', 'cudacpp_src.mk'), 'w').write(makefile_src)
-            # Copy SubProcesses makefile
-            if self.template_Sub_make:
-                makefile = self.read_template_file(self.template_Sub_make) % {'model': self.get_model_name(model.get('name'))}
-                open(os.path.join('SubProcesses', 'cudacpp.mk'), 'w').write(makefile)
-
-    # OM - overload export_v4.py version to add additional_clean section (and avoid patchMad.sh for Source/makefile)
-    def write_source_makefile(self, writer, model=None, default=None):
-        if default:
-            replace_dict = default
-        else:
-            raise Exception('primary exporter should have been run first')
-        path = pjoin(PLUGINDIR , 'madgraph', 'iolibs', 'template_files', 'madevent_makefile_source_addon')
-        replace_dict['additional_clean'] += open(path).read()
-        if writer:
-            path = pjoin(MG5DIR, 'madgraph', 'iolibs','template_files','madevent_makefile_source')
-            text = open(path).read() % replace_dict
-            writer.write(text)
 
     # AV - add debug printouts (in addition to the default one from OM's tutorial)
     def generate_subprocess_directory(self, subproc_group, fortran_model, me=None):
