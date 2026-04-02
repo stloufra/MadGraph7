@@ -107,6 +107,8 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
     template_src_make = pjoin(templates_path, 'cudacpp_src.mk')
     template_Sub_make = pjoin(templates_path, 'cudacpp.mk')
 
+    dirs_to_create = ['bin', 'src', 'lib', 'Cards', 'SubProcesses']
+
     # AV - use a custom UFOModelConverter (model/aloha exporter)
     create_model_class = model_handling.MadMatrixUFOModelConverter
 
