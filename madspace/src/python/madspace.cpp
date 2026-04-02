@@ -895,6 +895,56 @@ PYBIND11_MODULE(_madspace_py, m) {
             py::arg("prob_names")
         );
 
+    py::classh<AdamOptimizer> adam(m, "AdamOptimizer");
+    add_enum<AdamOptimizer::LRSchedule>(
+        adam,
+        "LRSchedule",
+        {
+            {"none", AdamOptimizer::none},
+            {"cosine_annealing", AdamOptimizer::cosine_annealing},
+        }
+    );
+    adam.def(
+            py::init<
+                const Function&,
+                ContextPtr,
+                double,
+                AdamOptimizer::LRSchedule,
+                std::size_t,
+                double,
+                double,
+                double>(),
+            py::arg("function"),
+            py::arg("context"),
+            py::arg("learning_rate"),
+            py::arg("schedule") = AdamOptimizer::none,
+            py::arg("step_count") = 0,
+            py::arg("beta1") = 0.9,
+            py::arg("beta2") = 0.999,
+            py::arg("eps") = 1e-8
+    )
+        .def(
+            "step",
+            [](AdamOptimizer& opt, std::vector<py::object> inputs) {
+                DevicePtr device = opt.context()->device();
+                TensorVec tensors;
+                tensors.reserve(inputs.size());
+                bool dlpack_version_cache = false;
+                for (std::size_t i = 0;
+                     auto [input, type] : zip(inputs, opt.input_types())) {
+                    tensors.push_back(dlpack_to_tensor(
+                        input, batch_float, i, device, &dlpack_version_cache
+                    ));
+                    ++i;
+                }
+                return opt.step(tensors);
+            },
+            py::arg("inputs")
+        )
+        .def("learning_rate", &AdamOptimizer::learning_rate)
+        .def("input_types", &AdamOptimizer::input_types)
+        .def("context", &AdamOptimizer::context);
+
     py::classh<PdfGrid>(m, "PdfGrid")
         .def(py::init<const std::string&>(), py::arg("file"))
         .def_readonly("x", &PdfGrid::x)

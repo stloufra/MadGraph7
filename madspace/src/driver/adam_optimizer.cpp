@@ -30,6 +30,10 @@ AdamOptimizer::AdamOptimizer(
         _exp_avgs.emplace_back(global.dtype(), global.shape(), device).zero();
         _exp_avg_sqs.emplace_back(global.dtype(), global.shape(), device).zero();
     }
+    _input_types.reserve(function.inputs().size());
+    for (auto& input : function.inputs()) {
+        _input_types.push_back(input.type);
+    }
 }
 
 TensorVec AdamOptimizer::step(const TensorVec& inputs) {

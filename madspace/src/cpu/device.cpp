@@ -96,6 +96,7 @@ void CpuDevice::adam_step(
             eps,
             bias_corr2_sqrt
         );
+        // TODO: make async
     }
 }
 

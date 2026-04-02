@@ -871,10 +871,21 @@ class Integrator(nn.Module):
                         ),
                         minlength=self.integration_channel_count,
                     )
+                    # c = (
+                    #    channels[mask]
+                    #    if integration_channels is None
+                    #    else integration_channels[mask]
+                    # )
+                    # batch.q_sample /= (torch.bincount(
+                    #    c, minlength=self.integration_channel_count,
+                    # ) / torch.bincount(
+                    #    c, minlength=self.integration_channel_count,
+                    # ))[c]
                 else:
                     batch.zero_counts = torch.full(
                         (1,), torch.count_nonzero(~mask), device=x.device
                     )
+                    # batch.q_sample /= mask.double().mean()
                 current_batch_size += batch.x.shape[0]
             else:
                 current_batch_size += weight.count_nonzero()
