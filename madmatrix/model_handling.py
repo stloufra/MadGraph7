@@ -867,6 +867,8 @@ class MadMatrixUFOModelConverter(export_cpp.UFOModelConverterGPU):
     aloha_template_cc = pjoin('madmatrix','cpp_hel_amps_cc.inc')
     helas_h = pjoin('madmatrix', 'helas.h')
     helas_cc = pjoin('madmatrix', 'helas.cu')
+    param_template_h = pjoin('madmatrix', 'cpp_model_parameters_h.inc')
+    param_template_cc = pjoin('madmatrix', 'cpp_model_parameters_cc.inc')
 
     # AV - use a custom ALOHAWriter (NB: this is an argument to WriterFactory.__new__, either a string or a class!)
     ###aloha_writer = 'cudac' # WriterFactory will use ALOHAWriterForGPU
