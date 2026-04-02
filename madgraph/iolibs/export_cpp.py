@@ -799,7 +799,7 @@ class OneProcessExporterCPP(object):
         replace_dict = self.get_default_converter()
 
         # Extract version number and date from VERSION file
-        info_lines = get_mg5_info_lines()
+        info_lines = self.get_mg5_info_lines()
         replace_dict['info_lines'] = info_lines
 
         # Extract model name
