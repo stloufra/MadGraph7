@@ -3183,51 +3183,18 @@ class ProcessExporterMG7(ProcessExporterCPP):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        output_options = args[1]["output_options"]
-        simd_opt = output_options.get("simd")
-        cuda_opt = output_options.get("cuda")
-        hip_opt = output_options.get("hip")
-        if simd_opt is not None:
-            self.matrix_element_path = os.path.abspath(simd_opt)
-            self.matrix_element_gpu = None
-        elif cuda_opt is not None:
-            self.matrix_element_path = os.path.abspath(cuda_opt)
-            self.matrix_element_gpu = "cuda"
-        elif hip_opt is not None:
-            self.matrix_element_path = os.path.abspath(hip_opt)
-            self.matrix_element_gpu = "hip"
-        else:
-            self.matrix_element_path = None
+        self.me_lib_format = args[1].get("mg7_lib_format", None)
         self.process_info = []
 
     def generate_subprocess_directory(
         self, matrix_element, cpp_helas_call_writer, proc_number=None
     ):
-        if self.matrix_element_path is not None:
-            process_exporter_cpp = self.oneprocessclass(matrix_element,cpp_helas_call_writer)
-            proc_dir_name = "P%d_%s" % (process_exporter_cpp.process_number, 
-                                        process_exporter_cpp.process_name)
-            dirpath = pjoin(self.dir_path, 'SubProcesses', proc_dir_name)
-            os.mkdir(dirpath)
-
-            suffix = self.matrix_element_gpu or "cpp"
-            logger.info('Creating files in directory %s' % dirpath)
-            common_lib_name = f"libmg5amc_common_{suffix}.so"
-            subproc_lib_name = f"libmg5amc_{process_exporter_cpp.process_name}_{suffix}.so"
-            os.symlink(
-                os.path.join(self.matrix_element_path, "lib", subproc_lib_name),
-                os.path.join(dirpath, "api.so")
-            )
-            os.symlink(
-                os.path.join(self.matrix_element_path, "lib", common_lib_name),
-                os.path.join(dirpath, common_lib_name)
-            )
-
-        else:
-            proc_dir_name = super().generate_subprocess_directory(
-                matrix_element, cpp_helas_call_writer, proc_number=None
-            )
-        self.process_info.append(get_subprocess_info(matrix_element, proc_dir_name))
+        proc_dir_name = super().generate_subprocess_directory(
+            matrix_element, cpp_helas_call_writer, proc_number=None
+        )
+        name = f"P{matrix_element.get('processes')[0].shell_string()}"
+        me_lib_path = self.me_lib_format.format(process_id = name)
+        self.process_info.append(get_subprocess_info(matrix_element, proc_dir_name, me_lib_path))
 
     def copy_template_simd(self, model):
         try:

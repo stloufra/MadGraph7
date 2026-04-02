@@ -119,6 +119,7 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
     def __init__(self, *args, **kwargs):
         self.in_madevent_mode = False # see MR #747
         misc.sprint('Entering ProcessExporterMadMatrix.__init__ (initialise the exporter)')
+        args[1]["me_lib_format"] = pjoin("lib", "libmg5amc_{process_id}_{{device}}.so")
         super().__init__(*args, **kwargs)
 
     # AV - overload the default version: create CMake directory, do not create lib directory
