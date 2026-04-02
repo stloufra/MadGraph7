@@ -1684,7 +1684,7 @@ class MadMatrixOneProcessExporter(export_cpp.OneProcessExporterGPU):
                                                     multi_channel_map = multi_channel
                                                     )
             ###misc.sprint( 'after get_matrix_element_calls', self.matrix_elements[0].get_number_of_wavefunctions() ) # CORRECT value of nwf, eg 5 for gg_tt
-            assert len(self.matrix_elements) == 1 # how to handle if this is not true?
+            assert len(self.matrix_elements) == 1 or len(self.matrix_elements) == 2 # how to handle if this is not true?
             self.couplings2order = self.helas_call_writer.couplings2order
             self.couporderflv = self.helas_call_writer.couporderflv
             self.params2order = self.helas_call_writer.params2order
@@ -1836,15 +1836,6 @@ class MadMatrixOneProcessExporter(export_cpp.OneProcessExporterGPU):
     def generate_process_files(self):
         """Generate mgOnGpuConfig.h, CPPProcess.cc, CPPProcess.h, check_sa.cc, gXXX.cu links"""
         ###misc.sprint('Entering MadMatrixOneProcessExporter.generate_process_files')
-        ###if self.include_multi_channel:
-        ###    misc.sprint('self.include_multi_channel is already defined: this is madevent+second_exporter mode') # FIXME? use self.in_madevent_mode instead?
-        if not self.include_multi_channel:
-            ###misc.sprint('self.include_multi_channel is not yet defined: this is standalone_cudacpp mode') # see issue #473
-            # AV: needed for (moved to?) standalone_cudacpp mode (but do we need those lines at all???)
-            # OM: this condition is likely wrong and need to be removed
-            if self.matrix_elements[0].get('has_mirror_process'):
-                self.matrix_elements[0].set('has_mirror_process', False)
-                self.nprocesses/=2
         super(export_cpp.OneProcessExporterGPU, self).generate_process_files()
         self.edit_CMakeLists()
         self.edit_check_sa()
