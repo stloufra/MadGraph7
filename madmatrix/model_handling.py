@@ -869,10 +869,10 @@ class MadMatrixUFOModelConverter(export_cpp.UFOModelConverterGPU):
 
     # AV - keep defaults from export_cpp.UFOModelConverterGPU
     ###cc_ext = 'cu'
-    ###aloha_template_h = pjoin('gpu','cpp_hel_amps_h.inc')
-    ###aloha_template_cc = pjoin('gpu','cpp_hel_amps_cc.inc')
-    ###helas_h = pjoin('gpu', 'helas.h')
-    ###helas_cc = pjoin('gpu', 'helas.cu')
+    ###aloha_template_h = pjoin('madmatrix','cpp_hel_amps_h.inc')
+    ###aloha_template_cc = pjoin('madmatrix','cpp_hel_amps_cc.inc')
+    ###helas_h = pjoin('madmatrix', 'helas.h')
+    ###helas_cc = pjoin('madmatrix', 'helas.cu')
 
     # AV - use a custom ALOHAWriter (NB: this is an argument to WriterFactory.__new__, either a string or a class!)
     ###aloha_writer = 'cudac' # WriterFactory will use ALOHAWriterForGPU
@@ -1834,7 +1834,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
     def edit_mgonGPU(self):
         """Generate mgOnGpuConfig.h"""
         ###misc.sprint('Entering OneProcessExporterMadMatrix.edit_mgonGPU')
-        template = open(pjoin(self.template_path,'gpu','mgOnGpuConfig.h'),'r').read()
+        template = open(pjoin(self.template_path,'madmatrix','mgOnGpuConfig.h'),'r').read()
         replace_dict = {}
         nexternal, nincoming = self.matrix_elements[0].get_nexternal_ninitial()
         replace_dict['nincoming'] = nincoming
@@ -1850,7 +1850,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
     def edit_processidfile(self):
         """Generate epoch_process_id.h"""
         ###misc.sprint('Entering OneProcessExporterMadMatrix.edit_processidfile')
-        template = open(pjoin(self.template_path,'gpu','epoch_process_id.h'),'r').read()
+        template = open(pjoin(self.template_path,'madmatrix','epoch_process_id.h'),'r').read()
         replace_dict = {}
         replace_dict['processid'] = self.get_process_name()
         replace_dict['processid_uppercase'] = self.get_process_name().upper()
@@ -1862,7 +1862,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
     def edit_colorsum(self):
         """Generate color_sum.cc"""
         ###misc.sprint('Entering OneProcessExporterMadMatrix.edit_colorsum')
-        template = open(pjoin(self.template_path,'gpu','color_sum.cc'),'r').read()
+        template = open(pjoin(self.template_path,'madmatrix','color_sum.cc'),'r').read()
         replace_dict = {}
         # Extract color matrix again (this was also in get_matrix_single_process called within get_all_sigmaKin_lines)
         replace_dict['color_matrix_lines'] = self.get_color_matrix_lines(self.matrix_elements[0])
@@ -1873,7 +1873,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
     def edit_processConfig(self):
         """Generate process_config.h"""
         ###misc.sprint('Entering OneProcessExporterMadMatrix.edit_processConfig')
-        template = open(pjoin(self.template_path,'gpu','processConfig.h'),'r').read()
+        template = open(pjoin(self.template_path,'madmatrix','processConfig.h'),'r').read()
         replace_dict = {}
         replace_dict['ndiagrams'] = len(self.matrix_elements[0].get('diagrams'))
         replace_dict['processid_uppercase'] = self.get_process_name().upper()
@@ -1894,7 +1894,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
         """Generate coloramps.h"""
 
         ###misc.sprint('Entering OneProcessExporterMadMatrix.edit_coloramps')
-        template = open(pjoin(self.template_path,'gpu','coloramps.h'),'r').read()
+        template = open(pjoin(self.template_path,'madmatrix','coloramps.h'),'r').read()
         ff = open(pjoin(self.path, 'coloramps.h'),'w')
         # The following five lines from OneProcessExporterCPP.get_sigmaKin_lines (using OneProcessExporterCPP.get_icolamp_lines)
         replace_dict={}
@@ -1957,7 +1957,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
     def edit_testxxx(self):
         """Generate testxxx.cc"""
         ###misc.sprint('Entering OneProcessExporterMadMatrix.edit_testxxx')
-        template = open(pjoin(self.template_path,'gpu','testxxx.cc'),'r').read()
+        template = open(pjoin(self.template_path,'madmatrix','testxxx.cc'),'r').read()
         replace_dict = {}
         replace_dict['model_name'] = self.model_name
         ff = open(pjoin(self.path, '..', 'testxxx.cc'),'w')
@@ -1968,7 +1968,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
     def edit_memorybuffers(self):
         """Generate MemoryBuffers.h"""
         ###misc.sprint('Entering OneProcessExporterMadMatrix.edit_memorybuffers')
-        template = open(pjoin(self.template_path,'gpu','MemoryBuffers.h'),'r').read()
+        template = open(pjoin(self.template_path,'madmatrix','MemoryBuffers.h'),'r').read()
         replace_dict = {}
         replace_dict['model_name'] = self.model_name
         ff = open(pjoin(self.path, '..', 'MemoryBuffers.h'),'w')
@@ -1979,7 +1979,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
     def edit_memoryaccesscouplings(self):
         """Generate MemoryAccessCouplings.h"""
         ###misc.sprint('Entering OneProcessExporterMadMatrix.edit_memoryaccesscouplings')
-        template = open(pjoin(self.template_path,'gpu','MemoryAccessCouplings.h'),'r').read()
+        template = open(pjoin(self.template_path,'madmatrix','MemoryAccessCouplings.h'),'r').read()
         replace_dict = {}
         replace_dict['model_name'] = self.model_name
         ff = open(pjoin(self.path, '..', 'MemoryAccessCouplings.h'),'w')
