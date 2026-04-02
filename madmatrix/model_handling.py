@@ -1414,29 +1414,19 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
     #  - OneProcessExporterMadMatrix(OneProcessExporterGPU)
     #      This class
 
-    # AV - change defaults from export_cpp.OneProcessExporterGPU
-    # [NB process_class = "CPPProcess" is set in OneProcessExporterCPP.__init__]
-    # [NB process_class = "gCPPProcess" is set in OneProcessExporterGPU.__init__]
-    cc_ext = 'cc' # create CPPProcess.cc (build it also as CPPProcess_cu.so, no longer symlink it as gCPPProcess.cu)
-
-    # AV - keep defaults from export_cpp.OneProcessExporterGPU
-    ###process_dir = '.'
-    ###include_dir = '.'
-    ###process_template_h = 'gpu/process_h.inc'
-    ###process_template_cc = 'gpu/process_cc.inc'
-    ###process_class_template = 'gpu/process_class.inc'
-    ###process_definition_template = 'gpu/process_function_definitions.inc'
-    ###process_wavefunction_template = 'cpp_process_wavefunctions.inc'
-    ###process_sigmaKin_function_template = 'gpu/process_sigmaKin_function.inc'
-    ###single_process_template = 'gpu/process_matrix.inc'
-    ###support_multichannel = False
-    ###multichannel_var = ',fptype& multi_chanel_num, fptype& multi_chanel_denom'
-
-    # AV - use template files from MG5DIR
-    ###template_path = os.path.join(_file_path, 'iolibs', 'template_files')
-    ###__template_path = os.path.join(_file_path, 'iolibs', 'template_files')
-    template_path = os.path.join('madgraph', 'iolibs', 'template_files' )
-    __template_path = os.path.join('madgraph', 'iolibs', 'template_files' )
+    # AV - change defaults from export_cpp.OneProcessExporterCPP
+    cc_ext = 'cc' # create CPPProcess.cc
+    process_dir = '.'
+    include_dir = '.'
+    process_template_h = pjoin('madmatrix', 'process_h.inc')
+    process_template_cc = pjoin('madmatrix', 'process_cc.inc')
+    process_class_template = pjoin('madmatrix', 'process_class.inc')
+    process_definition_template = pjoin('madmatrix', 'process_function_definitions.inc')
+    process_wavefunction_template = pjoin('madmatrix', 'cpp_process_wavefunctions.inc')
+    process_sigmaKin_function_template = pjoin('madmatrix', 'process_sigmaKin_function.inc')
+    single_process_template = pjoin('madmatrix', 'process_matrix.inc')
+    support_multichannel = False
+    multichannel_var = ',fptype& multi_chanel_num, fptype& multi_chanel_denom'
 
     # AV - overload export_cpp.OneProcessExporterGPU constructor (rename gCPPProcess to CPPProcess, set include_multi_channel)
     def __init__(self, *args, **kwargs):
@@ -1848,9 +1838,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
         self.edit_memoryaccesscouplings() # AV new file (NB this is generic in Subprocesses and then linked in Sigma-specific)
         # NB: symlink of cudacpp.mk to makefile is overwritten by madevent makefile if this exists (#480)
         # NB: this relies on the assumption that cudacpp code is generated before madevent code
-        files.ln(pjoin(self.path, 'cudacpp.mk'), self.path, 'makefile')
-        # Add link to makefile_original.mk, PR #1052
-        files.ln(pjoin(self.path, '..', 'makefile_original.mk'), self.path, 'makefile_original.mk')
+        #files.ln(pjoin(self.path, 'cudacpp.mk'), self.path, 'makefile')
 
     # SR - generate CMakeLists.txt file inside the P* directory
     def edit_CMakeLists(self):
