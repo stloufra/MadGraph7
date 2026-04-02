@@ -3183,7 +3183,7 @@ class ProcessExporterMG7(ProcessExporterCPP):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.me_lib_format = args[1].get("mg7_lib_format", None)
+        self.me_lib_format = args[1].get("me_lib_format", None)
         self.process_info = []
 
     def generate_subprocess_directory(
