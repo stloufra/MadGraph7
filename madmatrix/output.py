@@ -67,7 +67,7 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
     exporter = 'gpu'
 
     # AV - use a custom OneProcessExporter
-    oneprocessclass = model_handling.MadMatrixOneProcessExporter
+    oneprocessclass = model_handling.OneProcessExporterMadMatrix
 
     # Information to find the template file that we want to include from madgraph
     # you can include additional file from the plugin directory as well

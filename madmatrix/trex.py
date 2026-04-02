@@ -52,7 +52,7 @@ import madgraph.interface.common_run_interface as common_run_interface
 
 from . import launch_plugin
 
-class TREX_OneProcessExporter(model_handling.MadMatrixOneProcessExporter):
+class TREX_OneProcessExporter(model_handling.OneProcessExporterMadMatrix):
     """A custom OneProcessExporter for the TREX reweighting"""
     
     rex_path = os.path.join( PLUGINDIR, 'MadtRex' )
@@ -168,7 +168,7 @@ class TREX_OneProcessExporter(model_handling.MadMatrixOneProcessExporter):
     
     def edit_rwgt_runner(self):
         """Create the rwgt_runner.cc file for the tRex reweighting"""
-        ###misc.sprint('Entering MadMatrixOneProcessExporterRwgt.edit_rwgt_runner')
+        ###misc.sprint('Entering OneProcessExporterMadMatrixRwgt.edit_rwgt_runner')
         # Create the rwgt_runner.cc file
         replace_dict = super().get_process_class_definitions(write=False)
         replace_dict['process_namespace'] = self.get_proc_dir()
