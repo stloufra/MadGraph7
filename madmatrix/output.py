@@ -125,19 +125,7 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
     # AV - overload the default version: create CMake directory, do not create lib directory
     def copy_template(self, model):
         misc.sprint('Entering ProcessExporterMadMatrix.copy_template (initialise the directory)')
-        try: os.mkdir(self.dir_path)
-        except os.error as error: logger.warning(error.strerror + ' ' + self.dir_path)
-        with misc.chdir(self.dir_path):
-            logger.info('Creating subdirectories in directory %s' % self.dir_path)
-            for d in ['src', 'Cards', 'SubProcesses']:
-                try: os.mkdir(d)
-                except os.error as error: logger.warning(error.strerror + ' ' + os.path.join(self.dir_path,d))
-            # Write param_card
-            open(os.path.join('Cards','param_card.dat'), 'w').write(model.write_param_card())
-            # Copy files in various subdirectories
-            for key in self.from_template:
-                for f in self.from_template[key]:
-                    export_cpp.cp(f, key) # NB this assumes directory key exists...
+        super().copy_template(model)
 
     # AV - add debug printouts (in addition to the default one from OM's tutorial)
     def generate_subprocess_directory(self, subproc_group, fortran_model, me=None):

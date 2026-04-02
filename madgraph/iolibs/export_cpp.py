@@ -3196,38 +3196,8 @@ class ProcessExporterMG7(ProcessExporterCPP):
         me_lib_path = self.me_lib_format.format(process_id = name)
         self.process_info.append(get_subprocess_info(matrix_element, proc_dir_name, me_lib_path))
 
-    def copy_template_simd(self, model):
-        try:
-            os.mkdir(self.dir_path)
-        except os.error as error:
-            logger.warning(error.strerror + " " + self.dir_path)
-        
-        with misc.chdir(self.dir_path):
-            logger.info('Creating subdirectories in directory %s' % self.dir_path)
-
-            for d in self.dirs_to_create:
-                try:
-                    os.mkdir(d)
-                except os.error as error:
-                    logger.warning(error.strerror + " " + self.dir_path)
-    
-            # Write param_card
-            with open(os.path.join("Cards","param_card.dat"), "w") as f:
-                f.write(model.write_param_card())
-
-            # Copy the needed src files
-            from_template = {
-                **self.from_template, "SubProcesses": []
-            }
-            for key, files in from_template.items():
-                for f in files:
-                    cp(f, key)
-
     def copy_template(self, model):
-        if self.matrix_element_path is None:
-            super().copy_template(model)
-        else:
-            self.copy_template_simd(model)
+        super().copy_template(model)
 
         # TODO: for now, we import the files from madgraph. eventually, we should copy
         # the files instead to allow for modification
