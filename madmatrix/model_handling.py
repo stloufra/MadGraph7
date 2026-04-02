@@ -1827,7 +1827,6 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
         """Generate mgOnGpuConfig.h, CPPProcess.cc, CPPProcess.h, check_sa.cc, gXXX.cu links"""
         ###misc.sprint('Entering OneProcessExporterMadMatrix.generate_process_files')
         super(export_cpp.OneProcessExporterGPU, self).generate_process_files()
-        self.edit_check_sa()
         self.edit_mgonGPU()
         self.edit_processidfile() # AV new file (NB this is Sigma-specific, should not be a symlink to Subprocesses)
         self.edit_processConfig() # sub process specific, not to be symlinked from the Subprocesses directory
@@ -1838,23 +1837,6 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
         # NB: symlink of cudacpp.mk to makefile is overwritten by madevent makefile if this exists (#480)
         # NB: this relies on the assumption that cudacpp code is generated before madevent code
         #files.ln(pjoin(self.path, 'cudacpp.mk'), self.path, 'makefile')
-
-    # AV - replace the export_cpp.OneProcessExporterGPU method (invert .cc/.cu, add debug printouts)
-    def edit_check_sa(self):
-        """Generate check_sa.cc and fcheck_sa.f"""
-        ###misc.sprint('Entering OneProcessExporterMadMatrix.edit_check_sa')
-        ff = open(pjoin(self.path, 'check_sa.cc'),'w')
-        template = open(pjoin(self.template_path,'gpu','check_sa.cc'),'r').read()
-        ff.write(template) # nothing to replace in check_sa.cc
-        ff.close()
-        replace_dict = {}
-        replace_dict['nexternal'], _ = self.matrix_elements[0].get_nexternal_ninitial()
-        ###replace_dict['model'] = self.model_name
-        ###replace_dict['numproc'] = len(self.matrix_elements)
-        ff = open(pjoin(self.path, 'fcheck_sa.f'),'w')
-        template = open(pjoin(self.template_path,'gpu','fcheck_sa.f'),'r').read()
-        ff.write(template % replace_dict)
-        ff.close()
 
     # AV - replace the export_cpp.OneProcessExporterGPU method (add debug printouts and multichannel handling #473) 
     def edit_mgonGPU(self):
