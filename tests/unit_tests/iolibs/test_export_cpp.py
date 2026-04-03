@@ -740,6 +740,230 @@ double Sigma_sm_qqx_qqx::matrix_uux_uux()
 
         self.assertFileContains('test.cc', goal_string)
 
+    def test_cppwriter_with_ifdefs(self):
+        input_string = "hello"
+        input_string ="""#include "CPPProcess.h"
+
+  //--------------------------------------------------------------------------
+
+  CPPProcess::CPPProcess( bool verbose, /* clang-format off */
+                          bool debug )
+    : m_verbose( verbose )
+    , m_debug( debug )
+#ifndef MGONGPU_HARDCODE_PARAM
+    , m_pars( 0 )
+#endif
+    , m_masses()
+  {
+    // Helicities for the process [NB do keep 'static' for this constexpr array, see issue #283]
+    // *** NB There is no automatic check yet that these are in the same order as Fortran! #569 ***
+    static constexpr short tHel[ncomb][npar] = {
+      { -1, -1, -1, 1 },
+      { -1, -1, -1, -1 },
+      { -1, -1, 1, 1 },
+      { -1, -1, 1, -1 },
+      { -1, 1, -1, 1 },
+      { -1, 1, -1, -1 },
+      { -1, 1, 1, 1 },
+      { -1, 1, 1, -1 },
+      { 1, -1, -1, 1 },
+      { 1, -1, -1, -1 },
+      { 1, -1, 1, 1 },
+      { 1, -1, 1, -1 },
+      { 1, 1, -1, 1 },
+      { 1, 1, -1, -1 },
+      { 1, 1, 1, 1 },
+      { 1, 1, 1, -1 } };
+    static constexpr short tFlavors[nmaxflavor][npar] = {
+      { 20, 20, 5, 5 } };
+#ifdef MGONGPUCPP_GPUIMPL
+    gpuMemcpyToSymbol( cHel, tHel, ncomb * npar * sizeof( short ) );
+    gpuMemcpyToSymbol( cFlavors, tFlavors, nmaxflavor * npar * sizeof( short ) );
+#else
+    memcpy( cHel, tHel, ncomb * npar * sizeof( short ) );
+    memcpy( cFlavors, tFlavors, nmaxflavor * npar * sizeof( short ) );
+#endif
+
+    // Enable SIGFPE traps for Floating Point Exceptions
+#ifdef MGONGPUCPP_DEBUG
+    fpeEnable();
+#endif
+  }
+
+  //--------------------------------------------------------------------------
+
+  int                                          // output: nGoodHel (the number of good helicity combinations out of ncomb)
+  sigmaKin_setGoodHel( const bool* isGoodHel ) // input: isGoodHel[ncomb] - host array (CUDA and C++)
+  {
+    int nGoodHel = 0;
+    int goodHel[ncomb] = { 0 }; // all zeros https://en.cppreference.com/w/c/language/array_initialization#Notes
+    for( int ihel = 0; ihel < ncomb; ihel++ )
+    {
+      //std::cout << "sigmaKin_setGoodHel ihel=" << ihel << ( isGoodHel[ihel] ? " true" : " false" ) << std::endl;
+      if( isGoodHel[ihel] )
+      {
+        goodHel[nGoodHel] = ihel;
+        nGoodHel++;
+      }
+    }
+#ifdef MGONGPUCPP_GPUIMPL
+    gpuMemcpyToSymbol( dcNGoodHel, &nGoodHel, sizeof( int ) );
+    gpuMemcpyToSymbol( dcGoodHel, goodHel, ncomb * sizeof( int ) );
+#endif
+    cNGoodHel = nGoodHel;
+    for( int ihel = 0; ihel < ncomb; ihel++ ) cGoodHel[ihel] = goodHel[ihel];
+    return nGoodHel;
+  }
+
+  //--------------------------------------------------------------------------
+
+#ifdef MGONGPUCPP_GPUIMPL
+  __global__ void
+  add_and_select_hel( int* allselhel,          // output: helicity selection[nevt]
+                      const fptype* allrndhel, // input: random numbers[nevt] for helicity selection
+                      fptype* ghelAllMEs,      // input/tmp: allMEs for nGoodHel <= ncomb individual/runningsum helicities (index is ighel)
+                      fptype* allMEs,          // output: allMEs[nevt], final sum over helicities
+                      const int nevt )         // input: #events (for cuda: nevt == ndim == gpublocks*gputhreads)
+  {
+    const int ievt = blockDim.x * blockIdx.x + threadIdx.x; // index of event (thread)
+    // Compute the sum of MEs over all good helicities (defer this after the helicity loop to avoid breaking streams parall>
+    for( int ighel = 0; ighel < dcNGoodHel; ighel++ )
+    {
+      allMEs[ievt] += ghelAllMEs[ighel * nevt + ievt];
+      ghelAllMEs[ighel * nevt + ievt] = allMEs[ievt]; // reuse the buffer to store the running sum for helicity selection
+    }
+    // Event-by-event random choice of helicity #403
+    //printf( "select_hel: ievt=%4d rndhel=%f\n", ievt, allrndhel[ievt] );
+    for( int ighel = 0; ighel < dcNGoodHel; ighel++ )
+    {
+      if( allrndhel[ievt] < ( ghelAllMEs[ighel * nevt + ievt] / allMEs[ievt] ) )
+      {
+        const int ihelF = dcGoodHel[ighel] + 1; // NB Fortran [1,ncomb], cudacpp [0,ncomb-1]
+        allselhel[ievt] = ihelF;
+        //printf( "select_hel: ievt=%4d ihel=%4d\n", ievt, ihelF );
+        break;
+      }
+    }
+    return;
+  }
+#endif
+
+  //--------------------------------------------------------------------------"""
+
+        writer = writers.CPPWriter(self.give_pos('cppprocess.cc'))
+        writer.write(input_string)
+        goal_string = """#include "CPPProcess.h"
+
+  //--------------------------------------------------------------------------
+
+  CPPProcess::CPPProcess( bool verbose, /* clang-format off */
+                          bool debug )
+    : m_verbose( verbose )
+    , m_debug( debug )
+#ifndef MGONGPU_HARDCODE_PARAM
+    , m_pars( 0 )
+#endif
+    , m_masses()
+  {
+    // Helicities for the process [NB do keep 'static' for this constexpr array, see issue #283]
+    // *** NB There is no automatic check yet that these are in the same order as Fortran! #569 ***
+    static constexpr short tHel[ncomb][npar] = {
+      { -1, -1, -1, 1 },
+      { -1, -1, -1, -1 },
+      { -1, -1, 1, 1 },
+      { -1, -1, 1, -1 },
+      { -1, 1, -1, 1 },
+      { -1, 1, -1, -1 },
+      { -1, 1, 1, 1 },
+      { -1, 1, 1, -1 },
+      { 1, -1, -1, 1 },
+      { 1, -1, -1, -1 },
+      { 1, -1, 1, 1 },
+      { 1, -1, 1, -1 },
+      { 1, 1, -1, 1 },
+      { 1, 1, -1, -1 },
+      { 1, 1, 1, 1 },
+      { 1, 1, 1, -1 } };
+    static constexpr short tFlavors[nmaxflavor][npar] = {
+      { 20, 20, 5, 5 } };
+#ifdef MGONGPUCPP_GPUIMPL
+    gpuMemcpyToSymbol( cHel, tHel, ncomb * npar * sizeof( short ) );
+    gpuMemcpyToSymbol( cFlavors, tFlavors, nmaxflavor * npar * sizeof( short ) );
+#else
+    memcpy( cHel, tHel, ncomb * npar * sizeof( short ) );
+    memcpy( cFlavors, tFlavors, nmaxflavor * npar * sizeof( short ) );
+#endif
+
+    // Enable SIGFPE traps for Floating Point Exceptions
+#ifdef MGONGPUCPP_DEBUG
+    fpeEnable();
+#endif
+  }
+
+  //--------------------------------------------------------------------------
+
+  int                                          // output: nGoodHel (the number of good helicity combinations out of ncomb)
+  sigmaKin_setGoodHel( const bool* isGoodHel ) // input: isGoodHel[ncomb] - host array (CUDA and C++)
+  {
+    int nGoodHel = 0;
+    int goodHel[ncomb] = { 0 }; // all zeros https://en.cppreference.com/w/c/language/array_initialization#Notes
+    for( int ihel = 0; ihel < ncomb; ihel++ )
+    {
+      //std::cout << "sigmaKin_setGoodHel ihel=" << ihel << ( isGoodHel[ihel] ? " true" : " false" ) << std::endl;
+      if( isGoodHel[ihel] )
+      {
+        goodHel[nGoodHel] = ihel;
+        nGoodHel++;
+      }
+    }
+#ifdef MGONGPUCPP_GPUIMPL
+    gpuMemcpyToSymbol( dcNGoodHel, &nGoodHel, sizeof( int ) );
+    gpuMemcpyToSymbol( dcGoodHel, goodHel, ncomb * sizeof( int ) );
+#endif
+    cNGoodHel = nGoodHel;
+    for( int ihel = 0; ihel < ncomb; ihel++ ) cGoodHel[ihel] = goodHel[ihel];
+    return nGoodHel;
+  }
+
+  //--------------------------------------------------------------------------
+
+#ifdef MGONGPUCPP_GPUIMPL
+  __global__ void
+  add_and_select_hel( int* allselhel,          // output: helicity selection[nevt]
+                      const fptype* allrndhel, // input: random numbers[nevt] for helicity selection
+                      fptype* ghelAllMEs,      // input/tmp: allMEs for nGoodHel <= ncomb individual/runningsum helicities (index is ighel)
+                      fptype* allMEs,          // output: allMEs[nevt], final sum over helicities
+                      const int nevt )         // input: #events (for cuda: nevt == ndim == gpublocks*gputhreads)
+  {
+    const int ievt = blockDim.x * blockIdx.x + threadIdx.x; // index of event (thread)
+    // Compute the sum of MEs over all good helicities (defer this after the helicity loop to avoid breaking streams parall>
+    for( int ighel = 0; ighel < dcNGoodHel; ighel++ )
+    {
+      allMEs[ievt] += ghelAllMEs[ighel * nevt + ievt];
+      ghelAllMEs[ighel * nevt + ievt] = allMEs[ievt]; // reuse the buffer to store the running sum for helicity selection
+    }
+    // Event-by-event random choice of helicity #403
+    //printf( "select_hel: ievt=%4d rndhel=%f
+", ievt, allrndhel[ievt] );
+    for( int ighel = 0; ighel < dcNGoodHel; ighel++ )
+    {
+      if( allrndhel[ievt] < ( ghelAllMEs[ighel * nevt + ievt] / allMEs[ievt] ) )
+      {
+        const int ihelF = dcGoodHel[ighel] + 1; // NB Fortran [1,ncomb], cudacpp [0,ncomb-1]
+        allselhel[ievt] = ihelF;
+        //printf( "select_hel: ievt=%4d ihel=%4d
+", ievt, ihelF );
+        break;
+      }
+    }
+    return;
+  }
+#endif
+
+  //--------------------------------------------------------------------------"""
+
+        self.assertFileContains('cppprocess.cc', goal_string)
+
     def test_write_process_cc_file_uu_six(self):
         """Test writing the .cc Pythia file for u u > six"""
 
