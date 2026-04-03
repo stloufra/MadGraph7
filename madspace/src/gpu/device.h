@@ -74,12 +74,38 @@ private:
     int _index;
 };
 
+class MemPool {
+public:
+    struct AllocItem {
+        std::size_t pool_index;
+        std::size_t size_factor;
+        std::size_t offset;
+    };
+
+    MemPool(const SizeVec pool_factors, const std::vector<AllocItem>& allocs);
+    std::pair<void*, Tensor>
+    allocate(std::size_t size, const GpuDevice& device, gpuStream_t stream);
+
+private:
+    struct PoolItem {
+        std::size_t size_factor;
+        std::size_t batch_size;
+        Tensor parent_tensor;
+    };
+
+    std::vector<AllocItem> _allocs;
+    std::vector<PoolItem> _pools;
+    std::size_t _alloc_index = 0;
+};
+
 class AsyncGpuDevice {
 public:
-    AsyncGpuDevice(const GpuDevice& device, gpuStream_t stream) :
-        _device(device), _stream(stream) {}
+    AsyncGpuDevice(
+        const GpuDevice& device, gpuStream_t stream, MemPool* mem_pool = nullptr
+    ) :
+        _device(device), _stream(stream), _mem_pool(mem_pool) {}
 
-    void* allocate(std::size_t size) const;
+    std::pair<void*, Tensor> allocate(std::size_t size) const;
     void free(void* ptr) const;
     void memcpy(void* to, void* from, std::size_t size) const;
 
@@ -94,6 +120,7 @@ public:
 private:
     const GpuDevice& _device;
     gpuStream_t _stream;
+    MemPool* _mem_pool;
 };
 
 extern "C" int device_count();

@@ -933,6 +933,42 @@ private:
     std::vector<bool> _sync_matrix;
 }
 
+struct MemPoolTracker {
+    void allocate(Type type, std::size_t group_index) {
+        auto& pool = pools[{type.batch_size, group_index}];
+        if (!pool.initialized) {
+            pool.index = pools.size() - 1;
+        }
+        std::size_t size_factor;
+        switch (type.dtype) {
+        case DataType::dt_int:
+            size_factor = sizeof(me_int_t);
+        case DataType::dt_float:
+            size_factor = sizeof(double);
+        default:
+            throw std::logic_error("invalid data type");
+        }
+        for (std::size_t size : type.shape) {
+            size_factor *= size;
+        }
+        allocs.push_back({
+            .pool_index = pool.index,
+            .size_factor = size_factor,
+            .offset = pool.total_size,
+        });
+        pool.total_size += size_factor;
+    }
+
+    using PoolKey = std::pair<BatchSize, std::size_t>;
+    struct PoolData {
+        std::size_t index;
+        std::size_t total_size = 0;
+        bool initialized = false;
+    };
+    std::map<PoolKey, PoolData> pools;
+    std::vector<MemPool::AllocItem> allocs;
+};
+
 } // namespace
 
 GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :

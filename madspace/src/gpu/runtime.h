@@ -43,7 +43,10 @@ public:
     gpurandGenerator_t gpurand_generator() { return _gpurand_generator.get(); }
 
 private:
-    std::vector<Instruction> _instructions;
+    void
+
+        std::vector<Instruction>
+            _instructions;
     SizeVec _output_indices;
     std::size_t _input_count;
     TensorVec _locals_init;

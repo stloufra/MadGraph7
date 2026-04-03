@@ -6,11 +6,11 @@ using namespace madspace;
 using namespace madspace::gpu;
 using namespace madspace::kernels;
 
-void* GpuDevice::allocate(std::size_t size) const {
+std::pair<void*, Tensor> GpuDevice::allocate(std::size_t size) const {
     activate();
     void* ptr;
     check_error(gpuMalloc(&ptr, size));
-    return ptr;
+    return {ptr, Tensor()};
 }
 
 void GpuDevice::free(void* ptr) const {
@@ -48,10 +48,51 @@ void GpuDevice::tensor_cpu(const Tensor& source, Tensor& target) const {
     );
 }
 
-void* AsyncGpuDevice::allocate(std::size_t size) const {
-    void* ptr;
-    check_error(gpuMallocAsync(&ptr, size, _stream));
-    return ptr;
+MemPool::MemPool(const SizeVec pool_factors, const std::vector<AllocItem>& allocs) :
+    _allocs(allocs) {
+    _pools.reserve(pool_factors.size());
+    for (auto& factor : pool_factors) {
+        _pools.push_back({
+            .size_factor = factor,
+            .batch_size = 0,
+            .parent_tensor = Tensor(),
+        });
+    }
+}
+
+std::pair<void*, Tensor>
+MemPool::allocate(std::size_t size, const GpuDevice& device, gpuStream_t stream) {
+    AllocItem& alloc = _allocs.at(_alloc_index);
+    ++_alloc_index;
+    PoolItem& pool = _pools.at(alloc.pool_index);
+    if (size % alloc.size_factor != 0) {
+        throw std::runtime_error("inconsistent pool allocation");
+    }
+    std::size_t batch_size = size / alloc.size_factor;
+    if (!pool.parent_tensor) {
+        pool.batch_size = batch_size;
+        AsyncGpuDevice async_device(device, stream);
+        pool.parent_tensor = Tensor(
+            DataType::dt_float, {(batch_size * pool.size_factor + 7) / 8}, async_device
+        );
+    } else if (batch_size != pool.batch_size) {
+        throw std::runtime_error("inconsistent pool allocation");
+    }
+    return {
+        static_cast<uint8_t*>(pool.parent_tensor.data()) +
+            pool.batch_size * alloc.offset,
+        pool.parent_tensor
+    };
+}
+
+std::pair<void*, Tensor> AsyncGpuDevice::allocate(std::size_t size) const {
+    if (_mem_pool != nullptr) {
+        return _mem_pool->allocate(size, _device, _stream);
+    } else {
+        void* ptr;
+        check_error(gpuMallocAsync(&ptr, size, _stream));
+        return {ptr, Tensor()};
+    }
 }
 
 void AsyncGpuDevice::free(void* ptr) const { check_error(gpuFreeAsync(ptr, _stream)); }

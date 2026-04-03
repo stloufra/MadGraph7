@@ -34,7 +34,7 @@ public:
     };
     using Unnamed = std::shared_ptr<UnnamedBody>;
     using One = std::monostate;
-    using Compound = std::unordered_map<std::variant<Named, Unnamed, One>, int>;
+    using Compound = std::map<std::variant<Named, Unnamed, One>, int>;
 
     static const BatchSize zero;
     static const BatchSize one;
@@ -46,6 +46,7 @@ public:
     BatchSize operator-(const BatchSize& other) const { return add(other, -1); }
     bool operator==(const BatchSize& other) const { return value == other.value; }
     bool operator!=(const BatchSize& other) const { return value != other.value; }
+    std::string to_string() const;
 
     friend std::ostream& operator<<(std::ostream& out, const BatchSize& batch_size);
     friend void to_json(nlohmann::json& j, const BatchSize& batch_size);

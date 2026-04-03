@@ -1,5 +1,6 @@
 #pragma once
 
+#include "madspace/madcode/function.h"
 #include "madspace/runtime/tensor.h"
 #include "madspace/util.h"
 
@@ -26,6 +27,12 @@ void batch_foreach(const I& instruction, TensorVec& locals, D& device) {
     }
 
     foreach_func(inputs, outputs, batch_size, device);
+}
+
+void memory_batch_foreach(MemPoolTracker& mpt, const InstructionCall& instruction) {
+    for (auto& output : instruction.outputs) {
+        mpt.allocate(output.type);
+    }
 }
 
 template <

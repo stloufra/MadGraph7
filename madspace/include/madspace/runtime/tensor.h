@@ -168,7 +168,7 @@ enum class DeviceType { cpu, cuda, hip };
 class Device {
 public:
     virtual ~Device() = default;
-    virtual void* allocate(std::size_t size) const = 0;
+    virtual std::pair<void*, Tensor> allocate(std::size_t size) const = 0;
     virtual void free(void* ptr) const = 0;
     virtual void memcpy(void* to, void* from, std::size_t size) const = 0;
     virtual void tensor_copy(const Tensor& source, Tensor& target) const = 0;
@@ -204,14 +204,14 @@ public:
     Tensor(DataType dtype, const Sizes& shape, DevicePtr device) :
         impl(new TensorImpl{dtype, shape, device}) {
         auto size = init_stride();
-        impl->data = device->allocate(size);
+        allocate(size, *device);
     }
 
     template <typename D>
     Tensor(DataType dtype, const Sizes& shape, const D& device) :
         impl(new TensorImpl{dtype, shape, device.device_ptr()}) {
         auto size = init_stride();
-        impl->data = device.allocate(size);
+        allocate(size, device);
     }
 
     Tensor(
@@ -283,7 +283,7 @@ public:
             device
         }) {
         auto size = init_stride();
-        impl->data = device->allocate(size);
+        allocate(size, *device);
         device->memcpy(impl->data, &value, sizeof(value));
         if (std::is_same_v<T, me_int_t> && value >= 0) {
             impl->batch_sizes.push_back(value);
@@ -309,7 +309,7 @@ public:
             device
         }) {
         auto size = init_stride();
-        impl->data = device->allocate(size);
+        allocate(size, *device);
         std::visit(
             [&](auto& vec) { device->memcpy(impl->data, vec.data(), size); },
             std::get<1>(value)
@@ -593,6 +593,16 @@ private:
     void check_impl() const {
         if (impl == nullptr) {
             throw std::runtime_error("empty tensor");
+        }
+    }
+
+    template <typename D>
+    void allocate(std::size_t size, const D& device) {
+        auto [data, parent] = device.allocate(size);
+        impl->data = data;
+        if (parent) {
+            impl->owns_data = false;
+            impl->data_owner = parent.impl;
         }
     }
 
