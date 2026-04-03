@@ -2027,7 +2027,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterCPP):
         if writer:
             file = self.read_template_file(self.process_template_h) % replace_dict
             # Write the file
-            writer.writelines(file)
+            writer.writelines(file, formatting=False)
         else:
             return replace_dict
 
@@ -2040,7 +2040,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterCPP):
         if writer:
             file = self.read_template_file(self.process_template_cc) % replace_dict
             # Write the file
-            writer.writelines(file)
+            writer.writelines(file, formatting=False)
         else:
             return replace_dict
 
