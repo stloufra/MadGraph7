@@ -1452,6 +1452,14 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
         replace_dict['nmaxflavor'] = len(self.matrix_elements[0].get_external_flavors_with_iden()) # number of flavor combinations
         replace_dict['nwave'] = 4
         if (fd_gauge): replace_dict['nwave'] += 1
+
+        replace_dict['namp'] = len(self.amplitudes.get_all_amplitudes())
+        replace_dict['model'] = self.model_name
+        
+        replace_dict['sizew'] = self.matrix_elements[0].get_number_of_wavefunctions()
+        replace_dict['nexternal'], _ = self.matrix_elements[0].get_nexternal_ninitial()
+        replace_dict['ncomb'] = len([x for x in self.matrix_elements[0].get_helicity_matrix()])
+        
         if( write ): # ZW: added dict return for uses in child exporters. Default argument is True so no need to modify other calls to this function
             file = self.read_template_file(self.process_class_template) % replace_dict 
             file = '\n'.join( file.split('\n')[8:] ) # skip first 8 lines in process_class.inc (copyright)
@@ -1462,7 +1470,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
     # AV - replace export_cpp.OneProcessExporterGPU method (fix CPPProcess.cc)
     def get_process_function_definitions(self, write=True):
         """The complete class definition for the process"""
-        replace_dict = super(export_cpp.OneProcessExporterGPU,self).get_process_function_definitions(write=False) # defines replace_dict['initProc_lines']
+        replace_dict = super().get_process_function_definitions(write=False) # defines replace_dict['initProc_lines']
         replace_dict['hardcoded_initProc_lines'] = replace_dict['initProc_lines'].replace( 'm_pars->', 'Parameters::')
         couplings2order_indep = []
         ###replace_dict['ncouplings'] = len(self.couplings2order)
@@ -1643,6 +1651,18 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
                             self.matrix_elements]
         replace_dict['den_factors'] = ",".join(den_factors)
 
+        if self.include_multi_channel:
+            replace_dict['madE_var_reset'] = """
+            fptype multi_chanel_num = 0.;
+            fptype multi_chanel_denom = 0.;
+            """
+            replace_dict['madE_caclwfcts_call'] = '&multi_chanel_num, &multi_chanel_denom'
+            replace_dict['madE_update_answer'] = '   allMEs[iproc*nprocesses + ievt] *= multi_chanel_num/multi_chanel_denom;'
+
+            multi_channel = self.get_multi_channel_dictionary(self.matrix_elements[0].get('diagrams'), self.include_multi_channel)
+            replace_dict['nb_channel'] = len(multi_channel)
+            replace_dict['nb_color'] = max(1, len(self.matrix_elements[0].get('color_basis')))
+
         if write:
             file = self.read_template_file(self.process_sigmaKin_function_template) % replace_dict
             file = '\n'.join( file.split('\n')[8:] ) # skip first 8 lines in process_sigmaKin_function.inc (copyright)
@@ -1815,7 +1835,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
     def generate_process_files(self):
         """Generate mgOnGpuConfig.h, CPPProcess.cc, CPPProcess.h, check_sa.cc, gXXX.cu links"""
         ###misc.sprint('Entering OneProcessExporterMadMatrix.generate_process_files')
-        super(export_cpp.OneProcessExporterGPU, self).generate_process_files()
+        super().generate_process_files()
         self.edit_mgonGPU()
         self.edit_processidfile() # AV new file (NB this is Sigma-specific, should not be a symlink to Subprocesses)
         self.edit_processConfig() # sub process specific, not to be symlinked from the Subprocesses directory
@@ -1988,15 +2008,23 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
     def write_process_h_file(self, writer):
         """Generate final CPPProcess.h"""
         ###misc.sprint('Entering OneProcessExporterMadMatrix.write_process_h_file')
-        out = super().write_process_h_file(writer)
-        writer.seek(-1, os.SEEK_CUR)
-        writer.truncate()
-        return out
+        replace_dict = super().write_process_h_file(False)
+        try:
+            replace_dict['helamps_h'] = open(pjoin(self.path, os.pardir, os.pardir,'src','HelAmps_%s.h' % self.model_name)).read()
+        except FileNotFoundError:
+            replace_dict['helamps_h'] = "\n#include \"../../src/HelAmps_%s.h\"" % self.model_name
+        
+        if writer:
+            file = self.read_template_file(self.process_template_h) % replace_dict
+            # Write the file
+            writer.writelines(file)
+        else:
+            return replace_dict
 
     # AV - replace the export_cpp.OneProcessExporterGPU method (replace HelAmps.cu by HelAmps.cc)
-    def super_write_process_cc_file(self, writer):
+    def write_process_cc_file(self, writer):
         """Write the class member definition (.cc) file for the process described by matrix_element"""
-        replace_dict = super(export_cpp.OneProcessExporterGPU, self).write_process_cc_file(False)
+        replace_dict = super().write_process_cc_file(False)
         ###replace_dict['hel_amps_def'] = '\n#include \"../../src/HelAmps_%s.cu\"' % self.model_name
         replace_dict['hel_amps_h'] = '#include \"HelAmps_%s.h\"' % self.model_name # AV
         if writer:
@@ -2005,16 +2033,6 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
             writer.writelines(file)
         else:
             return replace_dict
-
-    # AV - overload the export_cpp.OneProcessExporterGPU method (add debug printout and truncate last \n)
-    def write_process_cc_file(self, writer):
-        """Generate CPPProcess.cc"""
-        ###misc.sprint('Entering OneProcessExporterMadMatrix.write_process_cc_file')
-        ###out = super().write_process_cc_file(writer)
-        out = self.super_write_process_cc_file(writer)
-        writer.seek(-1, os.SEEK_CUR)
-        writer.truncate()
-        return out
 
     # AV - replace the export_cpp.OneProcessExporterCPP method (fix fptype and improve formatting)
     def get_color_matrix_lines(self, matrix_element):
@@ -2076,13 +2094,10 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
             flavor_line_list.append( '{ ' + ', '.join(['%d'] * len(cpp_flavors)) % tuple(cpp_flavors) + ' }' )
         return flavor_line + ',\n      '.join(flavor_line_list) + ' };'
 
-    # AV - overload the export_cpp.OneProcessExporterGPU method (just to add some comments...)
     def get_reset_jamp_lines(self, color_amplitudes):
         """Get lines to reset jamps"""
-        ret_lines = super().get_reset_jamp_lines(color_amplitudes)
-        if ret_lines != '' : ret_lines = '    // Reset jamp (reset color flows)\n' + ret_lines # AV THIS SHOULD NEVER HAPPEN!
+        ret_lines = ""
         return ret_lines
-
 
 #------------------------------------------------------------------------------------
 
@@ -2556,7 +2571,6 @@ class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
             self.add_wavefunction(argument.get_call_key(), call_function)
         else:
             self.add_amplitude(argument.get_call_key(), call_function)
-
 
 def combine_name(name, other_names, outgoing, tag=None, unknown_propa=False):
     """ build the name for combined aloha function """

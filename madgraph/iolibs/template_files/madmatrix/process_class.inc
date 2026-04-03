@@ -60,13 +60,6 @@
     // [NB: I am currently unable to get the right value of nwf in CPPProcess.h - will hardcode it in CPPProcess.cc instead (#644)]
     //static const int nwf = ??; // #wavefunctions = #external (npar) + #internal: e.g. 5 for e+ e- -> mu+ mu- (1 internal is gamma or Z)
 
-    // Other variables of this instance (???)
-    //static const int ninitial = CPPProcess::npari;
-    //static const int nexternal = %(nexternal)d; // CPPProcess::npar (nexternal was nioparticles)
-    //static const int nwavefuncs = %(nwavefuncs)d; // (?!?! this should be nwf but export_cpp gives the wrong value here)
-    //static const int namplitudes = %(namp)d;
-    //static const int ncomb = %(ncomb)d; // CPPProcess::ncomb
-
   private: /* clang-format on */
 
     // Command line arguments (constructor)

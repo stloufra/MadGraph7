@@ -1582,7 +1582,7 @@ class OneProcessExporterGPU(OneProcessExporterCPP):
         super(OneProcessExporterGPU, self).__init__(*args, **opts)
         self.process_class = "gCPPProcess"
 
-    def generate_process_files(self):
+    def generate_process_files_deprecated(self):
         
         if self.matrix_elements[0].get('has_mirror_process'):
             self.matrix_elements[0].set('has_mirror_process', False)
@@ -1610,7 +1610,7 @@ class OneProcessExporterGPU(OneProcessExporterCPP):
         ff.write(template)
         ff.close()
         
-    def edit_mgonGPU(self):
+    def edit_mgonGPU_deprecated(self):
         
         template = open(pjoin(self.template_path,'gpu','mgOnGpuConfig.h'),'r').read()
         replace_dict = {}
@@ -1646,13 +1646,13 @@ class OneProcessExporterGPU(OneProcessExporterCPP):
 
         return "\n".join(initProc_lines)
 
-    def get_reset_jamp_lines(self, color_amplitudes):
+    def get_reset_jamp_lines_deprecated(self, color_amplitudes):
         """Get lines to reset jamps"""
 
         ret_lines = ""
         return ret_lines
     
-    def get_sigmaKin_lines(self, color_amplitudes, write=True):
+    def get_sigmaKin_lines_deprecated(self, color_amplitudes, write=True):
         """Get sigmaKin_lines for function definition for Pythia 8 .cc file"""
 
 
@@ -1717,7 +1717,7 @@ class OneProcessExporterGPU(OneProcessExporterCPP):
 
 
 
-    def get_process_function_definitions(self, write=True):
+    def get_process_function_definitions_deprecated(self, write=True):
         """The complete Pythia 8 class definition for the process"""
 
         replace_dict = super(OneProcessExporterGPU,self).get_process_function_definitions(write=False)
@@ -1750,7 +1750,7 @@ class OneProcessExporterGPU(OneProcessExporterCPP):
 
         return file
 
-    def get_process_class_definitions(self, write=True):
+    def get_process_class_definitions_deprecated(self, write=True):
         
         replace_dict = super(OneProcessExporterGPU,self).get_process_class_definitions(write=False)
 
@@ -1874,7 +1874,7 @@ class OneProcessExporterGPU(OneProcessExporterCPP):
                                 for i, me in enumerate(self.matrix_elements)])
         return "\n".join(ret_lines)
 
-    def write_process_h_file(self, writer):
+    def write_process_h_file_deprecated(self, writer):
         """Write the class definition (.h) file for the process"""
         
         replace_dict = super(OneProcessExporterGPU, self).write_process_h_file(False)
@@ -1890,7 +1890,7 @@ class OneProcessExporterGPU(OneProcessExporterCPP):
         else:
             return replace_dict
     
-    def write_process_cc_file(self, writer):
+    def write_process_cc_file_deprecated(self, writer):
         """Write the class member definition (.cc) file for the process
         described by matrix_element"""
         
