@@ -730,15 +730,15 @@ class OneProcessExporterCPP(object):
         info = misc.get_pkg_info()
         info_lines = ""
         if info and 'version' in info and  'date' in info:
-            info_lines = "#  MadGraph5_aMC@NLO v. %s, %s\n" % \
+            info_lines = "//  MadGraph5_aMC@NLO v. %s, %s\n" % \
                          (info['version'], info['date'])
             info_lines = info_lines + \
-                         "#  By the MadGraph5_aMC@NLO Development Team\n" + \
-                         "#  Visit launchpad.net/madgraph5 and amcatnlo.web.cern.ch"
+                         "//  By the MadGraph5_aMC@NLO Development Team\n" + \
+                         "//  Visit launchpad.net/madgraph5 and amcatnlo.web.cern.ch"
         else:
-            info_lines = "#  MadGraph5_aMC@NLO\n" + \
-                         "#  By the MadGraph5_aMC@NLO Development Team\n" + \
-                         "#  Visit launchpad.net/madgraph5 and amcatnlo.web.cern.ch"        
+            info_lines = "//  MadGraph5_aMC@NLO\n" + \
+                         "//  By the MadGraph5_aMC@NLO Development Team\n" + \
+                         "//  Visit launchpad.net/madgraph5 and amcatnlo.web.cern.ch"        
 
         return info_lines
         
