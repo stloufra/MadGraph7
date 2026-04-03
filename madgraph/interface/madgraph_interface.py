@@ -6109,11 +6109,11 @@ This implies that with decay chains:
                 lhapdf_path = os.path.abspath(pjoin(os.path.dirname(\
                                                  lhapdf_config),os.path.pardir))
             if lhapdf_version is None:
-                logger.warning('You decided not to link the Pythia8 installation'+
+                logger.warning('You decided not to link the '+ tool + ' installation'+
                   ' to LHAPDF. Beware that only built-in PDF sets can be used then.')
             else:
-                logger.info('Pythia8 will be linked to LHAPDF v%d.'%lhapdf_version)
-            logger.info('Now installing Pythia8. Be patient...','$MG:color:GREEN')
+                logger.info(tool + 'will be linked to LHAPDF v%d.'%lhapdf_version)
+            logger.info('Now installing' + tool + '. Be patient...','$MG:color:GREEN')
             lhapdf_option = []
             if lhapdf_version is None:
                 lhapdf_option.append('--with_lhapdf6=OFF')
@@ -6133,7 +6133,7 @@ This implies that with decay chains:
             add_options = [opt for opt in add_options if opt!='--force']+\
                         (['--force'] if '--force' in add_options else [])
             return_code = misc.call([sys.executable, pjoin(MG5DIR,'HEPTools',
-             'HEPToolsInstallers','HEPToolInstaller.py'),'pythia8',
+             'HEPToolsInstallers','HEPToolInstaller.py'), tool,
              '--prefix=%s' % prefix]
                         + lhapdf_option + compiler_options + add_options)
         else:
