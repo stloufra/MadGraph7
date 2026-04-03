@@ -1423,6 +1423,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
     single_process_template = pjoin('madmatrix', 'process_matrix.inc')
     support_multichannel = False
     multichannel_var = ',fptype& multi_chanel_num, fptype& multi_chanel_denom'
+    imaginary_unit = "cxtype(0,1)"
 
     # AV - overload export_cpp.OneProcessExporterGPU constructor (rename gCPPProcess to CPPProcess, set include_multi_channel)
     def __init__(self, *args, **kwargs):
@@ -2014,31 +2015,6 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
         writer.seek(-1, os.SEEK_CUR)
         writer.truncate()
         return out
-
-    # AV - replace the export_cpp.OneProcessExporterGPU method (improve formatting? actually keep all defaults!)
-    # [NB this is used in uu~>tt~ but not in gg>tt~ or e+e->mu+mu-, see issue #337]
-    @staticmethod
-    def coeff(ff_number, frac, is_imaginary, Nc_power, Nc_value=3):
-        """Returns a nicely formatted string for the coefficients in JAMP lines"""
-        total_coeff = ff_number * frac * Fraction(Nc_value) ** Nc_power
-        if total_coeff == 1:
-            if is_imaginary:
-                return '+cxtype(0,1)*' # AV keep default (this is not used in eemumu - should use cI eventually)
-            else:
-                return '+' # AV keep default (this is not used in eemumu)
-        elif total_coeff == -1:
-            if is_imaginary:
-                return '-cxtype(0,1)*' # AV keep default (this is not used in eemumu - should use cI eventually)
-            else:
-                return '-' # AV keep default (eg jamp_sv[0] += -amp_sv[0])
-        ###assert(False) # [this had been inserted to check if coeff is used at all, it is used in uu~>tt~, see #337]
-        res_str = '%+i.' % total_coeff.numerator
-        if total_coeff.denominator != 1:
-            # Check if total_coeff is an integer
-            res_str = res_str + '/%i.' % total_coeff.denominator
-        if is_imaginary:
-            res_str = res_str + '*cxtype(0,1)'
-        return res_str + '*' # AV keep default (this is not used in eemumu)
 
     # AV - replace the export_cpp.OneProcessExporterCPP method (fix fptype and improve formatting)
     def get_color_matrix_lines(self, matrix_element):

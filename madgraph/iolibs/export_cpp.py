@@ -597,6 +597,7 @@ class OneProcessExporterCPP(object):
     single_process_template = 'cpp_process_matrix.inc'
     cc_ext = 'cc'
     support_multichannel = False
+    imaginary_unit = "std::complex<double>(0,1)"
 
     class ProcessExporterCPPError(Exception):
         pass
@@ -1457,20 +1458,20 @@ class OneProcessExporterCPP(object):
             return "\n".join([denom_string, matrix_string])
 
 
-    @staticmethod
-    def coeff(ff_number, frac, is_imaginary, Nc_power, Nc_value=3):
+    @classmethod
+    def coeff(cls, ff_number, frac, is_imaginary, Nc_power, Nc_value=3):
         """Returns a nicely formatted string for the coefficients in JAMP lines"""
     
         total_coeff = ff_number * frac * fractions.Fraction(Nc_value) ** Nc_power
     
         if total_coeff == 1:
             if is_imaginary:
-                return '+std::complex<double>(0,1)*'
+                return f'+{cls.imaginary_unit}*'
             else:
                 return '+'
         elif total_coeff == -1:
             if is_imaginary:
-                return '-std::complex<double>(0,1)*'
+                return f'-{cls.imaginary_unit}*'
             else:
                 return '-'
     
@@ -1481,7 +1482,7 @@ class OneProcessExporterCPP(object):
             res_str = res_str + '/%i.' % total_coeff.denominator
     
         if is_imaginary:
-            res_str = res_str + '*std::complex<double>(0,1)'
+            res_str = res_str + f'*{cls.imaginary_unit}'
     
         return res_str + '*'
 
