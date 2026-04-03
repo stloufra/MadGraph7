@@ -393,7 +393,7 @@ C ----------
     return 
     end
 
-    subroutine %(proc_prefix)s_get_chosen_so_config(M,N, out)
+    subroutine %(proc_prefix)sget_chosen_so_config(M,N, out)
 
     integer M, N
     logical out
