@@ -29,6 +29,17 @@ from six import StringIO
 # FD gauge check
 fd_gauge = (unitary_gauge == 3)
 
+def strip_banner(file_text, banner_mark):
+    # skip leading lines that start with '!'
+    start = 0
+    file_lines = file_text.split('\n')
+    for i, line in enumerate(file_lines):
+        if line.startswith(banner_mark):
+            start = i + 1
+        else:
+            break
+    return '\n'.join(file_lines[start:])
+
 # AV - define a custom ALOHAWriter
 # (NB: enable this via MadMatrixUFOModelConverter.aloha_writer)
 class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
@@ -888,7 +899,7 @@ class MadMatrixUFOModelConverter(export_cpp.UFOModelConverterGPU):
  
         if ext == 'h': file = open(pjoin(path, helas_temp_file)).read()
         else: file = open(pjoin(path, self.helas_cc)).read()
-        file = '\n'.join( file.split('\n')[9:] ) # skip first 9 lines in helas.h/cu (copyright including ALOHA)
+        file = strip_banner(file, banner_mark = "!") # skip first 9 lines in helas.h/cu (copyright including ALOHA)
         out.append( file )
         return out
 
@@ -1353,7 +1364,7 @@ class MadMatrixUFOModelConverter(export_cpp.UFOModelConverterGPU):
         if (fd_gauge): replace_dict['nwave'] += 1
         file_h = self.read_template_file(self.aloha_template_h) % replace_dict
         file_cc = self.read_template_file(self.aloha_template_cc) % replace_dict
-        file_cc = '\n'.join( file_cc.split('\n')[9:] ) # skip first 9 lines in cpp_hel_amps_cc.inc (copyright including ALOHA)
+        file_cc = strip_banner(file_cc, banner_mark = "!") # skip first 9 lines in cpp_hel_amps_cc.inc (copyright including ALOHA)
         # Write the HelAmps_sm.h and HelAmps_sm.cc files
         ###MadMatrixwriters.CPPWriter(model_h_file).writelines(file_h)
         ###MadMatrixwriters.CPPWriter(model_cc_file).writelines(file_cc)
@@ -1461,7 +1472,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterCPP):
         
         if( write ): # ZW: added dict return for uses in child exporters. Default argument is True so no need to modify other calls to this function
             file = self.read_template_file(self.process_class_template) % replace_dict 
-            file = '\n'.join( file.split('\n')[8:] ) # skip first 8 lines in process_class.inc (copyright)
+            file = strip_banner(file, banner_mark = "!") # skip first 8 lines in process_class.inc (copyright)
             return file
         else:
             return replace_dict
@@ -1633,7 +1644,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterCPP):
             file_lines = file.split('\n')
             file_lines = [l.replace('cIPC, cIPD','cIPC') for l in file_lines] # remove cIPD from OpenMP pragma
             file = '\n'.join( file_lines )
-        file = '\n'.join( file.split('\n')[8:] ) # skip first 8 lines in process_function_definitions.inc (copyright)
+        file = strip_banner(file, banner_mark = "!") # skip first 8 lines in process_function_definitions.inc (copyright)
         return file
 
     # AV - modify export_cpp.OneProcessExporterCPP method (add debug printouts for multichannel #342)
@@ -1664,7 +1675,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterCPP):
 
         if write:
             file = self.read_template_file(self.process_sigmaKin_function_template) % replace_dict
-            file = '\n'.join( file.split('\n')[8:] ) # skip first 8 lines in process_sigmaKin_function.inc (copyright)
+            file = strip_banner(file, banner_mark = "!") # skip first 8 lines in process_sigmaKin_function.inc (copyright)
             return file, replace_dict
         else:
             return replace_dict
@@ -1816,7 +1827,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterCPP):
         file_extend = []
         for i, me in enumerate(self.matrix_elements):
             file = self.get_matrix_single_process( i, me, color_amplitudes[i], class_name )
-            file = '\n'.join( file.split('\n')[8:] ) # skip first 8 lines in process_matrix.inc (copyright)
+            file = strip_banner(file, banner_mark = "!") # skip first 8 lines in process_matrix.inc (copyright)
             file_extend.append( file )
             assert i == 0, "more than one ME in get_all_sigmaKin_lines" # AV sanity check (added for color_sum.cc but valid independently)
         ret_lines.extend( file_extend )
