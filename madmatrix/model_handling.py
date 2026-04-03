@@ -1402,12 +1402,11 @@ import madgraph.core.base_objects as base_objects
 # (NB: enable this via ProcessExporterMadMatrix.oneprocessclass in output.py)
 # (NB: use this directly also in MadMatrixUFOModelConverter.read_template_file)
 # (NB: use this directly also in MadMatrixGPUFOHelasCallWriter.super_get_matrix_element_calls)
-class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
+class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterCPP):
     # Class structure information
     #  - object
     #  - OneProcessExporterCPP(object) [in madgraph/iolibs/export_cpp.py]
-    #  - OneProcessExporterGPU(OneProcessExporterCPP) [in madgraph/iolibs/export_cpp.py]
-    #  - OneProcessExporterMadMatrix(OneProcessExporterGPU)
+    #  - OneProcessExporterMadMatrix(OneProcessExporterCPP)
     #      This class
 
     # AV - change defaults from export_cpp.OneProcessExporterCPP
@@ -1425,7 +1424,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
     multichannel_var = ',fptype& multi_chanel_num, fptype& multi_chanel_denom'
     imaginary_unit = "cxtype(0,1)"
 
-    # AV - overload export_cpp.OneProcessExporterGPU constructor (rename gCPPProcess to CPPProcess, set include_multi_channel)
+    # AV - overload export_cpp.OneProcessExporterCPP constructor (rename gCPPProcess to CPPProcess, set include_multi_channel)
     def __init__(self, *args, **kwargs):
         ###misc.sprint('Entering OneProcessExporterMadMatrix.__init__')
         for kwarg in kwargs: misc.sprint( 'kwargs[%s] = %s' %( kwarg, kwargs[kwarg] ) )
@@ -1437,7 +1436,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
         ###misc.sprint(proc_id)
         self.proc_id = proc_id
 
-    # AV - overload export_cpp.OneProcessExporterGPU method (indent comments in process_lines)
+    # AV - overload export_cpp.OneProcessExporterCPP method (indent comments in process_lines)
     def get_process_class_definitions(self, write=True):
         replace_dict = super().get_process_class_definitions(write=False)
         replace_dict['process_lines'] = replace_dict['process_lines'].replace('\n','\n  ')
@@ -1467,7 +1466,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
         else:
             return replace_dict
 
-    # AV - replace export_cpp.OneProcessExporterGPU method (fix CPPProcess.cc)
+    # AV - replace export_cpp.OneProcessExporterCPP method (fix CPPProcess.cc)
     def get_process_function_definitions(self, write=True):
         """The complete class definition for the process"""
         replace_dict = super().get_process_function_definitions(write=False) # defines replace_dict['initProc_lines']
@@ -1637,7 +1636,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
         file = '\n'.join( file.split('\n')[8:] ) # skip first 8 lines in process_function_definitions.inc (copyright)
         return file
 
-    # AV - modify export_cpp.OneProcessExporterGPU method (add debug printouts for multichannel #342)
+    # AV - modify export_cpp.OneProcessExporterCPP method (add debug printouts for multichannel #342)
     def get_sigmaKin_lines(self, color_amplitudes, write=True):
         ###misc.sprint('Entering OneProcessExporterMadMatrix.get_sigmaKin_lines')
         ###misc.sprint(self.include_multi_channel)
@@ -1670,7 +1669,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
         else:
             return replace_dict
 
-    # AV - modify export_cpp.OneProcessExporterGPU method (fix CPPProcess.cc)
+    # AV - modify export_cpp.OneProcessExporterCPP method (fix CPPProcess.cc)
     def get_all_sigmaKin_lines(self, color_amplitudes, class_name):
         """Get sigmaKin_process for all subprocesses for CPPProcess.cc"""
         ret_lines = []
@@ -1823,7 +1822,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
         ret_lines.extend( file_extend )
         return '\n'.join(ret_lines)
 
-    # AV - modify export_cpp.OneProcessExporterGPU method (replace '# Process' by '// Process')
+    # AV - modify export_cpp.OneProcessExporterCPP method (replace '# Process' by '// Process')
     def get_process_info_lines(self, matrix_element):
         """Return info lines describing the processes for this matrix element"""
         ###return'\n'.join([ '# ' + process.nice_string().replace('\n', '\n# * ') \
@@ -1831,7 +1830,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
         return'\n'.join([ '// ' + process.nice_string().replace('\n', '\n// * ') \
                          for process in matrix_element.get('processes')])
 
-    # AV - replace the export_cpp.OneProcessExporterGPU method (invert .cc/.cu, add debug printouts)
+    # AV - replace the export_cpp.OneProcessExporterCPP method (invert .cc/.cu, add debug printouts)
     def generate_process_files(self):
         """Generate mgOnGpuConfig.h, CPPProcess.cc, CPPProcess.h, check_sa.cc, gXXX.cu links"""
         ###misc.sprint('Entering OneProcessExporterMadMatrix.generate_process_files')
@@ -1847,7 +1846,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
         # NB: this relies on the assumption that cudacpp code is generated before madevent code
         #files.ln(pjoin(self.path, 'cudacpp.mk'), self.path, 'makefile')
 
-    # AV - replace the export_cpp.OneProcessExporterGPU method (add debug printouts and multichannel handling #473) 
+    # AV - replace the export_cpp.OneProcessExporterCPP method (add debug printouts and multichannel handling #473) 
     def edit_mgonGPU(self):
         """Generate mgOnGpuConfig.h"""
         ###misc.sprint('Entering OneProcessExporterMadMatrix.edit_mgonGPU')
@@ -2003,7 +2002,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
         ff.write(template % replace_dict)
         ff.close()
 
-    # AV - overload the export_cpp.OneProcessExporterGPU method (add debug printout and truncate last \n)
+    # AV - overload the export_cpp.OneProcessExporterCPP method (add debug printout and truncate last \n)
     # [*NB export_cpp.UFOModelConverterGPU.write_process_h_file is not called!*]
     def write_process_h_file(self, writer):
         """Generate final CPPProcess.h"""
@@ -2021,7 +2020,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
         else:
             return replace_dict
 
-    # AV - replace the export_cpp.OneProcessExporterGPU method (replace HelAmps.cu by HelAmps.cc)
+    # AV - replace the export_cpp.OneProcessExporterCPP method (replace HelAmps.cu by HelAmps.cc)
     def write_process_cc_file(self, writer):
         """Write the class member definition (.cc) file for the process described by matrix_element"""
         replace_dict = super().write_process_cc_file(False)
@@ -2061,7 +2060,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterGPU):
             matrix_string = matrix_comment + matrix_string
             return '\n'.join([denom_string, matrix_string])
 
-    # AV - replace the export_cpp.OneProcessExporterGPU method (improve formatting)
+    # AV - replace the export_cpp.OneProcessExporterCPP method (improve formatting)
     def get_initProc_lines(self, matrix_element, color_amplitudes):
         """Get initProc_lines for function definition for CPPProcess::initProc"""
         initProc_lines = []
