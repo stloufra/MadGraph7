@@ -63,7 +63,7 @@ Mapping::Result MultiChannelMapping::build_impl(
         for (auto& condition : split_conditions) {
             cond.push_back(condition.at(index));
         }
-        fb.set_current_stream(index + 1);
+        // fb.set_current_stream(index + 1);
         auto [output, det] = inverse ? mapping->build_inverse(fb, in, cond)
                                      : mapping->build_forward(fb, in, cond);
         auto split_out_iter = split_outputs.begin();
@@ -145,7 +145,7 @@ ValueVec MultiChannelFunction::build_function_impl(
         for (auto& arg : split_args) {
             func_args.push_back(arg.at(index));
         }
-        fb.set_current_stream(index + 1);
+        // fb.set_current_stream(index + 1);
         auto output = func->build_function(fb, func_args);
         std::size_t split_out_index = 0;
         for (auto& out : output) {

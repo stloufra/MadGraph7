@@ -46,7 +46,7 @@ void op_matrix_element(
         );
         contiguous_inputs[i] =
             locals[instruction.input_indices[3 + 2 * i + 1]].contiguous(
-                batch_size, device
+                batch_size, device, AllocHint::temporary
             );
         input_ptrs[i] = contiguous_inputs[i].data();
     }
@@ -60,7 +60,12 @@ void op_matrix_element(
         Sizes shape(output_shape.size() + 1);
         shape[0] = batch_size;
         std::copy(output_shape.begin(), output_shape.end(), shape.begin() + 1);
-        output = Tensor(instruction.output_dtypes[i], shape, device);
+        output = Tensor(
+            instruction.output_dtypes[i],
+            shape,
+            device,
+            instruction.output_alloc_hints[i]
+        );
         output_ptrs[i] = output.data();
         if (me_index == 0xBADCAFE) {
             // flat dummy matrix element for testing purposes
@@ -121,14 +126,22 @@ void op_matmul(
     TensorVec& locals,
     const AsyncGpuDevice& device
 ) {
-    auto input = locals[instruction.input_indices[0]].contiguous(device);
-    auto weight = locals[instruction.input_indices[1]].contiguous(device);
-    auto bias = locals[instruction.input_indices[2]].contiguous(device);
+    auto input =
+        locals[instruction.input_indices[0]].contiguous(device, AllocHint::temporary);
+    auto weight =
+        locals[instruction.input_indices[1]].contiguous(device, AllocHint::temporary);
+    auto bias =
+        locals[instruction.input_indices[2]].contiguous(device, AllocHint::temporary);
     auto& output = locals[instruction.output_indices[0]];
     std::size_t batch_size = input.size(0);
     std::size_t dims_in = input.size(1);
     std::size_t dims_out = weight.size(1);
-    output = Tensor(DataType::dt_float, {batch_size, dims_out}, device);
+    output = Tensor(
+        DataType::dt_float,
+        {batch_size, dims_out},
+        device,
+        instruction.output_alloc_hints[0]
+    );
     output.copy_from(bias, device);
     if (batch_size == 0) {
         return;
@@ -164,9 +177,13 @@ void backward_op_matmul(
     TensorVec& local_grads,
     const AsyncGpuDevice& device
 ) {
-    auto input = locals[instruction.input_indices[0]].contiguous(device);
-    auto weight = locals[instruction.input_indices[1]].contiguous(device);
-    auto output_grad = local_grads[instruction.output_indices[0]].contiguous(device);
+    auto input =
+        locals[instruction.input_indices[0]].contiguous(device, AllocHint::temporary);
+    auto weight =
+        locals[instruction.input_indices[1]].contiguous(device, AllocHint::temporary);
+    auto output_grad = local_grads[instruction.output_indices[0]].contiguous(
+        device, AllocHint::temporary
+    );
     auto& input_grad = local_grads[instruction.input_indices[0]];
     auto& weight_grad = local_grads[instruction.input_indices[1]];
     auto& bias_grad = local_grads[instruction.input_indices[2]];
@@ -175,16 +192,31 @@ void backward_op_matmul(
     std::size_t dims_out = weight.size(1);
 
     if (!input_grad) {
-        input_grad = Tensor(DataType::dt_float, input.shape(), device);
-        input_grad.zero();
+        input_grad = Tensor(
+            DataType::dt_float,
+            input.shape(),
+            device,
+            instruction.input_grad_alloc_hint[0]
+        );
+        input_grad.zero(device);
     }
     if (!weight_grad) {
-        weight_grad = Tensor(DataType::dt_float, weight.shape(), device);
-        weight_grad.zero();
+        weight_grad = Tensor(
+            DataType::dt_float,
+            weight.shape(),
+            device,
+            instruction.input_grad_alloc_hint[1]
+        );
+        weight_grad.zero(device);
     }
     if (!bias_grad) {
-        bias_grad = Tensor(DataType::dt_float, {1, dims_out}, device);
-        bias_grad.zero();
+        bias_grad = Tensor(
+            DataType::dt_float,
+            {1, dims_out},
+            device,
+            instruction.input_grad_alloc_hint[2]
+        );
+        bias_grad.zero(device);
     }
     if (batch_size == 0) {
         return;
@@ -232,10 +264,12 @@ void backward_op_matmul(
     ));
 
     // compute bias_grad += sum_i output_grad_ij
-    double* ones;
-    check_error(gpuMallocAsync(&ones, batch_size * sizeof(double), stream));
+    Tensor ones(DataType::dt_float, batch_size, device, AllocHint::temporary);
     thrust::fill_n(
-        thrust_par.on(stream), thrust::device_pointer_cast(ones), batch_size, 1.0
+        thrust_par.on(stream),
+        thrust::device_pointer_cast(static_cast<double*>(ones.data())),
+        batch_size,
+        1.0
     );
     check_error(gpublasDgemv(
         handle,
@@ -245,13 +279,13 @@ void backward_op_matmul(
         &alpha,
         static_cast<double*>(output_grad.data()),
         batch_size,
-        static_cast<double*>(ones),
+        static_cast<double*>(ones.data()),
         1,
         &beta,
         static_cast<double*>(bias_grad.data()),
         1
     ));
-    check_error(gpuFreeAsync(ones, stream));
+    ones.reset(device);
     input.reset(device);
     weight.reset(device);
     output_grad.reset(device);
@@ -280,8 +314,10 @@ void op_nonzero(
     auto& input = locals[instruction.input_indices[0]];
     auto batch_size = input.size(0);
     auto& output = locals[instruction.output_indices[0]];
-    Tensor indices_tmp(DataType::dt_int, {batch_size}, device);
-    Tensor output_tmp(DataType::dt_int, {batch_size}, device);
+    Tensor indices_tmp(DataType::dt_int, {batch_size}, device, AllocHint::temporary);
+    Tensor output_tmp(
+        DataType::dt_int, {batch_size}, device, instruction.output_alloc_hists[0]
+    );
     launch_kernel(
         kernel_nonzero,
         batch_size,
@@ -338,14 +374,18 @@ __global__ void batch_gather_kernel_int(
 
 template <int dim>
 void batch_gather_impl(
-    Tensor& indices, Tensor& values, Tensor& selection, const AsyncGpuDevice& device
+    Tensor& indices,
+    Tensor& values,
+    Tensor& selection,
+    AllocHint hint,
+    const AsyncGpuDevice& device
 ) {
     auto batch_size = indices.size(0);
     Sizes out_shape = values.shape();
     out_shape[0] = batch_size;
 
     if (values.dtype() == DataType::dt_float) {
-        selection = Tensor(DataType::dt_float, out_shape, device);
+        selection = Tensor(DataType::dt_float, out_shape, device, hint);
         launch_kernel(
             batch_gather_kernel<dim>,
             batch_size,
@@ -356,7 +396,7 @@ void batch_gather_impl(
             selection.view<double, dim>()
         );
     } else if (values.dtype() == DataType::dt_int) {
-        selection = Tensor(DataType::dt_int, out_shape, device);
+        selection = Tensor(DataType::dt_int, out_shape, device, hint);
         launch_kernel(
             batch_gather_kernel_int<dim>,
             batch_size,
@@ -379,18 +419,19 @@ void op_batch_gather(
     auto& indices = locals[instruction.input_indices[0]];
     auto& values = locals[instruction.input_indices[1]];
     auto& selection = locals[instruction.output_indices[0]];
+    AllocHint hint = instruction.output_alloc_hints[0];
     switch (values.shape().size()) {
     case 1:
-        batch_gather_impl<1>(indices, values, selection, device);
+        batch_gather_impl<1>(indices, values, selection, hint, device);
         break;
     case 2:
-        batch_gather_impl<2>(indices, values, selection, device);
+        batch_gather_impl<2>(indices, values, selection, hint, device);
         break;
     case 3:
-        batch_gather_impl<3>(indices, values, selection, device);
+        batch_gather_impl<3>(indices, values, selection, hint, device);
         break;
     case 4:
-        batch_gather_impl<4>(indices, values, selection, device);
+        batch_gather_impl<4>(indices, values, selection, hint, device);
         break;
     default:
         throw std::runtime_error("The number of dimensions must be between 1 and 4");
@@ -466,7 +507,7 @@ void op_batch_scatter(
     auto& source = locals[instruction.input_indices[2]];
 
     auto& output = locals[instruction.output_indices[0]];
-    output = target.copy(device);
+    output = target.copy(device, instruction.output_alloc_hints[0]);
     switch (target.shape().size()) {
     case 1:
         batch_scatter_impl<1>(indices, source, output, device);
@@ -494,7 +535,9 @@ void op_offset_indices(
     auto& sizes_out = locals[instruction.input_indices[1]].batch_sizes();
     std::size_t total_size = std::accumulate(sizes_out.begin(), sizes_out.end(), 0);
     auto& output = locals[instruction.output_indices[0]];
-    output = Tensor(DataType::dt_int, {total_size}, device);
+    output = Tensor(
+        DataType::dt_int, {total_size}, device, instruction.output_alloc_hints[0]
+    );
     std::size_t sum_offset = 0, sum_out = 0;
     for (auto [size_offset, size_out] : zip(sizes_offset, sizes_out)) {
         thrust::fill_n(
@@ -518,7 +561,9 @@ void op_random(
     auto batch_size = locals[instruction.input_indices[0]].batch_sizes()[0];
     auto& output = locals[instruction.output_indices[0]];
     auto dim = instruction.output_shapes[0][0];
-    output = Tensor(DataType::dt_float, {batch_size, dim}, device);
+    output = Tensor(
+        DataType::dt_float, {batch_size, dim}, device, instruction.output_alloc_hints[0]
+    );
     gpurandGenerator_t generator = instruction.runtime.gpurand_generator();
     check_error(gpurandSetStream(generator, device.stream()));
     check_error(gpurandGenerateUniformDouble(
@@ -558,15 +603,17 @@ void op_unweight(
     auto batch_size = weights.size(0);
     gpuStream_t stream = device.stream();
 
-    Tensor rand(DataType::dt_float, {batch_size}, device);
+    Tensor rand(DataType::dt_float, {batch_size}, device, AllocHint::temporary);
     gpurandGenerator_t generator = instruction.runtime.gpurand_generator();
     check_error(gpurandSetStream(generator, stream));
     check_error(gpurandGenerateUniformDouble(
         generator, static_cast<double*>(rand.data()), batch_size
     ));
 
-    Tensor indices_tmp(DataType::dt_int, {batch_size}, device);
-    Tensor uw_weights_tmp(DataType::dt_float, {batch_size}, device);
+    Tensor indices_tmp(DataType::dt_int, {batch_size}, device, AllocHint::temporary);
+    Tensor uw_weights_tmp(
+        DataType::dt_float, {batch_size}, device, AllocHint::temporary
+    );
     launch_kernel(
         kernel_unweight,
         batch_size,
@@ -579,7 +626,9 @@ void op_unweight(
         indices_tmp.view<me_int_t, 1>()
     );
 
-    Tensor indices_compacted(DataType::dt_int, {batch_size}, device);
+    Tensor indices_compacted(
+        DataType::dt_int, {batch_size}, device, instruction.output_alloc_hints[0]
+    );
     auto ptr_all =
         thrust::device_pointer_cast(static_cast<me_int_t*>(indices_tmp.data()));
     auto ptr_compacted =
@@ -594,7 +643,8 @@ void op_unweight(
 
     std::size_t count = ptr_compacted_end - ptr_compacted;
     indices = indices_compacted.slice(0, 0, count);
-    uw_weights = Tensor(DataType::dt_float, {count}, device);
+    uw_weights =
+        Tensor(DataType::dt_float, {count}, device, instruction.output_alloc_hints[1]);
     auto ptr_all_weights =
         thrust::device_pointer_cast(static_cast<double*>(uw_weights_tmp.data()));
     auto ptr_uw_weights =
@@ -627,7 +677,9 @@ void histogram_common(
     Tensor& values
 ) {
     auto policy = thrust_par.on(device.stream());
-    Tensor reduce_tmp(DataType::dt_float, {n_dims * n_bins}, device);
+    Tensor reduce_tmp(
+        DataType::dt_float, {n_dims * n_bins}, device, AllocHint::temporary
+    );
     auto indices_ptr =
         thrust::device_pointer_cast(static_cast<me_int_t*>(indices_tmp.data()));
     auto weights_ptr =
@@ -698,16 +750,21 @@ void op_vegas_histogram(
     Sizes shape(out_shape.size() + 1);
     shape[0] = 1;
     std::copy(out_shape.begin(), out_shape.end(), shape.begin() + 1);
-    values = Tensor(DataType::dt_float, shape, device);
-    counts = Tensor(DataType::dt_int, shape, device);
+    values =
+        Tensor(DataType::dt_float, shape, device, instruction.output_alloc_hints[0]);
+    counts = Tensor(DataType::dt_int, shape, device, instruction.output_alloc_hints[1]);
 
     std::size_t batch_size = locals[instruction.batch_size_index].size(0);
     std::size_t n_dims = input.size(1);
     std::size_t n_bins = values.size(2);
 
     std::size_t padded_size = batch_size + n_bins;
-    Tensor indices_tmp(DataType::dt_int, {padded_size, n_dims}, device);
-    Tensor weights_tmp(DataType::dt_float, {padded_size, n_dims}, device);
+    Tensor indices_tmp(
+        DataType::dt_int, {padded_size, n_dims}, device, AllocHint::temporary
+    );
+    Tensor weights_tmp(
+        DataType::dt_float, {padded_size, n_dims}, device, AllocHint::temporary
+    );
     launch_kernel(
         kernel_prepare_vegas_hist,
         padded_size,
@@ -756,15 +813,16 @@ void op_discrete_histogram(
     Sizes shape(out_shape.size() + 1);
     shape[0] = 1;
     std::copy(out_shape.begin(), out_shape.end(), shape.begin() + 1);
-    values = Tensor(DataType::dt_float, shape, device);
-    counts = Tensor(DataType::dt_int, shape, device);
+    values =
+        Tensor(DataType::dt_float, shape, device, instruction.output_alloc_hints[0]);
+    counts = Tensor(DataType::dt_int, shape, device, instruction.output_alloc_hints[1]);
 
     std::size_t batch_size = locals[instruction.batch_size_index].size(0);
     std::size_t n_opts = values.size(1);
 
     std::size_t padded_size = batch_size + n_opts;
-    Tensor indices_tmp(DataType::dt_int, {padded_size}, device);
-    Tensor weights_tmp(DataType::dt_float, {padded_size}, device);
+    Tensor indices_tmp(DataType::dt_int, {padded_size}, device, AllocHint::temporary);
+    Tensor weights_tmp(DataType::dt_float, {padded_size}, device, AllocHint::temporary);
     launch_kernel(
         kernel_prepare_discrete_hist,
         padded_size,
@@ -836,16 +894,22 @@ void op_histogram(
     Sizes shape(out_shape.size() + 1);
     shape[0] = 1;
     std::copy(out_shape.begin(), out_shape.end(), shape.begin() + 1);
-    values = Tensor(DataType::dt_float, shape, device);
-    square_values = Tensor(DataType::dt_float, shape, device);
+    values =
+        Tensor(DataType::dt_float, shape, device, instruction.output_alloc_hints[0]);
+    square_values =
+        Tensor(DataType::dt_float, shape, device, instruction.output_alloc_hints[1]);
 
     std::size_t batch_size = locals[instruction.batch_size_index].size(0);
     std::size_t n_bins = values.size(1) - 2;
     std::size_t padded_size = batch_size + n_bins + 2;
-    Tensor indices_tmp(DataType::dt_int, {padded_size}, device);
-    Tensor weights_tmp(DataType::dt_float, {padded_size}, device);
-    Tensor square_weights_tmp(DataType::dt_float, {padded_size}, device);
-    Tensor reduce_tmp(DataType::dt_float, {n_bins}, device);
+    Tensor indices_tmp(DataType::dt_int, {padded_size}, device, AllocHints::temporary);
+    Tensor weights_tmp(
+        DataType::dt_float, {padded_size}, device, AllocHints::temporary
+    );
+    Tensor square_weights_tmp(
+        DataType::dt_float, {padded_size}, device, AllocHints::temporary
+    );
+    Tensor reduce_tmp(DataType::dt_float, {n_bins}, device, AllocHints::temporary);
 
     launch_kernel(
         kernel_prepare_hist,
@@ -932,42 +996,6 @@ private:
     std::size_t _stream_count;
     std::vector<bool> _sync_matrix;
 }
-
-struct MemPoolTracker {
-    void allocate(Type type, std::size_t group_index) {
-        auto& pool = pools[{type.batch_size, group_index}];
-        if (!pool.initialized) {
-            pool.index = pools.size() - 1;
-        }
-        std::size_t size_factor;
-        switch (type.dtype) {
-        case DataType::dt_int:
-            size_factor = sizeof(me_int_t);
-        case DataType::dt_float:
-            size_factor = sizeof(double);
-        default:
-            throw std::logic_error("invalid data type");
-        }
-        for (std::size_t size : type.shape) {
-            size_factor *= size;
-        }
-        allocs.push_back({
-            .pool_index = pool.index,
-            .size_factor = size_factor,
-            .offset = pool.total_size,
-        });
-        pool.total_size += size_factor;
-    }
-
-    using PoolKey = std::pair<BatchSize, std::size_t>;
-    struct PoolData {
-        std::size_t index;
-        std::size_t total_size = 0;
-        bool initialized = false;
-    };
-    std::map<PoolKey, PoolData> pools;
-    std::vector<MemPool::AllocItem> allocs;
-};
 
 } // namespace
 
@@ -1080,14 +1108,36 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
         return event;
     };
 
+    std::vector<bool> is_input(function.locals().size());
+    std::vector<bool> is_output(function.locals().size());
+    std::vector<bool> is_global(function.locals().size());
+    for (Value& input : function.inputs()) {
+        is_input(input.local_index) = true;
+    }
+    for (Value& output : function.outputs()) {
+        is_output(output.local_index) = true;
+    }
+    for (auto& [name, global] : function.globals()) {
+        is_global(global.local_index) = true;
+    }
+
     SizeVec free_queue;
     for (std::size_t instr_index = 0;
          auto [instr, bw_wait_events, bw_record_event] :
          zip(function.instructions(), backward_wait_events, backward_record_events)) {
         SizeVec input_indices, wait_events;
         std::size_t batch_size_index = instr.inputs.at(0).local_index;
+        std::vector<AllocHints> input_grad_alloc_hints;
         for (auto& in : instr.inputs) {
             input_indices.push_back(in.local_index);
+            if (is_input.at(in.local_index)) {
+                input_grad_alloc_hints.push_back(AllocHint::input_grad);
+            } else if (is_global.at(in.local_index)) {
+                input_grad_alloc_hints.push_back(AllocHint::global_grad);
+            } else {
+                input_grad_alloc_hints.push_back(AllocHint::local_grad);
+            }
+
             if (in.type.batch_size != BatchSize::one) {
                 batch_size_index = in.local_index;
             }
@@ -1102,6 +1152,11 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
             output_indices.push_back(out.local_index);
             output_dtypes.push_back(out.type.dtype);
             output_shapes.push_back({out.type.shape.begin(), out.type.shape.end()});
+            if (is_output.at(in.local_index)) {
+                output_grad_alloc_hints.push_back(AllocHint::output);
+            } else {
+                output_grad_alloc_hints.push_back(AllocHint::local);
+            }
             local_source_streams.at(out.local_index) = instr.stream_index;
         }
 
@@ -1109,7 +1164,9 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
         _instructions.push_back({
             instr.instruction->opcode(),
             input_indices,
+            input_grad_alloc_hints,
             output_indices,
+            output_alloc_hints,
             output_dtypes,
             output_shapes,
             batch_size_index,
@@ -1140,6 +1197,8 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
                     _instructions.push_back(
                         {-1,
                          {local_index},
+                         {},
+                         {},
                          {},
                          {},
                          {},
@@ -1236,10 +1295,11 @@ TensorVec GpuRuntime::run(const TensorVec& inputs) const {
     gpu_device.activate();
     auto locals = _locals_init;
     std::copy(inputs.begin(), inputs.end(), locals.begin());
+    MemPool mem_pool({});
 
     for (auto& instr : _instructions) {
         gpuStream_t stream = streams.at(instr.stream);
-        AsyncGpuDevice device(gpu_device, stream);
+        AsyncGpuDevice device(gpu_device, stream, &mem_pool);
         for (auto event : instr.wait_events) {
             check_error(gpuStreamWaitEvent(stream, events.at(event)));
         }
@@ -1280,10 +1340,11 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> GpuRuntime::run_with_grad(
     std::copy(
         input_requires_grad.begin(), input_requires_grad.end(), requires_grad.begin()
     );
+    MemPool mem_pool({});
 
     for (auto [instr, instr_eval_grad] : zip(_instructions, eval_grad)) {
         gpuStream_t stream = streams.at(instr.stream);
-        AsyncGpuDevice device(gpu_device, stream);
+        AsyncGpuDevice device(gpu_device, stream, &mem_pool);
         if (instr.differentiable) {
             for (auto input_index : instr.input_indices) {
                 if (requires_grad[input_index]) {
@@ -1346,14 +1407,17 @@ GpuRuntime::run_backward(
     for (auto [index, grad] : zip(_output_indices, output_grads)) {
         local_grads[index] = grad;
     }
+    MemPool mem_pool({});
+    gpuStream_t main_stream = streams.at(0);
     for (auto [instr, instr_eval_grad] :
          zip(std::views::reverse(_instructions), std::views::reverse(eval_grad))) {
-        gpuStream_t stream = streams.at(instr.backward_stream);
+        /*gpuStream_t stream = streams.at(instr.backward_stream);
         for (auto event : instr.backward_wait_events) {
             check_error(gpuStreamWaitEvent(stream, events.at(event)));
-        }
+        }*/
         if (instr_eval_grad) {
-            AsyncGpuDevice device(gpu_device, stream);
+            // AsyncGpuDevice device(gpu_device, stream, &mem_pool);
+            AsyncGpuDevice device(gpu_device, main_stream, &mem_pool);
             for (auto [output_index, output_dtype] :
                  zip(instr.output_indices, instr.output_dtypes)) {
                 auto& grad = local_grads[output_index];
@@ -1368,14 +1432,13 @@ GpuRuntime::run_backward(
 #include "runtime_backward_mixin.h"
             }
         }
-        if (instr.backward_record_event) {
+        /*if (instr.backward_record_event) {
             check_error(gpuEventRecord(instr.backward_record_event, stream));
-        }
+        }*/
     }
-    gpuStream_t main_stream = streams.at(0);
-    for (auto event : _backward_wait_events) {
+    /*for (auto event : _backward_wait_events) {
         check_error(gpuStreamWaitEvent(main_stream, events.at(event)));
-    }
+    }*/
     std::vector<std::tuple<std::string, Tensor>> global_grads;
     for (auto& [name, index] : _grad_global_indices) {
         global_grads.push_back({name, local_grads[index]});

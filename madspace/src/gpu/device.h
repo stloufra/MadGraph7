@@ -76,26 +76,28 @@ private:
 
 class MemPool {
 public:
-    struct AllocItem {
-        std::size_t pool_index;
-        std::size_t size_factor;
-        std::size_t offset;
-    };
-
-    MemPool(const SizeVec pool_factors, const std::vector<AllocItem>& allocs);
-    std::pair<void*, Tensor>
-    allocate(std::size_t size, const GpuDevice& device, gpuStream_t stream);
+    MemPool(const std::vector<std::pair<std::size_t, std::size_t>>& cached_sizes);
+    ~MemPool();
+    std::pair<void*, Tensor> allocate(std::size_t pool_index, std::size_t size);
+    void free(void* ptr);
+    std::vector<std::pair<std::size_t, std::size_t>> total_sizes() const;
 
 private:
     struct PoolItem {
-        std::size_t size_factor;
-        std::size_t batch_size;
+        Tensor parent_tensor;
+        std::size_t size = 0;
+        std::size_t capacity = 0;
+        std::size_t needed_size = 0;
+        std::unordered_multimap<std::size_t, std::pair<void*, Tensor>> free_pointers;
+    };
+    struct AllocItem {
+        std::size_t pool_index;
+        std::size_t size;
         Tensor parent_tensor;
     };
-
-    std::vector<AllocItem> _allocs;
     std::vector<PoolItem> _pools;
-    std::size_t _alloc_index = 0;
+    std::unordered_map<void*, AllocItem> _allocs;
+    const GpuDevice& _device;
 };
 
 class AsyncGpuDevice {
@@ -105,7 +107,7 @@ public:
     ) :
         _device(device), _stream(stream), _mem_pool(mem_pool) {}
 
-    std::pair<void*, Tensor> allocate(std::size_t size) const;
+    std::pair<void*, Tensor> allocate(std::size_t size, AllocHint hint) const;
     void free(void* ptr) const;
     void memcpy(void* to, void* from, std::size_t size) const;
 

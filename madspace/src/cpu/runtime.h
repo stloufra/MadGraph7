@@ -12,6 +12,9 @@ namespace cpu {
 
 class CpuRuntime : public Runtime {
 public:
+    struct DummyAllocHints {
+        AllocHint operator[](std::size_t index) const { return AllocHint::normal; }
+    };
     struct Instruction {
         int opcode;
         SizeVec input_indices;
@@ -25,6 +28,8 @@ public:
         std::size_t dependency_count;
         SizeVec dependent_instructions_backward;
         std::size_t dependency_count_backward;
+        DummyAllocHints output_alloc_hints;
+        DummyAllocHints input_grad_alloc_hints;
     };
 
     CpuRuntime(const Function& function, ContextPtr context, bool concurrent);

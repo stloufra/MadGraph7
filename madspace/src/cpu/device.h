@@ -11,7 +11,7 @@ class CpuDevice : public Device {
 public:
     static constexpr bool is_concurrent = false;
 
-    std::pair<void*, Tensor> allocate(std::size_t size) const override {
+    std::pair<void*, Tensor> allocate(std::size_t size, AllocHint hint) const override {
         return {new std::byte[size], Tensor()};
     }
 

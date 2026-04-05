@@ -15,7 +15,9 @@ public:
     struct Instruction {
         int opcode;
         SizeVec input_indices;
+        std::vector<AllocHint> input_grad_alloc_hints;
         SizeVec output_indices;
+        std::vector<AllocHint> output_alloc_hints;
         std::vector<DataType> output_dtypes;
         std::vector<SizeVec> output_shapes;
         std::size_t batch_size_index;
@@ -43,10 +45,7 @@ public:
     gpurandGenerator_t gpurand_generator() { return _gpurand_generator.get(); }
 
 private:
-    void
-
-        std::vector<Instruction>
-            _instructions;
+    std::vector<Instruction> _instructions;
     SizeVec _output_indices;
     std::size_t _input_count;
     TensorVec _locals_init;

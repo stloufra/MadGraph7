@@ -165,10 +165,21 @@ class Tensor;
 
 enum class DeviceType { cpu, cuda, hip };
 
+enum class AllocHint {
+    normal,
+    output,
+    local,
+    temporary,
+    input_grad,
+    local_grad,
+    global_grad,
+};
+
 class Device {
 public:
     virtual ~Device() = default;
-    virtual std::pair<void*, Tensor> allocate(std::size_t size) const = 0;
+    virtual std::pair<void*, Tensor>
+    allocate(std::size_t size, AllocHint hint) const = 0;
     virtual void free(void* ptr) const = 0;
     virtual void memcpy(void* to, void* from, std::size_t size) const = 0;
     virtual void tensor_copy(const Tensor& source, Tensor& target) const = 0;
@@ -199,19 +210,30 @@ public:
 
     Tensor(Tensor&& other) noexcept : impl(other.impl) { other.impl = nullptr; }
 
-    Tensor(DataType dtype, const Sizes& shape) : Tensor(dtype, shape, cpu_device()) {}
+    Tensor(DataType dtype, const Sizes& shape, AllocHint hint = AllocHint::normal) :
+        Tensor(dtype, shape, cpu_device(), hint) {}
 
-    Tensor(DataType dtype, const Sizes& shape, DevicePtr device) :
+    Tensor(
+        DataType dtype,
+        const Sizes& shape,
+        DevicePtr device,
+        AllocHint hint = AllocHint::normal
+    ) :
         impl(new TensorImpl{dtype, shape, device}) {
         auto size = init_stride();
-        allocate(size, *device);
+        allocate(size, *device, hint);
     }
 
     template <typename D>
-    Tensor(DataType dtype, const Sizes& shape, const D& device) :
+    Tensor(
+        DataType dtype,
+        const Sizes& shape,
+        const D& device,
+        AllocHint hint = AllocHint::normal
+    ) :
         impl(new TensorImpl{dtype, shape, device.device_ptr()}) {
         auto size = init_stride();
-        allocate(size, device);
+        allocate(size, device, hint);
     }
 
     Tensor(
@@ -276,21 +298,21 @@ public:
         }) {}
 
     template <ScalarType T>
-    Tensor(T value, DevicePtr device) :
+    Tensor(T value, DevicePtr device, AllocHint hint = AllocHint::normal) :
         impl(new TensorImpl{
             std::is_same_v<T, me_int_t> ? DataType::dt_int : DataType::dt_float,
             {1},
             device
         }) {
         auto size = init_stride();
-        allocate(size, *device);
+        allocate(size, *device, hint);
         device->memcpy(impl->data, &value, sizeof(value));
         if (std::is_same_v<T, me_int_t> && value >= 0) {
             impl->batch_sizes.push_back(value);
         }
     }
 
-    Tensor(TensorValue value, DevicePtr device) :
+    Tensor(TensorValue value, DevicePtr device, AllocHint hint = AllocHint::normal) :
         impl(new TensorImpl{
             std::visit(
                 Overloaded{
@@ -309,7 +331,7 @@ public:
             device
         }) {
         auto size = init_stride();
-        allocate(size, *device);
+        allocate(size, *device, hint);
         std::visit(
             [&](auto& vec) { device->memcpy(impl->data, vec.data(), size); },
             std::get<1>(value)
@@ -510,35 +532,41 @@ public:
     void add(const Tensor& source) { add(source, *impl->device); }
 
     template <typename D>
-    Tensor copy(const D& device) const {
+    Tensor copy(const D& device, AllocHint hint = AllocHint::normal) const {
         check_impl();
-        Tensor tensor(impl->dtype, impl->shape, impl->device);
+        Tensor tensor(impl->dtype, impl->shape, impl->device, hint);
         device.tensor_copy(*this, tensor);
         return tensor;
     }
-    Tensor copy() const { return copy(*impl->device); }
+    Tensor copy(AllocHint hint = AllocHint::normal) const {
+        return copy(*impl->device, hint);
+    }
 
     bool is_contiguous() const { return impl->contiguous_dims == impl->shape.size(); }
 
     std::size_t contiguous_dims() const { return impl->contiguous_dims; }
 
     template <typename D>
-    Tensor contiguous(const D& device) const {
+    Tensor contiguous(const D& device, AllocHint hint = AllocHint::normal) const {
         check_impl();
-        return is_contiguous() ? *this : copy(device);
+        return is_contiguous() ? *this : copy(device, hint);
     }
 
-    Tensor contiguous() const { return contiguous(*impl->device); }
+    Tensor contiguous(AllocHint hint = AllocHint::normal) const {
+        return contiguous(*impl->device, hint);
+    }
 
     template <typename D>
-    Tensor contiguous(std::size_t batch_size, const D& device) const {
+    Tensor contiguous(
+        std::size_t batch_size, const D& device, AllocHint hint = AllocHint::normal
+    ) const {
         check_impl();
         if (size(0) == batch_size) {
-            return contiguous(device);
+            return contiguous(device, hint);
         } else if (size(0) == 1) {
             auto shape = impl->shape;
             shape[0] = batch_size;
-            Tensor tensor(impl->dtype, shape, impl->device);
+            Tensor tensor(impl->dtype, shape, impl->device, hint);
             device.tensor_copy(*this, tensor);
             return tensor;
         } else {
@@ -597,8 +625,8 @@ private:
     }
 
     template <typename D>
-    void allocate(std::size_t size, const D& device) {
-        auto [data, parent] = device.allocate(size);
+    void allocate(std::size_t size, const D& device, AllocHint hint) {
+        auto [data, parent] = device.allocate(size, hint);
         impl->data = data;
         if (parent) {
             impl->owns_data = false;
