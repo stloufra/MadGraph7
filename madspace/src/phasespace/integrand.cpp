@@ -651,13 +651,16 @@ ValueVec MultiChannelIntegrand::build_function_impl(
         common_args.max_weight = args.at(1);
     }
     std::vector<Integrand::ChannelResult> results;
-    for (auto [integrand, chan_size] : zip(_integrands, all_batch_sizes)) {
+    for (std::size_t index = 0; auto [integrand, chan_size] : zip(_integrands, all_batch_sizes)) {
+        fb.set_current_stream(index + 1);
         auto channel_args = common_args;
         channel_args.r = fb.random(chan_size, integrand->_random_dim);
         channel_args.batch_size = chan_size;
         channel_args.has_permutations = integrand->_mapping.channel_count() > 1;
         results.push_back(integrand->build_channel_part(fb, channel_args));
+        ++index;
     }
+    fb.set_current_stream(0);
 
     Integrand::ChannelResult common_results;
     for (std::size_t i = 0; i < common_results.values.size(); ++i) {
