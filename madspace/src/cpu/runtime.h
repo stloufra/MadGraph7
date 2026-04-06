@@ -34,15 +34,15 @@ public:
 
     CpuRuntime(const Function& function, ContextPtr context, bool concurrent);
 
-    TensorVec run(const TensorVec& inputs) const override;
+    TensorVec run(const TensorVec& inputs) override;
     std::tuple<TensorVec, TensorVec, std::vector<bool>> run_with_grad(
         const TensorVec& inputs, const std::vector<bool>& input_requires_grad
-    ) const override;
+    ) override;
     std::tuple<TensorVec, std::vector<std::tuple<std::string, Tensor>>> run_backward(
         const TensorVec& output_grads,
         const TensorVec& stored_locals,
         const std::vector<bool>& eval_grad
-    ) const override;
+    ) override;
 
     Context& context() { return *_context; }
     std::mt19937& rand_gen() { return _rand_gens.get(); }

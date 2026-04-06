@@ -15,6 +15,7 @@
 #define gpuMemcpy cudaMemcpy
 #define gpuMemcpyDefault cudaMemcpyDefault
 #define gpuMemcpyAsync cudaMemcpyAsync
+#define gpuMemsetAsync cudaMemsetAsync
 #define gpuStreamPerThread cudaStreamPerThread
 #define gpuStreamSynchronize cudaStreamSynchronize
 #define gpuStream_t cudaStream_t
@@ -70,6 +71,7 @@
 #define gpuMemcpy hipMemcpy
 #define gpuMemcpyDefault hipMemcpyDefault
 #define gpuMemcpyAsync hipMemcpyAsync
+#define gpuMemsetAsync hipMemsetAsync
 #define gpuStreamPerThread hipStreamPerThread
 #define gpuStreamSynchronize hipStreamSynchronize
 #define gpuStream_t hipStream_t

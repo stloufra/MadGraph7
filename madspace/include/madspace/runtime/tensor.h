@@ -534,7 +534,7 @@ public:
     template <typename D>
     Tensor copy(const D& device, AllocHint hint = AllocHint::normal) const {
         check_impl();
-        Tensor tensor(impl->dtype, impl->shape, impl->device, hint);
+        Tensor tensor(impl->dtype, impl->shape, device, hint);
         device.tensor_copy(*this, tensor);
         return tensor;
     }
@@ -629,6 +629,7 @@ private:
         auto [data, parent] = device.allocate(size, hint);
         impl->data = data;
         if (parent) {
+            parent.impl->incref();
             impl->owns_data = false;
             impl->data_owner = parent.impl;
         }

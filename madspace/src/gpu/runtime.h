@@ -31,20 +31,22 @@ public:
     };
 
     GpuRuntime(const Function& function, ContextPtr context);
-    TensorVec run(const TensorVec& inputs) const override;
+    TensorVec run(const TensorVec& inputs) override;
     std::tuple<TensorVec, TensorVec, std::vector<bool>> run_with_grad(
         const TensorVec& inputs, const std::vector<bool>& input_requires_grad
-    ) const override;
+    ) override;
     std::tuple<TensorVec, std::vector<std::tuple<std::string, Tensor>>> run_backward(
         const TensorVec& output_grads,
         const TensorVec& stored_locals,
         const std::vector<bool>& eval_grad
-    ) const override;
+    ) override;
     Context& context() { return *_context; }
     gpublasHandle_t gpublas_handle() { return _gpublas_handle.get(); }
     gpurandGenerator_t gpurand_generator() { return _gpurand_generator.get(); }
 
 private:
+    std::vector<std::pair<std::size_t, std::size_t>> load_pool_size_cache();
+    void update_pool_size_cache(const std::vector<std::pair<std::size_t, std::size_t>>& pool);
     std::vector<Instruction> _instructions;
     SizeVec _output_indices;
     std::size_t _input_count;
@@ -58,6 +60,7 @@ private:
     std::vector<std::size_t> _backward_wait_events;
     ThreadResource<gpublasHandle_t> _gpublas_handle;
     ThreadResource<gpurandGenerator_t> _gpurand_generator;
+    std::atomic<std::shared_ptr<std::unordered_map<std::size_t, std::size_t>>> _pool_size_cache;
 };
 
 extern "C" Runtime*

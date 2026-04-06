@@ -196,7 +196,7 @@ void backward_op_matmul(
             DataType::dt_float,
             input.shape(),
             device,
-            instruction.input_grad_alloc_hint[0]
+            instruction.input_grad_alloc_hints[0]
         );
         input_grad.zero(device);
     }
@@ -205,7 +205,7 @@ void backward_op_matmul(
             DataType::dt_float,
             weight.shape(),
             device,
-            instruction.input_grad_alloc_hint[1]
+            instruction.input_grad_alloc_hints[1]
         );
         weight_grad.zero(device);
     }
@@ -214,11 +214,14 @@ void backward_op_matmul(
             DataType::dt_float,
             {1, dims_out},
             device,
-            instruction.input_grad_alloc_hint[2]
+            instruction.input_grad_alloc_hints[2]
         );
         bias_grad.zero(device);
     }
     if (batch_size == 0) {
+        input.reset(device);
+        weight.reset(device);
+        output_grad.reset(device);
         return;
     }
 
@@ -264,7 +267,7 @@ void backward_op_matmul(
     ));
 
     // compute bias_grad += sum_i output_grad_ij
-    Tensor ones(DataType::dt_float, batch_size, device, AllocHint::temporary);
+    Tensor ones(DataType::dt_float, {batch_size}, device, AllocHint::temporary);
     thrust::fill_n(
         thrust_par.on(stream),
         thrust::device_pointer_cast(static_cast<double*>(ones.data())),
@@ -316,7 +319,7 @@ void op_nonzero(
     auto& output = locals[instruction.output_indices[0]];
     Tensor indices_tmp(DataType::dt_int, {batch_size}, device, AllocHint::temporary);
     Tensor output_tmp(
-        DataType::dt_int, {batch_size}, device, instruction.output_alloc_hists[0]
+        DataType::dt_int, {batch_size}, device, instruction.output_alloc_hints[0]
     );
     launch_kernel(
         kernel_nonzero,
@@ -902,14 +905,14 @@ void op_histogram(
     std::size_t batch_size = locals[instruction.batch_size_index].size(0);
     std::size_t n_bins = values.size(1) - 2;
     std::size_t padded_size = batch_size + n_bins + 2;
-    Tensor indices_tmp(DataType::dt_int, {padded_size}, device, AllocHints::temporary);
+    Tensor indices_tmp(DataType::dt_int, {padded_size}, device, AllocHint::temporary);
     Tensor weights_tmp(
-        DataType::dt_float, {padded_size}, device, AllocHints::temporary
+        DataType::dt_float, {padded_size}, device, AllocHint::temporary
     );
     Tensor square_weights_tmp(
-        DataType::dt_float, {padded_size}, device, AllocHints::temporary
+        DataType::dt_float, {padded_size}, device, AllocHint::temporary
     );
-    Tensor reduce_tmp(DataType::dt_float, {n_bins}, device, AllocHints::temporary);
+    Tensor reduce_tmp(DataType::dt_float, {n_bins}, device, AllocHint::temporary);
 
     launch_kernel(
         kernel_prepare_hist,
@@ -999,9 +1002,9 @@ private:
 
 } // namespace
 
-GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
+GpuRuntime::GpuRuntime(const Function& function_arg, ContextPtr context) :
     _context(context),
-    _input_count(function.inputs().size()),
+    _input_count(function_arg.inputs().size()),
     _gpublas_handle(
         context->thread_pool(),
         []() {
@@ -1027,6 +1030,14 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
     }
     auto& gpu_device = *static_cast<const GpuDevice*>(_context->device());
     gpu_device.activate();
+
+    cudaMemPool_t pool;
+    check_error(cudaDeviceGetMemPool(&pool, 0));
+    uint64_t thresh = UINT64_MAX;
+    check_error(cudaMemPoolSetAttribute(pool, cudaMemPoolAttrReleaseThreshold, &thresh));
+
+
+    Function function = sort_breadth_first(function_arg);
 
     _locals_init.resize(function.locals().size());
     _requires_grad_init.resize(function.locals().size());
@@ -1111,14 +1122,14 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
     std::vector<bool> is_input(function.locals().size());
     std::vector<bool> is_output(function.locals().size());
     std::vector<bool> is_global(function.locals().size());
-    for (Value& input : function.inputs()) {
-        is_input(input.local_index) = true;
+    for (auto& input : function.inputs()) {
+        is_input.at(input.local_index) = true;
     }
-    for (Value& output : function.outputs()) {
-        is_output(output.local_index) = true;
+    for (auto& output : function.outputs()) {
+        is_output.at(output.local_index) = true;
     }
     for (auto& [name, global] : function.globals()) {
-        is_global(global.local_index) = true;
+        is_global.at(global.local_index) = true;
     }
 
     SizeVec free_queue;
@@ -1127,7 +1138,7 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
          zip(function.instructions(), backward_wait_events, backward_record_events)) {
         SizeVec input_indices, wait_events;
         std::size_t batch_size_index = instr.inputs.at(0).local_index;
-        std::vector<AllocHints> input_grad_alloc_hints;
+        std::vector<AllocHint> input_grad_alloc_hints;
         for (auto& in : instr.inputs) {
             input_indices.push_back(in.local_index);
             if (is_input.at(in.local_index)) {
@@ -1141,19 +1152,20 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
             if (in.type.batch_size != BatchSize::one) {
                 batch_size_index = in.local_index;
             }
-            update_sync(in.local_index, instr.stream_index, bw_wait_events);
+            update_sync(in.local_index, instr.stream_index, wait_events);
         }
         SizeVec output_indices;
+        std::vector<AllocHint> output_alloc_hints;
         std::vector<DataType> output_dtypes;
         std::vector<SizeVec> output_shapes;
         for (auto& out : instr.outputs) {
             output_indices.push_back(out.local_index);
             output_dtypes.push_back(out.type.dtype);
             output_shapes.push_back({out.type.shape.begin(), out.type.shape.end()});
-            if (is_output.at(in.local_index)) {
-                output_grad_alloc_hints.push_back(AllocHint::output);
+            if (is_output.at(out.local_index)) {
+                output_alloc_hints.push_back(AllocHint::output);
             } else {
-                output_grad_alloc_hints.push_back(AllocHint::local);
+                output_alloc_hints.push_back(AllocHint::local);
             }
             local_source_streams.at(out.local_index) = instr.stream_index;
         }
@@ -1290,18 +1302,19 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
     );
 }
 
-TensorVec GpuRuntime::run(const TensorVec& inputs) const {
+TensorVec GpuRuntime::run(const TensorVec& inputs) {
     auto& gpu_device = *static_cast<const GpuDevice*>(_context->device());
     auto& streams = _streams.get();
     auto& events = _events.get();
     gpu_device.activate();
     auto locals = _locals_init;
     std::copy(inputs.begin(), inputs.end(), locals.begin());
-    MemPool mem_pool({});
+    MemPool mem_pool(gpu_device, load_pool_size_cache());
 
+    //println("----");
     for (auto& instr : _instructions) {
         gpuStream_t stream = streams.at(instr.stream);
-        AsyncGpuDevice device(gpu_device, stream, &mem_pool);
+        AsyncGpuDevice device(gpu_device, stream, instr.stream, &mem_pool);
         for (auto event : instr.wait_events) {
             check_error(gpuStreamWaitEvent(stream, events.at(event)));
         }
@@ -1324,12 +1337,13 @@ TensorVec GpuRuntime::run(const TensorVec& inputs) const {
         outputs.push_back(locals[index]);
     }
     check_error(gpuStreamSynchronize(main_stream));
+    update_pool_size_cache(mem_pool.total_sizes());
     return outputs;
 }
 
 std::tuple<TensorVec, TensorVec, std::vector<bool>> GpuRuntime::run_with_grad(
     const TensorVec& inputs, const std::vector<bool>& input_requires_grad
-) const {
+) {
     auto& gpu_device = *static_cast<const GpuDevice*>(_context->device());
     auto& streams = _streams.get();
     auto& events = _events.get();
@@ -1342,11 +1356,11 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> GpuRuntime::run_with_grad(
     std::copy(
         input_requires_grad.begin(), input_requires_grad.end(), requires_grad.begin()
     );
-    MemPool mem_pool({});
+    MemPool mem_pool(gpu_device, load_pool_size_cache());
 
     for (auto [instr, instr_eval_grad] : zip(_instructions, eval_grad)) {
         gpuStream_t stream = streams.at(instr.stream);
-        AsyncGpuDevice device(gpu_device, stream, &mem_pool);
+        AsyncGpuDevice device(gpu_device, stream, instr.stream, &mem_pool);
         if (instr.differentiable) {
             for (auto input_index : instr.input_indices) {
                 if (requires_grad[input_index]) {
@@ -1391,6 +1405,7 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> GpuRuntime::run_with_grad(
         outputs.push_back(locals[index]);
     }
     check_error(gpuStreamSynchronize(main_stream));
+    update_pool_size_cache(mem_pool.total_sizes());
     return {outputs, locals, eval_grad};
 }
 
@@ -1399,7 +1414,7 @@ GpuRuntime::run_backward(
     const TensorVec& output_grads,
     const TensorVec& stored_locals,
     const std::vector<bool>& eval_grad
-) const {
+) {
     auto& gpu_device = *static_cast<const GpuDevice*>(_context->device());
     auto& streams = _streams.get();
     auto& events = _events.get();
@@ -1409,7 +1424,7 @@ GpuRuntime::run_backward(
     for (auto [index, grad] : zip(_output_indices, output_grads)) {
         local_grads[index] = grad;
     }
-    MemPool mem_pool({});
+    MemPool mem_pool(gpu_device, load_pool_size_cache());
     gpuStream_t main_stream = streams.at(0);
     for (auto [instr, instr_eval_grad] :
          zip(std::views::reverse(_instructions), std::views::reverse(eval_grad))) {
@@ -1419,13 +1434,14 @@ GpuRuntime::run_backward(
         }*/
         if (instr_eval_grad) {
             // AsyncGpuDevice device(gpu_device, stream, &mem_pool);
-            AsyncGpuDevice device(gpu_device, main_stream, &mem_pool);
+            AsyncGpuDevice device(gpu_device, main_stream, 0, &mem_pool);
+            //println("instr {} {}", static_cast<const void*>(&gpu_device), static_cast<const void*>(&mem_pool));
             for (auto [output_index, output_dtype] :
                  zip(instr.output_indices, instr.output_dtypes)) {
                 auto& grad = local_grads[output_index];
                 if (!grad && output_dtype == DataType::dt_float) {
                     grad = Tensor(
-                        DataType::dt_float, locals[output_index].shape(), device
+                        DataType::dt_float, locals[output_index].shape(), device, AllocHint::local_grad
                     );
                     grad.zero(device);
                 }
@@ -1446,7 +1462,28 @@ GpuRuntime::run_backward(
         global_grads.push_back({name, local_grads[index]});
     }
     check_error(gpuStreamSynchronize(main_stream));
+    update_pool_size_cache(mem_pool.total_sizes());
     return {{local_grads.begin(), local_grads.begin() + _input_count}, global_grads};
+}
+
+std::vector<std::pair<std::size_t, std::size_t>> GpuRuntime::load_pool_size_cache() {
+    auto cache = _pool_size_cache.load();
+    std::vector<std::pair<std::size_t, std::size_t>> ret;
+    if (cache) {
+        ret = {cache->begin(), cache->end()};
+    }
+    return ret;
+}
+
+void GpuRuntime::update_pool_size_cache(const std::vector<std::pair<std::size_t, std::size_t>>& total_sizes) {
+    auto cache = _pool_size_cache.load();
+    auto new_cache = cache ?
+        std::make_shared<std::unordered_map<std::size_t, std::size_t>>(*cache) :
+        std::make_shared<std::unordered_map<std::size_t, std::size_t>>();
+    for (auto [pool_index, size] : total_sizes) {
+        (*new_cache)[pool_index] = std::max((*new_cache)[pool_index], size);
+    }
+    _pool_size_cache.store(new_cache);
 }
 
 extern "C" Runtime*

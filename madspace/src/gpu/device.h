@@ -39,7 +39,8 @@ public:
 #else
     static constexpr DeviceType gpu_device_type = DeviceType::hip;
 #endif
-    void* allocate(std::size_t size) const override;
+    virtual std::pair<void*, Tensor>
+    allocate(std::size_t size, AllocHint hint) const override;
     void free(void* ptr) const override;
     void memcpy(void* to, void* from, std::size_t size) const override;
 
@@ -76,7 +77,7 @@ private:
 
 class MemPool {
 public:
-    MemPool(const std::vector<std::pair<std::size_t, std::size_t>>& cached_sizes);
+    MemPool(const GpuDevice& device, const std::vector<std::pair<std::size_t, std::size_t>>& cached_sizes);
     ~MemPool();
     std::pair<void*, Tensor> allocate(std::size_t pool_index, std::size_t size);
     void free(void* ptr);
@@ -103,9 +104,9 @@ private:
 class AsyncGpuDevice {
 public:
     AsyncGpuDevice(
-        const GpuDevice& device, gpuStream_t stream, MemPool* mem_pool = nullptr
+        const GpuDevice& device, gpuStream_t stream, std::size_t stream_index, MemPool* mem_pool = nullptr
     ) :
-        _device(device), _stream(stream), _mem_pool(mem_pool) {}
+        _device(device), _stream(stream), _stream_index(stream_index), _mem_pool(mem_pool) {}
 
     std::pair<void*, Tensor> allocate(std::size_t size, AllocHint hint) const;
     void free(void* ptr) const;
@@ -122,6 +123,7 @@ public:
 private:
     const GpuDevice& _device;
     gpuStream_t _stream;
+    std::size_t _stream_index;
     MemPool* _mem_pool;
 };
 
