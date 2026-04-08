@@ -578,6 +578,11 @@ public:
         return contiguous(batch_size, *impl->device);
     }
 
+    bool is_only_reference() const {
+        check_impl();
+        return impl->ref_count.load() == 1;
+    }
+
 private:
     struct TensorImpl {
         DataType dtype;

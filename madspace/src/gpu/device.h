@@ -79,11 +79,11 @@ class MemPool {
 public:
     MemPool(
         const GpuDevice& device,
-        const std::vector<std::pair<std::size_t, std::size_t>>& cached_sizes,
+        const std::vector<std::tuple<std::size_t, std::size_t, Tensor>>& cached_sizes_and_tensors,
         gpuStream_t stream
     );
     ~MemPool();
-    void reset(gpuStream_t stream);
+    std::vector<std::pair<std::size_t, Tensor>> reset(gpuStream_t stream);
     std::pair<void*, Tensor> allocate(std::size_t pool_index, std::size_t size, gpuStream_t stream, std::size_t stream_index);
     bool free(void* ptr, std::size_t stream_index);
     std::vector<std::pair<std::size_t, std::size_t>> total_sizes() const;

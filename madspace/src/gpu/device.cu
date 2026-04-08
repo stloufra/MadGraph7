@@ -50,12 +50,12 @@ void GpuDevice::tensor_cpu(const Tensor& source, Tensor& target) const {
 
 MemPool::MemPool(
     const GpuDevice& device,
-    const std::vector<std::pair<std::size_t, std::size_t>>& cached_sizes,
+    const std::vector<std::tuple<std::size_t, std::size_t, Tensor>>& cached_sizes_and_tensors,
     gpuStream_t stream
 ) :
     _device(device) {
     std::size_t pool_count = 0;
-    for (auto& [pool_index, size] : cached_sizes) {
+    for (auto& [pool_index, size, parent_tensor] : cached_sizes_and_tensors) {
         if (pool_index >= pool_count) {
             pool_count = pool_index + 1;
         }
@@ -63,13 +63,19 @@ MemPool::MemPool(
     _pools.resize(pool_count);
 
     AsyncGpuDevice async_device(device, stream);
-    for (auto& [pool_index, size] : cached_sizes) {
+    for (auto& [pool_index, size, parent_tensor] : cached_sizes_and_tensors) {
         auto& pool = _pools.at(pool_index);
-        std::size_t word_count = (size + 7) / 8;
-        pool.parent_tensor = Tensor(DataType::dt_float, {word_count}, async_device);
-        pool.capacity = word_count * 8;
-        pool.needed_size = word_count * 8;
-        //println("create pool {} {}", pool_index, pool.size);
+        if (parent_tensor) {
+            pool.parent_tensor = parent_tensor;
+            pool.capacity = parent_tensor.byte_size();
+            pool.needed_size = parent_tensor.byte_size();
+        } else {
+            std::size_t word_count = (size + 7) / 8;
+            pool.parent_tensor = Tensor(DataType::dt_float, {word_count}, async_device);
+            pool.capacity = word_count * 8;
+            pool.needed_size = word_count * 8;
+            //println("create pool {} {}", pool_index, pool.size);
+        }
     }
 }
 
@@ -86,10 +92,9 @@ MemPool::~MemPool() {
     }
 }
 
-void MemPool::reset(gpuStream_t stream) {
-    AsyncGpuDevice async_device(_device, stream);
-    for (PoolItem& pool : _pools) {
-        pool.parent_tensor.reset(async_device);
+std::vector<std::pair<std::size_t, Tensor>> MemPool::reset(gpuStream_t stream) {
+    std::vector<std::pair<std::size_t, Tensor>> parent_tensors;
+    for (std::size_t pool_index = 0; PoolItem& pool : _pools) {
         for (auto& stream_free_pointers : pool.free_pointers) {
             for (auto& [size, item] : stream_free_pointers) {
                 auto& [ptr, parent] = item;
@@ -98,8 +103,13 @@ void MemPool::reset(gpuStream_t stream) {
                 }
             }
         }
+        if (pool.parent_tensor) {
+            parent_tensors.push_back({pool_index, pool.parent_tensor});
+        }
+        ++pool_index;
     }
     _pools.clear();
+    return parent_tensors;
 }
 
 std::pair<void*, Tensor> MemPool::allocate(std::size_t pool_index, std::size_t size, gpuStream_t stream, std::size_t stream_index) {
