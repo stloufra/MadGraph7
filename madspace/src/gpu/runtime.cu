@@ -1477,7 +1477,7 @@ std::pair<TensorVec, TensorVec> GpuRuntime::run_backward(
     update_pool_size_cache(mem_pool.total_sizes());
     update_cached_tensors(mem_pool.reset(main_stream));
     TensorVec global_grads;
-    for (auto& [name, index] : _grad_global_indices) {
+    for (std::size_t index : _grad_global_indices) {
         global_grads.push_back(local_grads[index]);
     }
     check_error(gpuStreamSynchronize(main_stream));

@@ -48,6 +48,21 @@ void GpuDevice::tensor_cpu(const Tensor& source, Tensor& target) const {
     );
 }
 
+void GpuDevice::adam_step(
+    const Tensor& gradient,
+    Tensor& parameter,
+    Tensor& exp_avg,
+    Tensor& exp_avg_sq,
+    double step_size,
+    double beta1,
+    double beta2,
+    double eps,
+    double bias_corr2_sqrt
+) const {
+    //TODO
+}
+
+
 MemPool::MemPool(
     const GpuDevice& device,
     const std::vector<std::tuple<std::size_t, std::size_t, Tensor>>& cached_sizes_and_tensors,

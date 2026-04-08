@@ -50,7 +50,7 @@ TensorVec AdamOptimizer::step(const TensorVec& inputs) {
     output_grads.at(0) = Tensor(1.0, device);
     auto [input_grads, global_grads] =
         _runtime->run_backward(output_grads, stored_locals, eval_grad);
-    device->adam_step(
+    /*device->adam_step(
         global_grads,
         _parameters,
         _exp_avgs,
@@ -60,7 +60,7 @@ TensorVec AdamOptimizer::step(const TensorVec& inputs) {
         _beta2,
         _eps,
         bias_corr2_sqrt
-    );
+    );*/
     return outputs;
 }
 

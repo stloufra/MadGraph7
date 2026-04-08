@@ -51,6 +51,17 @@ public:
     DevicePtr device_ptr() const override { return this; }
     DeviceType device_type() const override { return gpu_device_type; }
     void activate() const override { check_error(gpuSetDevice(_index)); }
+    void adam_step(
+        const Tensor& gradient,
+        Tensor& parameter,
+        Tensor& exp_avg,
+        Tensor& exp_avg_sq,
+        double step_size,
+        double beta1,
+        double beta2,
+        double eps,
+        double bias_corr2_sqrt
+    ) const override;
 
     GpuDevice(const GpuDevice&) = delete;
     GpuDevice& operator=(GpuDevice&) = delete;

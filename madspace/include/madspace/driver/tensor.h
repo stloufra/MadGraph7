@@ -211,10 +211,10 @@ public:
     virtual DeviceType device_type() const = 0;
     virtual void activate() const = 0;
     virtual void adam_step(
-        const TensorVec& gradients,
-        TensorVec& parameters,
-        TensorVec& exp_avgs,
-        TensorVec& exp_avg_sqs,
+        const Tensor& gradient,
+        Tensor& parameter,
+        Tensor& exp_avg,
+        Tensor& exp_avg_sq,
         double step_size,
         double beta1,
         double beta2,
