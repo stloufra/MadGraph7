@@ -50,7 +50,8 @@ void GpuDevice::tensor_cpu(const Tensor& source, Tensor& target) const {
 
 MemPool::MemPool(
     const GpuDevice& device,
-    const std::vector<std::pair<std::size_t, std::size_t>>& cached_sizes
+    const std::vector<std::pair<std::size_t, std::size_t>>& cached_sizes,
+    gpuStream_t stream
 ) :
     _device(device) {
     std::size_t pool_count = 0;
@@ -61,10 +62,11 @@ MemPool::MemPool(
     }
     _pools.resize(pool_count);
 
+    AsyncGpuDevice async_device(device, stream);
     for (auto& [pool_index, size] : cached_sizes) {
         auto& pool = _pools.at(pool_index);
         std::size_t word_count = (size + 7) / 8;
-        pool.parent_tensor = Tensor(DataType::dt_float, {word_count}, device);
+        pool.parent_tensor = Tensor(DataType::dt_float, {word_count}, async_device);
         pool.capacity = word_count * 8;
         pool.needed_size = word_count * 8;
         //println("create pool {} {}", pool_index, pool.size);
@@ -82,7 +84,21 @@ MemPool::~MemPool() {
     }
 }
 
-std::pair<void*, Tensor> MemPool::allocate(std::size_t pool_index, std::size_t size) {
+void MemPool::reset(gpuStream_t stream) {
+    AsyncGpuDevice async_device(_device, stream);
+    for (PoolItem& pool : _pools) {
+        pool.parent_tensor.reset(async_device);
+        for (auto& [size, item] : pool.free_pointers) {
+            auto& [ptr, parent] = item;
+            if (!parent) {
+                check_error(gpuFreeAsync(ptr, stream));
+            }
+        }
+    }
+    _pools.clear();
+}
+
+std::pair<void*, Tensor> MemPool::allocate(std::size_t pool_index, std::size_t size, gpuStream_t stream) {
     if (pool_index >= _pools.size()) {
         _pools.resize(pool_index + 1);
     }
@@ -110,7 +126,7 @@ std::pair<void*, Tensor> MemPool::allocate(std::size_t pool_index, std::size_t s
         return {ptr, pool.parent_tensor};
     } else {
         void* ptr;
-        check_error(gpuMalloc(&ptr, size));
+        check_error(gpuMallocAsync(&ptr, size, stream));
         _allocs[ptr] = {
             .pool_index = pool_index,
             .size = size,
@@ -122,16 +138,17 @@ std::pair<void*, Tensor> MemPool::allocate(std::size_t pool_index, std::size_t s
     }
 }
 
-void MemPool::free(void* ptr) {
+bool MemPool::free(void* ptr) {
     auto search = _allocs.find(ptr);
     if (search == _allocs.end()) {
-        throw std::runtime_error("address was not allocated using this pool");
+        return false;
     }
     auto& alloc = search->second;
     _pools.at(alloc.pool_index)
         .free_pointers.emplace(alloc.size, std::pair<void*, Tensor>{ptr, alloc.parent_tensor});
     //println("free {} {} {}", ptr, alloc.pool_index, alloc.size);
     _allocs.erase(search);
+    return true;
 }
 
 std::vector<std::pair<std::size_t, std::size_t>> MemPool::total_sizes() const {
@@ -148,7 +165,7 @@ std::vector<std::pair<std::size_t, std::size_t>> MemPool::total_sizes() const {
 
 std::pair<void*, Tensor>
 AsyncGpuDevice::allocate(std::size_t size, AllocHint hint) const {
-    if (_mem_pool) {
+    if (_mem_pool && size <= 4 * 1024 * 1024) {
         std::size_t pool_index;
         switch (hint) {
         case AllocHint::normal:
@@ -172,7 +189,7 @@ AsyncGpuDevice::allocate(std::size_t size, AllocHint hint) const {
             pool_index = 2;
             break;
         }
-        return _mem_pool->allocate(pool_index, size);
+        return _mem_pool->allocate(pool_index, size, _stream);
     } else {
         //_device.allocate(size, hint);
         void* ptr;
@@ -182,9 +199,7 @@ AsyncGpuDevice::allocate(std::size_t size, AllocHint hint) const {
 }
 
 void AsyncGpuDevice::free(void* ptr) const {
-    if (_mem_pool) {
-        _mem_pool->free(ptr);
-    } else {
+    if (!_mem_pool || !_mem_pool->free(ptr)) {
         check_error(gpuFreeAsync(ptr, _stream));
     }
 }

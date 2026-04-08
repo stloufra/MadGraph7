@@ -77,10 +77,15 @@ private:
 
 class MemPool {
 public:
-    MemPool(const GpuDevice& device, const std::vector<std::pair<std::size_t, std::size_t>>& cached_sizes);
+    MemPool(
+        const GpuDevice& device,
+        const std::vector<std::pair<std::size_t, std::size_t>>& cached_sizes,
+        gpuStream_t stream
+    );
     ~MemPool();
-    std::pair<void*, Tensor> allocate(std::size_t pool_index, std::size_t size);
-    void free(void* ptr);
+    void reset(gpuStream_t stream);
+    std::pair<void*, Tensor> allocate(std::size_t pool_index, std::size_t size, gpuStream_t stream);
+    bool free(void* ptr);
     std::vector<std::pair<std::size_t, std::size_t>> total_sizes() const;
 
 private:
@@ -104,7 +109,7 @@ private:
 class AsyncGpuDevice {
 public:
     AsyncGpuDevice(
-        const GpuDevice& device, gpuStream_t stream, std::size_t stream_index, MemPool* mem_pool = nullptr
+        const GpuDevice& device, gpuStream_t stream, std::size_t stream_index = 0, MemPool* mem_pool = nullptr
     ) :
         _device(device), _stream(stream), _stream_index(stream_index), _mem_pool(mem_pool) {}
 

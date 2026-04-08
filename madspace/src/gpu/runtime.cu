@@ -171,6 +171,16 @@ void op_matmul(
     bias.reset(device);
 }
 
+__global__ void kernel_one(
+    std::size_t batch_size,
+    GpuTensorView<double, 1, true> output
+) {
+    me_int_t i = blockDim.x * blockIdx.x + threadIdx.x;
+    if (i < batch_size) {
+        output[i] = 1.;
+    }
+}
+
 void backward_op_matmul(
     const GpuRuntime::Instruction& instruction,
     TensorVec& locals,
@@ -268,11 +278,12 @@ void backward_op_matmul(
 
     // compute bias_grad += sum_i output_grad_ij
     Tensor ones(DataType::dt_float, {batch_size}, device, AllocHint::temporary);
-    thrust::fill_n(
-        thrust_par.on(stream),
-        thrust::device_pointer_cast(static_cast<double*>(ones.data())),
+    launch_kernel(
+        kernel_one,
         batch_size,
-        1.0
+        device.stream(),
+        batch_size,
+        ones.view<double, 1>()
     );
     check_error(gpublasDgemv(
         handle,
@@ -973,7 +984,9 @@ void op_histogram(
 class SyncTracker {
 public:
     SyncTracker(std::size_t stream_count) :
-        _stream_count(stream_count), _sync_matrix(stream_count * stream_count, true) {}
+        _stream_count(stream_count), _sync_matrix(stream_count * stream_count) {
+        reset();
+    }
 
     bool is_in_sync_with(std::size_t this_stream, std::size_t other_stream) const {
         return _sync_matrix.at(this_stream * _stream_count + other_stream);
@@ -993,7 +1006,13 @@ public:
             }
         }
     }
-    void reset() { std::fill(_sync_matrix.begin(), _sync_matrix.end(), true); }
+    void reset() {
+        for (std::size_t i = 0; i < _stream_count; ++i) {
+            for (std::size_t j = 0; j < _stream_count; ++j) {
+                _sync_matrix.at(i * _stream_count + j) = i == j;
+            }
+        }
+    }
 
 private:
     std::size_t _stream_count;
@@ -1309,7 +1328,8 @@ TensorVec GpuRuntime::run(const TensorVec& inputs) {
     gpu_device.activate();
     auto locals = _locals_init;
     std::copy(inputs.begin(), inputs.end(), locals.begin());
-    MemPool mem_pool(gpu_device, load_pool_size_cache());
+    gpuStream_t main_stream = streams.at(0);
+    MemPool mem_pool(gpu_device, load_pool_size_cache(), main_stream);
 
     //println("----");
     for (auto& instr : _instructions) {
@@ -1328,16 +1348,16 @@ TensorVec GpuRuntime::run(const TensorVec& inputs) {
             check_error(gpuEventRecord(events.at(instr.record_event), stream));
         }
     }
-    gpuStream_t main_stream = streams.at(0);
     for (auto event : _wait_events) {
         check_error(gpuStreamWaitEvent(main_stream, events.at(event)));
     }
+    update_pool_size_cache(mem_pool.total_sizes());
+    mem_pool.reset(main_stream);
     TensorVec outputs;
     for (auto index : _output_indices) {
         outputs.push_back(locals[index]);
     }
     check_error(gpuStreamSynchronize(main_stream));
-    update_pool_size_cache(mem_pool.total_sizes());
     return outputs;
 }
 
@@ -1356,7 +1376,8 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> GpuRuntime::run_with_grad(
     std::copy(
         input_requires_grad.begin(), input_requires_grad.end(), requires_grad.begin()
     );
-    MemPool mem_pool(gpu_device, load_pool_size_cache());
+    gpuStream_t main_stream = streams.at(0);
+    MemPool mem_pool(gpu_device, load_pool_size_cache(), main_stream);
 
     for (auto [instr, instr_eval_grad] : zip(_instructions, eval_grad)) {
         gpuStream_t stream = streams.at(instr.stream);
@@ -1396,16 +1417,16 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> GpuRuntime::run_with_grad(
             check_error(gpuEventRecord(events.at(instr.record_event), stream));
         }
     }
-    gpuStream_t main_stream = streams.at(0);
     for (auto event : _wait_events) {
         check_error(gpuStreamWaitEvent(main_stream, events.at(event)));
     }
+    update_pool_size_cache(mem_pool.total_sizes());
+    mem_pool.reset(main_stream);
     TensorVec outputs;
     for (auto index : _output_indices) {
         outputs.push_back(locals[index]);
     }
     check_error(gpuStreamSynchronize(main_stream));
-    update_pool_size_cache(mem_pool.total_sizes());
     return {outputs, locals, eval_grad};
 }
 
@@ -1424,8 +1445,8 @@ GpuRuntime::run_backward(
     for (auto [index, grad] : zip(_output_indices, output_grads)) {
         local_grads[index] = grad;
     }
-    MemPool mem_pool(gpu_device, load_pool_size_cache());
     gpuStream_t main_stream = streams.at(0);
+    MemPool mem_pool(gpu_device, load_pool_size_cache(), main_stream);
     for (auto [instr, instr_eval_grad] :
          zip(std::views::reverse(_instructions), std::views::reverse(eval_grad))) {
         /*gpuStream_t stream = streams.at(instr.stream);
@@ -1457,12 +1478,13 @@ GpuRuntime::run_backward(
     /*for (auto event : _backward_wait_events) {
         check_error(gpuStreamWaitEvent(main_stream, events.at(event)));
     }*/
+    update_pool_size_cache(mem_pool.total_sizes());
+    mem_pool.reset(main_stream);
     std::vector<std::tuple<std::string, Tensor>> global_grads;
     for (auto& [name, index] : _grad_global_indices) {
         global_grads.push_back({name, local_grads[index]});
     }
     check_error(gpuStreamSynchronize(main_stream));
-    update_pool_size_cache(mem_pool.total_sizes());
     return {{local_grads.begin(), local_grads.begin() + _input_count}, global_grads};
 }
 
