@@ -3186,10 +3186,29 @@ Beware that MG5aMC now changes your runtime options to a multi-core mode with on
                 return
             else:
                 devnull = open(os.devnull,'w')
-                subprocess.call([sys.executable, 'write_param_card.py'],
+
+                result = subprocess.run([sys.executable, 'write_param_card.py'],
+                        cwd=pjoin(self.me_dir, 'bin', 'internal', 'ufomodel'),
+                        stdout=devnull, stderr=subprocess.PIPE)
+
+                returncode = result.returncode
+                stderr_output = result.stderr.decode('utf-8', errors='replace')
+
+                if returncode:
+                    if not MADEVENT:
+                        shutil.copy(pjoin(MG5DIR,'models','sm','write_param_card.py'),
+                              pjoin(self.me_dir,'bin','internal','ufomodel','write_param_card.py'))
+                    elif self.options['mg5_path']:
+                        shutil.copy(pjoin(self.options['mg5_path'],'models','sm','write_param_card.py'),
+                              pjoin(self.me_dir,'bin','internal','ufomodel','write_param_card.py'))
+                    else:
+                        raise RuntimeError("write_param_card.py from your UFO model is crashing. Please update it (or run from Madgraph executable which will fix it for you):\n%s" % stderr_output)
+                    
+                    returncode = subprocess.call([sys.executable, 'write_param_card.py'],                
                              cwd=pjoin(self.me_dir,'bin','internal','ufomodel'),
                              stdout=devnull)
-                devnull.close()
+                    devnull.close()
+
                 default = pjoin(self.me_dir,'bin','internal','ufomodel','param_card.dat')
 
             need_mp = self.proc_characteristics['loop_induced']                
