@@ -84,8 +84,8 @@ public:
     );
     ~MemPool();
     void reset(gpuStream_t stream);
-    std::pair<void*, Tensor> allocate(std::size_t pool_index, std::size_t size, gpuStream_t stream);
-    bool free(void* ptr);
+    std::pair<void*, Tensor> allocate(std::size_t pool_index, std::size_t size, gpuStream_t stream, std::size_t stream_index);
+    bool free(void* ptr, std::size_t stream_index);
     std::vector<std::pair<std::size_t, std::size_t>> total_sizes() const;
 
 private:
@@ -94,7 +94,7 @@ private:
         std::size_t size = 0;
         std::size_t capacity = 0;
         std::size_t needed_size = 0;
-        std::unordered_multimap<std::size_t, std::pair<void*, Tensor>> free_pointers;
+        std::vector<std::unordered_multimap<std::size_t, std::pair<void*, Tensor>>> free_pointers;
     };
     struct AllocItem {
         std::size_t pool_index;
