@@ -39,7 +39,8 @@ public:
 #else
     static constexpr DeviceType gpu_device_type = DeviceType::hip;
 #endif
-    void* allocate(std::size_t size) const override;
+    virtual std::pair<void*, Tensor>
+    allocate(std::size_t size, AllocHint hint) const override;
     void free(void* ptr) const override;
     void memcpy(void* to, void* from, std::size_t size) const override;
 
@@ -74,12 +75,58 @@ private:
     int _index;
 };
 
+class MemPool {
+public:
+    MemPool(
+        const GpuDevice& device,
+        const std::vector<std::tuple<std::size_t, std::size_t, Tensor>>&
+            cached_sizes_and_tensors,
+        gpuStream_t stream
+    );
+    ~MemPool();
+    std::vector<std::pair<std::size_t, Tensor>> reset(gpuStream_t stream);
+    std::pair<void*, Tensor> allocate(
+        std::size_t pool_index,
+        std::size_t size,
+        gpuStream_t stream,
+        std::size_t stream_index
+    );
+    bool free(void* ptr, std::size_t stream_index);
+    std::vector<std::pair<std::size_t, std::size_t>> total_sizes() const;
+
+private:
+    struct PoolItem {
+        Tensor parent_tensor;
+        std::size_t size = 0;
+        std::size_t capacity = 0;
+        std::size_t needed_size = 0;
+        std::vector<std::unordered_multimap<std::size_t, std::pair<void*, Tensor>>>
+            free_pointers;
+    };
+    struct AllocItem {
+        std::size_t pool_index;
+        std::size_t size;
+        Tensor parent_tensor;
+    };
+    std::vector<PoolItem> _pools;
+    std::unordered_map<void*, AllocItem> _allocs;
+    const GpuDevice& _device;
+};
+
 class AsyncGpuDevice {
 public:
-    AsyncGpuDevice(const GpuDevice& device, gpuStream_t stream) :
-        _device(device), _stream(stream) {}
+    AsyncGpuDevice(
+        const GpuDevice& device,
+        gpuStream_t stream,
+        std::size_t stream_index = 0,
+        MemPool* mem_pool = nullptr
+    ) :
+        _device(device),
+        _stream(stream),
+        _stream_index(stream_index),
+        _mem_pool(mem_pool) {}
 
-    void* allocate(std::size_t size) const;
+    std::pair<void*, Tensor> allocate(std::size_t size, AllocHint hint) const;
     void free(void* ptr) const;
     void memcpy(void* to, void* from, std::size_t size) const;
 
@@ -94,6 +141,8 @@ public:
 private:
     const GpuDevice& _device;
     gpuStream_t _stream;
+    std::size_t _stream_index;
+    MemPool* _mem_pool;
 };
 
 extern "C" int device_count();

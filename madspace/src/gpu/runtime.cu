@@ -46,7 +46,7 @@ void op_matrix_element(
         );
         contiguous_inputs[i] =
             locals[instruction.input_indices[3 + 2 * i + 1]].contiguous(
-                batch_size, device
+                batch_size, device, AllocHint::temporary
             );
         input_ptrs[i] = contiguous_inputs[i].data();
     }
@@ -60,7 +60,12 @@ void op_matrix_element(
         Sizes shape(output_shape.size() + 1);
         shape[0] = batch_size;
         std::copy(output_shape.begin(), output_shape.end(), shape.begin() + 1);
-        output = Tensor(instruction.output_dtypes[i], shape, device);
+        output = Tensor(
+            instruction.output_dtypes[i],
+            shape,
+            device,
+            instruction.output_alloc_hints[i]
+        );
         output_ptrs[i] = output.data();
         if (me_index == 0xBADCAFE) {
             // flat dummy matrix element for testing purposes
@@ -121,14 +126,22 @@ void op_matmul(
     TensorVec& locals,
     const AsyncGpuDevice& device
 ) {
-    auto input = locals[instruction.input_indices[0]].contiguous(device);
-    auto weight = locals[instruction.input_indices[1]].contiguous(device);
-    auto bias = locals[instruction.input_indices[2]].contiguous(device);
+    auto input =
+        locals[instruction.input_indices[0]].contiguous(device, AllocHint::temporary);
+    auto weight =
+        locals[instruction.input_indices[1]].contiguous(device, AllocHint::temporary);
+    auto bias =
+        locals[instruction.input_indices[2]].contiguous(device, AllocHint::temporary);
     auto& output = locals[instruction.output_indices[0]];
     std::size_t batch_size = input.size(0);
     std::size_t dims_in = input.size(1);
     std::size_t dims_out = weight.size(1);
-    output = Tensor(DataType::dt_float, {batch_size, dims_out}, device);
+    output = Tensor(
+        DataType::dt_float,
+        {batch_size, dims_out},
+        device,
+        instruction.output_alloc_hints[0]
+    );
     output.copy_from(bias, device);
     if (batch_size == 0) {
         return;
@@ -158,15 +171,27 @@ void op_matmul(
     bias.reset(device);
 }
 
+__global__ void
+kernel_one(std::size_t batch_size, GpuTensorView<double, 1, true> output) {
+    me_int_t i = blockDim.x * blockIdx.x + threadIdx.x;
+    if (i < batch_size) {
+        output[i] = 1.;
+    }
+}
+
 void backward_op_matmul(
     const GpuRuntime::Instruction& instruction,
     TensorVec& locals,
     TensorVec& local_grads,
     const AsyncGpuDevice& device
 ) {
-    auto input = locals[instruction.input_indices[0]].contiguous(device);
-    auto weight = locals[instruction.input_indices[1]].contiguous(device);
-    auto output_grad = local_grads[instruction.output_indices[0]].contiguous(device);
+    auto input =
+        locals[instruction.input_indices[0]].contiguous(device, AllocHint::temporary);
+    auto weight =
+        locals[instruction.input_indices[1]].contiguous(device, AllocHint::temporary);
+    auto output_grad = local_grads[instruction.output_indices[0]].contiguous(
+        device, AllocHint::temporary
+    );
     auto& input_grad = local_grads[instruction.input_indices[0]];
     auto& weight_grad = local_grads[instruction.input_indices[1]];
     auto& bias_grad = local_grads[instruction.input_indices[2]];
@@ -175,18 +200,36 @@ void backward_op_matmul(
     std::size_t dims_out = weight.size(1);
 
     if (!input_grad) {
-        input_grad = Tensor(DataType::dt_float, input.shape(), device);
-        input_grad.zero();
+        input_grad = Tensor(
+            DataType::dt_float,
+            input.shape(),
+            device,
+            instruction.input_grad_alloc_hints[0]
+        );
+        input_grad.zero(device);
     }
     if (!weight_grad) {
-        weight_grad = Tensor(DataType::dt_float, weight.shape(), device);
-        weight_grad.zero();
+        weight_grad = Tensor(
+            DataType::dt_float,
+            weight.shape(),
+            device,
+            instruction.input_grad_alloc_hints[1]
+        );
+        weight_grad.zero(device);
     }
     if (!bias_grad) {
-        bias_grad = Tensor(DataType::dt_float, {1, dims_out}, device);
-        bias_grad.zero();
+        bias_grad = Tensor(
+            DataType::dt_float,
+            {1, dims_out},
+            device,
+            instruction.input_grad_alloc_hints[2]
+        );
+        bias_grad.zero(device);
     }
     if (batch_size == 0) {
+        input.reset(device);
+        weight.reset(device);
+        output_grad.reset(device);
         return;
     }
 
@@ -232,10 +275,9 @@ void backward_op_matmul(
     ));
 
     // compute bias_grad += sum_i output_grad_ij
-    double* ones;
-    check_error(gpuMallocAsync(&ones, batch_size * sizeof(double), stream));
-    thrust::fill_n(
-        thrust_par.on(stream), thrust::device_pointer_cast(ones), batch_size, 1.0
+    Tensor ones(DataType::dt_float, {batch_size}, device, AllocHint::temporary);
+    launch_kernel(
+        kernel_one, batch_size, device.stream(), batch_size, ones.view<double, 1>()
     );
     check_error(gpublasDgemv(
         handle,
@@ -245,13 +287,13 @@ void backward_op_matmul(
         &alpha,
         static_cast<double*>(output_grad.data()),
         batch_size,
-        static_cast<double*>(ones),
+        static_cast<double*>(ones.data()),
         1,
         &beta,
         static_cast<double*>(bias_grad.data()),
         1
     ));
-    check_error(gpuFreeAsync(ones, stream));
+    ones.reset(device);
     input.reset(device);
     weight.reset(device);
     output_grad.reset(device);
@@ -280,8 +322,10 @@ void op_nonzero(
     auto& input = locals[instruction.input_indices[0]];
     auto batch_size = input.size(0);
     auto& output = locals[instruction.output_indices[0]];
-    Tensor indices_tmp(DataType::dt_int, {batch_size}, device);
-    Tensor output_tmp(DataType::dt_int, {batch_size}, device);
+    Tensor indices_tmp(DataType::dt_int, {batch_size}, device, AllocHint::temporary);
+    Tensor output_tmp(
+        DataType::dt_int, {batch_size}, device, instruction.output_alloc_hints[0]
+    );
     launch_kernel(
         kernel_nonzero,
         batch_size,
@@ -338,14 +382,18 @@ __global__ void batch_gather_kernel_int(
 
 template <int dim>
 void batch_gather_impl(
-    Tensor& indices, Tensor& values, Tensor& selection, const AsyncGpuDevice& device
+    Tensor& indices,
+    Tensor& values,
+    Tensor& selection,
+    AllocHint hint,
+    const AsyncGpuDevice& device
 ) {
     auto batch_size = indices.size(0);
     Sizes out_shape = values.shape();
     out_shape[0] = batch_size;
 
     if (values.dtype() == DataType::dt_float) {
-        selection = Tensor(DataType::dt_float, out_shape, device);
+        selection = Tensor(DataType::dt_float, out_shape, device, hint);
         launch_kernel(
             batch_gather_kernel<dim>,
             batch_size,
@@ -356,7 +404,7 @@ void batch_gather_impl(
             selection.view<double, dim>()
         );
     } else if (values.dtype() == DataType::dt_int) {
-        selection = Tensor(DataType::dt_int, out_shape, device);
+        selection = Tensor(DataType::dt_int, out_shape, device, hint);
         launch_kernel(
             batch_gather_kernel_int<dim>,
             batch_size,
@@ -379,18 +427,19 @@ void op_batch_gather(
     auto& indices = locals[instruction.input_indices[0]];
     auto& values = locals[instruction.input_indices[1]];
     auto& selection = locals[instruction.output_indices[0]];
+    AllocHint hint = instruction.output_alloc_hints[0];
     switch (values.shape().size()) {
     case 1:
-        batch_gather_impl<1>(indices, values, selection, device);
+        batch_gather_impl<1>(indices, values, selection, hint, device);
         break;
     case 2:
-        batch_gather_impl<2>(indices, values, selection, device);
+        batch_gather_impl<2>(indices, values, selection, hint, device);
         break;
     case 3:
-        batch_gather_impl<3>(indices, values, selection, device);
+        batch_gather_impl<3>(indices, values, selection, hint, device);
         break;
     case 4:
-        batch_gather_impl<4>(indices, values, selection, device);
+        batch_gather_impl<4>(indices, values, selection, hint, device);
         break;
     default:
         throw std::runtime_error("The number of dimensions must be between 1 and 4");
@@ -466,7 +515,7 @@ void op_batch_scatter(
     auto& source = locals[instruction.input_indices[2]];
 
     auto& output = locals[instruction.output_indices[0]];
-    output = target.copy(device);
+    output = target.copy(device, instruction.output_alloc_hints[0]);
     switch (target.shape().size()) {
     case 1:
         batch_scatter_impl<1>(indices, source, output, device);
@@ -494,7 +543,9 @@ void op_offset_indices(
     auto& sizes_out = locals[instruction.input_indices[1]].batch_sizes();
     std::size_t total_size = std::accumulate(sizes_out.begin(), sizes_out.end(), 0);
     auto& output = locals[instruction.output_indices[0]];
-    output = Tensor(DataType::dt_int, {total_size}, device);
+    output = Tensor(
+        DataType::dt_int, {total_size}, device, instruction.output_alloc_hints[0]
+    );
     std::size_t sum_offset = 0, sum_out = 0;
     for (auto [size_offset, size_out] : zip(sizes_offset, sizes_out)) {
         thrust::fill_n(
@@ -518,7 +569,9 @@ void op_random(
     auto batch_size = locals[instruction.input_indices[0]].batch_sizes()[0];
     auto& output = locals[instruction.output_indices[0]];
     auto dim = instruction.output_shapes[0][0];
-    output = Tensor(DataType::dt_float, {batch_size, dim}, device);
+    output = Tensor(
+        DataType::dt_float, {batch_size, dim}, device, instruction.output_alloc_hints[0]
+    );
     gpurandGenerator_t generator = instruction.runtime.gpurand_generator();
     check_error(gpurandSetStream(generator, device.stream()));
     check_error(gpurandGenerateUniformDouble(
@@ -558,15 +611,17 @@ void op_unweight(
     auto batch_size = weights.size(0);
     gpuStream_t stream = device.stream();
 
-    Tensor rand(DataType::dt_float, {batch_size}, device);
+    Tensor rand(DataType::dt_float, {batch_size}, device, AllocHint::temporary);
     gpurandGenerator_t generator = instruction.runtime.gpurand_generator();
     check_error(gpurandSetStream(generator, stream));
     check_error(gpurandGenerateUniformDouble(
         generator, static_cast<double*>(rand.data()), batch_size
     ));
 
-    Tensor indices_tmp(DataType::dt_int, {batch_size}, device);
-    Tensor uw_weights_tmp(DataType::dt_float, {batch_size}, device);
+    Tensor indices_tmp(DataType::dt_int, {batch_size}, device, AllocHint::temporary);
+    Tensor uw_weights_tmp(
+        DataType::dt_float, {batch_size}, device, AllocHint::temporary
+    );
     launch_kernel(
         kernel_unweight,
         batch_size,
@@ -579,7 +634,9 @@ void op_unweight(
         indices_tmp.view<me_int_t, 1>()
     );
 
-    Tensor indices_compacted(DataType::dt_int, {batch_size}, device);
+    Tensor indices_compacted(
+        DataType::dt_int, {batch_size}, device, instruction.output_alloc_hints[0]
+    );
     auto ptr_all =
         thrust::device_pointer_cast(static_cast<me_int_t*>(indices_tmp.data()));
     auto ptr_compacted =
@@ -594,7 +651,8 @@ void op_unweight(
 
     std::size_t count = ptr_compacted_end - ptr_compacted;
     indices = indices_compacted.slice(0, 0, count);
-    uw_weights = Tensor(DataType::dt_float, {count}, device);
+    uw_weights =
+        Tensor(DataType::dt_float, {count}, device, instruction.output_alloc_hints[1]);
     auto ptr_all_weights =
         thrust::device_pointer_cast(static_cast<double*>(uw_weights_tmp.data()));
     auto ptr_uw_weights =
@@ -627,7 +685,9 @@ void histogram_common(
     Tensor& values
 ) {
     auto policy = thrust_par.on(device.stream());
-    Tensor reduce_tmp(DataType::dt_float, {n_dims * n_bins}, device);
+    Tensor reduce_tmp(
+        DataType::dt_float, {n_dims * n_bins}, device, AllocHint::temporary
+    );
     auto indices_ptr =
         thrust::device_pointer_cast(static_cast<me_int_t*>(indices_tmp.data()));
     auto weights_ptr =
@@ -698,16 +758,21 @@ void op_vegas_histogram(
     Sizes shape(out_shape.size() + 1);
     shape[0] = 1;
     std::copy(out_shape.begin(), out_shape.end(), shape.begin() + 1);
-    values = Tensor(DataType::dt_float, shape, device);
-    counts = Tensor(DataType::dt_int, shape, device);
+    values =
+        Tensor(DataType::dt_float, shape, device, instruction.output_alloc_hints[0]);
+    counts = Tensor(DataType::dt_int, shape, device, instruction.output_alloc_hints[1]);
 
     std::size_t batch_size = locals[instruction.batch_size_index].size(0);
     std::size_t n_dims = input.size(1);
     std::size_t n_bins = values.size(2);
 
     std::size_t padded_size = batch_size + n_bins;
-    Tensor indices_tmp(DataType::dt_int, {padded_size, n_dims}, device);
-    Tensor weights_tmp(DataType::dt_float, {padded_size, n_dims}, device);
+    Tensor indices_tmp(
+        DataType::dt_int, {padded_size, n_dims}, device, AllocHint::temporary
+    );
+    Tensor weights_tmp(
+        DataType::dt_float, {padded_size, n_dims}, device, AllocHint::temporary
+    );
     launch_kernel(
         kernel_prepare_vegas_hist,
         padded_size,
@@ -756,15 +821,16 @@ void op_discrete_histogram(
     Sizes shape(out_shape.size() + 1);
     shape[0] = 1;
     std::copy(out_shape.begin(), out_shape.end(), shape.begin() + 1);
-    values = Tensor(DataType::dt_float, shape, device);
-    counts = Tensor(DataType::dt_int, shape, device);
+    values =
+        Tensor(DataType::dt_float, shape, device, instruction.output_alloc_hints[0]);
+    counts = Tensor(DataType::dt_int, shape, device, instruction.output_alloc_hints[1]);
 
     std::size_t batch_size = locals[instruction.batch_size_index].size(0);
     std::size_t n_opts = values.size(1);
 
     std::size_t padded_size = batch_size + n_opts;
-    Tensor indices_tmp(DataType::dt_int, {padded_size}, device);
-    Tensor weights_tmp(DataType::dt_float, {padded_size}, device);
+    Tensor indices_tmp(DataType::dt_int, {padded_size}, device, AllocHint::temporary);
+    Tensor weights_tmp(DataType::dt_float, {padded_size}, device, AllocHint::temporary);
     launch_kernel(
         kernel_prepare_discrete_hist,
         padded_size,
@@ -836,16 +902,20 @@ void op_histogram(
     Sizes shape(out_shape.size() + 1);
     shape[0] = 1;
     std::copy(out_shape.begin(), out_shape.end(), shape.begin() + 1);
-    values = Tensor(DataType::dt_float, shape, device);
-    square_values = Tensor(DataType::dt_float, shape, device);
+    values =
+        Tensor(DataType::dt_float, shape, device, instruction.output_alloc_hints[0]);
+    square_values =
+        Tensor(DataType::dt_float, shape, device, instruction.output_alloc_hints[1]);
 
     std::size_t batch_size = locals[instruction.batch_size_index].size(0);
     std::size_t n_bins = values.size(1) - 2;
     std::size_t padded_size = batch_size + n_bins + 2;
-    Tensor indices_tmp(DataType::dt_int, {padded_size}, device);
-    Tensor weights_tmp(DataType::dt_float, {padded_size}, device);
-    Tensor square_weights_tmp(DataType::dt_float, {padded_size}, device);
-    Tensor reduce_tmp(DataType::dt_float, {n_bins}, device);
+    Tensor indices_tmp(DataType::dt_int, {padded_size}, device, AllocHint::temporary);
+    Tensor weights_tmp(DataType::dt_float, {padded_size}, device, AllocHint::temporary);
+    Tensor square_weights_tmp(
+        DataType::dt_float, {padded_size}, device, AllocHint::temporary
+    );
+    Tensor reduce_tmp(DataType::dt_float, {n_bins}, device, AllocHint::temporary);
 
     launch_kernel(
         kernel_prepare_hist,
@@ -906,39 +976,48 @@ void op_histogram(
 class SyncTracker {
 public:
     SyncTracker(std::size_t stream_count) :
-        _stream_count(stream_count), _sync_matrix(stream_count * stream_count, true) {}
+        _stream_count(stream_count), _sync_matrix(stream_count * stream_count) {
+        reset();
+    }
 
     bool is_in_sync_with(std::size_t this_stream, std::size_t other_stream) const {
-        return _sync_matrix.at(this_stream * stream_count + other_stream);
+        return _sync_matrix.at(this_stream * _stream_count + other_stream);
     }
     void desynchronize(std::size_t this_stream) {
         for (std::size_t other_stream = 0; other_stream < _stream_count;
-             ++_other_stream) {
+             ++other_stream) {
             if (this_stream != other_stream) {
-                _sync_matrix.at(other_stream * stream_count + this_stream) = false;
+                _sync_matrix.at(other_stream * _stream_count + this_stream) = false;
             }
         }
     }
     void synchronize(std::size_t this_stream, std::size_t other_stream) {
         for (std::size_t i = 0; i < _stream_count; ++i) {
             if (is_in_sync_with(other_stream, i)) {
-                _sync_matrix.at(this_stream * stream_count + i) = true;
+                _sync_matrix.at(this_stream * _stream_count + i) = true;
             }
         }
     }
-    void reset() { std::fill(_sync_matrix.begin(), _sync_matrix.end(), true); }
+    void reset() {
+        for (std::size_t i = 0; i < _stream_count; ++i) {
+            for (std::size_t j = 0; j < _stream_count; ++j) {
+                _sync_matrix.at(i * _stream_count + j) = i == j;
+            }
+        }
+    }
 
 private:
     std::size_t _stream_count;
     std::vector<bool> _sync_matrix;
-}
+};
 
 } // namespace
 
-GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
+GpuRuntime::GpuRuntime(const Function& function_arg, ContextPtr context) :
     _context(context),
-    _input_count(function.inputs().size()) _gpublas_handle(
-        context.thread_pool(),
+    _input_count(function_arg.inputs().size()),
+    _gpublas_handle(
+        context->thread_pool(),
         []() {
             gpublasHandle_t handle;
             check_error(gpublasCreate(&handle));
@@ -947,7 +1026,7 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
         [](gpublasHandle_t handle) { check_error(gpublasDestroy(handle)); }
     ),
     _gpurand_generator(
-        context.thread_pool(),
+        context->thread_pool(),
         []() {
             gpurandGenerator_t handle;
             check_error(gpurandCreateGenerator(&handle, GPURAND_RNG_PSEUDO_DEFAULT));
@@ -956,12 +1035,21 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
             return handle;
         },
         [](gpurandGenerator_t handle) { check_error(gpurandDestroyGenerator(handle)); }
-    ) {
+    ),
+    _prev_caches(context->thread_pool(), []() { return TensorVec{}; }) {
     if (context->device()->device_type() != GpuDevice::gpu_device_type) {
         throw std::runtime_error("Context has incompatible device");
     }
     auto& gpu_device = *static_cast<const GpuDevice*>(_context->device());
     gpu_device.activate();
+
+    // cudaMemPool_t pool;
+    // check_error(cudaDeviceGetMemPool(&pool, 0));
+    // uint64_t thresh = UINT64_MAX;
+    // check_error(cudaMemPoolSetAttribute(pool, cudaMemPoolAttrReleaseThreshold,
+    // &thresh));
+
+    Function function = sort_breadth_first(function_arg);
 
     _locals_init.resize(function.locals().size());
     _requires_grad_init.resize(function.locals().size());
@@ -971,52 +1059,38 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
     std::size_t stream_count = 0, event_count = 0, backward_event_count = 0;
     for (auto& instr : function.instructions()) {
         if (instr.stream_index >= stream_count) {
-            stream_count = instr.stream_index;
+            stream_count = instr.stream_index + 1;
         }
     }
     SyncTracker sync_tracker(stream_count);
     std::vector<int> local_source_streams(function.locals().size(), -1);
     SizeVec last_stream_instrs(stream_count);
-    nested_vector2<std::size_t> local_consumer_streams(function.locals().size());
     nested_vector2<std::size_t> backward_wait_events(function.instructions().size());
     std::vector<int> backward_record_events(function.instructions().size(), -1);
 
-    for (auto& instr : function.instructions()) {
-        if (instr.stream_index >= stream_count) {
-            stream_count = instr.stream_index + 1;
-        }
-    }
-
-    auto update_sync = [&](std::size_t local_index,
-                           std::size_t stream_index,
-                           SizeVec& wait_events,
-                           auto get_event) {
-        int source_stream = local_source_streams.at(local_index);
-        auto& consumer_streams = local_consumer_streams.at(local_index);
-        if (std::find(consumer_streams.begin(), consumer_streams.end(), stream_index) ==
-            consumer_streams.end()) {
-            consumer_streams.push_back(stream_index);
-        }
-        if (!sync_tracker.is_in_sync_with(stream_index, source_stream)) {
-            wait_events.push_back(get_event(source_stream));
-            sync_tracker.synchronize(stream_index, source_stream);
-        }
-    } auto get_event_backward = [&](std::size_t source_stream) -> int {
-        int& event = backward_record_events.at(last_stream_instrs.at(source_stream));
-        if (event == -1) {
-            event = backward_event_count;
-            ++backward_event_count;
-        }
-        return event;
-    };
+    auto update_sync_backward =
+        [&](std::size_t local_index, std::size_t stream_index, SizeVec& wait_events) {
+            int source_stream = local_source_streams.at(local_index);
+            if (source_stream == -1) {
+                return;
+            }
+            if (!sync_tracker.is_in_sync_with(stream_index, source_stream)) {
+                int& event =
+                    backward_record_events.at(last_stream_instrs.at(source_stream));
+                if (event == -1) {
+                    event = backward_event_count;
+                    ++backward_event_count;
+                }
+                wait_events.push_back(event);
+                sync_tracker.synchronize(stream_index, source_stream);
+            }
+        };
 
     for (std::size_t instr_index = 0; auto [instr, bw_wait_events] :
                                       zip(std::views::reverse(function.instructions()),
                                           std::views::reverse(backward_wait_events))) {
         for (auto& out : instr.outputs) {
-            update_sync(
-                out.local_index, instr.stream_index, bw_wait_events, get_event_backward
-            );
+            update_sync_backward(out.local_index, instr.stream_index, bw_wait_events);
         }
         for (auto& in : instr.inputs) {
             local_source_streams.at(in.local_index) = instr.stream_index;
@@ -1026,23 +1100,49 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
         ++instr_index;
     }
     for (auto& in : function.inputs()) {
-        update_sync(in.local_index, 0, _wait_events, get_event_forward);
+        update_sync_backward(in.local_index, 0, _backward_wait_events);
     }
 
     sync_tracker.reset();
-    local_source_streams.clear();
-    last_stream_instrs.clear();
-    local_consumer_streams.clear();
+    std::fill(local_source_streams.begin(), local_source_streams.end(), -1);
+    nested_vector2<std::size_t> local_consumer_streams(function.locals().size());
 
-    auto get_event_forward = [&](std::size_t source_stream) -> int {
-        int& event =
-            _instructions.at(last_stream_instrs.at(source_stream)).record_event;
-        if (event == -1) {
-            event = event_count;
-            ++event_count;
+    auto update_sync = [&](std::size_t local_index,
+                           std::size_t stream_index,
+                           SizeVec& wait_events) {
+        int source_stream = local_source_streams.at(local_index);
+        if (source_stream == -1) {
+            return;
         }
-        return event;
+        auto& consumer_streams = local_consumer_streams.at(local_index);
+        if (std::find(consumer_streams.begin(), consumer_streams.end(), stream_index) ==
+            consumer_streams.end()) {
+            consumer_streams.push_back(stream_index);
+        }
+        if (!sync_tracker.is_in_sync_with(stream_index, source_stream)) {
+            int& event =
+                _instructions.at(last_stream_instrs.at(source_stream)).record_event;
+            if (event == -1) {
+                event = event_count;
+                ++event_count;
+            }
+            wait_events.push_back(event);
+            sync_tracker.synchronize(stream_index, source_stream);
+        }
     };
+
+    std::vector<bool> is_input(function.locals().size());
+    std::vector<bool> is_output(function.locals().size());
+    std::vector<bool> is_global(function.locals().size());
+    for (auto& input : function.inputs()) {
+        is_input.at(input.local_index) = true;
+    }
+    for (auto& output : function.outputs()) {
+        is_output.at(output.local_index) = true;
+    }
+    for (auto& [name, global] : function.globals()) {
+        is_global.at(global.local_index) = true;
+    }
 
     SizeVec free_queue;
     for (std::size_t instr_index = 0;
@@ -1050,30 +1150,46 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
          zip(function.instructions(), backward_wait_events, backward_record_events)) {
         SizeVec input_indices, wait_events;
         std::size_t batch_size_index = instr.inputs.at(0).local_index;
+        std::vector<AllocHint> input_grad_alloc_hints;
         for (auto& in : instr.inputs) {
             input_indices.push_back(in.local_index);
+            if (is_input.at(in.local_index)) {
+                input_grad_alloc_hints.push_back(AllocHint::input_grad);
+            } else if (is_global.at(in.local_index)) {
+                input_grad_alloc_hints.push_back(AllocHint::global_grad);
+            } else {
+                input_grad_alloc_hints.push_back(AllocHint::local_grad);
+            }
+
             if (in.type.batch_size != BatchSize::one) {
                 batch_size_index = in.local_index;
             }
-            update_sync(
-                in.local_index, instr.stream_index, bw_wait_events, get_event_forward
-            );
+            update_sync(in.local_index, instr.stream_index, wait_events);
         }
         SizeVec output_indices;
+        std::vector<AllocHint> output_alloc_hints;
         std::vector<DataType> output_dtypes;
         std::vector<SizeVec> output_shapes;
         for (auto& out : instr.outputs) {
             output_indices.push_back(out.local_index);
             output_dtypes.push_back(out.type.dtype);
             output_shapes.push_back({out.type.shape.begin(), out.type.shape.end()});
+            if (is_output.at(out.local_index)) {
+                output_alloc_hints.push_back(AllocHint::output);
+            } else {
+                output_alloc_hints.push_back(AllocHint::local);
+            }
             local_source_streams.at(out.local_index) = instr.stream_index;
         }
 
         sync_tracker.desynchronize(instr.stream_index);
+        last_stream_instrs.at(instr.stream_index) = _instructions.size();
         _instructions.push_back({
             instr.instruction->opcode(),
             input_indices,
+            input_grad_alloc_hints,
             output_indices,
+            output_alloc_hints,
             output_dtypes,
             output_shapes,
             batch_size_index,
@@ -1083,16 +1199,18 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
             wait_events,
             -1,
             bw_wait_events,
-            bw_record_events,
+            bw_record_event,
         });
 
-        auto locals_to_free = last_use.local_indices(instr_index);
+        SizeVec locals_to_free = last_use.local_indices(instr_index);
         free_queue.insert(
             free_queue.end(), locals_to_free.begin(), locals_to_free.end()
         );
         free_queue.erase(
             std::remove_if(
-                free_queue.begin(), free_queue.end(), [&](std::size_t local_index) {
+                free_queue.begin(),
+                free_queue.end(),
+                [&](std::size_t local_index) {
                     for (std::size_t consumer_stream :
                          local_consumer_streams.at(local_index)) {
                         if (!sync_tracker.is_in_sync_with(
@@ -1107,6 +1225,8 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
                          {},
                          {},
                          {},
+                         {},
+                         {},
                          0,
                          *this,
                          false,
@@ -1118,7 +1238,8 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
                     );
                     return true;
                 }
-            )
+            ),
+            free_queue.end()
         );
 
         ++instr_index;
@@ -1157,11 +1278,11 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
 
     for (auto& out : function.outputs()) {
         _output_indices.push_back(out.local_index);
-        update_sync(out.local_index, 0, _wait_events, get_event_forward);
+        update_sync(out.local_index, 0, _wait_events);
     }
 
     _streams = ThreadResource<std::vector<gpuStream_t>>(
-        context.thread_pool(),
+        context->thread_pool(),
         [stream_count]() {
             std::vector<gpuStream_t> streams(stream_count);
             for (auto& item : streams) {
@@ -1177,7 +1298,7 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
     );
     std::size_t max_event_count = std::max(event_count, backward_event_count);
     _events = ThreadResource<std::vector<gpuEvent_t>>(
-        context.thread_pool(),
+        context->thread_pool(),
         [max_event_count]() {
             std::vector<gpuEvent_t> events(max_event_count);
             for (auto& item : events) {
@@ -1193,17 +1314,20 @@ GpuRuntime::GpuRuntime(const Function& function, ContextPtr context) :
     );
 }
 
-TensorVec GpuRuntime::run(const TensorVec& inputs) const {
+TensorVec GpuRuntime::run(const TensorVec& inputs) {
     auto& gpu_device = *static_cast<const GpuDevice*>(_context->device());
     auto& streams = _streams.get();
     auto& events = _events.get();
     gpu_device.activate();
     auto locals = _locals_init;
     std::copy(inputs.begin(), inputs.end(), locals.begin());
+    gpuStream_t main_stream = streams.at(0);
+    MemPool mem_pool(gpu_device, load_pool_size_cache(), main_stream);
 
+    // println("----");
     for (auto& instr : _instructions) {
         gpuStream_t stream = streams.at(instr.stream);
-        AsyncGpuDevice device(gpu_device, stream);
+        AsyncGpuDevice device(gpu_device, stream, instr.stream, &mem_pool);
         for (auto event : instr.wait_events) {
             check_error(gpuStreamWaitEvent(stream, events.at(event)));
         }
@@ -1217,10 +1341,11 @@ TensorVec GpuRuntime::run(const TensorVec& inputs) const {
             check_error(gpuEventRecord(events.at(instr.record_event), stream));
         }
     }
-    gpuStream_t main_stream = streams.at(0);
     for (auto event : _wait_events) {
         check_error(gpuStreamWaitEvent(main_stream, events.at(event)));
     }
+    update_pool_size_cache(mem_pool.total_sizes());
+    update_cached_tensors(mem_pool.reset(main_stream));
     TensorVec outputs;
     for (auto index : _output_indices) {
         outputs.push_back(locals[index]);
@@ -1231,7 +1356,7 @@ TensorVec GpuRuntime::run(const TensorVec& inputs) const {
 
 std::tuple<TensorVec, TensorVec, std::vector<bool>> GpuRuntime::run_with_grad(
     const TensorVec& inputs, const std::vector<bool>& input_requires_grad
-) const {
+) {
     auto& gpu_device = *static_cast<const GpuDevice*>(_context->device());
     auto& streams = _streams.get();
     auto& events = _events.get();
@@ -1244,10 +1369,12 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> GpuRuntime::run_with_grad(
     std::copy(
         input_requires_grad.begin(), input_requires_grad.end(), requires_grad.begin()
     );
+    gpuStream_t main_stream = streams.at(0);
+    MemPool mem_pool(gpu_device, load_pool_size_cache(), main_stream);
 
     for (auto [instr, instr_eval_grad] : zip(_instructions, eval_grad)) {
         gpuStream_t stream = streams.at(instr.stream);
-        AsyncGpuDevice device(gpu_device, stream);
+        AsyncGpuDevice device(gpu_device, stream, instr.stream, &mem_pool);
         if (instr.differentiable) {
             for (auto input_index : instr.input_indices) {
                 if (requires_grad[input_index]) {
@@ -1283,15 +1410,16 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> GpuRuntime::run_with_grad(
             check_error(gpuEventRecord(events.at(instr.record_event), stream));
         }
     }
-    gpuStream_t main_stream = streams.at(0);
     for (auto event : _wait_events) {
         check_error(gpuStreamWaitEvent(main_stream, events.at(event)));
     }
+    update_pool_size_cache(mem_pool.total_sizes());
+    update_cached_tensors(mem_pool.reset(main_stream));
     TensorVec outputs;
     for (auto index : _output_indices) {
         outputs.push_back(locals[index]);
     }
-    check_error(gpuStreamSynchronize(main_stream);
+    check_error(gpuStreamSynchronize(main_stream));
     return {outputs, locals, eval_grad};
 }
 
@@ -1299,7 +1427,7 @@ std::pair<TensorVec, TensorVec> GpuRuntime::run_backward(
     const TensorVec& output_grads,
     const TensorVec& stored_locals,
     const std::vector<bool>& eval_grad
-) const {
+) {
     auto& gpu_device = *static_cast<const GpuDevice*>(_context->device());
     auto& streams = _streams.get();
     auto& events = _events.get();
@@ -1309,20 +1437,28 @@ std::pair<TensorVec, TensorVec> GpuRuntime::run_backward(
     for (auto [index, grad] : zip(_output_indices, output_grads)) {
         local_grads[index] = grad;
     }
+    gpuStream_t main_stream = streams.at(0);
+    MemPool mem_pool(gpu_device, load_pool_size_cache(), main_stream);
     for (auto [instr, instr_eval_grad] :
          zip(std::views::reverse(_instructions), std::views::reverse(eval_grad))) {
-        gpuStream_t stream = streams.at(instr.backward_stream);
+        /*gpuStream_t stream = streams.at(instr.stream);
         for (auto event : instr.backward_wait_events) {
             check_error(gpuStreamWaitEvent(stream, events.at(event)));
-        }
+        }*/
         if (instr_eval_grad) {
-            AsyncGpuDevice device(gpu_device, stream);
+            // AsyncGpuDevice device(gpu_device, stream, &mem_pool);
+            AsyncGpuDevice device(gpu_device, main_stream, 0, &mem_pool);
+            // println("instr {} {}", static_cast<const void*>(&gpu_device),
+            // static_cast<const void*>(&mem_pool));
             for (auto [output_index, output_dtype] :
                  zip(instr.output_indices, instr.output_dtypes)) {
                 auto& grad = local_grads[output_index];
                 if (!grad && output_dtype == DataType::dt_float) {
                     grad = Tensor(
-                        DataType::dt_float, locals[output_index].shape(), device
+                        DataType::dt_float,
+                        locals[output_index].shape(),
+                        device,
+                        AllocHint::local_grad
                     );
                     grad.zero(device);
                 }
@@ -1331,21 +1467,71 @@ std::pair<TensorVec, TensorVec> GpuRuntime::run_backward(
 #include "runtime_backward_mixin.h"
             }
         }
-        if (instr.backward_record_event) {
-            check_error(gpuEventRecord(instr.backward_record_event, stream));
-        }
+        /*if (instr.backward_record_event != -1) {
+            check_error(gpuEventRecord(events.at(instr.backward_record_event), stream));
+        }*/
     }
-    gpuStream_t main_stream = streams.at(0);
-    for (auto event : _backward_wait_events) {
+    /*for (auto event : _backward_wait_events) {
         check_error(gpuStreamWaitEvent(main_stream, events.at(event)));
-    }
+    }*/
+    update_pool_size_cache(mem_pool.total_sizes());
+    update_cached_tensors(mem_pool.reset(main_stream));
     TensorVec global_grads;
-    global_grads.reserve(_grad_global_indices.size());
-    for (std::size_t index : _grad_global_indices) {
+    for (auto& [name, index] : _grad_global_indices) {
         global_grads.push_back(local_grads[index]);
     }
     check_error(gpuStreamSynchronize(main_stream));
     return {{local_grads.begin(), local_grads.begin() + _input_count}, global_grads};
+}
+
+std::vector<std::tuple<std::size_t, std::size_t, Tensor>>
+GpuRuntime::load_pool_size_cache() {
+    auto cache = _pool_size_cache.load();
+    std::vector<std::tuple<std::size_t, std::size_t, Tensor>> ret;
+    if (cache) {
+        auto& thread_prev_caches = _prev_caches.get();
+        for (auto [pool_index, size] : *cache) {
+            Tensor new_cache;
+            if (pool_index < thread_prev_caches.size()) {
+                Tensor& prev_cache = thread_prev_caches.at(pool_index);
+                if (prev_cache && prev_cache.is_only_reference()) {
+                    new_cache = prev_cache;
+                }
+            }
+            ret.push_back({pool_index, size, new_cache});
+        }
+    }
+    return ret;
+}
+
+void GpuRuntime::update_pool_size_cache(
+    const std::vector<std::pair<std::size_t, std::size_t>>& total_sizes
+) {
+    auto cache = _pool_size_cache.load();
+    auto new_cache = cache
+        ? std::make_shared<std::unordered_map<std::size_t, std::size_t>>(*cache)
+        : std::make_shared<std::unordered_map<std::size_t, std::size_t>>();
+    for (auto [pool_index, size] : total_sizes) {
+        auto& cache_size = (*new_cache)[pool_index];
+        if (size > cache_size) {
+            // if the cache needs to be resized, add some padding to prevent frequent
+            // resizing
+            cache_size = size * 4 / 3;
+        }
+    }
+    _pool_size_cache.store(new_cache);
+}
+
+void GpuRuntime::update_cached_tensors(
+    const std::vector<std::pair<std::size_t, Tensor>>& tensors
+) {
+    auto& thread_prev_caches = _prev_caches.get();
+    for (auto& [pool_index, tensor] : tensors) {
+        if (pool_index >= thread_prev_caches.size()) {
+            thread_prev_caches.resize(pool_index + 1);
+        }
+        thread_prev_caches.at(pool_index) = tensor;
+    }
 }
 
 extern "C" Runtime*

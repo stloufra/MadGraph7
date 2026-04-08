@@ -1,6 +1,8 @@
 #include "madspace/compgraphs/type.h"
 #include "madspace/util.h"
 
+#include <sstream>
+
 using namespace madspace;
 using json = nlohmann::json;
 
@@ -95,6 +97,12 @@ std::ostream& madspace::operator<<(std::ostream& out, const DataType& dtype) {
         break;
     }
     return out;
+}
+
+std::string BatchSize::to_string() const {
+    std::ostringstream ss;
+    ss << *this;
+    return ss.str();
 }
 
 std::ostream& madspace::operator<<(std::ostream& out, const BatchSize& batch_size) {

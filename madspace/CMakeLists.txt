@@ -36,6 +36,8 @@ if (CMAKE_BUILD_TYPE STREQUAL "Release")
     endif()
 endif()
 
+add_compile_options(-fno-omit-frame-pointer)
+
 ########################################################################################
 # Load dependencies                                                                    #
 ########################################################################################

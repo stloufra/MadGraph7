@@ -12,6 +12,9 @@ namespace cpu {
 
 class CpuRuntime : public Runtime {
 public:
+    struct DummyAllocHints {
+        AllocHint operator[](std::size_t index) const { return AllocHint::normal; }
+    };
     struct Instruction {
         int opcode;
         SizeVec input_indices;
@@ -25,19 +28,21 @@ public:
         std::size_t dependency_count;
         SizeVec dependent_instructions_backward;
         std::size_t dependency_count_backward;
+        DummyAllocHints output_alloc_hints;
+        DummyAllocHints input_grad_alloc_hints;
     };
 
     CpuRuntime(const Function& function, ContextPtr context, bool concurrent);
 
-    TensorVec run(const TensorVec& inputs) const override;
+    TensorVec run(const TensorVec& inputs) override;
     std::tuple<TensorVec, TensorVec, std::vector<bool>> run_with_grad(
         const TensorVec& inputs, const std::vector<bool>& input_requires_grad
-    ) const override;
+    ) override;
     std::pair<TensorVec, TensorVec> run_backward(
         const TensorVec& output_grads,
         const TensorVec& stored_locals,
         const std::vector<bool>& eval_grad
-    ) const override;
+    ) override;
 
     Context& context() { return *_context; }
     std::mt19937& rand_gen() { return _rand_gens.get(); }

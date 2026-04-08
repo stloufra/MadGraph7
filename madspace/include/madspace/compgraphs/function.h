@@ -55,6 +55,8 @@ private:
     ValueVec _locals;
     std::vector<std::pair<std::string, Value>> _globals;
     std::vector<InstructionCall> _instructions;
+
+    friend Function sort_breadth_first(const Function& function);
 };
 
 std::ostream& operator<<(std::ostream& out, const Value& value);
