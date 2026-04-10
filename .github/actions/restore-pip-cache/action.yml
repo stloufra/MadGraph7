@@ -8,7 +8,7 @@ runs:
       run: echo "CACHE_KEY=pip-numpy-$ImageOS" >> $GITHUB_ENV
       shell: bash
 
-    - uses: actions/cache/restore@v4
+    - uses: actions/cache/restore@v5
       with:
         path: ~/.cache/pip-packages
         key: ${{ env.CACHE_KEY }}
@@ -17,6 +17,5 @@ runs:
         echo "PYTHONPATH=$PYTHONPATH:$HOME/.cache/pip-packages" >> $GITHUB_ENV
         echo "$HOME/.cache/pip-packages/bin" >> $GITHUB_PATH
         cd $GITHUB_WORKSPACE
-        cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
         echo "f2py_compiler = $(which f2py)" >> input/mg5_configuration.txt
       shell: bash
