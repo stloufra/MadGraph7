@@ -1,5 +1,22 @@
     Update notes for MadGraph5_aMC@NLO (in reverse time order)
 
+ANNOUNCEMENT: 
+   2.9.X version has a LONG TERM STABLE IS now an end of life for bug fixing/support since december 2025.
+   A new LTS (based on current 3.5.X) is starting now and will act as stable release for the coming years.
+
+3.5.14 (10/4/26):
+  OM: Fix issue on how Sextet where written within lhef output
+  OM: Small change in the way default value are taken if some parameter are not present within the run_card
+      Now the default value will be taken first from the run_card_default.dat (which is process specific) 
+      rather than using the an hardcoded default. This is required to correctly takes sde_strategy=1 when
+      a process uses $ syntax (which is not compatible with sde_strategy=2). Note that 3.7.1, do change the
+      "$" handling to avoid such type of issue in a cleaner way.
+  OM: Fixing various small issue related to linking to HEPTools
+  OM: Change some API for the matchbox output (for intereference case)
+  OM: Handle UFO model which are not python3.13 compatible (in the write_param_card.py script)
+  OM: Change in how madgraph setup the grid for shat to better handle process at high energy and very soft cut
+      This also better handle p p case since the grid is now aware of the implicit cut related to the CKKW merging scheme
+
 3.5.13 (05/01/26):
   VD: fixing issue with custom functions that moving back to no custom functions was not correctly recompiling the code.
   OM: change f2py interface to make madspin/reweighting compatible both above and below python3.12

@@ -2912,7 +2912,7 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
                 logger.debug("Warning: The export format %s is not "+\
                   " available for individual ME evaluation of given coupl. orders."+\
                   " Only the total ME will be computed.", self.opt['export_format'])
-            elif  self.opt['export_format'] in ['madloop_matchbox']:
+            elif  self.opt['export_format'] in ['madloop_matchbox', 'matchbox']:
                 replace_dict["color_information"] = self.get_color_string_lines(matrix_element)
                 matrix_template = "matrix_standalone_matchbox_splitOrders_v4.inc"
             else:
