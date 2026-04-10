@@ -679,7 +679,8 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                        'cluster_status_update': (600, 30),
                        'cluster_nb_retry':1,
                        'cluster_local_path': None,
-                       'cluster_retry_wait':300}
+                       'cluster_retry_wait':300,
+                       'heptools_install_dir': pjoin(root_path,'HEPTools'),}
 
     options_madgraph= {'stdout_level':None}
 
