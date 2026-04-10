@@ -19,6 +19,7 @@ from __future__ import division
 
 from __future__ import absolute_import
 import atexit
+import collections
 import glob
 import logging
 import math
@@ -39,6 +40,7 @@ import datetime
 import tarfile
 import traceback
 import six
+
 StringIO = six
 from six.moves import range
 from six.moves import zip
@@ -2878,35 +2880,24 @@ RESTART = %(mint_mode)s
         for ddir, res in dir_dict.items():
             content.append(('%20s' % ddir) + '   %(result)10.8e    %(error)6.4e ' %  res)
 
+        cross_sect_dict = collections.defaultdict(float)
+        cross_sect_dict['p_labels']=[]
         for job in jobs:
-            try:
-                cross_sect_dict['xseca'] += job['resultABS']*job['wgt_frac']
-                cross_sect_dict['erra'] += math.pow(job['errorABS'],2)*job['wgt_frac']
-                cross_sect_dict['xsect'] += job['result']*job['wgt_frac']
-                cross_sect_dict['errt'] += math.pow(job['error'],2)*job['wgt_frac']
-            except:
-                cross_sect_dict = {
-                        'xsect' : job['result']*job['wgt_frac'],
-                        'xseca' : job['resultABS']*job['wgt_frac'],
-                        'errt' : math.pow(job['error'], 2)*job['wgt_frac'],
-                        'erra' : math.pow(job['errorABS'], 2)*job['wgt_frac']}
-            try:
-                cross_sect_dict[job['p_label']]['xseca'] += job['resultABS']*job['wgt_frac']
-                cross_sect_dict[job['p_label']]['erra'] += math.pow(job['errorABS'],2)*job['wgt_frac']
-                cross_sect_dict[job['p_label']]['xsect'] += job['result']*job['wgt_frac']
-                cross_sect_dict[job['p_label']]['errt'] += math.pow(job['error'],2)*job['wgt_frac']
-            except KeyError:
-                cross_sect_dict[job['p_label']] = {
-                        'xsect' : job['result']*job['wgt_frac'],
-                        'xseca' : job['resultABS']*job['wgt_frac'],
-                        'errt' : math.pow(job['error'], 2)*job['wgt_frac'],
-                        'erra' : math.pow(job['errorABS'], 2)*job['wgt_frac'],
-                        'p_label' : job['p_label']}
-                try:
-                    cross_sect_dict['p_labels'].append(job['p_label'])
-                except:
-                    cross_sect_dict['p_labels']=[job['p_label']]
+            cross_sect_dict['xsect'] += job['result']*job['wgt_frac']
+            cross_sect_dict['xseca'] += job['resultABS']*job['wgt_frac']
+            cross_sect_dict['errt'] += math.pow(job['error'],2)*job['wgt_frac']
+            cross_sect_dict['erra'] += math.pow(job['errorABS'],2)*job['wgt_frac']
+            # individual p_label results
+            if job['p_label'] not in cross_sect_dict:
+                cross_sect_dict[job['p_label']] = collections.defaultdict(float)
+                cross_sect_dict[job['p_label']]['p_label'] = job['p_label']
+                cross_sect_dict['p_labels'].append(job['p_label'])
+            cross_sect_dict[job['p_label']]['xseca'] += job['resultABS']*job['wgt_frac']
+            cross_sect_dict[job['p_label']]['erra'] += math.pow(job['errorABS'],2)*job['wgt_frac']
+            cross_sect_dict[job['p_label']]['xsect'] += job['result']*job['wgt_frac']
+            cross_sect_dict[job['p_label']]['errt'] += math.pow(job['error'],2)*job['wgt_frac']
 
+        # combine the results correctly
         cross_sect_dict['erra'] = math.sqrt(cross_sect_dict['erra'])
         cross_sect_dict['errt'] = math.sqrt(cross_sect_dict['errt'])
         cross_sect_dict['fraca'] = (cross_sect_dict['erra']/cross_sect_dict['xseca']*100. if cross_sect_dict['xseca'] != 0. else 100.)
