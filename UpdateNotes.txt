@@ -9,8 +9,8 @@
     OM: Change the implementation of the "$" syntax such that the implementation moves at the amplitude level
         This means that the syntax is now also supported at standalone level (bwcutoff hardcoded to 15)
         This has no impact if sde_strategy=1 but avoids issue with sde_strategy=2.
-        We still recomend sde_strategy=1 when using $ syntax since you can have spurious writting of resonances
-        in the lhef with sde_stragegy=2.
+        We still recommend sde_strategy=1 when using $ syntax since you can have spurious writting of resonances
+        in the lhef with sde_strategy=2.
     RF: Refactored the code that collects all the events from the various channels
         into a single event file at the end of an MC@NLO run.
 
