@@ -51,6 +51,13 @@ public:
     const std::size_t* data() const { return &_values[0]; }
     std::size_t& back() { return _values[_size - 1]; }
     const std::size_t& back() const { return _values[_size - 1]; }
+    std::size_t product() const {
+        std::size_t size = 1;
+        for (std::size_t dim_size : *this) {
+            size *= dim_size;
+        }
+        return size;
+    }
 
 private:
     std::size_t _values[max_size];
@@ -485,14 +492,7 @@ public:
         }
     }
 
-    std::size_t byte_size() const {
-        check_impl();
-        std::size_t size = dtype_size();
-        for (auto dim_size : impl->shape) {
-            size *= dim_size;
-        }
-        return size;
-    }
+    std::size_t byte_size() const { return dtype_size() * shape().product(); }
 
     void reset() {
         if (impl == nullptr) {
@@ -517,7 +517,9 @@ public:
     std::vector<Tensor> unstack(std::size_t axis) const;
     Tensor unsqueeze(std::size_t axis) const;
     Tensor expand(const Sizes& shape) const;
+    Tensor reshape(const Sizes& shape) const;
     Tensor factor_dim(std::size_t axis, std::size_t factor);
+    std::vector<Tensor> split_and_reshape(const std::vector<Sizes>& shapes) const;
 
     template <typename D>
     Tensor cpu(const D& device) const {

@@ -37,9 +37,10 @@ private:
     double _beta1;
     double _beta2;
     double _eps;
-    TensorVec _parameters;
-    TensorVec _exp_avgs;
-    TensorVec _exp_avg_sqs;
+    Tensor _one;
+    Tensor _parameter;
+    Tensor _exp_avg;
+    Tensor _exp_avg_sq;
     TypeVec _input_types;
 };
 

@@ -15,21 +15,26 @@ AdamOptimizer::AdamOptimizer(
     double eps
 ) :
     _context(context),
-    _runtime(build_runtime(function, context)),
     _learning_rate(learning_rate),
     _schedule(schedule),
     _step(0),
     _step_count(step_count),
     _beta1(beta1),
     _beta2(beta2),
-    _eps(eps) {
+    _eps(eps),
+    _one(1.0, context->device()) {
     DevicePtr device = context->device();
+    std::vector<std::string> param_names;
     for (auto& [name, value] : function.globals()) {
-        Tensor global = context->global(name);
-        _parameters.push_back(global);
-        _exp_avgs.emplace_back(global.dtype(), global.shape(), device).zero();
-        _exp_avg_sqs.emplace_back(global.dtype(), global.shape(), device).zero();
+        if (context->global_requires_grad(name)) {
+            param_names.push_back(name);
+        }
     }
+    _parameter = context->reallocate_globals_contiguously(param_names);
+    _runtime = build_runtime(function, context);
+    _parameter = Tensor(_parameter.dtype(), _parameter.shape(), _parameter.device());
+    _exp_avg = Tensor(_parameter.dtype(), _parameter.shape(), _parameter.device());
+    _exp_avg_sq = Tensor(_parameter.dtype(), _parameter.shape(), _parameter.device());
     _input_types.reserve(function.inputs().size());
     for (auto& input : function.inputs()) {
         _input_types.push_back(input.type);
@@ -47,20 +52,20 @@ TensorVec AdamOptimizer::step(const TensorVec& inputs) {
         _runtime->run_with_grad(inputs, std::vector<bool>(inputs.size(), false));
     TensorVec output_grads(outputs.size());
     DevicePtr device = _context->device();
-    output_grads.at(0) = Tensor(1.0, device);
+    output_grads.at(0) = _one;
     auto [input_grads, global_grads] =
         _runtime->run_backward(output_grads, stored_locals, eval_grad);
-    /*device->adam_step(
-        global_grads,
-        _parameters,
-        _exp_avgs,
-        _exp_avg_sqs,
+    device->adam_step(
+        global_grads.at(0),
+        _parameter,
+        _exp_avg,
+        _exp_avg_sq,
         step_size,
         _beta1,
         _beta2,
         _eps,
         bias_corr2_sqrt
-    );*/
+    );
     return outputs;
 }
 

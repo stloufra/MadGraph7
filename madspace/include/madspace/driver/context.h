@@ -128,6 +128,7 @@ public:
     std::vector<std::string> global_names() const;
     void delete_global(const std::string& name);
     void copy_globals_from(Context& context);
+    Tensor reallocate_globals_contiguously(const std::vector<std::string>& names);
     const MatrixElementApi& matrix_element(std::size_t index) const;
     void save_globals(const std::string& dir) const;
     void load_globals(const std::string& dir);

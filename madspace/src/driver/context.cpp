@@ -195,6 +195,38 @@ void Context::copy_globals_from(Context& context) {
     }
 }
 
+Tensor Context::reallocate_globals_contiguously(const std::vector<std::string>& names) {
+    std::vector<Sizes> shapes;
+    shapes.reserve(names.size());
+    std::size_t total_size = 0;
+    DataType dtype;
+    for (bool first = true; auto& name : names) {
+        auto& glob = _globals.at(name).first;
+        if (!glob.is_only_reference()) {
+            throw std::runtime_error(
+                std::format(
+                    "Global {}: cannot reallocate as it is externally referenced", name
+                )
+            );
+        }
+        if (first) {
+            dtype = glob.dtype();
+            first = false;
+        } else if (dtype != glob.dtype()) {
+            throw std::runtime_error(
+                std::format("Global {}: incompatible dtype", name)
+            );
+        }
+        shapes.push_back(glob.shape());
+        total_size += glob.shape().product();
+    }
+    Tensor parent(dtype, {total_size}, device());
+    for (auto [name, tensor] : zip(names, parent.split_and_reshape(shapes))) {
+        _globals.at(name).first = tensor;
+    }
+    return parent;
+}
+
 const MatrixElementApi& Context::matrix_element(std::size_t index) const {
     if (index >= _matrix_elements.size()) {
         throw std::runtime_error("Matrix element index out of bounds");

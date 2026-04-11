@@ -120,6 +120,31 @@ Tensor Tensor::expand(const Sizes& shape) const {
     });
 }
 
+Tensor Tensor::reshape(const Sizes& new_shape) const {
+    check_impl();
+    if (!is_contiguous()) {
+        throw std::runtime_error("Tensor must be contiguous");
+    }
+    if (new_shape.product() != shape().product()) {
+        throw std::runtime_error("Incompatible shapes");
+    }
+    Tensor ret(new Tensor::TensorImpl{
+        impl->dtype,
+        new_shape,
+        impl->device,
+        impl->data,
+        false,
+        std::nullopt,
+        impl,
+        1,
+        {},
+        impl->offset,
+        0
+    });
+    ret.init_stride();
+    return ret;
+}
+
 Tensor Tensor::factor_dim(std::size_t axis, std::size_t factor) {
     check_impl();
     auto new_dim = impl->shape.size() + 1;
@@ -155,6 +180,28 @@ Tensor Tensor::factor_dim(std::size_t axis, std::size_t factor) {
         impl->offset,
         impl->contiguous_dims + (axis <= impl->contiguous_dims)
     });
+}
+
+std::vector<Tensor> Tensor::split_and_reshape(const std::vector<Sizes>& shapes) const {
+    check_impl();
+    if (!is_contiguous() || shape().size() != 1) {
+        throw std::runtime_error(
+            "split_and_reshape is only available for single-dimensional contiguous "
+            "tensors"
+        );
+    }
+    SizeVec size_prods;
+    size_prods.reserve(shapes.size());
+    for (auto& shape : shapes) {
+        size_prods.push_back(shape.product());
+    }
+    TensorVec split_tensors = split(0, size_prods);
+    TensorVec ret;
+    ret.reserve(shapes.size());
+    for (auto [tensor, shape] : zip(split_tensors, shapes)) {
+        ret.push_back(tensor.reshape(shape));
+    }
+    return ret;
 }
 
 std::size_t Tensor::init_stride() {
