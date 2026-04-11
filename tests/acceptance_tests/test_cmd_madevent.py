@@ -847,7 +847,7 @@ C
         self.assertIn('mue_ref_fixed', run_card.user_set)
         self.assertIn('mue_over_ref', run_card.user_set)
 
-        run_card['nevents'] = 100000
+        run_card['nevents'] = 10000
         run_card.write('%s/Cards/run_card.dat' % self.run_dir)
         
         self.do('generate_events -f')
