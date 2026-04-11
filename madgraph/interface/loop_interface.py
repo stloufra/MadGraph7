@@ -941,12 +941,12 @@ class AskLoopInstaller(cmd.OneLinePathCompletion):
     
     def __init__(self, question, *args, **opts):
 
-        import six.moves.urllib.request, six.moves.urllib.error, six.moves.urllib.parse
+        import urllib.request, urllib.error, urllib.parse
         #try:
-        #    response=six.moves.urllib.request.urlopen('http://madgraph.phys.ucl.ac.be/F1.html', timeout=5)
+        #    response=urllib.request.urlopen('http://madgraph.phys.ucl.ac.be/F1.html', timeout=3)
         #    self.online=True
-        #except six.moves.urllib.error.URLError as err: 
-        #    self.online=False        
+        #except urllib.error.URLError as err: 
+        #    self.online=False              
         self.online = True # We assume that the user is online, but we will adapt the question if it is not the case.
         
         self.code = {'ninja': 'install',
