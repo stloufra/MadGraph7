@@ -26,3 +26,14 @@ runs:
         mv "$GITHUB_WORKSPACE/ufomodeldb/"*.tgz "$GITHUB_WORKSPACE/models/"
         cd "$GITHUB_WORKSPACE/models"
         for f in *.tgz; do tar -xzf "$f"; done
+
+    - uses: actions/cache/restore@v5
+      with:
+        path: ~/.cache/UFOMODEL
+        key: ufomodel 
+
+    - run: |
+        echo "PYTHONPATH=$PYTHONPATH:$HOME/.cache/UFOMODEL" >> $GITHUB_ENV
+        cp -r $HOME/.cache/UFOMODEL/* $GITHUB_WORKSPACE/models
+        ls $GITHUB_WORKSPACE/models
+      shell: bash
