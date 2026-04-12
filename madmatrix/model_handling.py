@@ -1435,7 +1435,7 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterCPP):
     multichannel_var = ',fptype& multi_chanel_num, fptype& multi_chanel_denom'
     imaginary_unit = "cxtype(0,1)"
 
-    # AV - overload export_cpp.OneProcessExporterCPP constructor (rename gCPPProcess to CPPProcess, set include_multi_channel)
+    # AV - overload export_cpp.OneProcessExporterCPP constructor (rename gCPPProcess to CPPProcess)
     def __init__(self, *args, **kwargs):
         ###misc.sprint('Entering OneProcessExporterMadMatrix.__init__')
         for kwarg in kwargs: misc.sprint( 'kwargs[%s] = %s' %( kwarg, kwargs[kwarg] ) )
@@ -1650,28 +1650,24 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterCPP):
     # AV - modify export_cpp.OneProcessExporterCPP method (add debug printouts for multichannel #342)
     def get_sigmaKin_lines(self, color_amplitudes, write=True):
         ###misc.sprint('Entering OneProcessExporterMadMatrix.get_sigmaKin_lines')
-        ###misc.sprint(self.include_multi_channel)
-        ###misc.sprint(self.support_multichannel)
         replace_dict = super().get_sigmaKin_lines(color_amplitudes, write=False)
         replace_dict['proc_id'] = self.proc_id if self.proc_id>0 else 1
-        replace_dict['proc_id_source'] = 'madevent + cudacpp exporter' if self.proc_id>0 else 'standalone_cudacpp' # FIXME? use self.in_madevent_mode instead?
+        replace_dict['proc_id_source'] = 'MadMatrix exporter'
 
         # Extract denominator (avoid to extend size for mirroring)
         den_factors = [str(me.get_denominator_factor()) for me in \
                             self.matrix_elements]
         replace_dict['den_factors'] = ",".join(den_factors)
 
-        if self.include_multi_channel:
-            replace_dict['madE_var_reset'] = """
-            fptype multi_chanel_num = 0.;
-            fptype multi_chanel_denom = 0.;
-            """
-            replace_dict['madE_caclwfcts_call'] = '&multi_chanel_num, &multi_chanel_denom'
-            replace_dict['madE_update_answer'] = '   allMEs[iproc*nprocesses + ievt] *= multi_chanel_num/multi_chanel_denom;'
+        replace_dict['madE_var_reset'] = """
+        fptype multi_chanel_num = 0.;
+        fptype multi_chanel_denom = 0.;
+        """
+        replace_dict['madE_caclwfcts_call'] = '&multi_chanel_num, &multi_chanel_denom'
+        replace_dict['madE_update_answer'] = '   allMEs[iproc*nprocesses + ievt] *= multi_chanel_num/multi_chanel_denom;'
 
-            multi_channel = self.get_multi_channel_dictionary(self.matrix_elements[0].get('diagrams'), self.include_multi_channel)
-            replace_dict['nb_channel'] = len(multi_channel)
-            replace_dict['nb_color'] = max(1, len(self.matrix_elements[0].get('color_basis')))
+        replace_dict['nb_channel'] = len(self.multi_channel_map)
+        replace_dict['nb_color'] = max(1, len(self.matrix_elements[0].get('color_basis')))
 
         if write:
             file = self.read_template_file(self.process_sigmaKin_function_template) % replace_dict
@@ -1685,20 +1681,12 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterCPP):
         """Get sigmaKin_process for all subprocesses for CPPProcess.cc"""
         ret_lines = []
         if self.single_helicities:
-            ###assert self.include_multi_channel # remove this assert: must handle both cases and produce two different code bases (#473)
             ###misc.sprint(type(self.helas_call_writer))
-            ###misc.sprint(self.support_multichannel, self.include_multi_channel)
-            multi_channel = None
-            if self.include_multi_channel:
-                if not self.support_multichannel:
-                    raise Exception("link with madevent not supported")
-                multi_channel = self.get_multi_channel_dictionary(self.matrix_elements[0].get('diagrams'), self.include_multi_channel)
-                ###misc.sprint(multi_channel)
             ###misc.sprint( 'before get_matrix_element_calls', self.matrix_elements[0].get_number_of_wavefunctions() ) # WRONG value of nwf, eg 7 for gg_tt
             helas_calls = self.helas_call_writer.get_matrix_element_calls(\
                                                     self.matrix_elements[0],
                                                     color_amplitudes[0],
-                                                    multi_channel_map = multi_channel
+                                                    multi_channel_map = self.multi_channel_map
                                                     )
             ###misc.sprint( 'after get_matrix_element_calls', self.matrix_elements[0].get_number_of_wavefunctions() ) # CORRECT value of nwf, eg 5 for gg_tt
             assert len(self.matrix_elements) == 1 or len(self.matrix_elements) == 2 # how to handle if this is not true?
@@ -1910,11 +1898,10 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterCPP):
 
     def generate_subprocess_directory_end(self, **opt):
         """ opt contain all local variable of the fortran original function"""
-        if self.include_multi_channel:
-            #self.edit_coloramps() # AV new file (NB this is Sigma-specific, should not be a symlink to Subprocesses)
-            subproc_diagrams_for_config = opt['subproc_diagrams_for_config']
-            misc.sprint(len(subproc_diagrams_for_config))
-            self.edit_coloramps( subproc_diagrams_for_config)
+        #self.edit_coloramps() # AV new file (NB this is Sigma-specific, should not be a symlink to Subprocesses)
+        subproc_diagrams_for_config = opt['subproc_diagrams_for_config']
+        misc.sprint(len(subproc_diagrams_for_config))
+        self.edit_coloramps( subproc_diagrams_for_config)
 
     # AV - new method
     def edit_coloramps(self, config_subproc_map):
@@ -1960,24 +1947,21 @@ class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterCPP):
             lines.append(text % {'diag':diag, 'channelidf':channelidf, 'iconfigf':iconfigf, 'iconfigftxt':iconfigftxt})
         replace_dict['channelc2iconfig_lines'] = '\n'.join(lines)
 
-        if self.include_multi_channel: # NB unnecessary as edit_coloramps is not called otherwise...
-            subproc_to_confdiag = export_v4.ProcessExporterFortranMEGroup.get_confdiag_from_group_mapconfig(config_subproc_map, 0)             
-            replace_dict['is_LC'] = self.get_icolamp_lines(subproc_to_confdiag, self.matrix_elements[0], 1)
-            replace_dict['nb_channel'] = len(subproc_to_confdiag)
-            replace_dict['nb_diag'] = max(config[0] for config in config_subproc_map)
-            replace_dict['nb_color'] = max(1,len(self.matrix_elements[0].get('color_basis')))
-            
-            
-            # AV extra formatting (e.g. gg_tt was "{{true,true};,{true,false};,{false,true};};")
-            ###misc.sprint(replace_dict['is_LC'])
-            split = replace_dict['is_LC'].replace('{{','{').replace('};};','}').split(';,')
-            text=', // ICONFIG=%-{0}i <-- CHANNEL_ID=%i'.format(ndigits)
-            for iconfigc in range(len(split)): 
-                ###misc.sprint(split[iconfigc])
-                split[iconfigc] = '    ' + split[iconfigc].replace(',',', ').replace('true',' true').replace('{','{ ').replace('}',' }')
-                split[iconfigc] += text % (iconfigc+1, iconfig_to_diag[iconfigc+1])
-            replace_dict['is_LC'] = '\n'.join(split)
-            ff.write(template % replace_dict)
+        subproc_to_confdiag = export_v4.ProcessExporterFortranMEGroup.get_confdiag_from_group_mapconfig(config_subproc_map, 0)             
+        replace_dict['is_LC'] = self.get_icolamp_lines(subproc_to_confdiag, self.matrix_elements[0], 1)
+        replace_dict['nb_channel'] = len(subproc_to_confdiag)
+        replace_dict['nb_diag'] = max(config[0] for config in config_subproc_map)
+        replace_dict['nb_color'] = max(1,len(self.matrix_elements[0].get('color_basis')))
+        # AV extra formatting (e.g. gg_tt was "{{true,true};,{true,false};,{false,true};};")
+        ###misc.sprint(replace_dict['is_LC'])
+        split = replace_dict['is_LC'].replace('{{','{').replace('};};','}').split(';,')
+        text=', // ICONFIG=%-{0}i <-- CHANNEL_ID=%i'.format(ndigits)
+        for iconfigc in range(len(split)): 
+            ###misc.sprint(split[iconfigc])
+            split[iconfigc] = '    ' + split[iconfigc].replace(',',', ').replace('true',' true').replace('{','{ ').replace('}',' }')
+            split[iconfigc] += text % (iconfigc+1, iconfig_to_diag[iconfigc+1])
+        replace_dict['is_LC'] = '\n'.join(split)
+        ff.write(template % replace_dict)
         ff.close()
 
     # AV - new method
@@ -2246,7 +2230,7 @@ class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
         return call.replace('(','( ').replace(')',' )').replace(',',', ')
 
     # AV - replace helas_call_writers.GPUFOHelasCallWriter method (improve formatting)
-    def super_get_matrix_element_calls(self, matrix_element, color_amplitudes, multi_channel_map=False):
+    def super_get_matrix_element_calls(self, matrix_element, color_amplitudes):
         """Return a list of strings, corresponding to the Helas calls for the matrix element"""
         import madgraph.core.helas_objects as helas_objects
         import madgraph.loop.loop_helas_objects as loop_helas_objects
@@ -2324,12 +2308,11 @@ class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
 """)
         diagrams = matrix_element.get('diagrams')
         diag_to_config = {}
-        if multi_channel_map:
-            for config in sorted(multi_channel_map.keys()):
-                amp = [a.get('number') for a in \
-                                  sum([diagrams[idiag].get('amplitudes') for \
-                                       idiag in multi_channel_map[config]], [])]
-                diag_to_config[amp[0]] = config
+        for config in sorted(self.multi_channel_map.keys()):
+            amp = [a.get('number') for a in \
+                              sum([diagrams[idiag].get('amplitudes') for \
+                                   idiag in self.multi_channel_map[config]], [])]
+            diag_to_config[amp[0]] = config
         ###misc.sprint(diag_to_config)
         id_amp = 0
         for diagram in matrix_element.get('diagrams'):
@@ -2346,18 +2329,15 @@ class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
                 namp = amplitude.get('number')
                 amplitude.set('number', 1)
                 res.append(self.get_amplitude_call(amplitude)) # AV new: avoid format_call
-                if multi_channel_map: # different code bases #473 (assume this is the same as self.include_multi_channel...)
-                    if id_amp in diag_to_config:
-                        ###res.append("if( channelId == %i ) numerators_sv += cxabs2( amp_sv[0] );" % diag_to_config[id_amp]) # BUG #472
-                        ###res.append("if( channelId == %i ) numerators_sv += cxabs2( amp_sv[0] );" % id_amp) # wrong fix for BUG #472
-                        diagnum = diagram.get('number')
-                        res.append("if( storeChannelWeights )")
-                        res.append("{")
-                        res.append("  numerators_sv[%i] += cxabs2( amp_sv[0] );" % (diagnum-1))
-                        res.append("  denominators_sv += cxabs2( amp_sv[0] );")
-                        res.append("}")
-                else:
-                    res.append("// Here the code base generated with multichannel support updates numerators_sv and denominators_sv (#473)")
+                if id_amp in diag_to_config:
+                    ###res.append("if( channelId == %i ) numerators_sv += cxabs2( amp_sv[0] );" % diag_to_config[id_amp]) # BUG #472
+                    ###res.append("if( channelId == %i ) numerators_sv += cxabs2( amp_sv[0] );" % id_amp) # wrong fix for BUG #472
+                    diagnum = diagram.get('number')
+                    res.append("if( storeChannelWeights )")
+                    res.append("{")
+                    res.append("  numerators_sv[%i] += cxabs2( amp_sv[0] );" % (diagnum-1))
+                    res.append("  denominators_sv += cxabs2( amp_sv[0] );")
+                    res.append("}")
                 for njamp, coeff in color[namp].items():
                     scoeff = OneProcessExporterMadMatrix.coeff(*coeff) # AV
                     if scoeff[0] == '+' : scoeff = scoeff[1:]
