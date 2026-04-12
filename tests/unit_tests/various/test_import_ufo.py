@@ -148,15 +148,15 @@ class TestImportUFO(unittest.TestCase):
         #assert Zdd['couplings'][(0,0)] == 'GC_40'
         #assert Zdd['couplings'][(0,1)] == 'GC_53'
         output = fct(model, Zdd)
-        self.assertEqual(output, [(0,1), (-2,1)])
+        self.assertEqual(output, [(0,1, 0, 0), (-2,1,0,0)])
 
         Zuu = find_interaction(model, 'FFV2', 'FFV5')
         output = fct(model, Zuu)
-        self.assertEqual(output, [(0,1), (4,1)]) 
+        self.assertEqual(output, [(0,1,0,0), (4,1,0,0)]) 
 
         Zee = find_interaction(model, 'FFV2', 'FFV4') 
         output = fct(model, Zee)    
-        self.assertEqual(output, [(0,1), (2,1)])
+        self.assertEqual(output, [(0,1,0,0), (2,1,0,0)])
 
 
 
@@ -244,13 +244,13 @@ class TestGetQuarkPDG(unittest.TestCase):
         """Tests the get_quark_pdg_function for the SM, with the no-b-mass restriction"""
         sm_path = import_ufo.find_ufo_path('sm')
         model = import_ufo.import_model(sm_path + '-no_b_mass')
-        self.assertEqual(model.get_quark_pdgs(), [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5])
+        self.assertEqual(model.get_quark_pdgs(), [-81,-5, -4, -3, -2, -1, 1, 2, 3, 4, 5,81])
 
     def test_get_quark_pdgs_sm_nomasses(self):
         """Tests the get_quark_pdg_function for the SM, with the no_masses restriction"""
         sm_path = import_ufo.find_ufo_path('sm')
         model = import_ufo.import_model(sm_path + '-no_masses')
-        self.assertEqual(model.get_quark_pdgs(), [-5, -4, -3, -2, -1, 1, 2, 3, 4, 5])
+        self.assertEqual(model.get_quark_pdgs(), [-81,-5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 81])
 
 class TestNLeps(unittest.TestCase):
     """Test class for the get_nflav function"""
@@ -291,14 +291,14 @@ class TestGetLuarkPDG(unittest.TestCase):
         here the electron and muon are massless"""
         sm_path = import_ufo.find_ufo_path('sm')
         model = import_ufo.import_model(sm_path + '-no_b_mass')
-        self.assertEqual(model.get_lepton_pdgs(), [-13, -11, 11, 13])
+        self.assertEqual(model.get_lepton_pdgs(), [-82,-13, -11, 11, 13,82])
 
     def test_get_lepton_pdgs_sm_nomasses(self):
         """Tests the get_lepton_pdg_function for the SM, with the no_masses restriction
         here the three leptons are massless"""
         sm_path = import_ufo.find_ufo_path('sm')
         model = import_ufo.import_model(sm_path + '-no_masses')
-        self.assertEqual(model.get_lepton_pdgs(), [-15, -13, -11, 11, 13, 15])
+        self.assertEqual(model.get_lepton_pdgs(), [-82,-15, -13, -11, 11, 13, 15,82])
 
 class TestImportUFONoSideEffect(unittest.TestCase):
     """Test class for the the possible side effect on a UFO model loaded when
@@ -414,8 +414,8 @@ class TestRestrictModel(unittest.TestCase):
     def setUp(self):
         """Set up decay model"""
         #Read the full SM
-        sm_path = import_ufo.find_ufo_path('sm')
-        self.base_model = import_ufo.import_full_model(sm_path)
+        sm_path = import_ufo.find_ufo_path('sm', )
+        self.base_model = import_ufo.import_full_model(sm_path,  options={'apply_flavor_grouping':False})
 
         model = copy.deepcopy(self.base_model)
         self.model = import_ufo.RestrictModel(model)

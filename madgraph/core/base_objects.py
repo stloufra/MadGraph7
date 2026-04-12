@@ -1829,7 +1829,8 @@ class Model(PhysicsObject):
         """returns the number of light quark flavours in the model."""
         return len([p for p in self.get('particles') \
                 if p['spin'] == 2 and p['is_part'] and \
-                p ['color'] != 1 and p['mass'].lower() == 'zero'])
+                p ['color'] != 1 and p['mass'].lower() == 'zero' and \
+                p['pdg_code'] not in self.merged_particles])
 
 
     def get_quark_pdgs(self):
@@ -1851,7 +1852,8 @@ class Model(PhysicsObject):
         return len([p for p in self.get('particles') \
                 if p['spin'] == 2 and p['is_part'] and \
                 p['color'] == 1 and \
-                p['charge'] != 0. and p['mass'].lower() == 'zero'])
+                p['charge'] != 0. and p['mass'].lower() == 'zero' and \
+                p['pdg_code'] not in self.merged_particles])
 
 
     def get_lepton_pdgs(self):

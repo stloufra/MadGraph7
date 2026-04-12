@@ -382,10 +382,10 @@ class InteractionTest(unittest.TestCase):
     'particles': [6,6,6,6],
     'color': [c0 = 1 f(1,2,3),c1 = 1 d(1,2,3)],
     'lorentz': ['L1', 'L2'],
-    'couplings': {(c0, L1): g00,
-                  (c0, L2): g01,
-                  (c1, L1): g10,
-                  (c1, L2): g11}
+    'couplings': {(c0, L1,): g00,
+                  (c0, L2,): g01,
+                  (c1, L1,): g10,
+                  (c1, L2,): g11}
     'orders': {'QCD': 1, 'QED': 1},
     'loop_particles': [[]],
     'type': 'base',
@@ -1287,7 +1287,8 @@ class LegTest(unittest.TestCase):
     'from_group': False,
     'loop_line': False,
     'onshell': None,
-    'polarization': []
+    'polarization': [],
+    'flavor': []
 }"""
         
         self.assertEqual(goal, str(self.myleg))

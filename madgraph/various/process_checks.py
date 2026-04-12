@@ -432,8 +432,11 @@ class MatrixElementEvaluator(object):
         # Find masses of particles
         mass = []
         for l in sorted_legs:
-            if l.get('id') != 0:
-                mass_string = self.full_model.get_particle(l.get('id')).get('mass')        
+            pdg = l.get('id')
+            if pdg != 0 and pdg:
+                if pdg in self.full_model.merged_particles:
+                    pdg =  self.full_model.merged_particles[pdg][0] 
+                mass_string = self.full_model.get_particle(pdg).get('mass')        
                 mass.append(self.full_model.get('parameter_dict')[mass_string].real)
             else:
                 if isinstance(special_mass, float):

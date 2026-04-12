@@ -252,6 +252,14 @@ class ReweightInterface(extended_cmd.Cmd):
             # define the list of particles that are needed for the radiation
             pert = fks_common.find_pert_particles_interactions(model,
                                         pert_order = order)['soft_particles']
+            for pdg in pert[:]:
+                if pdg in model.merged_particles:
+                    pert.remove(pdg)
+                    pert += model.merged_particles[pdg]
+                elif -pdg in model.merged_particles:
+                    pert.remove(pdg)
+                    pert += [-i for i in model.merged_particles[-pdg]]
+            pert.sort()                     
             commandline += "define pert_%s = %s;" % (order.replace(' ',''), ' '.join(map(str,pert)) )
             
             # check if we have to increase by one the born order

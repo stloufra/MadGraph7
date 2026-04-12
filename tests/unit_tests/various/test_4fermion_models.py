@@ -61,9 +61,9 @@ class Models4FermionTest(unittest.TestCase):
         myleglist.extend([base_objects.Leg({'id':21}) for i in range(nglue)])
 
         myleglist_flavor = base_objects.LegList()
-        myleglist_flavor.append(base_objects.Leg({'id':81,
+        myleglist_flavor.append(base_objects.Leg({'id':2,
                                            'state':False}))
-        myleglist_flavor.append(base_objects.Leg({'id':81,
+        myleglist_flavor.append(base_objects.Leg({'id':2,
                                            'state':False}))
         myleglist_flavor.append(base_objects.Leg({'id':6}))
         myleglist_flavor.append(base_objects.Leg({'id':6}))

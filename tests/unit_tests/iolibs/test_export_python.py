@@ -381,7 +381,7 @@ class IOExportPythonTest(unittest.TestCase):
 
         # Import the SM
         sm_path = import_ufo.find_ufo_path('sm')
-        model = import_ufo.import_model(sm_path)
+        model = import_ufo.import_model(sm_path, options={'apply_flavor_grouping':False})
 
         myleglist = base_objects.LegList()
 
