@@ -1289,6 +1289,11 @@ class MadMatrixUFOModelConverter(export_cpp.UFOModelConverterGPU):
         if os.path.exists(src_cc):
             os.replace(src_cc, dst_cc)
 
+        logger.info("Rename files %s->%s, %s->%s" % (
+            os.path.split(src_h)[-1], os.path.split(dst_h)[-1],
+            os.path.split(src_cc)[-1], os.path.split(dst_cc)[-1]
+        ))
+
     # AV - overload export_cpp.UFOModelConverterCPP method (improve formatting)
     def generate_parameters_class_files(self):
         ###file_h, file_cc = super().generate_parameters_class_files()
