@@ -77,7 +77,10 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
     templates_path = pjoin(MG5DIR, 'madgraph', 'iolibs', 'template_files', 'madmatrix')
     home_path = pjoin(MG5DIR, "madmatrix")
     from_template = {'.': relative_path_list(home_path, ['COPYRIGHT', 'COPYING', 'COPYING.LESSER']),
-                     'src': relative_path_list(templates_path, ['mgOnGpuFptypes.h', 'mgOnGpuCxtypes.h', 'mgOnGpuVectors.h', 'constexpr_math.h', 'cudacpp_config.mk']),
+                     'src': relative_path_list(templates_path, [
+                         'mgOnGpuFptypes.h', 'mgOnGpuCxtypes.h', 'mgOnGpuVectors.h',
+                         'constexpr_math.h', 'cudacpp_config.mk', 'read_slha.h', 'read_slha.cc'
+                     ]),
                      'SubProcesses': relative_path_list(templates_path, ['nvtx.h', 'GpuRuntime.h', 'GpuAbstraction.h', 'color_sum.h',
                                       'MemoryAccessHelpers.h', 'MemoryAccessVectors.h',
                                       'MemoryAccessMatrixElements.h', 'MemoryAccessMomenta.h',
