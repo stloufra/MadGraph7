@@ -1834,14 +1834,14 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
     def generate_process_files(self):
         """Generate mgOnGpuConfig.h, CPPProcess.cc, CPPProcess.h, check_sa.cc, gXXX.cu links"""
         ###misc.sprint('Entering OneProcessExporterMadMatrix.generate_process_files')
-        super().generate_process_files()
         self.edit_mgonGPU()
         self.edit_processidfile() # AV new file (NB this is Sigma-specific, should not be a symlink to Subprocesses)
         self.edit_processConfig() # sub process specific, not to be symlinked from the Subprocesses directory
         self.edit_colorsum() # AV new file (NB this is Sigma-specific, should not be a symlink to Subprocesses)
-        self.edit_testxxx() # AV new file (NB this is generic in Subprocesses and then linked in Sigma-specific)
+        self.edit_coloramps()
         self.edit_memorybuffers() # AV new file (NB this is generic in Subprocesses and then linked in Sigma-specific)
         self.edit_memoryaccesscouplings() # AV new file (NB this is generic in Subprocesses and then linked in Sigma-specific)
+        super().generate_process_files()
         # NB: symlink of cudacpp.mk to makefile is overwritten by madevent makefile if this exists (#480)
         # NB: this relies on the assumption that cudacpp code is generated before madevent code
         #files.ln(pjoin(self.path, 'cudacpp.mk'), self.path, 'makefile')
@@ -1905,8 +1905,15 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
         self.edit_coloramps( subproc_diagrams_for_config)
 
     # AV - new method
-    def edit_coloramps(self, config_subproc_map):
+    def edit_coloramps(self):
         """Generate coloramps.h"""
+
+        # we don't sort self.multi_channel_map, and we rely on MadSpace sorting
+        # so, diagrams there may be unsorted
+        config_subproc_map_C = self.multi_channel_map.values() # this has C-indexing
+        config_subproc_map = [] # this has Fortran indexing
+        for config in config_subproc_map_C:
+            config_subproc_map.append([c+1 for c in config])
 
         ###misc.sprint('Entering OneProcessExporterMadMatrix.edit_coloramps')
         template = open(pjoin(self.template_path,'madmatrix','coloramps.h'),'r').read()
@@ -1914,10 +1921,9 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
         # The following five lines from OneProcessExporterCPP.get_sigmaKin_lines (using OneProcessExporterCPP.get_icolamp_lines)
         replace_dict={}
 
-
         iconfig_to_diag = {}
         diag_to_iconfig = {}
-        iconfig = 0 
+        iconfig = 0
         for config in config_subproc_map:
             if set(config) == set([0]):
                 continue
@@ -1937,7 +1943,6 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
         lines = []
         for diag in range(1, nb_diag+1):
             channelidf = diag
-            channelidc = channelidf - 1 # C convention 
             if diag in diag_to_iconfig:
                 iconfigf = diag_to_iconfig[diag]
                 iconfigftxt = '%i'%iconfigf
@@ -1948,20 +1953,20 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
             lines.append(text % {'diag':diag, 'channelidf':channelidf, 'iconfigf':iconfigf, 'iconfigftxt':iconfigftxt})
         replace_dict['channelc2iconfig_lines'] = '\n'.join(lines)
 
-        subproc_to_confdiag = export_v4.ProcessExporterFortranMEGroup.get_confdiag_from_group_mapconfig(config_subproc_map, 0)             
-        replace_dict['is_LC'] = self.get_icolamp_lines(subproc_to_confdiag, self.matrix_elements[0], 1)
-        replace_dict['nb_channel'] = len(subproc_to_confdiag)
-        replace_dict['nb_diag'] = max(config[0] for config in config_subproc_map)
-        replace_dict['nb_color'] = max(1,len(self.matrix_elements[0].get('color_basis')))
+        replace_dict['nb_channel'] = len(self.active_color_map)
+        # here I can do the conversion in between the active color map and true, false, and obtain a C++ compatible thing immediately
+        replace_dict['nb_diag'] = nb_diag
+        nb_color = max(1, len(self.color_basis))
+        replace_dict['nb_color'] = nb_color
         # AV extra formatting (e.g. gg_tt was "{{true,true};,{true,false};,{false,true};};")
         ###misc.sprint(replace_dict['is_LC'])
-        split = replace_dict['is_LC'].replace('{{','{').replace('};};','}').split(';,')
         text=', // ICONFIG=%-{0}i <-- CHANNEL_ID=%i'.format(ndigits)
-        for iconfigc in range(len(split)): 
-            ###misc.sprint(split[iconfigc])
-            split[iconfigc] = '    ' + split[iconfigc].replace(',',', ').replace('true',' true').replace('{','{ ').replace('}',' }')
-            split[iconfigc] += text % (iconfigc+1, iconfig_to_diag[iconfigc+1])
-        replace_dict['is_LC'] = '\n'.join(split)
+        icolamp = []
+        for iconfigc, active in enumerate(self.active_color_map):
+            icolamp_text = "    { " + ", ".join(["true" if i in active else "false" for i in range(nb_color)]) + "}"
+            icolamp_text += text % (iconfigc+1, iconfig_to_diag[iconfigc+1])
+            icolamp.append(icolamp_text)
+        replace_dict['is_LC'] = '\n'.join(icolamp)
         ff.write(template % replace_dict)
         ff.close()
 
@@ -2231,7 +2236,7 @@ class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
         return call.replace('(','( ').replace(')',' )').replace(',',', ')
 
     # AV - replace helas_call_writers.GPUFOHelasCallWriter method (improve formatting)
-    def super_get_matrix_element_calls(self, matrix_element, color_amplitudes):
+    def super_get_matrix_element_calls(self, matrix_element, color_amplitudes, multi_channel_map):
         """Return a list of strings, corresponding to the Helas calls for the matrix element"""
         import madgraph.core.helas_objects as helas_objects
         import madgraph.loop.loop_helas_objects as loop_helas_objects
@@ -2309,10 +2314,10 @@ class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
 """)
         diagrams = matrix_element.get('diagrams')
         diag_to_config = {}
-        for config in sorted(self.multi_channel_map.keys()):
+        for config in sorted(multi_channel_map.keys()):
             amp = [a.get('number') for a in \
                               sum([diagrams[idiag].get('amplitudes') for \
-                                   idiag in self.multi_channel_map[config]], [])]
+                                   idiag in multi_channel_map[config]], [])]
             diag_to_config[amp[0]] = config
         ###misc.sprint(diag_to_config)
         id_amp = 0
