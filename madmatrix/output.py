@@ -130,13 +130,13 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
         super().copy_template(model)
 
     # AV - add debug printouts (in addition to the default one from OM's tutorial)
-    def generate_subprocess_directory(self, subproc_group, fortran_model, me=None):
+    def generate_subprocess_directory(self, matrix_element, cpp_helas_call_writer, proc_number=None):
         misc.sprint('Entering ProcessExporterMadMatrix.generate_subprocess_directory (create the directory)')
-        misc.sprint('  type(subproc_group)=%s'%type(subproc_group)) # e.g. madgraph.core.helas_objects.HelasMatrixElement
-        misc.sprint('  type(fortran_model)=%s'%type(fortran_model)) # e.g. madgraph.iolibs.helas_call_writers.GPUFOHelasCallWriter
-        misc.sprint('  type(me)=%s me=%s'%(type(me) if me is not None else None, me)) # e.g. int
+        misc.sprint('  type(matrix_element)=%s'%type(matrix_element)) # e.g. madgraph.core.helas_objects.HelasMatrixElement
+        misc.sprint('  type(cpp_helas_call_writer)=%s'%type(cpp_helas_call_writer)) # e.g. madgraph.iolibs.helas_call_writers.GPUFOHelasCallWriter
+        misc.sprint('  type(proc_number)=%s me=%s'%(type(proc_number) if proc_number is not None else None, proc_number)) # e.g. int
         misc.sprint("need to link", self.to_link_in_P)
-        out = super().generate_subprocess_directory(subproc_group, fortran_model, me)
+        out = super().generate_subprocess_directory(matrix_element, cpp_helas_call_writer, proc_number)
         return out
 
     # AV (default from OM's tutorial) - add a debug printout
@@ -145,55 +145,6 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
             wanted_couplings = model.cudacpp_wanted_ordered_couplings
             del model.cudacpp_wanted_ordered_couplings
         return super().convert_model(model, wanted_lorentz, wanted_couplings)
-
-    # AV (default from OM's tutorial) - add a debug printout
-    def finalize(self, matrix_element, cmdhistory, MG5options, outputflag):
-        """Typically creating jpeg/HTML output/ compilation/...
-            cmdhistory is the list of command used so far.
-            MG5options are all the options of the main interface
-            outputflags is a list of options provided when doing the output command"""
-        ###misc.sprint('Entering ProcessExporterMadMatrix.finalize', self.in_madevent_mode, type(self))
-        if self.in_madevent_mode:
-            # Modify makefiles and symlinks to avoid doing
-            # make -f makefile -f cudacpp_overlay.mk to include the overlay
-            # and instead just use `make`, see #1052
-            subprocesses_dir = pjoin(self.dir_path, "SubProcesses")
-            files.cp(pjoin(subprocesses_dir, "makefile"), pjoin(subprocesses_dir, "makefile_original.mk"))
-            files.rm(pjoin(subprocesses_dir, "makefile"))
-            files.ln(pjoin(subprocesses_dir, "makefile_wrapper.mk"), subprocesses_dir, 'makefile')
-
-            patch_coupl_write = r"""set -euo pipefail
-# Get last fields from lines starting with WRITE(*,2)
-gcs=$(awk '$1=="WRITE(*,2)" {print $NF}' coupl_write.inc)
-
-for gc in $gcs; do
-  if grep -q "$gc(VECSIZE_MEMMAX)" coupl.inc; then
-    awk -v gc="$gc" '{
-      if ($1=="WRITE(*,2)" && $NF==gc) print $0"(1)";
-      else print
-    }' coupl_write.inc > coupl_write.inc.new
-    mv coupl_write.inc.new coupl_write.inc
-  fi
-done"""
-            try:
-                result = subprocess.run(
-                    ["bash", "-c", patch_coupl_write],
-                    cwd=pjoin(self.dir_path, "Source", "MODEL"),
-                    text=True,
-                    capture_output=True,
-                    check=True,  # raise CalledProcessError on non-zero exit
-                )
-                misc.sprint(result.returncode)
-            except subprocess.CalledProcessError as e:
-                logger.debug("####### \n stdout is \n %s", e.stdout)
-                logger.info("####### \n stderr is \n %s", e.stderr)
-                logger.info("return code is %s\n", e.returncode)
-                raise Exception("ERROR while patching coupl_write.inc") from e
-
-            # Additional patching (OM)
-            self.add_madevent_plugin_fct() # Added by OM
-        # do not call standard finalize since is this is already done...
-        #return super().finalize(matrix_element, cmdhistory, MG5options, outputflag)
 
     # AV (default from OM's tutorial) - overload settings and add a debug printout
     def modify_grouping(self, matrix_element):
@@ -204,18 +155,3 @@ done"""
         # Irrelevant here since group_mode=False so this function is never called
         misc.sprint('Entering ProcessExporterMadMatrix.modify_grouping')
         return False, matrix_element
-
-    # OM adding a new way to "patch" python file such that the launch command of MG5aMC is working
-    # this consist in a file plugin_interface.py
-    # which contains a series of functions and one dictionary variable TO_OVERWRITE
-    # that will be used to have temporary overwrite of all the key variable passed as string by their value.
-    # all variable that are file related should be called as madgraph.dir.file.variable
-    def add_madevent_plugin_fct(self):
-        """this consist in a file plugin_interface.py
-        which contains a series of functions and one dictionary variable TO_OVERWRITE
-        that will be used to have temporary overwrite of all the key variable passed as string by their value.
-        all variable that are file related should be called as madgraph.dir.file.variable
-        """
-        plugin_path = os.path.dirname(os.path.realpath( __file__ ))
-        files.cp(pjoin(plugin_path, 'launch_plugin.py'), pjoin(self.dir_path, 'bin', 'internal'))
-        files.ln(pjoin(self.dir_path, 'lib'),  pjoin(self.dir_path, 'SubProcesses'))

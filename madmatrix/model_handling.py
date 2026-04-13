@@ -846,7 +846,7 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
         # self.declaration.discard
         text.write(self.get_declaration_txt(add_i=False, combined=True))
         text.write(routine.getvalue())
-        text.write(self.get_foot_txt(combine=True))
+        text.write(self.get_foot_txt(combined=True))
 
         text = text.getvalue()
         return text
@@ -1897,13 +1897,6 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
         ff.write(template % replace_dict)
         ff.close()
 
-    def generate_subprocess_directory_end(self, **opt):
-        """ opt contain all local variable of the fortran original function"""
-        #self.edit_coloramps() # AV new file (NB this is Sigma-specific, should not be a symlink to Subprocesses)
-        subproc_diagrams_for_config = opt['subproc_diagrams_for_config']
-        misc.sprint(len(subproc_diagrams_for_config))
-        self.edit_coloramps( subproc_diagrams_for_config)
-
     # AV - new method
     def edit_coloramps(self):
         """Generate coloramps.h"""
@@ -1967,17 +1960,6 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
             icolamp_text += text % (iconfigc+1, iconfig_to_diag[iconfigc+1])
             icolamp.append(icolamp_text)
         replace_dict['is_LC'] = '\n'.join(icolamp)
-        ff.write(template % replace_dict)
-        ff.close()
-
-    # AV - new method
-    def edit_testxxx(self):
-        """Generate testxxx.cc"""
-        ###misc.sprint('Entering OneProcessExporterMadMatrix.edit_testxxx')
-        template = open(pjoin(self.template_path,'madmatrix','testxxx.cc'),'r').read()
-        replace_dict = {}
-        replace_dict['model_name'] = self.model_name
-        ff = open(pjoin(self.path, '..', 'testxxx.cc'),'w')
         ff.write(template % replace_dict)
         ff.close()
 
@@ -2046,14 +2028,15 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
             denom_string = '  static constexpr fptype2 colorDenom[ncolor] = { %s }; // 1-D array[%i]' \
                            % ( ', '.join(['%i' % denom for denom in color_denominators]), len(color_denominators) )
             matrix_strings = []
-            my_cs = color.ColorString()
             for index, denominator in enumerate(color_denominators):
                 # Then write the numerators for the matrix elements
                 num_list = matrix_element.get('color_matrix').get_line_numerators(index, denominator)
                 matrix_strings.append('{ %s }' % ', '.join(['%d' % i for i in num_list]))
             matrix_string = '  static constexpr fptype2 colorMatrix[ncolor][ncolor] = '
-            if len( matrix_strings ) > 1 : matrix_string += '{\n    ' + ',\n    '.join(matrix_strings) + ' };'
-            else: matrix_string += '{ ' + matrix_strings[0] + ' };'
+            if len( matrix_strings ) > 1:
+                matrix_string += '{\n    ' + ',\n    '.join(matrix_strings) + ' };'
+            else:
+                matrix_string += '{ ' + matrix_strings[0] + ' };'
             matrix_string += ' // 2-D array[%i][%i]' % ( len(color_denominators), len(color_denominators) )
             denom_comment = '\n  // The color denominators (initialize all array elements, with ncolor=%i)\n  // [NB do keep \'static\' for these constexpr arrays, see issue #283]\n' % len(color_denominators)
             matrix_comment = '\n  // The color matrix (initialize all array elements, with ncolor=%i)\n  // [NB do keep \'static\' for these constexpr arrays, see issue #283]\n' % len(color_denominators)
@@ -2359,7 +2342,7 @@ class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
         return res
 
     # AV - overload helas_call_writers.GPUFOHelasCallWriter method (improve formatting)
-    def get_matrix_element_calls(self, matrix_element, color_amplitudes, multi_channel_map=False):
+    def get_matrix_element_calls(self, matrix_element, color_amplitudes, multi_channel_map):
         """Return a list of strings, corresponding to the Helas calls for the matrix element"""
         res = self.super_get_matrix_element_calls(matrix_element, color_amplitudes, multi_channel_map)
         for i, item in enumerate(res):
