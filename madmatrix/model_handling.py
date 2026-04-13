@@ -15,7 +15,7 @@ import logging
 PLUGIN_NAME = __name__.rsplit('.',1)[0]
 logger = logging.getLogger('madgraph.%s.model_handling'%PLUGIN_NAME)
 
-from madgraph.iolibs import export_cpp
+from madgraph.iolibs import export_cpp, export_mg7
 from madgraph.iolibs import file_writers as writers
 
 import aloha
@@ -1413,10 +1413,11 @@ import madgraph.core.base_objects as base_objects
 # (NB: enable this via ProcessExporterMadMatrix.oneprocessclass in output.py)
 # (NB: use this directly also in MadMatrixUFOModelConverter.read_template_file)
 # (NB: use this directly also in MadMatrixGPUFOHelasCallWriter.super_get_matrix_element_calls)
-class OneProcessExporterMadMatrix(export_cpp.OneProcessExporterCPP):
+class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
     # Class structure information
     #  - object
     #  - OneProcessExporterCPP(object) [in madgraph/iolibs/export_cpp.py]
+    #  - OneProcessExporterMG7(OneProcessExporterCPP) [in madgraph/iolibs/export_mg7.py]
     #  - OneProcessExporterMadMatrix(OneProcessExporterCPP)
     #      This class
 

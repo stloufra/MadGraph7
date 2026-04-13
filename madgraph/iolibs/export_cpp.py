@@ -36,7 +36,6 @@ import madgraph.iolibs.helas_call_writers as helas_call_writers
 import madgraph.iolibs.file_writers as writers
 import madgraph.iolibs.template_files as template_files
 import madgraph.iolibs.ufo_expression_parsers as parsers
-from madgraph.iolibs.export_mg7 import get_subprocess_info
 import madgraph.various.banner as banner_mod
 from madgraph import MadGraph5Error, InvalidCmd, MG5DIR
 from madgraph.iolibs.files import cp, ln, mv
@@ -2781,12 +2780,28 @@ class ProcessExporterMG7(ProcessExporterCPP):
     def generate_subprocess_directory(
         self, matrix_element, cpp_helas_call_writer, proc_number=None
     ):
-        proc_dir_name = super().generate_subprocess_directory(
-            matrix_element, cpp_helas_call_writer, proc_number=None
-        )
-        name = f"P{matrix_element.get('processes')[0].shell_string()}"
-        me_lib_path = self.me_lib_format.format(process_id = name)
-        self.process_info.append(get_subprocess_info(matrix_element, proc_dir_name, me_lib_path))
+        """ Override of super().generate_subprocess_directory """
+        process_exporter_mg7 = self.oneprocessclass(matrix_element,cpp_helas_call_writer)
+
+        # Create the directory PN_xx_xxxxx in the specified path
+        proc_dir_name = "P%d_%s" % (process_exporter_mg7.process_number, 
+                                    process_exporter_mg7.process_name)
+        dirpath = pjoin(self.dir_path, 'SubProcesses', proc_dir_name)
+
+        try:
+            os.mkdir(dirpath)
+        except os.error as error:
+            logger.warning(error.strerror + " " + dirpath)
+        with misc.chdir(dirpath):
+            logger.info('Creating files in directory %s' % dirpath)
+            process_exporter_mg7.path = dirpath
+            # Create the process .h and .cc files
+            process_exporter_mg7.generate_process_files()
+            for file in self.to_link_in_P:
+                ln('../%s' % file) 
+
+        me_lib_path = self.me_lib_format.format(process_id = process_exporter_mg7.name)
+        self.process_info.append(process_exporter_mg7.get_subprocess_info(proc_dir_name, me_lib_path))
 
     def copy_template(self, model):
         super().copy_template(model)
@@ -2816,10 +2831,8 @@ class ProcessExporterMG7(ProcessExporterCPP):
         ))
         with open(file_name, 'w') as f:
             json.dump(self.process_info, f)
-
-        if self.matrix_element_path is None:
-            super().finalize()
-
+        # we don't call super().finalize() since it would call ProcessExporterCPP.finalize()
+        # which would compile the model in src/, and we don't want that
 
 def ExportCPPFactory(cmd, group_subprocesses=False, cmd_options={}):
     """ Determine which Export class is required. cmd is the command 
