@@ -508,6 +508,8 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info("o full:",'$MG:color:GREEN')
         logger.info("   Perform all four checks described below:")
         logger.info("   permutation, brs, gauge and lorentz_invariance.")
+        logger.info("   If the model uses flavor grouping (merged particles),")
+        logger.info("   the flavor check is also performed automatically.")
         logger.info("o permutation:",'$MG:color:GREEN')
         logger.info("   Check that the model and MG5 are working properly")
         logger.info("   by generating permutations of the process and checking")
@@ -4599,7 +4601,8 @@ This implies that with decay chains:
                                           options=options)
             nb_processes += len(lorentz_result)
 
-        if args[0] in ['flavor']:
+        if args[0] in ['flavor'] or (args[0] == 'full' and
+                myprocdef and myprocdef.get('model').get('merged_particles')):
             flavor_result = process_checks.check_flavor(myprocdef,
                                           param_card = param_card,
                                           options=options,
