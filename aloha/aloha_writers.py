@@ -2645,7 +2645,7 @@ class ALOHAWriterForPython(WriteALOHA):
                 out.write('            return %s\n' % out_wf)
                 out.write('    flv_index2 = COUP.partner.get(flv_index%d, -1)\n' % incoming)
                 out.write('    if flv_index2 == -1:\n')
-                out.write('        %s.flavor = -1\n' % out_wf)
+                out.write('        %s.flavor = 0\n' % out_wf)
                 out.write('        return %s\n' % out_wf)
                 out.write('    %s.flavor = flv_index2\n' % out_wf)
                 flv_for_coup = 'flv_index%d' % incoming
@@ -2662,7 +2662,7 @@ class ALOHAWriterForPython(WriteALOHA):
                 out.write('            return %s\n' % out_wf)
                 out.write('    flv_index1 = COUP.partner2.get(flv_index%d, -1)\n' % incoming)
                 out.write('    if flv_index1 == -1:\n')
-                out.write('        %s.flavor = -1\n' % out_wf)
+                out.write('        %s.flavor = 0\n' % out_wf)
                 out.write('        return %s\n' % out_wf)
                 out.write('    %s.flavor = flv_index1\n' % out_wf)
                 flv_for_coup = 'flv_index1'
