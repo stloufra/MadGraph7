@@ -123,7 +123,7 @@ MultiChannelFunction::MultiChannelFunction(
 }
 
 ValueVec MultiChannelFunction::build_function_impl(
-    FunctionBuilder& fb, const ValueVec& args
+    FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
     auto& counts = args.back();
 

@@ -17,8 +17,9 @@ public:
     const std::vector<HistItem>& observables() const { return _observables; }
 
 private:
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 
     std::vector<HistItem> _observables;
 };

@@ -3,7 +3,9 @@
 using namespace madspace;
 
 Mapping::Result ThreeBodyDecay::build_forward_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     auto r_e1 = inputs.at(0), r_e2 = inputs.at(1);
     auto r_phi = inputs.at(2), r_cos_theta = inputs.at(3), r_beta = inputs.at(4);
@@ -19,7 +21,9 @@ Mapping::Result ThreeBodyDecay::build_forward_impl(
 }
 
 Mapping::Result ThreeBodyDecay::build_inverse_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     auto p1 = inputs.at(0), p2 = inputs.at(1), p3 = inputs.at(2);
     if (_com) {
@@ -34,7 +38,9 @@ Mapping::Result ThreeBodyDecay::build_inverse_impl(
 }
 
 Mapping::Result TwoToThreeParticleScattering::build_forward_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     auto r_choice = inputs.at(0), r_s23 = inputs.at(1), r_t1 = inputs.at(2),
          m1 = inputs.at(3), m2 = inputs.at(4);
@@ -54,7 +60,9 @@ Mapping::Result TwoToThreeParticleScattering::build_forward_impl(
 }
 
 Mapping::Result TwoToThreeParticleScattering::build_inverse_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     auto p1 = inputs.at(0), p2 = inputs.at(1);
     auto p_a = conditions.at(0), p_b = conditions.at(1), p_3 = conditions.at(2);

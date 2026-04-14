@@ -3,7 +3,9 @@
 using namespace madspace;
 
 Mapping::Result Luminosity::build_forward_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     auto r_s = inputs[0], r_x = inputs[1];
     auto [s_hat_vec, det_s] =
@@ -15,7 +17,9 @@ Mapping::Result Luminosity::build_forward_impl(
 }
 
 Mapping::Result Luminosity::build_inverse_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     auto x1 = inputs[0], x2 = inputs[1], s_hat = inputs[2];
     auto [r_s_vec, det_s] =

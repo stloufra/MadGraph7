@@ -56,8 +56,9 @@ public:
     std::vector<MatrixElementInput> external_inputs() const;
 
 private:
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 
     std::size_t _matrix_element_index;
     std::size_t _particle_count;

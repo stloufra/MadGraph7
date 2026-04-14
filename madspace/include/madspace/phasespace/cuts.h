@@ -25,8 +25,9 @@ public:
     std::vector<double> pt_min() const;
 
 private:
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 
     std::vector<CutItem> _cut_data;
 };

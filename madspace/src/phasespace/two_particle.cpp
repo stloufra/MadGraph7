@@ -3,7 +3,9 @@
 using namespace madspace;
 
 Mapping::Result TwoBodyDecay::build_forward_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     auto r_phi = inputs.at(0), r_cos_theta = inputs.at(1);
     auto m0 = inputs.at(2), m1 = inputs.at(3), m2 = inputs.at(4);
@@ -14,7 +16,9 @@ Mapping::Result TwoBodyDecay::build_forward_impl(
 }
 
 Mapping::Result TwoBodyDecay::build_inverse_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     auto p1 = inputs.at(0), p2 = inputs.at(1);
     if (_com) {
@@ -29,7 +33,9 @@ Mapping::Result TwoBodyDecay::build_inverse_impl(
 }
 
 Mapping::Result TwoToTwoParticleScattering::build_forward_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     auto r_phi = inputs.at(0), r_inv = inputs.at(1), m1 = inputs.at(2),
          m2 = inputs.at(3);
@@ -45,7 +51,9 @@ Mapping::Result TwoToTwoParticleScattering::build_forward_impl(
 }
 
 Mapping::Result TwoToTwoParticleScattering::build_inverse_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     auto p1 = inputs.at(0), p2 = inputs.at(1);
     auto p_in1 = conditions.at(0), p_in2 = conditions.at(1);

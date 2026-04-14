@@ -15,8 +15,9 @@ public:
     );
 
 private:
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 
     nested_vector2<double> _momentum_factors;
     nested_vector2<me_int_t> _invariant_indices;
@@ -35,8 +36,9 @@ public:
     std::size_t channel_count() const { return _channel_indices.size(); }
 
 private:
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 
     nested_vector2<double> _momentum_factors;
     nested_vector2<double> _masses;

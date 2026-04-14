@@ -28,7 +28,9 @@ FastRamboMapping::FastRamboMapping(std::size_t n_particles, bool massless, bool 
 }
 
 Mapping::Result FastRamboMapping::build_forward_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     Value r = fb.stack(ValueVec(inputs.begin(), inputs.begin() + random_dim()));
     Value e_cm = conditions.at(0);
@@ -55,7 +57,9 @@ Mapping::Result FastRamboMapping::build_forward_impl(
 }
 
 Mapping::Result FastRamboMapping::build_inverse_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     Value p_out = fb.stack(inputs);
     Value e_cm = conditions.at(0);

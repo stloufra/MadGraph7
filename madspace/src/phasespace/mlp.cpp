@@ -118,7 +118,8 @@ MLP::MLP(
     }
 };
 
-ValueVec MLP::build_function_impl(FunctionBuilder& fb, const ValueVec& args) const {
+ValueVec
+MLP::build_function_impl(FunctionBuilder& fb, const NamedVector<Value>& args) const {
     std::size_t dim = _input_dim;
     Value x = args.at(0);
     for (std::size_t i = 1; i < _layers; ++i) {

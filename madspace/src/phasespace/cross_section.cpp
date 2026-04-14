@@ -88,7 +88,7 @@ DifferentialCrossSection::DifferentialCrossSection(
 }
 
 ValueVec DifferentialCrossSection::build_function_impl(
-    FunctionBuilder& fb, const ValueVec& args
+    FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
     std::size_t arg_index = 0;
     int alpha_s_index = -1;

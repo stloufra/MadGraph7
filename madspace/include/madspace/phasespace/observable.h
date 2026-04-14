@@ -70,8 +70,9 @@ private:
         bool ignore_incoming,
         const std::string& name
     );
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 
     ObservableOption _observable;
     nested_vector2<me_int_t> _indices;

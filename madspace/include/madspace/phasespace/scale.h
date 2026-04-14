@@ -38,8 +38,9 @@ public:
     );
 
 private:
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 
     DynamicalScaleType _dynamical_scale_type;
     bool _ren_scale_fixed;

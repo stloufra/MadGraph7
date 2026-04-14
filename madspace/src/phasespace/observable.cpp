@@ -287,8 +287,9 @@ Observable::Observable(
     _sum_observable(sum_observable),
     _name(name) {}
 
-ValueVec
-Observable::build_function_impl(FunctionBuilder& fb, const ValueVec& args) const {
+ValueVec Observable::build_function_impl(
+    FunctionBuilder& fb, const NamedVector<Value>& args
+) const {
     if (not_found()) {
         return {0.};
     }

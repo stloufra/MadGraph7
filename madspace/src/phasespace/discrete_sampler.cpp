@@ -22,7 +22,7 @@ DiscreteHistogram::DiscreteHistogram(const std::vector<std::size_t>& option_coun
     _option_counts(option_counts) {}
 
 ValueVec DiscreteHistogram::build_function_impl(
-    FunctionBuilder& fb, const ValueVec& args
+    FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
     ValueVec results;
     auto weights = args.at(_option_counts.size());
@@ -63,13 +63,17 @@ DiscreteSampler::DiscreteSampler(
 }
 
 Mapping::Result DiscreteSampler::build_forward_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     return build_transform(fb, inputs, conditions, false);
 }
 
 Mapping::Result DiscreteSampler::build_inverse_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     return build_transform(fb, inputs, conditions, true);
 }

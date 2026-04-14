@@ -10,8 +10,9 @@ public:
     DiscreteHistogram(const std::vector<std::size_t>& option_counts);
 
 private:
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 
     std::vector<std::size_t> _option_counts;
 };
@@ -29,10 +30,14 @@ public:
 
 private:
     Result build_forward_impl(
-        FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+        FunctionBuilder& fb,
+        const NamedVector<Value>& inputs,
+        const NamedVector<Value>& conditions
     ) const override;
     Result build_inverse_impl(
-        FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+        FunctionBuilder& fb,
+        const NamedVector<Value>& inputs,
+        const NamedVector<Value>& conditions
     ) const override;
     Result build_transform(
         FunctionBuilder& fb,

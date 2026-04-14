@@ -71,7 +71,7 @@ PropagatorChannelWeights::PropagatorChannelWeights(
 }
 
 ValueVec PropagatorChannelWeights::build_function_impl(
-    FunctionBuilder& fb, const ValueVec& args
+    FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
     auto p_ext = args.at(0);
     auto invariants = fb.invariants_from_momenta(p_ext, _momentum_factors);
@@ -198,7 +198,7 @@ SubchannelWeights::SubchannelWeights(
 }
 
 ValueVec SubchannelWeights::build_function_impl(
-    FunctionBuilder& fb, const ValueVec& args
+    FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
     auto p_ext = args.at(0);
     auto channel_weights_in = args.at(1);

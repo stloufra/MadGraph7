@@ -23,8 +23,9 @@ EnergyScale::EnergyScale(
     _fact_scale1(fact_scale1),
     _fact_scale2(fact_scale2) {}
 
-ValueVec
-EnergyScale::build_function_impl(FunctionBuilder& fb, const ValueVec& args) const {
+ValueVec EnergyScale::build_function_impl(
+    FunctionBuilder& fb, const NamedVector<Value>& args
+) const {
     auto momenta = args.at(0);
     if (_ren_scale_fixed && _fact_scale_fixed) {
         auto batch_size = fb.batch_size({momenta});

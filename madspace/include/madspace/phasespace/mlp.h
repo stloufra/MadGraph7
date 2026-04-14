@@ -23,8 +23,9 @@ public:
     }
 
 private:
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 
     std::size_t _input_dim;
     std::size_t _output_dim;

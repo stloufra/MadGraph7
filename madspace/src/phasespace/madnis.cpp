@@ -24,8 +24,9 @@ MadnisLoss::MadnisLoss(
     _functions(functions),
     _cwnet(cwnet) {}
 
-ValueVec
-MadnisLoss::build_function_impl(FunctionBuilder& fb, const ValueVec& args) const {
+ValueVec MadnisLoss::build_function_impl(
+    FunctionBuilder& fb, const NamedVector<Value>& args
+) const {
     std::vector<ValueVec> split_outputs(return_types().size());
     for (std::size_t index = 0, arg_index = 0; auto& func : _functions) {
         std::size_t arg_index_end = arg_index + func->arg_types().size();

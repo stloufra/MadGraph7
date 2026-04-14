@@ -18,7 +18,7 @@ ObservableHistograms::ObservableHistograms(const std::vector<HistItem>& observab
     _observables(observables) {}
 
 ValueVec ObservableHistograms::build_function_impl(
-    FunctionBuilder& fb, const ValueVec& args
+    FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
     Value weight = args.at(0), momenta = args.at(1);
     ValueVec histograms;

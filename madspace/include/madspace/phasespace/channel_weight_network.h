@@ -11,8 +11,9 @@ public:
     std::size_t output_dim() const { return _output_dim; };
 
 private:
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 
     std::size_t _output_dim;
 };
@@ -34,8 +35,9 @@ public:
     const std::string& mask_name() const { return _mask_name; }
 
 private:
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 
     MomentumPreprocessing _preprocessing;
     MLP _mlp;

@@ -13,7 +13,7 @@ MomentumPreprocessing::MomentumPreprocessing(std::size_t particle_count) :
     _output_dim(3 * (particle_count - 2) + 2) {}
 
 ValueVec MomentumPreprocessing::build_function_impl(
-    FunctionBuilder& fb, const ValueVec& args
+    FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
     return {fb.pt_eta_phi_x(args.at(0), args.at(1), args.at(2))};
 }
@@ -47,7 +47,7 @@ ChannelWeightNetwork::ChannelWeightNetwork(
     _mask_name(prefixed_name(prefix, "active_channels_mask")) {}
 
 ValueVec ChannelWeightNetwork::build_function_impl(
-    FunctionBuilder& fb, const ValueVec& args
+    FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
     auto p_ext = args.at(0);
     auto x1 = args.at(1);

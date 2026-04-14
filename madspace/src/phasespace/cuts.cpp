@@ -11,7 +11,8 @@ Cuts::Cuts(const std::vector<CutItem>& cut_data) :
 Cuts::Cuts(std::size_t particle_count) :
     FunctionGenerator("Cuts", {batch_four_vec_array(particle_count)}, {batch_float}) {}
 
-ValueVec Cuts::build_function_impl(FunctionBuilder& fb, const ValueVec& args) const {
+ValueVec
+Cuts::build_function_impl(FunctionBuilder& fb, const NamedVector<Value>& args) const {
     ValueVec weights;
     for (auto& item : _cut_data) {
         if (item.observable.not_found()) {

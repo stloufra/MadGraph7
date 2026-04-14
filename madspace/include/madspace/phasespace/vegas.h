@@ -10,8 +10,9 @@ public:
     VegasHistogram(std::size_t dimension, std::size_t bin_count);
 
 private:
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 
     std::size_t _bin_count;
 };
@@ -37,10 +38,14 @@ public:
 
 private:
     Result build_forward_impl(
-        FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+        FunctionBuilder& fb,
+        const NamedVector<Value>& inputs,
+        const NamedVector<Value>& conditions
     ) const override;
     Result build_inverse_impl(
-        FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+        FunctionBuilder& fb,
+        const NamedVector<Value>& inputs,
+        const NamedVector<Value>& conditions
     ) const override;
 
     std::size_t _dimension;

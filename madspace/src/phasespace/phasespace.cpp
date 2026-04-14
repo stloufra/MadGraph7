@@ -245,7 +245,9 @@ PhaseSpaceMapping::PhaseSpaceMapping(
     ) {}
 
 Mapping::Result PhaseSpaceMapping::build_forward_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     auto random_numbers = fb.unstack(inputs.at(0));
     auto r = random_numbers.begin();
@@ -404,7 +406,9 @@ Mapping::Result PhaseSpaceMapping::build_forward_impl(
 }
 
 Mapping::Result PhaseSpaceMapping::build_inverse_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     Value p_ext_lab = inputs.at(0), x1 = inputs.at(1), x2 = inputs.at(2);
     Value p_ext_stack =

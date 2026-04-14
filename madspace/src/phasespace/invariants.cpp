@@ -3,7 +3,9 @@
 using namespace madspace;
 
 Mapping::Result Invariant::build_forward_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     auto r = inputs[0], s_min = conditions[0], s_max = conditions[1];
     auto [s, det] = _width != 0
@@ -16,7 +18,9 @@ Mapping::Result Invariant::build_forward_impl(
 }
 
 Mapping::Result Invariant::build_inverse_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     auto s = inputs[0], s_min = conditions[0], s_max = conditions[1];
     auto [r, det] = _width != 0

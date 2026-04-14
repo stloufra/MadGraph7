@@ -34,7 +34,9 @@ public:
     using Mapping::Mapping;
 
     Result build_forward_impl(
-        FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+        FunctionBuilder& fb,
+        const NamedVector<Value>& inputs,
+        const NamedVector<Value>& conditions
     ) const override {
         PYBIND11_OVERRIDE_PURE(
             Result, Mapping, build_forward_impl, &fb, inputs, conditions
@@ -42,7 +44,9 @@ public:
     }
 
     Result build_inverse_impl(
-        FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+        FunctionBuilder& fb,
+        const NamedVector<Value>& inputs,
+        const NamedVector<Value>& conditions
     ) const override {
         PYBIND11_OVERRIDE_PURE(
             Result, Mapping, build_inverse_impl, &fb, inputs, conditions
@@ -54,8 +58,9 @@ class PyFunctionGenerator : public FunctionGenerator, py::trampoline_self_life_s
 public:
     using FunctionGenerator::FunctionGenerator;
 
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override {
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override {
         PYBIND11_OVERRIDE_PURE(
             ValueVec, FunctionGenerator, build_function_impl, &fb, &args
         );

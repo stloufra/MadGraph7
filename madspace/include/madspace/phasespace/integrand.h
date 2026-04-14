@@ -19,8 +19,9 @@ public:
     Unweighter(const TypeVec& types);
 
 private:
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 };
 
 class Integrand : public FunctionGenerator {
@@ -146,8 +147,9 @@ private:
         Value& scale_cache() { return values[20]; }
     };
 
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
     ChannelResult
     build_channel_part(FunctionBuilder& fb, const ChannelArgs& args) const;
     ValueVec build_common_part(
@@ -184,8 +186,9 @@ public:
     MultiChannelIntegrand(const std::vector<std::shared_ptr<Integrand>>& integrands);
 
 private:
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 
     std::vector<std::shared_ptr<Integrand>> _integrands;
 };
@@ -195,8 +198,9 @@ public:
     IntegrandProbability(const Integrand& integrand);
 
 private:
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 
     Integrand::AdaptiveMapping _adaptive_map;
     Integrand::AdaptiveDiscrete _discrete_before;

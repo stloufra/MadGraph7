@@ -36,8 +36,9 @@ public:
     );
 
 private:
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 
     std::vector<me_int_t> _pid_indices;
     bool _dynamic_pid;
@@ -67,8 +68,9 @@ public:
     RunningCoupling(const AlphaSGrid& grid, const std::string& prefix = "");
 
 private:
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 
     std::string _prefix;
     std::vector<std::size_t> _logq2_shape;

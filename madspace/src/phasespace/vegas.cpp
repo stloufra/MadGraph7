@@ -11,15 +11,18 @@ VegasHistogram::VegasHistogram(std::size_t dimension, std::size_t bin_count) :
     ),
     _bin_count(bin_count) {}
 
-ValueVec
-VegasHistogram::build_function_impl(FunctionBuilder& fb, const ValueVec& args) const {
+ValueVec VegasHistogram::build_function_impl(
+    FunctionBuilder& fb, const NamedVector<Value>& args
+) const {
     auto [values, counts] =
         fb.vegas_histogram(args.at(0), args.at(1), static_cast<me_int_t>(_bin_count));
     return {values, counts};
 }
 
 Mapping::Result VegasMapping::build_forward_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     auto grid = fb.global(
         _grid_name,
@@ -31,7 +34,9 @@ Mapping::Result VegasMapping::build_forward_impl(
 }
 
 Mapping::Result VegasMapping::build_inverse_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     auto grid = fb.global(
         _grid_name,

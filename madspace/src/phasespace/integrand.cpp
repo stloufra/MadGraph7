@@ -17,8 +17,9 @@ Unweighter::Unweighter(const TypeVec& types) :
         types
     ) {}
 
-ValueVec
-Unweighter::build_function_impl(FunctionBuilder& fb, const ValueVec& args) const {
+ValueVec Unweighter::build_function_impl(
+    FunctionBuilder& fb, const NamedVector<Value>& args
+) const {
     auto [uw_indices, uw_weights] = fb.unweight(args.at(0), args.back());
     ValueVec output{uw_weights};
     for (auto arg : std::span(args.begin() + 1, args.end() - 1)) {
@@ -194,8 +195,9 @@ std::tuple<std::vector<std::size_t>, std::vector<bool>> Integrand::latent_dims()
     return {dims, is_float};
 }
 
-ValueVec
-Integrand::build_function_impl(FunctionBuilder& fb, const ValueVec& args) const {
+ValueVec Integrand::build_function_impl(
+    FunctionBuilder& fb, const NamedVector<Value>& args
+) const {
     bool has_multi_flavor = _diff_xs.pid_options().size() > 1;
     ChannelArgs channel_args{
         .r = _flags & sample ? fb.random(args.at(0), _random_dim) : args.at(0),
@@ -635,7 +637,7 @@ MultiChannelIntegrand::MultiChannelIntegrand(
 }
 
 ValueVec MultiChannelIntegrand::build_function_impl(
-    FunctionBuilder& fb, const ValueVec& args
+    FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
     auto& first_integrand = _integrands.at(0);
     bool has_multi_flavor = first_integrand->_diff_xs.pid_options().size() > 1;
@@ -722,7 +724,7 @@ IntegrandProbability::IntegrandProbability(const Integrand& integrand) :
     ) {}
 
 ValueVec IntegrandProbability::build_function_impl(
-    FunctionBuilder& fb, const ValueVec& args
+    FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
     ValueVec probs, flow_conditions;
     if (_permutation_count > 1) {

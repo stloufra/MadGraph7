@@ -74,8 +74,9 @@ MatrixElement::MatrixElement(
     _diagram_count(diagram_count),
     _sample_random_inputs(sample_random_inputs) {}
 
-ValueVec
-MatrixElement::build_function_impl(FunctionBuilder& fb, const ValueVec& args) const {
+ValueVec MatrixElement::build_function_impl(
+    FunctionBuilder& fb, const NamedVector<Value>& args
+) const {
     ValueVec matrix_args{
         static_cast<me_int_t>(_matrix_element_index),
         static_cast<me_int_t>(_inputs.size()),

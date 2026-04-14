@@ -240,13 +240,17 @@ void Flow::initialize_from_vegas(
 }
 
 Mapping::Result Flow::build_forward_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     return build_transform(fb, inputs, conditions, false);
 }
 
 Mapping::Result Flow::build_inverse_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     return build_transform(fb, inputs, conditions, true);
 }

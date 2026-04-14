@@ -20,7 +20,9 @@ ChiliMapping::ChiliMapping(
     _pt_min(pt_min) {}
 
 Mapping::Result ChiliMapping::build_forward_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     Value e_cm = conditions.at(0);
     ValueVec m_out(conditions.begin() + 1, conditions.end());
@@ -31,7 +33,9 @@ Mapping::Result ChiliMapping::build_forward_impl(
 }
 
 Mapping::Result ChiliMapping::build_inverse_impl(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     Value e_cm = conditions.at(0);
     ValueVec m_out(conditions.begin() + 1, conditions.end());

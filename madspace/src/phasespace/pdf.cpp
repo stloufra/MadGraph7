@@ -379,8 +379,9 @@ PartonDensity::PartonDensity(
     }
 }
 
-ValueVec
-PartonDensity::build_function_impl(FunctionBuilder& fb, const ValueVec& args) const {
+ValueVec PartonDensity::build_function_impl(
+    FunctionBuilder& fb, const NamedVector<Value>& args
+) const {
     auto x = args.at(0);
     auto q2 = args.at(1);
     auto grid_logx = fb.global(
@@ -569,8 +570,9 @@ RunningCoupling::RunningCoupling(const AlphaSGrid& grid, const std::string& pref
     _logq2_shape(grid.logq2_shape()),
     _coeffs_shape(grid.coefficients_shape()) {}
 
-ValueVec
-RunningCoupling::build_function_impl(FunctionBuilder& fb, const ValueVec& args) const {
+ValueVec RunningCoupling::build_function_impl(
+    FunctionBuilder& fb, const NamedVector<Value>& args
+) const {
     auto q2 = args.at(0);
     auto grid_logq2 = fb.global(
         prefixed_name(_prefix, "alpha_s_logq2"),

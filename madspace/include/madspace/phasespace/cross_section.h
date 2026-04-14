@@ -31,8 +31,9 @@ public:
     const MatrixElement& matrix_element() const { return _matrix_element; }
 
 private:
-    ValueVec
-    build_function_impl(FunctionBuilder& fb, const ValueVec& args) const override;
+    ValueVec build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
 
     nested_vector2<me_int_t> _pid_options;
     MatrixElement _matrix_element;
