@@ -2137,13 +2137,17 @@ class PythonUFOHelasCallWriter(UFOHelasCallWriter):
                                  # For boson, need initial/final here
                                  (-1)**(wf.get('state') == 'initial'))
             else:
-                call_function = lambda wf: call % \
+                # Fermions get an extra flavor argument for merged-particle models
+                call_ferm = call[:-1] + ',%d)'
+                call_function = lambda wf, c=call_ferm: c % \
                                 (wf.get('me_id')-1,
                                  wf.get('number_external')-1,
                                  wf.get('mass'),
                                  wf.get('number_external')-1,
                                  # For fermions, need particle/antiparticle
-                                 -(-1)**wf.get_with_flow('is_part'))
+                                 -(-1)**wf.get_with_flow('is_part'),
+                                 # Flavor index for merged-particle models
+                                 wf.get('flavor')[0] if wf.get('flavor') else -1)
         else:
             # String is LOR1_0, LOR1_2 etc.
             

@@ -2454,13 +2454,13 @@ class ALOHAWriterForPython(WriteALOHA):
     
     
     def shift_indices(self, match):
-        """shift the indices for non impulsion object"""
+        """shift the indices for non momentum object to use .W attribute"""
         if match.group('var').startswith('P'):
             shift = 0
+            return '%s[%s]' % (match.group('var'), int(match.group('num')) + shift)
         else:
-            shift = -1 + self.momentum_size
-            
-        return '%s[%s]' % (match.group('var'), int(match.group('num')) + shift)
+            # Spin components are accessed via the .W view (0-indexed)
+            return '%s.W[%s]' % (match.group('var'), int(match.group('num')) - 1)
 
     def change_var_format(self, name): 
         """Formatting the variable name to Python format
@@ -2574,11 +2574,101 @@ class ALOHAWriterForPython(WriteALOHA):
                 coeff = 'COUP'
                 
             for ind in numerator.listindices():
-                out.write('    %s[%d]= %s*%s\n' % (self.outname, 
-                                        self.pass_to_HELAS(ind), coeff, 
+                out.write('    %s.W[%d]= %s*%s\n' % (self.outname, 
+                                        self.pass_to_HELAS(ind) - self.momentum_size, coeff, 
                                         self.write_obj(numerator.get_rep(ind))))
         return out.getvalue()
     
+    def get_coupling_def(self):
+        """Generate flavor-checking / coupling-resolution code for Python routines.
+
+        For routines involving fermions:
+        - Without the ``M`` tag: ensures diagonal flavor conservation
+          (flv_index1 == flv_index2 for amplitudes; propagates flavor for
+          off-shell wavefunctions).
+        - With the ``M`` tag: uses the ``COUP`` argument (a
+          ``FLV_Coupling_py`` object) to check/set the partner flavor and
+          resolves the actual complex coupling value.
+        """
+        out = StringIO()
+
+        # Only relevant when fermions are present
+        if 'F' not in self.particles:
+            return ''
+
+        if 'M' not in self.tag:
+            # ── Diagonal coupling: check flavor conservation ──────────────
+            if self.outgoing == 0 or self.particles[self.outgoing - 1] not in ['F']:
+                # Amplitude or non-fermion output: check flv1 == flv2
+                if not self.outgoing:
+                    fail_str = '0j'
+                else:
+                    fail_str = '%s%d' % (self.particles[self.outgoing - 1], self.outgoing)
+                out.write('    flv_index1 = F1.flavor\n')
+                out.write('    flv_index2 = F2.flavor\n')
+                out.write('    if flv_index1 != flv_index2 or flv_index1 == -1:\n')
+                out.write('        return %s\n' % fail_str)
+            else:
+                # Off-shell fermion output: propagate flavor from incoming fermion
+                incoming = [i + 1 for i in range(len(self.particles))
+                            if i + 1 != self.outgoing
+                            and self.particles[i] == 'F'][0]
+                outgoing = self.outgoing
+                out.write('    F%d.flavor = F%d.flavor\n' % (outgoing, incoming))
+            return out.getvalue()
+
+        # ── M-tagged routine: COUP is a FLV_Coupling_py object ────────────
+        if self.outgoing == 0 or self.particles[self.outgoing - 1] not in ['F']:
+            # Amplitude or non-fermion output
+            if not self.outgoing:
+                fail_str = '0j'
+            else:
+                fail_str = '%s%d' % (self.particles[self.outgoing - 1], self.outgoing)
+            out.write('    flv_index1 = F1.flavor\n')
+            out.write('    flv_index2 = F2.flavor\n')
+            out.write('    if flv_index1 == -1 or flv_index2 == -1:\n')
+            out.write('        return %s\n' % fail_str)
+            out.write('    if COUP.partner.get(flv_index1, -1) != flv_index2:\n')
+            out.write('        return %s\n' % fail_str)
+            flv_for_coup = 'flv_index1'
+        else:
+            # Off-shell fermion output
+            incoming = [i + 1 for i in range(len(self.particles))
+                        if i + 1 != self.outgoing
+                        and self.particles[i] == 'F'][0]
+            outgoing = self.outgoing
+            out_wf = 'F%d' % outgoing
+            if incoming % 2 == 1:
+                # First fermion (F1, F3, …) is the incoming leg → PARTNER
+                out.write('    flv_index%d = F%d.flavor\n' % (incoming, incoming))
+                out.write('    if flv_index%d == -1:\n' % incoming)
+                out.write('        %s.flavor = -1\n' % out_wf)
+                out.write('        return %s\n' % out_wf)
+                out.write('    flv_index2 = COUP.partner.get(flv_index%d, -1)\n' % incoming)
+                out.write('    if flv_index2 == -1:\n')
+                out.write('        %s.flavor = -1\n' % out_wf)
+                out.write('        return %s\n' % out_wf)
+                out.write('    %s.flavor = flv_index2\n' % out_wf)
+                flv_for_coup = 'flv_index%d' % incoming
+            else:
+                # Second fermion (F2, F4, …) is the incoming leg → PARTNER2
+                out.write('    flv_index%d = F%d.flavor\n' % (incoming, incoming))
+                out.write('    if flv_index%d == -1:\n' % incoming)
+                out.write('        %s.flavor = -1\n' % out_wf)
+                out.write('        return %s\n' % out_wf)
+                out.write('    flv_index1 = COUP.partner2.get(flv_index%d, -1)\n' % incoming)
+                out.write('    if flv_index1 == -1:\n')
+                out.write('        %s.flavor = -1\n' % out_wf)
+                out.write('        return %s\n' % out_wf)
+                out.write('    %s.flavor = flv_index1\n' % out_wf)
+                flv_for_coup = 'flv_index1'
+
+        # Resolve the actual complex coupling value from the FLV_Coupling_py object
+        for ftype, name in self.declaration:
+            if name.startswith('COUP'):
+                out.write('    %s = COUP.val[%s]\n' % (name, flv_for_coup))
+        return out.getvalue()
+
     def get_foot_txt(self):
         if not self.offshell:
             return '    return vertex\n\n'
@@ -2611,9 +2701,9 @@ class ALOHAWriterForPython(WriteALOHA):
         return out.getvalue()     
 
     def get_momenta_txt(self):
-        """Define the Header of the fortran file. This include
-            - momentum conservation
-            - definition of the impulsion"""
+        """Define the momenta section of the Python ALOHA function.
+        Sets momentum conservation and defines Pn lists from wavefunction
+        `.momenta` attributes."""
              
         out = StringIO()
         
@@ -2630,7 +2720,7 @@ class ALOHAWriterForPython(WriteALOHA):
                 out_size = self.type_to_size[type] 
                 continue
             elif self.offshell:
-                p.append('{0}{1}{2}[%(i)s]'.format(signs[i],type,i+1))  
+                p.append('{0}{1}{2}.momenta[%(i)s]'.format(signs[i],type,i+1))
                 
             if self.declaration.is_used('P%s' % (i+1)):
                 self.get_one_momenta_def(i+1, out)             
@@ -2639,14 +2729,9 @@ class ALOHAWriterForPython(WriteALOHA):
         if self.offshell:
             type = self.particles[self.outgoing-1]
             out.write('    %s%s = wavefunctions.WaveFunction(size=%s)\n' % (type, self.outgoing, out_size))
-            if aloha.loop_mode:
-                size_p = 4
-            else:
-                size_p = 2
-            for i in range(size_p):
-                dict_energy = {'i':i}
-    
-                out.write('    %s%s[%s] = %s\n' % (type,self.outgoing, i, 
+            for i in range(4):
+                dict_energy = {'i': i}
+                out.write('    %s%s.momenta[%s] = %s\n' % (type, self.outgoing, i, 
                                              ''.join(p) % dict_energy))
             
             self.get_one_momenta_def(self.outgoing, out)
@@ -2656,42 +2741,12 @@ class ALOHAWriterForPython(WriteALOHA):
         return out.getvalue()
 
     def get_one_momenta_def(self, i, strfile):
-        """return the string defining the momentum"""
+        """Return the string defining the Pi list from wavefunction momenta."""
 
         type = self.particles[i-1]
-        
-        main = '    P%d = [' % i
-        if aloha.loop_mode:
-            template ='%(sign)s%(type)s%(i)d[%(nb)d]'
-        else:
-            template ='%(sign)scomplex(%(type)s%(i)d[%(nb2)d])%(operator)s'
-
-        nb2 = 0
-        strfile.write(main)
-        data = []
-        for j in range(4):
-            if not aloha.loop_mode:
-                nb = j
-                if j == 0: 
-                    assert not aloha.mp_precision 
-                    operator = '.real' # not suppose to pass here in mp
-                elif j == 1: 
-                    nb2 += 1
-                elif j == 2:
-                    assert not aloha.mp_precision 
-                    operator = '.imag' # not suppose to pass here in mp
-                elif j ==3:
-                    nb2 -= 1
-            else:
-                operator =''
-                nb = j
-                nb2 = j
-            data.append(template % {'j':j,'type': type, 'i': i, 
-                        'nb': nb, 'nb2': nb2, 'operator':operator,
-                        'sign': self.get_P_sign(i)}) 
-            
-        strfile.write(', '.join(data))
-        strfile.write(']\n')
+        sign = self.get_P_sign(i)
+        strfile.write('    P%d = [%s%s%d.momenta[j] for j in range(4)]\n' % (
+                      i, sign, type, i))
 
 
     def define_symmetry(self, new_nb, couplings=None):
@@ -2749,9 +2804,9 @@ class ALOHAWriterForPython(WriteALOHA):
                 if not offshell:
                     text.write( '    vertex += tmp\n')
                 else:
-                    size = self.type_to_size[self.particles[offshell -1]] -2
-                    text.write("    for i in range(%s,%s):\n" % (self.momentum_size, self.momentum_size+size))
-                    text.write("        %(main)s[i] += tmp[i]\n" %{'main': main})
+                    size = self.type_to_size[self.particles[offshell -1]] - 2
+                    text.write("    for i in range(%s):\n" % size)
+                    text.write("        %(main)s.W[i] += tmp.W[i]\n" % {'main': main})
         
         text.write(self.get_foot_txt())
 

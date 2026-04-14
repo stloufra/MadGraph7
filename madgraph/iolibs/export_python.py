@@ -26,6 +26,7 @@ import shutil
 import subprocess
 import aloha
 
+import madgraph.core.base_objects as base_objects
 import madgraph.core.color_algebra as color
 import madgraph.core.helas_objects as helas_objects
 import madgraph.iolibs.drawing_eps as draw
@@ -375,13 +376,48 @@ class ProcessExporterPython(object):
                               in matrix_element.get_all_wavefunctions() + \
                               matrix_element.get_all_amplitudes() for c in func.get('coupling')
                               if func.get('mothers') and  isinstance(c, str)])
-        
-        return "\n        ".join([\
+
+        # Collect FLV_Coupling objects and add their constituent couplings
+        flv_couplings = {}
+        for func in matrix_element.get_all_wavefunctions() + \
+                     matrix_element.get_all_amplitudes():
+            if not func.get('mothers'):
+                continue
+            for c in func.get('coupling'):
+                if not isinstance(c, str) and c.get('name') not in flv_couplings:
+                    flv_couplings[c.get('name')] = c
+                    # Also collect the underlying coupling names
+                    for coup_name in c.get_all_couplings():
+                        stripped = coup_name.lstrip('-')
+                        if stripped not in couplings:
+                            couplings.append(stripped)
+
+        # Build FLV_Coupling_py instantiation lines
+        flv_lines = []
+        for fc_name in sorted(flv_couplings):
+            fc = flv_couplings[fc_name]
+            items = ', '.join(
+                '%s: model.get(\'coupling_dict\')[\'%s\']' % (
+                    repr(key), val.lstrip('-'))
+                for key, val in fc.get('flavors').items()
+            )
+            flv_lines.append(
+                '%s = wavefunctions.FLV_Coupling_py({%s})' % (fc_name, items))
+
+        param_lines = "\n        ".join([\
                          "%(param)s = model.get(\'parameter_dict\')[\"%(param)s\"]"\
-                         % {"param": param} for param in sorted(parameters)]) + \
-               "\n        " + "\n        ".join([\
+                         % {"param": param} for param in sorted(parameters)])
+        coup_lines = "\n        ".join([\
                          "%(coup)s = model.get(\'coupling_dict\')[\"%(coup)s\"]"\
                               % {"coup": coup} for coup in sorted(couplings)])
+        flv_section = "\n        ".join(flv_lines)
+
+        result = param_lines
+        if coup_lines:
+            result += "\n        " + coup_lines
+        if flv_section:
+            result += "\n        " + flv_section
+        return result
 
 #===============================================================================
 # Global helper methods
