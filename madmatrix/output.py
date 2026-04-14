@@ -91,6 +91,7 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
                                       'MemoryAccessChannelIds.h', 'MemoryAccessIflavorVec.h',
                                       'CrossSectionKernels.cc', 'CrossSectionKernels.h',
                                       'MatrixElementKernels.cc', 'MatrixElementKernels.h',
+                                      'EventStatistics.h',
                                       'umami.h', 'umami.cc']) }
 
     to_link_in_P = ['nvtx.h', 'GpuRuntime.h', 'GpuAbstraction.h', 'color_sum.h',
@@ -103,6 +104,7 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
                     'MemoryAccessChannelIds.h', 'MemoryAccessIflavorVec.h',
                     'CrossSectionKernels.cc', 'CrossSectionKernels.h',
                     'MatrixElementKernels.cc', 'MatrixElementKernels.h',
+                    'EventStatistics.h',
                     'MemoryBuffers.h', # this is generated from a template in Subprocesses but we still link it in P1
                     'MemoryAccessCouplings.h', # this is generated from a template in Subprocesses but we still link it in P1
                     'umami.h', 'umami.cc']
