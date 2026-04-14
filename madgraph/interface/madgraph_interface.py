@@ -4601,8 +4601,12 @@ This implies that with decay chains:
                                           options=options)
             nb_processes += len(lorentz_result)
 
-        if args[0] in ['flavor'] or (args[0] == 'full' and
-                myprocdef and myprocdef.get('model').get('merged_particles')):
+        _merged_pdgs = myprocdef.get('model').get('merged_particles') if myprocdef else {}
+        _proc_has_merged = myprocdef and any(
+            abs(pid) in _merged_pdgs
+            for leg in myprocdef.get('legs')
+            for pid in leg.get('ids'))
+        if args[0] in ['flavor'] or (args[0] == 'full' and _proc_has_merged):
             flavor_result = process_checks.check_flavor(myprocdef,
                                           param_card = param_card,
                                           options=options,
