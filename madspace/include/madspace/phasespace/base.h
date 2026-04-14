@@ -25,6 +25,20 @@ public:
         const NamedVector<Value>& inputs,
         const NamedVector<Value>& conditions = {}
     ) const;
+    NamedVector<Value> build_forward(
+        FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions = {}
+    ) const {
+        return build_forward(
+            fb, {_input_types.keys(), inputs}, {_condition_types.keys(), conditions}
+        );
+    }
+    NamedVector<Value> build_inverse(
+        FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions = {}
+    ) const {
+        return build_inverse(
+            fb, {_output_types.keys(), inputs}, {_condition_types.keys(), conditions}
+        );
+    }
     NamedVector<Value> build_inverse(
         FunctionBuilder& fb,
         const NamedVector<Value>& inputs,
@@ -68,6 +82,9 @@ public:
     virtual ~FunctionGenerator() = default;
     NamedVector<Value>
     build_function(FunctionBuilder& fb, const NamedVector<Value>& args) const;
+    NamedVector<Value> build_function(FunctionBuilder& fb, const ValueVec& args) const {
+        return build_function(fb, {_arg_types.keys(), args});
+    }
     Function function() const;
     const NamedVector<Type>& arg_types() const { return _arg_types; }
     const NamedVector<Type>& return_types() const { return _return_types; }

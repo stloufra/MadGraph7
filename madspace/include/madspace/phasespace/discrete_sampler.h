@@ -10,7 +10,7 @@ public:
     DiscreteHistogram(const std::vector<std::size_t>& option_counts);
 
 private:
-    ValueVec build_function_impl(
+    NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override;
 

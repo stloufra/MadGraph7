@@ -10,7 +10,7 @@ public:
     VegasHistogram(std::size_t dimension, std::size_t bin_count);
 
 private:
-    ValueVec build_function_impl(
+    NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override;
 

@@ -58,7 +58,7 @@ class PyFunctionGenerator : public FunctionGenerator, py::trampoline_self_life_s
 public:
     using FunctionGenerator::FunctionGenerator;
 
-    ValueVec build_function_impl(
+    NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override {
         PYBIND11_OVERRIDE_PURE(

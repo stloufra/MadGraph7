@@ -6,7 +6,7 @@ DiscreteHistogram::DiscreteHistogram(const std::vector<std::size_t>& option_coun
     FunctionGenerator(
         "DiscreteHistogram",
         [&] {
-            TypeVec arg_types(option_counts.size(), batch_int);
+            NamedVector<Type> arg_types(option_counts.size(), batch_int);
             arg_types.push_back(batch_float);
             return arg_types;
         }(),

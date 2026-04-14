@@ -15,7 +15,7 @@ public:
     );
 
 private:
-    ValueVec build_function_impl(
+    NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override;
 
@@ -36,7 +36,7 @@ public:
     std::size_t channel_count() const { return _channel_indices.size(); }
 
 private:
-    ValueVec build_function_impl(
+    NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override;
 

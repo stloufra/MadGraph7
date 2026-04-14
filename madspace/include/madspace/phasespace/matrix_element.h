@@ -56,7 +56,7 @@ public:
     std::vector<MatrixElementInput> external_inputs() const;
 
 private:
-    ValueVec build_function_impl(
+    NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override;
 

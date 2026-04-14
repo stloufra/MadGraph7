@@ -36,7 +36,7 @@ public:
     );
 
 private:
-    ValueVec build_function_impl(
+    NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override;
 
@@ -68,7 +68,7 @@ public:
     RunningCoupling(const AlphaSGrid& grid, const std::string& prefix = "");
 
 private:
-    ValueVec build_function_impl(
+    NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override;
 

@@ -102,7 +102,9 @@ MLP::MLP(
     const std::string& prefix
 ) :
     FunctionGenerator(
-        "MLP", {batch_float_array(input_dim)}, {batch_float_array(output_dim)}
+        "MLP",
+        {{"input", batch_float_array(input_dim)}},
+        {{"output", batch_float_array(output_dim)}}
     ),
     _input_dim(input_dim),
     _output_dim(output_dim),
@@ -118,7 +120,7 @@ MLP::MLP(
     }
 };
 
-ValueVec
+NamedVector<Value>
 MLP::build_function_impl(FunctionBuilder& fb, const NamedVector<Value>& args) const {
     std::size_t dim = _input_dim;
     Value x = args.at(0);
@@ -126,7 +128,9 @@ MLP::build_function_impl(FunctionBuilder& fb, const NamedVector<Value>& args) co
         x = build_layer(fb, x, dim, _hidden_dim, _activation, _prefix, i);
         dim = _hidden_dim;
     }
-    return {build_layer(fb, x, dim, _output_dim, MLP::linear, _prefix, _layers)};
+    return {
+        {"output", build_layer(fb, x, dim, _output_dim, MLP::linear, _prefix, _layers)}
+    };
 }
 
 void MLP::initialize_globals(ContextPtr context) const {

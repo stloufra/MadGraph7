@@ -11,7 +11,9 @@ MultiChannelMapping::MultiChannelMapping(
         mappings.at(0)->output_types(),
         [&] {
             auto condition_types = mappings.at(0)->condition_types();
-            condition_types.push_back(multichannel_batch_size(_mappings.size()));
+            condition_types.push_back(
+                "batch_sizes", multichannel_batch_size(_mappings.size())
+            );
             return condition_types;
         }()
     ),
@@ -64,15 +66,13 @@ Mapping::Result MultiChannelMapping::build_impl(
             cond.push_back(condition.at(index));
         }
         fb.set_current_stream(index + 1);
-        auto [output, det] = inverse
+        auto output = inverse
             ? mapping->build_inverse(fb, in, cond)
             : mapping->build_forward(fb, in, cond);
-        auto split_out_iter = split_outputs.begin();
-        for (auto& out : output) {
-            split_out_iter->push_back(out);
-            ++split_out_iter;
+        for (auto [out, split_out] : zip(output, split_outputs)) {
+            split_out.push_back(out);
         }
-        split_dets.push_back(det);
+        split_dets.push_back(output["det"]);
         ++index;
     }
     fb.set_current_stream(0);
@@ -82,7 +82,7 @@ Mapping::Result MultiChannelMapping::build_impl(
         cat_outputs.push_back(cat);
     }
     auto [det, _] = fb.batch_cat(split_dets);
-    return {cat_outputs, det};
+    return {{output_types().keys(), cat_outputs}, det};
 }
 
 MultiChannelFunction::MultiChannelFunction(
@@ -91,8 +91,9 @@ MultiChannelFunction::MultiChannelFunction(
     FunctionGenerator(
         "MultiChannelFunction",
         [&] {
-            TypeVec arg_types;
-            for (auto& arg_type : functions.at(0)->arg_types()) {
+            NamedVector<Type> arg_types;
+            auto& first_types = functions.at(0)->arg_types();
+            for (auto [key, arg_type] : zip(first_types.keys(), first_types)) {
                 if (arg_type.dtype == DataType::batch_sizes) {
                     if (arg_type.batch_size_list.size() != 1) {
                         throw std::invalid_argument(
@@ -100,10 +101,12 @@ MultiChannelFunction::MultiChannelFunction(
                         );
                     }
                 } else {
-                    arg_types.push_back(arg_type);
+                    arg_types.push_back(key, arg_type);
                 }
             }
-            arg_types.push_back(multichannel_batch_size(functions.size()));
+            arg_types.push_back(
+                "batch_sizes", multichannel_batch_size(functions.size())
+            );
             return arg_types;
         }(),
         functions.at(0)->return_types()
@@ -122,10 +125,10 @@ MultiChannelFunction::MultiChannelFunction(
     }
 }
 
-ValueVec MultiChannelFunction::build_function_impl(
+NamedVector<Value> MultiChannelFunction::build_function_impl(
     FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
-    auto& counts = args.back();
+    auto counts = args["batch_sizes"];
 
     auto arg_types = _functions.at(0)->arg_types();
     std::size_t arg_index = 0;
@@ -148,10 +151,8 @@ ValueVec MultiChannelFunction::build_function_impl(
         }
         fb.set_current_stream(index + 1);
         auto output = func->build_function(fb, func_args);
-        std::size_t split_out_index = 0;
-        for (auto& out : output) {
-            split_outputs.at(split_out_index).push_back(out);
-            ++split_out_index;
+        for (auto [out, split_out] : zip(output, split_outputs)) {
+            split_out.push_back(out);
         }
         ++index;
     }
@@ -161,5 +162,5 @@ ValueVec MultiChannelFunction::build_function_impl(
         auto [cat, _] = fb.batch_cat(output);
         cat_outputs.push_back(cat);
     }
-    return cat_outputs;
+    return {return_types().keys(), cat_outputs};
 }

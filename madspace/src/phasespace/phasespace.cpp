@@ -92,11 +92,16 @@ PhaseSpaceMapping::PhaseSpaceMapping(
 ) :
     Mapping(
         "PhaseSpaceMapping",
-        {batch_float_array(3 * topology.outgoing_masses().size() - (leptonic ? 4 : 2))},
-        {batch_four_vec_array(topology.outgoing_masses().size() + 2),
-         batch_float,
-         batch_float},
-        permutations.size() > 1 ? TypeVec{batch_int} : TypeVec{}
+        {{"random",
+          batch_float_array(
+              3 * topology.outgoing_masses().size() - (leptonic ? 4 : 2)
+          )}},
+        {{"momenta", batch_four_vec_array(topology.outgoing_masses().size() + 2)},
+         {"x1", batch_float},
+         {"x2", batch_float}},
+        permutations.size() > 1
+            ? NamedVector<Type>{{"permutation_index", batch_int}}
+            : NamedVector<Type>{}
     ),
     _topology(topology),
     _cuts(cuts.value_or(Cuts(topology.outgoing_masses().size() + 2))),
@@ -282,12 +287,12 @@ Mapping::Result PhaseSpaceMapping::build_forward_impl(
         }
         if (decay_index != 0 || _map_luminosity) {
             auto s_max = fb.square(sqrt_s_max);
-            auto [s_vec, det] =
+            auto invariant =
                 _s_invariants.at(invariant_index++)
                     .build_forward(fb, {next_random()}, {s_min, s_max});
-            data.mass2 = s_vec.at(0);
+            data.mass2 = invariant["s"];
             data.mass = fb.sqrt(data.mass2.value());
-            dets.push_back(det);
+            dets.push_back(invariant["det"]);
         } else if (decay_index == 0) {
             data.mass2 = _sqrt_s_lab * _sqrt_s_lab;
             data.mass = _sqrt_s_lab;
@@ -318,7 +323,7 @@ Mapping::Result PhaseSpaceMapping::build_forward_impl(
                 for (std::size_t index : decay_data.at(0).decay.child_indices) {
                     conds.push_back(decay_data.at(index).mass.value());
                 }
-                auto [t_result, det] = t_mapping.build_forward(fb, args, conds);
+                auto t_result = t_mapping.build_forward(fb, args, conds);
                 std::size_t result_index;
                 using TMapping = std::decay_t<decltype(t_mapping)>;
                 if constexpr (std::is_same_v<TMapping, FastRamboMapping>) {
@@ -333,7 +338,7 @@ Mapping::Result PhaseSpaceMapping::build_forward_impl(
                     decay_data.at(index).momentum = t_result.at(result_index);
                     ++result_index;
                 }
-                dets.push_back(det);
+                dets.push_back(t_result["det"]);
 
                 if constexpr (std::is_same_v<TMapping, ChiliMapping>) {
                     auto [x1_new, x2_new] = fb.momenta_to_x1x2(
@@ -371,11 +376,11 @@ Mapping::Result PhaseSpaceMapping::build_forward_impl(
                 if (data.decay.index != 0) {
                     decay_args.push_back(data.momentum.value());
                 }
-                auto [k_out, det] = decay_map.build_forward(fb, decay_args, {});
+                auto k_out = decay_map.build_forward(fb, decay_args, {});
                 for (auto [child_index, k] : zip(data.decay.child_indices, k_out)) {
                     decay_data.at(child_index).momentum = k;
                 }
-                dets.push_back(det);
+                dets.push_back(k_out["det"]);
             },
             _s_decays.at(--decay_map_index)
         );
@@ -402,7 +407,7 @@ Mapping::Result PhaseSpaceMapping::build_forward_impl(
     auto p_ext_lab = _map_luminosity ? fb.boost_beam(p_ext_stack, x1, x2) : p_ext_stack;
     dets.push_back(_cuts.build_function(fb, {p_ext_lab}).at(0));
     auto ps_weight = fb.cut_unphysical(fb.product(dets), p_ext_lab, x1, x2);
-    return {{p_ext_lab, x1, x2}, ps_weight};
+    return {{{"momenta", p_ext_lab}, {"x1", x1}, {"x2", x2}}, ps_weight};
 }
 
 Mapping::Result PhaseSpaceMapping::build_inverse_impl(
@@ -464,17 +469,17 @@ Mapping::Result PhaseSpaceMapping::build_inverse_impl(
                 for (auto child_index : data.decay.child_indices) {
                     decay_args.push_back(decay_data.at(child_index).momentum.value());
                 }
-                auto [decay_out, det] = decay_map.build_inverse(fb, decay_args, {});
+                auto decay_out = decay_map.build_inverse(fb, decay_args, {});
                 data.computed_mass = decay_out.at(decay_map.random_dim());
                 random_out_reversed.insert(
                     random_out_reversed.end(),
-                    decay_out.rend() - decay_map.random_dim(),
-                    decay_out.rend()
+                    decay_out.rend() - decay_map.random_dim() - 1,
+                    decay_out.rend() - 1
                 );
                 if (data.decay.index != 0) {
-                    data.momentum = decay_out.back();
+                    data.momentum = decay_out.at(decay_out.size() - 2);
                 }
-                dets.push_back(det);
+                dets.push_back(decay_out["det"]);
             },
             _s_decays.at(decay_map_index++)
         );
@@ -499,13 +504,13 @@ Mapping::Result PhaseSpaceMapping::build_inverse_impl(
                     args.push_back(decay_data.at(index).momentum.value());
                     conds.push_back(decay_data.at(index).computed_mass.value());
                 }
-                auto [t_result, det] = t_mapping.build_inverse(fb, args, conds);
+                auto t_result = t_mapping.build_inverse(fb, args, conds);
                 random_out_reversed.insert(
                     random_out_reversed.end(),
-                    t_result.rend() - t_mapping.random_dim(),
-                    t_result.rend()
+                    t_result.rend() - t_mapping.random_dim() - 1,
+                    t_result.rend() - 1
                 );
-                dets.push_back(det);
+                dets.push_back(t_result["det"]);
             },
             [&](std::monostate) {}
         },
@@ -534,11 +539,11 @@ Mapping::Result PhaseSpaceMapping::build_inverse_impl(
             auto s_max = fb.square(sqrt_s_max);
             data.mass = data.computed_mass.value();
             data.mass2 = fb.square(data.mass.value());
-            auto [r_out, det] =
+            auto invariant =
                 _s_invariants.at(invariant_index++)
                     .build_inverse(fb, {data.mass2.value()}, {s_min, s_max});
-            random_out.push_back(r_out.at(0));
-            dets.push_back(det);
+            random_out.push_back(invariant["r"]);
+            dets.push_back(invariant["det"]);
         } else if (decay_index == 0) {
             data.mass2 = _sqrt_s_lab * _sqrt_s_lab;
             data.mass = _sqrt_s_lab;
@@ -548,5 +553,5 @@ Mapping::Result PhaseSpaceMapping::build_inverse_impl(
     random_out.insert(
         random_out.end(), random_out_reversed.rbegin(), random_out_reversed.rend()
     );
-    return {{fb.stack(random_out)}, fb.product(dets)};
+    return {{{"random", fb.stack(random_out)}}, fb.product(dets)};
 }

@@ -276,8 +276,8 @@ Observable::Observable(
 ) :
     FunctionGenerator(
         "Observable",
-        {batch_four_vec_array(pids.size())},
-        {std::get<2>(indices_and_type)}
+        {{"momenta", batch_four_vec_array(pids.size())}},
+        {{"observable", std::get<2>(indices_and_type)}}
     ),
     _observable(observable),
     _indices(std::get<0>(indices_and_type)),
@@ -287,58 +287,64 @@ Observable::Observable(
     _sum_observable(sum_observable),
     _name(name) {}
 
-ValueVec Observable::build_function_impl(
+NamedVector<Value> Observable::build_function_impl(
     FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
-    if (not_found()) {
-        return {0.};
-    }
-    Value momenta = args.at(0);
-    int obs_type = observable_type(_observable);
-    if (obs_type == 0) {
-        return {build_observable(fb, _observable, {momenta})};
-    }
+    return {
+        {"observable", {[&]() -> Value {
+             if (not_found()) {
+                 return 0.;
+             }
+             Value momenta = args.at(0);
+             int obs_type = observable_type(_observable);
+             if (obs_type == 0) {
+                 return build_observable(fb, _observable, {momenta});
+             }
 
-    ValueVec selected_momenta;
-    for (auto [indices, order_indices] : zip(_indices, _order_indices)) {
-        Value sel_indices;
-        if (order_indices.size() > 0) {
-            Value order = fb.argsort(build_observable(
-                fb,
-                _order_observable.value(),
-                {fb.select_vector(momenta, order_indices)}
-            ));
-            sel_indices = fb.select_int(order_indices, fb.select_int(order, indices));
-        } else {
-            sel_indices = indices;
-        }
-        selected_momenta.push_back(fb.select_vector(momenta, sel_indices));
-    }
+             ValueVec selected_momenta;
+             for (auto [indices, order_indices] : zip(_indices, _order_indices)) {
+                 Value sel_indices;
+                 if (order_indices.size() > 0) {
+                     Value order = fb.argsort(build_observable(
+                         fb,
+                         _order_observable.value(),
+                         {fb.select_vector(momenta, order_indices)}
+                     ));
+                     sel_indices =
+                         fb.select_int(order_indices, fb.select_int(order, indices));
+                 } else {
+                     sel_indices = indices;
+                 }
+                 selected_momenta.push_back(fb.select_vector(momenta, sel_indices));
+             }
 
-    if (obs_type == 2) {
-        return {build_observable(fb, _observable, selected_momenta)};
-    }
+             if (obs_type == 2) {
+                 return build_observable(fb, _observable, selected_momenta);
+             }
 
-    if (selected_momenta.size() == 1) {
-        if (_sum_momenta) {
-            selected_momenta.at(0) = fb.reduce_sum_vector(selected_momenta.at(0));
-        }
-        Value obs = build_observable(fb, _observable, selected_momenta);
-        if (_sum_observable && !_sum_momenta) {
-            obs = fb.reduce_sum(obs);
-        }
-        return {obs};
-    }
+             if (selected_momenta.size() == 1) {
+                 if (_sum_momenta) {
+                     selected_momenta.at(0) =
+                         fb.reduce_sum_vector(selected_momenta.at(0));
+                 }
+                 Value obs = build_observable(fb, _observable, selected_momenta);
+                 if (_sum_observable && !_sum_momenta) {
+                     obs = fb.reduce_sum(obs);
+                 }
+                 return obs;
+             }
 
-    if (_sum_momenta) {
-        return {build_observable(fb, _observable, {fb.sum(selected_momenta)})};
-    }
+             if (_sum_momenta) {
+                 return build_observable(fb, _observable, {fb.sum(selected_momenta)});
+             }
 
-    ValueVec observables;
-    for (auto& momentum : selected_momenta) {
-        observables.push_back(build_observable(fb, _observable, {momentum}));
-    }
-    return {fb.sum(observables)};
+             ValueVec observables;
+             for (auto& momentum : selected_momenta) {
+                 observables.push_back(build_observable(fb, _observable, {momentum}));
+             }
+             return fb.sum(observables);
+         }()}}
+    };
 }
 
 bool Observable::not_found() const {

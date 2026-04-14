@@ -11,7 +11,7 @@ public:
     std::size_t output_dim() const { return _output_dim; };
 
 private:
-    ValueVec build_function_impl(
+    NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override;
 
@@ -35,7 +35,7 @@ public:
     const std::string& mask_name() const { return _mask_name; }
 
 private:
-    ValueVec build_function_impl(
+    NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override;
 

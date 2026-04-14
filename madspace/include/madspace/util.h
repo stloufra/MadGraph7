@@ -144,9 +144,7 @@ template <typename T>
 class NamedVector {
 public:
     NamedVector() = default;
-    NamedVector(
-        const std::vector<std::string_view>& keys, const std::vector<T>& values
-    ) {
+    NamedVector(const std::vector<std::string>& keys, const std::vector<T>& values) {
         if (keys.size() != values.size()) {
             throw std::invalid_argument("keys and values must have the same size");
         }
@@ -155,7 +153,7 @@ public:
             push_back(key, value);
         }
     }
-    NamedVector(const std::initializer_list<std::pair<std::string_view, T>>& items) {
+    NamedVector(const std::initializer_list<std::pair<std::string, T>>& items) {
         reserve(items.size());
         for (auto& [key, value] : items) {
             push_back(key, value);
@@ -163,11 +161,11 @@ public:
     }
 
     const std::vector<T>& values() const { return _values; }
-    const std::unordered_map<std::string_view, std::size_t>& index_map() const {
+    const std::unordered_map<std::string, std::size_t>& index_map() const {
         return _index_map;
     }
-    std::vector<std::string_view> keys() const {
-        std::vector<std::string_view> ret(size());
+    std::vector<std::string> keys() const {
+        std::vector<std::string> ret(size());
         for (auto& [key, index] : index_map()) {
             ret.at(index) = key;
         }
@@ -176,8 +174,12 @@ public:
 
     auto begin() { return _values.begin(); }
     auto begin() const { return _values.begin(); }
+    auto rbegin() { return _values.rbegin(); }
+    auto rbegin() const { return _values.rbegin(); }
     auto end() { return _values.end(); }
     auto end() const { return _values.end(); }
+    auto rend() { return _values.rend(); }
+    auto rend() const { return _values.rend(); }
 
     auto front() { return _values.front(); }
     auto front() const { return _values.front(); }
@@ -186,18 +188,18 @@ public:
 
     auto at(std::size_t index) { return _values.at(index); }
     auto at(std::size_t index) const { return _values.at(index); }
-    auto at(std::string_view key) { return _values.at(_index_map.at(key)); }
-    auto at(std::string_view key) const { return _values.at(_index_map.at(key)); }
+    auto at(std::string key) { return _values.at(_index_map.at(key)); }
+    auto at(std::string key) const { return _values.at(_index_map.at(key)); }
     auto operator[](std::size_t index) { return at(index); }
     auto operator[](std::size_t index) const { return at(index); }
-    auto operator[](std::string_view key) { return at(key); }
-    auto operator[](std::string_view key) const { return at(key); }
+    auto operator[](std::string key) { return at(key); }
+    auto operator[](std::string key) const { return at(key); }
 
     bool empty() const { return _values.empty(); }
     std::size_t size() const { return _values.size(); }
     void reserve(std::size_t capacity) { _values.reserve(capacity); }
 
-    void push_back(const std::string_view& key, auto&& value) {
+    void push_back(const std::string& key, auto&& value) {
         if (_index_map.contains(key)) {
             throw std::invalid_argument("Key already present in NamedVector");
         }
@@ -214,9 +216,8 @@ public:
             _index_map[key] = index + old_size;
         }
     }
-    NamedVector<T> sort_like(
-        const std::unordered_map<std::string_view, std::size_t>& index_map
-    ) const {
+    NamedVector<T>
+    sort_like(const std::unordered_map<std::string, std::size_t>& index_map) const {
         if (index_map.size() != size()) {
             throw std::invalid_argument("index map must be the same size");
         }
@@ -231,7 +232,7 @@ public:
 
 private:
     std::vector<T> _values;
-    std::unordered_map<std::string_view, std::size_t> _index_map;
+    std::unordered_map<std::string, std::size_t> _index_map;
 };
 
 } // namespace madspace

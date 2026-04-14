@@ -19,7 +19,7 @@ public:
     Unweighter(const TypeVec& types);
 
 private:
-    ValueVec build_function_impl(
+    NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override;
 };
@@ -147,7 +147,7 @@ private:
         Value& scale_cache() { return values[20]; }
     };
 
-    ValueVec build_function_impl(
+    NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override;
     ChannelResult
@@ -186,7 +186,7 @@ public:
     MultiChannelIntegrand(const std::vector<std::shared_ptr<Integrand>>& integrands);
 
 private:
-    ValueVec build_function_impl(
+    NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override;
 
@@ -198,7 +198,7 @@ public:
     IntegrandProbability(const Integrand& integrand);
 
 private:
-    ValueVec build_function_impl(
+    NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override;
 
