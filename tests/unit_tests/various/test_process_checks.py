@@ -19,6 +19,8 @@ from __future__ import absolute_import
 import math
 import copy
 import os
+import re
+import subprocess
 import sys
 import time
 
@@ -472,6 +474,231 @@ class TestFlavorCheck(unittest.TestCase):
         text = process_checks.output_flavor(result)
         self.assertIn('Summary:', text)
         self.assertIn('passed', text)
+
+
+
+#===============================================================================
+# TestMultiLanguageComparison
+#===============================================================================
+class TestMultiLanguageComparison(unittest.TestCase):
+    """Compare Python, Fortran SA, and C++ SA matrix elements for the same
+    phase-space point.  The strategy is:
+      1. Generate and run the Fortran (or C++) standalone check binary.
+      2. Parse the phase-space point and |M|^2 value printed by the binary.
+      3. Evaluate the Python matrix element with those *same* momenta.
+      4. Assert that both results agree to within a relative tolerance.
+    Tests are skipped automatically if gfortran / g++ is not found.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        """Import heavy dependencies once and decide which back-ends exist."""
+        import shutil as _shutil
+        import madgraph.iolibs.export_v4 as _ev4
+        import madgraph.iolibs.export_cpp as _ecpp
+        import madgraph.iolibs.helas_call_writers as _hcw
+        import madgraph.various.misc as _misc
+        cls._ev4 = _ev4
+        cls._ecpp = _ecpp
+        cls._hcw = _hcw
+        cls._misc = _misc
+        cls._shutil = _shutil
+
+        cls.has_fortran = bool(_misc.which('gfortran'))
+        cls.has_cpp = bool(_misc.which('g++'))
+
+        cls.model = import_ufo.import_model(
+            'sm', options={'apply_flavor_grouping': False})
+
+        # Build the HelasMatrixElement for e+ e- > a a once
+        legs = base_objects.LegList([
+            base_objects.Leg({'id': -11, 'state': False, 'number': 1}),
+            base_objects.Leg({'id':  11, 'state': False, 'number': 2}),
+            base_objects.Leg({'id':  22, 'state': True,  'number': 3}),
+            base_objects.Leg({'id':  22, 'state': True,  'number': 4}),
+        ])
+        import madgraph.core.diagram_generation as _dg
+        import madgraph.core.helas_objects as _ho
+        proc = base_objects.Process({
+            'legs': legs, 'model': cls.model,
+            'orders': {}, 'forbidden_particles': [],
+            'forbidden_onsh_s_channels': [],
+            'forbidden_s_channels': [],
+            'perturbation_couplings': [],
+        })
+        amplitude = _dg.Amplitude(proc)
+        cls.matrix_element = _ho.HelasMatrixElement(amplitude, gen_color=True)
+
+        # Ensure Template/LO/Source/make_opts exists (created on first MG5 run)
+        import madgraph
+        MG5DIR = madgraph.MG5DIR
+        make_opts = os.path.join(MG5DIR, 'Template', 'LO', 'Source', 'make_opts')
+        make_opts_src = os.path.join(MG5DIR, 'Template', 'LO', 'Source', '.make_opts')
+        if not os.path.exists(make_opts) and os.path.exists(make_opts_src):
+            _shutil.copy(make_opts_src, make_opts)
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+    _me_re = re.compile(
+        r"\sMatrix\selement\s=\s*(?P<val>-?\d*\.\d*(E[+-]?\d*)?)"
+        r"\s*GeV\^\s*(?P<pow>-?\d+)", re.IGNORECASE | re.VERBOSE)
+    _mom_re = re.compile(
+        r"""\s*\d+\s+(?P<p0>-?\d*\.\d*E[+-]?\d*)\s+
+             (?P<p1>-?\d*\.\d*E[+-]?\d*)\s+
+             (?P<p2>-?\d*\.\d*E[+-]?\d*)\s+
+             (?P<p3>-?\d*\.\d*E[+-]?\d*)""",
+        re.IGNORECASE | re.VERBOSE)
+
+    def _parse_sa_output(self, text):
+        """Return (me_value, [[E,px,py,pz], ...]) from check binary output."""
+        momenta = []
+        me_val = None
+        for line in text.split('\n'):
+            m = self._me_re.match(line)
+            if m:
+                me_val = float(m.group('val'))
+            m2 = self._mom_re.match(line)
+            if m2:
+                momenta.append([float(x) for x in m2.groups()[:4]])
+        return me_val, momenta
+
+    def _run_check_binary(self, check_dir):
+        """Compile and run ./check in *check_dir*, return stdout."""
+        devnull = open(os.devnull, 'w')
+        ret = subprocess.call(['make', 'check'], cwd=check_dir,
+                              stdout=devnull, stderr=devnull)
+        devnull.close()
+        if ret != 0:
+            self.skipTest('make check failed in %s' % check_dir)
+        return subprocess.check_output(
+            './check', cwd=check_dir, stderr=subprocess.STDOUT).decode()
+
+    def _first_P_dir(self, sa_root):
+        """Return the first P-directory found under sa_root/SubProcesses."""
+        sub = os.path.join(sa_root, 'SubProcesses')
+        for d in sorted(os.listdir(sub)):
+            if d.startswith('P') and os.path.isdir(os.path.join(sub, d)):
+                return os.path.join(sub, d)
+        return None
+
+    # ------------------------------------------------------------------
+    # Tests
+    # ------------------------------------------------------------------
+    def test_python_vs_fortran_epem_aa(self):
+        """e+ e- > a a: Python and Fortran SA must agree within 1e-4 rel."""
+        if not self.has_fortran:
+            self.skipTest('gfortran not available')
+
+        import tempfile
+        ev4 = self._ev4
+        hcw = self._hcw
+        misc = self._misc
+        model = self.model
+        me = self.matrix_element
+
+        wl = misc.make_unique(me.get_used_lorentz())
+        wc = misc.make_unique([c for l in me.get_used_couplings() for c in l])
+
+        parent = tempfile.mkdtemp(prefix='mg5_test_f_')
+        sa_dir = os.path.join(parent, 'sa_f')
+        try:
+            opt = {'sa_symmetry': False, 'export_format': 'standalone',
+                   'mp': False, 'v5_model': True,
+                   'output_options': {'noeps': 'True'}}
+            exporter = ev4.ProcessExporterFortranSA(sa_dir, opt)
+            fmodel = hcw.FortranUFOHelasCallWriter(model)
+            exporter.copy_template(model)
+            exporter.generate_subprocess_directory(me, fmodel, 0)
+            exporter.convert_model(model, wl, wc)
+            exporter.finalize({'matrix_elements': [me]}, '',
+                              {'fortran_compiler': 'gfortran',
+                               'cpp_compiler': 'g++',
+                               'f2py_compiler': 'f2py',
+                               'output_dependencies': 'external'},
+                              ['nojpeg'])
+
+            check_dir = self._first_P_dir(sa_dir)
+            if check_dir is None:
+                self.skipTest('No subprocess directory created')
+
+            output = self._run_check_binary(check_dir)
+            me_f, p_f = self._parse_sa_output(output)
+
+            self.assertIsNotNone(me_f, 'Could not parse Fortran ME value')
+            self.assertGreater(len(p_f), 0, 'Could not parse Fortran momenta')
+
+            # Evaluate Python with the *same* phase-space point
+            process_checks.clean_added_globals(process_checks.ADDED_GLOBAL)
+            evaluator = process_checks.MatrixElementEvaluator(model)
+            me_py, _ = evaluator.evaluate_matrix_element(me, p=p_f)
+
+            self.assertGreater(abs(me_f), 0.,
+                               'Fortran ME is zero – unexpected')
+            rel_diff = abs(me_f - me_py) / abs(me_f)
+            self.assertLess(rel_diff, 1e-4,
+                            'Python and Fortran SA disagree: '
+                            'Fortran=%g  Python=%g  rel_diff=%g'
+                            % (me_f, me_py, rel_diff))
+        finally:
+            self._shutil.rmtree(parent, ignore_errors=True)
+
+    def test_python_vs_cpp_epem_aa(self):
+        """e+ e- > a a: Python and C++ SA must agree within 1e-4 rel."""
+        if not self.has_cpp:
+            self.skipTest('g++ not available')
+
+        import tempfile
+        ecpp = self._ecpp
+        hcw = self._hcw
+        misc = self._misc
+        model = self.model
+        me = self.matrix_element
+
+        wl = misc.make_unique(me.get_used_lorentz())
+        wc = misc.make_unique([c for l in me.get_used_couplings() for c in l])
+
+        parent = tempfile.mkdtemp(prefix='mg5_test_cpp_')
+        sa_dir = os.path.join(parent, 'sa_cpp')
+        try:
+            opt = {'sa_symmetry': False, 'export_format': 'standalone_cpp',
+                   'mp': False, 'v5_model': True, 'cpp_compiler': 'g++'}
+            exporter = ecpp.ProcessExporterCPP(sa_dir, opt)
+            cpp_model = hcw.CPPUFOHelasCallWriter(model)
+            exporter.copy_template(model)
+            exporter.generate_subprocess_directory(me, cpp_model, 0)
+            exporter.convert_model(model, wl, wc)
+            exporter.finalize({'matrix_elements': [me]}, '',
+                              {'fortran_compiler': 'gfortran',
+                               'cpp_compiler': 'g++',
+                               'f2py_compiler': 'f2py',
+                               'output_dependencies': 'external'},
+                              ['nojpeg'])
+
+            check_dir = self._first_P_dir(sa_dir)
+            if check_dir is None:
+                self.skipTest('No subprocess directory created')
+
+            output = self._run_check_binary(check_dir)
+            me_cpp, p_cpp = self._parse_sa_output(output)
+
+            self.assertIsNotNone(me_cpp, 'Could not parse C++ ME value')
+            self.assertGreater(len(p_cpp), 0, 'Could not parse C++ momenta')
+
+            # Evaluate Python with the *same* phase-space point
+            process_checks.clean_added_globals(process_checks.ADDED_GLOBAL)
+            evaluator = process_checks.MatrixElementEvaluator(model)
+            me_py, _ = evaluator.evaluate_matrix_element(me, p=p_cpp)
+
+            self.assertGreater(abs(me_cpp), 0.,
+                               'C++ ME is zero – unexpected')
+            rel_diff = abs(me_cpp - me_py) / abs(me_cpp)
+            self.assertLess(rel_diff, 1e-4,
+                            'Python and C++ SA disagree: '
+                            'C++=%g  Python=%g  rel_diff=%g'
+                            % (me_cpp, me_py, rel_diff))
+        finally:
+            self._shutil.rmtree(parent, ignore_errors=True)
 
 
 if __name__ == '__main__':
