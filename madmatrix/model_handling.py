@@ -1940,15 +1940,14 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
         # Output which diagrams correspond ot a channel to get information for valid color
         lines = []
         for diag in range(1, nb_diag+1):
-            channelidf = diag
             if diag in diag_to_iconfig:
                 iconfigf = diag_to_iconfig[diag]
                 iconfigftxt = '%i'%iconfigf
             else:
                 iconfigf = -1
                 iconfigftxt = '-1 (diagram with no associated iconfig for single-diagram enhancement)'
-            text = '    %(iconfigf){0}i, // CHANNEL_ID=%(channelidf)-{0}i i.e. DIAGRAM=%(diag)-{0}i --> ICONFIG=%(iconfigftxt)s'.format(ndigits)
-            lines.append(text % {'diag':diag, 'channelidf':channelidf, 'iconfigf':iconfigf, 'iconfigftxt':iconfigftxt})
+            text = '    %(iconfigf){0}i, // DIAGRAM=%(diag)-{0}i --> ICONFIG=%(iconfigftxt)s'.format(ndigits)
+            lines.append(text % {'diag':diag-1, 'iconfigf':iconfigf, 'iconfigftxt':iconfigftxt}) # diag - 1 is to follow MadSpace indexing
         replace_dict['channelc2iconfig_lines'] = '\n'.join(lines)
 
         replace_dict['nb_channel'] = len(self.active_color_map)
@@ -1958,11 +1957,11 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
         replace_dict['nb_color'] = nb_color
         # AV extra formatting (e.g. gg_tt was "{{true,true};,{true,false};,{false,true};};")
         ###misc.sprint(replace_dict['is_LC'])
-        text=', // ICONFIG=%-{0}i <-- CHANNEL_ID=%i'.format(ndigits)
+        text=', // ICONFIG=%-{0}i <-- DIAGRAM=%i'.format(ndigits)
         icolamp = []
         for iconfigc, active in enumerate(self.active_color_map):
             icolamp_text = "    { " + ", ".join(["true" if i in active else "false" for i in range(nb_color)]) + "}"
-            icolamp_text += text % (iconfigc+1, iconfig_to_diag[iconfigc+1])
+            icolamp_text += text % (iconfigc+1, iconfig_to_diag[iconfigc+1]-1) # diag - 1 is to follow MadSpace indexing
             icolamp.append(icolamp_text)
         replace_dict['is_LC'] = '\n'.join(icolamp)
         ff.write(template % replace_dict)

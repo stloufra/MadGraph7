@@ -13,7 +13,8 @@
 namespace mgOnGpu
 {
   // Summary of numbering and indexing conventions for the relevant concepts (see issue #826 and PR #852)
-  // - Diagram number (no variable) in [1, N_diagrams]: all values are allowed (N_diagrams distinct values)
+  // - Diagram number (no variable) in [0, N_diagrams-1]: all values are allowed (N_diagrams distinct values)
+  //   It follows the same C-style indexing of MadSpace
   //   => this number is displayed for information before each block of code in CPPProcess.cc
   // - Channel number ("channelId" in C, CHANNEL_ID in F) in [1, N_channels]: not all values are allowed (N_config <= N_channels <= N_diagrams distinct values)
   //   *** NB channelId is a diagram number: but ALL diagrams > N_channels, and also some < N_channels, do not have an associated SDE config number (#919) ***
