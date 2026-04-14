@@ -155,18 +155,18 @@ public:
             push_back(key, value);
         }
     }
-    NamedVector(const std::vector<std::pair<std::string_view, T>>& items) {
+    NamedVector(const std::initializer_list<std::pair<std::string_view, T>>& items) {
         reserve(items.size());
         for (auto& [key, value] : items) {
             push_back(key, value);
         }
     }
 
-    const std::vector<T>& values() { return _values; }
-    const std::unordered_map<std::string_view, std::size_t>& index_map() {
+    const std::vector<T>& values() const { return _values; }
+    const std::unordered_map<std::string_view, std::size_t>& index_map() const {
         return _index_map;
     }
-    std::vector<std::string_view> keys() {
+    std::vector<std::string_view> keys() const {
         std::vector<std::string_view> ret(size());
         for (auto& [key, index] : index_map()) {
             ret.at(index) = key;
@@ -214,15 +214,16 @@ public:
             _index_map[key] = index + old_size;
         }
     }
-    template <typename R>
-    NamedVector<T> sort_like(const NamedVector<R>& other) const {
-        if (other.size() != size()) {
+    NamedVector<T> sort_like(
+        const std::unordered_map<std::string_view, std::size_t>& index_map
+    ) const {
+        if (index_map.size() != size()) {
             throw std::invalid_argument("index map must be the same size");
         }
         NamedVector<T> ret;
         ret._values.resize(size());
-        ret._index_map = other.index_map();
-        for (auto& [key, index] : other.index_map()) {
+        ret._index_map = index_map;
+        for (auto& [key, index] : index_map) {
             ret._values.at(index) = at(key);
         }
         return ret;

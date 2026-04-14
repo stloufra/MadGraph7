@@ -20,7 +20,9 @@ using namespace madspace;
 namespace {
 
 void check_types(
-    const ValueVec& values, const TypeVec& types, const std::string& prefix
+    const NamedVector<Value>& values,
+    const NamedVector<Type>& types,
+    const std::string& prefix
 ) {
     if (values.size() != types.size()) {
         throw std::runtime_error(
@@ -78,80 +80,103 @@ template <typename T>
 
 } // namespace
 
-Mapping::Result Mapping::build_forward(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+NamedVector<Value> Mapping::build_forward(
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     try {
-        check_types(inputs, _input_types, "Input");
-        check_types(conditions, _condition_types, "Condition");
-        auto [outputs, det] = build_forward_impl(fb, inputs, conditions);
-        check_types(outputs, _output_types, "Output");
-        check_types({det}, {batch_float}, "Determinant");
-        return {outputs, det};
+        NamedVector<Value> sorted_inputs = inputs.sort_like(_input_types.index_map());
+        NamedVector<Value> sorted_conditions =
+            inputs.sort_like(_condition_types.index_map());
+        check_types(sorted_inputs, _input_types, "Input");
+        check_types(sorted_conditions, _condition_types, "Condition");
+        auto [outputs, det] = build_forward_impl(fb, sorted_inputs, sorted_conditions);
+        NamedVector<Value> sorted_outputs =
+            outputs.sort_like(_output_types.index_map());
+        check_types(sorted_outputs, _output_types, "Output");
+        check_types({{"det", det}}, {{"det", batch_float}}, "Determinant");
+        outputs.push_back("det", det);
+        return outputs;
     }
     CATCH_ERRORS(name());
 }
 
-Mapping::Result Mapping::build_inverse(
-    FunctionBuilder& fb, const ValueVec& inputs, const ValueVec& conditions
+NamedVector<Value> Mapping::build_inverse(
+    FunctionBuilder& fb,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions
 ) const {
     try {
-        check_types(inputs, _output_types, "Input");
-        check_types(conditions, _condition_types, "Condition");
-        auto [outputs, det] = build_inverse_impl(fb, inputs, conditions);
-        check_types(outputs, _input_types, "Output");
-        check_types({det}, {batch_float}, "Determinant");
-        return {outputs, det};
+        NamedVector<Value> sorted_inputs = inputs.sort_like(_output_types.index_map());
+        NamedVector<Value> sorted_conditions =
+            inputs.sort_like(_condition_types.index_map());
+        check_types(sorted_inputs, _output_types, "Input");
+        check_types(sorted_conditions, _condition_types, "Condition");
+        auto [outputs, det] = build_inverse_impl(fb, sorted_inputs, sorted_conditions);
+        NamedVector<Value> sorted_outputs = outputs.sort_like(_input_types.index_map());
+        check_types(sorted_outputs, _input_types, "Output");
+        check_types({{"det", det}}, {{"det", batch_float}}, "Determinant");
+        return outputs;
     }
     CATCH_ERRORS(name());
 }
 
 Function Mapping::forward_function() const {
-    auto arg_types = _input_types;
+    auto arg_types = _input_types.values();
     arg_types.insert(arg_types.end(), _condition_types.begin(), _condition_types.end());
-    auto ret_types = _output_types;
+    auto ret_types = _output_types.values();
     ret_types.push_back(batch_float);
     FunctionBuilder fb(arg_types, ret_types);
     auto n_inputs = _input_types.size();
     auto n_outputs = _output_types.size();
     auto [outputs, det] = build_forward_impl(
-        fb, fb.input_range(0, n_inputs), fb.input_range(n_inputs, arg_types.size())
+        fb,
+        {_input_types.keys(), fb.input_range(0, n_inputs)},
+        {_condition_types.keys(), fb.input_range(n_inputs, arg_types.size())}
     );
-    fb.output_range(0, outputs);
+    fb.output_range(0, outputs.values());
     fb.output(n_outputs, det);
     return fb.function();
 }
 
 Function Mapping::inverse_function() const {
-    auto arg_types = _output_types;
+    auto arg_types = _output_types.values();
     arg_types.insert(arg_types.end(), _condition_types.begin(), _condition_types.end());
-    auto ret_types = _input_types;
+    auto ret_types = _input_types.values();
     ret_types.push_back(batch_float);
     FunctionBuilder fb(arg_types, ret_types);
     auto n_inputs = _input_types.size();
     auto n_outputs = _output_types.size();
     auto [outputs, det] = build_inverse_impl(
-        fb, fb.input_range(0, n_outputs), fb.input_range(n_outputs, arg_types.size())
+        fb,
+        {_output_types.keys(), fb.input_range(0, n_outputs)},
+        {_condition_types.keys(), fb.input_range(n_outputs, arg_types.size())}
     );
-    fb.output_range(0, outputs);
+    fb.output_range(0, outputs.values());
     fb.output(n_inputs, det);
     return fb.function();
 }
 
-ValueVec
-FunctionGenerator::build_function(FunctionBuilder& fb, const ValueVec& args) const {
+NamedVector<Value> FunctionGenerator::build_function(
+    FunctionBuilder& fb, const NamedVector<Value>& args
+) const {
     try {
-        check_types(args, _arg_types, "Argument");
-        auto outputs = build_function_impl(fb, args);
-        check_types(outputs, _return_types, "Output");
+        NamedVector<Value> sorted_args = args.sort_like(_arg_types.index_map());
+        check_types(sorted_args, _arg_types, "Argument");
+        auto outputs = build_function_impl(fb, sorted_args);
+        NamedVector<Value> sorted_outputs = args.sort_like(_return_types.index_map());
+        check_types(sorted_outputs, _return_types, "Output");
         return outputs;
     }
     CATCH_ERRORS(name());
 }
 
 Function FunctionGenerator::function() const {
-    FunctionBuilder fb(_arg_types, _return_types);
-    auto outputs = build_function_impl(fb, fb.input_range(0, _arg_types.size()));
-    fb.output_range(0, outputs);
+    FunctionBuilder fb(_arg_types.values(), _return_types.values());
+    auto outputs = build_function_impl(
+        fb, {_arg_types.keys(), fb.input_range(0, _arg_types.size())}
+    );
+    fb.output_range(0, outputs.values());
     return fb.function();
 }

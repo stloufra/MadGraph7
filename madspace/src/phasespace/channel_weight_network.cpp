@@ -5,8 +5,10 @@ using namespace madspace;
 MomentumPreprocessing::MomentumPreprocessing(std::size_t particle_count) :
     FunctionGenerator(
         "MomentumPreprocessing",
-        {batch_four_vec_array(particle_count), batch_float, batch_float},
-        {batch_float_array(3 * (particle_count - 2) + 2)}
+        {{"momenta", batch_four_vec_array(particle_count)},
+         {"x1", batch_float},
+         {"x2", batch_float}},
+        {{"preproc", batch_float_array(3 * (particle_count - 2) + 2)}}
     ),
     _output_dim(3 * (particle_count - 2) + 2) {}
 
@@ -26,11 +28,11 @@ ChannelWeightNetwork::ChannelWeightNetwork(
 ) :
     FunctionGenerator(
         "ChannelWeightNetwork",
-        {batch_four_vec_array(particle_count),
-         batch_float,
-         batch_float,
-         batch_float_array(channel_count)},
-        {batch_float_array(channel_count)}
+        {{"momenta", batch_four_vec_array(particle_count)},
+         {"x1", batch_float},
+         {"x2", batch_float},
+         {"prior_channel_weights", batch_float_array(channel_count)}},
+        {{"channel_weights", batch_float_array(channel_count)}}
     ),
     _preprocessing(particle_count),
     _mlp(
