@@ -383,7 +383,7 @@ class FortranHelasCallWriter(HelasCallWriter):
 
         key = ((3, 3, 5, 3,tuple()), ('A',))
         call = lambda wf: \
-               "CALL UVVAXX(W(1,%d),W(1,%d),%s,zero,zero,zero,W(1,%d))" % \
+               "CALL UVVAXX(W(%d),W(%d),%s,zero,zero,zero,W(%d))" % \
                (FortranHelasCallWriter.sorted_mothers(wf)[0].get('me_id'),
                 FortranHelasCallWriter.sorted_mothers(wf)[1].get('me_id'),
                 wf.get('coupling')[0],
@@ -392,7 +392,7 @@ class FortranHelasCallWriter(HelasCallWriter):
 
         key = ((3, 5, 3, 1,tuple()), ('A',))
         call = lambda wf: \
-               "CALL JVTAXX(W(1,%d),W(1,%d),%s,zero,zero,W(1,%d))" % \
+               "CALL JVTAXX(W(%d),W(%d),%s,zero,zero,W(%d))" % \
                (FortranHelasCallWriter.sorted_mothers(wf)[0].get('me_id'),
                 FortranHelasCallWriter.sorted_mothers(wf)[1].get('me_id'),
                 wf.get('coupling')[0],
@@ -401,7 +401,7 @@ class FortranHelasCallWriter(HelasCallWriter):
 
         key = ((3, 3, 5), ('A',))
         call = lambda amp: \
-               "CALL VVTAXX(W(1,%d),W(1,%d),W(1,%d),%s,zero,AMP(%d))" % \
+               "CALL VVTAXX(W(%d),W(%d),W(%d),%s,zero,AMP(%d))" % \
                (FortranHelasCallWriter.sorted_mothers(amp)[0].get('me_id'),
                 FortranHelasCallWriter.sorted_mothers(amp)[1].get('me_id'),
                 FortranHelasCallWriter.sorted_mothers(amp)[2].get('me_id'),
@@ -413,7 +413,7 @@ class FortranHelasCallWriter(HelasCallWriter):
 
         key = ((3, 3, 3, 3, 1,tuple()), ('gggg3',))
         call = lambda wf: \
-               "CALL JGGGXX(W(1,%d),W(1,%d),W(1,%d),%s,W(1,%d))" % \
+               "CALL JGGGXX(W(%d),W(%d),W(%d),%s,W(%d))" % \
                (FortranHelasCallWriter.sorted_mothers(wf)[1].get('me_id'),
                 FortranHelasCallWriter.sorted_mothers(wf)[0].get('me_id'),
                 FortranHelasCallWriter.sorted_mothers(wf)[2].get('me_id'),
@@ -422,7 +422,7 @@ class FortranHelasCallWriter(HelasCallWriter):
         self.add_wavefunction(key, call)
         key = ((3, 3, 3, 3), ('gggg1',))
         call = lambda amp: \
-               "CALL GGGGXX(W(1,%d),W(1,%d),W(1,%d),W(1,%d),%s,AMP(%d))" % \
+               "CALL GGGGXX(W(%d),W(%d),W(%d),W(%d),%s,AMP(%d))" % \
                (FortranHelasCallWriter.sorted_mothers(amp)[0].get('me_id'),
                 FortranHelasCallWriter.sorted_mothers(amp)[1].get('me_id'),
                 FortranHelasCallWriter.sorted_mothers(amp)[2].get('me_id'),
@@ -432,7 +432,7 @@ class FortranHelasCallWriter(HelasCallWriter):
         self.add_amplitude(key, call)
         key = ((3, 3, 3, 3, 1 ,tuple()), ('gggg2',))
         call = lambda wf: \
-               "CALL JGGGXX(W(1,%d),W(1,%d),W(1,%d),%s,W(1,%d))" % \
+               "CALL JGGGXX(W(%d),W(%d),W(%d),%s,W(%d))" % \
                (FortranHelasCallWriter.sorted_mothers(wf)[0].get('me_id'),
                 FortranHelasCallWriter.sorted_mothers(wf)[2].get('me_id'),
                 FortranHelasCallWriter.sorted_mothers(wf)[1].get('me_id'),
@@ -441,7 +441,7 @@ class FortranHelasCallWriter(HelasCallWriter):
         self.add_wavefunction(key, call)
         key = ((3, 3, 3, 3), ('gggg2',))
         call = lambda amp: \
-               "CALL GGGGXX(W(1,%d),W(1,%d),W(1,%d),W(1,%d),%s,AMP(%d))" % \
+               "CALL GGGGXX(W(%d),W(%d),W(%d),W(%d),%s,AMP(%d))" % \
                (FortranHelasCallWriter.sorted_mothers(amp)[2].get('me_id'),
                 FortranHelasCallWriter.sorted_mothers(amp)[0].get('me_id'),
                 FortranHelasCallWriter.sorted_mothers(amp)[1].get('me_id'),
@@ -451,7 +451,7 @@ class FortranHelasCallWriter(HelasCallWriter):
         self.add_amplitude(key, call)
         key = ((3, 3, 3, 3, 1,tuple()), ('gggg1',))
         call = lambda wf: \
-               "CALL JGGGXX(W(1,%d),W(1,%d),W(1,%d),%s,W(1,%d))" % \
+               "CALL JGGGXX(W(%d),W(%d),W(%d),%s,W(%d))" % \
                (FortranHelasCallWriter.sorted_mothers(wf)[2].get('me_id'),
                 FortranHelasCallWriter.sorted_mothers(wf)[1].get('me_id'),
                 FortranHelasCallWriter.sorted_mothers(wf)[0].get('me_id'),
@@ -460,7 +460,7 @@ class FortranHelasCallWriter(HelasCallWriter):
         self.add_wavefunction(key, call)
         key = ((3, 3, 3, 3), ('gggg3',))
         call = lambda amp: \
-               "CALL GGGGXX(W(1,%d),W(1,%d),W(1,%d),W(1,%d),%s,AMP(%d))" % \
+               "CALL GGGGXX(W(%d),W(%d),W(%d),W(%d),%s,AMP(%d))" % \
                (FortranHelasCallWriter.sorted_mothers(amp)[1].get('me_id'),
                 FortranHelasCallWriter.sorted_mothers(amp)[2].get('me_id'),
                 FortranHelasCallWriter.sorted_mothers(amp)[0].get('me_id'),
@@ -473,7 +473,7 @@ class FortranHelasCallWriter(HelasCallWriter):
 
         key = ((1, 3, 3, 3, 3,tuple()), ('',))
         call = lambda wf: \
-               "CALL JVVSXX(W(1,%d),W(1,%d),W(1,%d),DUM1,%s,%s,%s,W(1,%d))" % \
+               "CALL JVVSXX(W(%d),W(%d),W(%d),DUM1,%s,%s,%s,W(%d))" % \
                (wf.get('mothers')[0].get('me_id'),
                 wf.get('mothers')[1].get('me_id'),
                 wf.get('mothers')[2].get('me_id'),
@@ -485,7 +485,7 @@ class FortranHelasCallWriter(HelasCallWriter):
 
         key = ((3, 3, 3, 1, 4,tuple()), ('',))
         call = lambda wf: \
-               "CALL HVVVXX(W(1,%d),W(1,%d),W(1,%d),DUM1,%s,%s,%s,W(1,%d))" % \
+               "CALL HVVVXX(W(%d),W(%d),W(%d),DUM1,%s,%s,%s,W(%d))" % \
                (wf.get('mothers')[0].get('me_id'),
                 wf.get('mothers')[1].get('me_id'),
                 wf.get('mothers')[2].get('me_id'),
@@ -497,7 +497,7 @@ class FortranHelasCallWriter(HelasCallWriter):
 
         key = ((1, 3, 3, 3), ('',))
         call = lambda amp: \
-               "CALL VVVSXX(W(1,%d),W(1,%d),W(1,%d),W(1,%d),DUM1,%s,AMP(%d))" % \
+               "CALL VVVSXX(W(%d),W(%d),W(%d),W(%d),DUM1,%s,AMP(%d))" % \
                (amp.get('mothers')[0].get('me_id'),
                 amp.get('mothers')[1].get('me_id'),
                 amp.get('mothers')[2].get('me_id'),
@@ -510,7 +510,7 @@ class FortranHelasCallWriter(HelasCallWriter):
 
         key = ((1, 3, 3, 3, 1,tuple()), ('',))
         call = lambda wf: \
-               "CALL JVVSXX(W(1,%d),W(1,%d),W(1,%d),DUM1,%s,%s,%s,W(1,%d))" % \
+               "CALL JVVSXX(W(%d),W(%d),W(%d),DUM1,%s,%s,%s,W(%d))" % \
                (wf.get('mothers')[0].get('me_id'),
                 wf.get('mothers')[1].get('me_id'),
                 wf.get('mothers')[2].get('me_id'),
@@ -522,7 +522,7 @@ class FortranHelasCallWriter(HelasCallWriter):
 
         key = ((3, 3, 3, 1, 4,tuple()), ('',))
         call = lambda wf: \
-               "CALL HVVVXX(W(1,%d),W(1,%d),W(1,%d),DUM1,%s,%s,%s,W(1,%d))" % \
+               "CALL HVVVXX(W(%d),W(%d),W(%d),DUM1,%s,%s,%s,W(%d))" % \
                (wf.get('mothers')[0].get('me_id'),
                 wf.get('mothers')[1].get('me_id'),
                 wf.get('mothers')[2].get('me_id'),
@@ -534,7 +534,7 @@ class FortranHelasCallWriter(HelasCallWriter):
 
         key = ((1, 3, 3, 3), ('',))
         call = lambda amp: \
-               "CALL VVVSXX(W(1,%d),W(1,%d),W(1,%d),W(1,%d),DUM1,%s,AMP(%d))" % \
+               "CALL VVVSXX(W(%d),W(%d),W(%d),W(%d),DUM1,%s,AMP(%d))" % \
                (amp.get('mothers')[0].get('me_id'),
                 amp.get('mothers')[1].get('me_id'),
                 amp.get('mothers')[2].get('me_id'),
@@ -546,7 +546,7 @@ class FortranHelasCallWriter(HelasCallWriter):
         # Spin2 Helas Routine
         key = ((-2, 2, 5), ('',))
         call = lambda amp: \
-               "CALL IOTXXX(W(1,%d),W(1,%d),W(1,%d),%s,%s,AMP(%d))" % \
+               "CALL IOTXXX(W(%d),W(%d),W(%d),%s,%s,AMP(%d))" % \
                (amp.get('mothers')[0].get('me_id'),
                 amp.get('mothers')[1].get('me_id'),
                 amp.get('mothers')[2].get('me_id'),
@@ -557,7 +557,7 @@ class FortranHelasCallWriter(HelasCallWriter):
         
         key = ((-2, 2, 5, 3,tuple()), ('',))
         call = lambda wf: \
-               "CALL UIOXXX(W(1,%d),W(1,%d),%s,%s,%s,%s,W(1,%d))" % \
+               "CALL UIOXXX(W(%d),W(%d),%s,%s,%s,%s,W(%d))" % \
                (wf.get('mothers')[0].get('me_id'),
                 wf.get('mothers')[1].get('me_id'),
                 wf.get('coupling')[0],
@@ -569,7 +569,7 @@ class FortranHelasCallWriter(HelasCallWriter):
         
         key = ((3,3,3,5),('',))
         call = lambda amp: \
-               "CALL VVVTXX(W(1,%d),W(1,%d),W(1,%d),W(1,%d),1d0,%s,AMP(%d))" % \
+               "CALL VVVTXX(W(%d),W(%d),W(%d),W(%d),1d0,%s,AMP(%d))" % \
                (amp.get('mothers')[0].get('me_id'),
                 amp.get('mothers')[1].get('me_id'),
                 amp.get('mothers')[2].get('me_id'),
@@ -580,7 +580,7 @@ class FortranHelasCallWriter(HelasCallWriter):
  
         key = ((3,3,5),('',))
         call = lambda amp: \
-               "CALL VVTXXX(W(1,%d),W(1,%d),W(1,%d),%s,%s,AMP(%d))" % \
+               "CALL VVTXXX(W(%d),W(%d),W(%d),%s,%s,AMP(%d))" % \
                (amp.get('mothers')[0].get('me_id'),
                 amp.get('mothers')[1].get('me_id'),
                 amp.get('mothers')[2].get('me_id'),
@@ -687,15 +687,14 @@ class FortranHelasCallWriter(HelasCallWriter):
                 # For non-scalars, need mass and helicity
                 call = call + "%s,NHEL(%d),"
             if argument.get('spin') == 2:
-                call = call + "%+d,FLV(%d),W(%d))"
+                call = call + "%+d, FLAVOR(%d),W(%d))"
             else:
-                call = call + "%+d*IC(%d),W(%d))"
+                call = call + "%+d,W(%d))"
             if argument.get('spin') == 1:
                 call_function = lambda wf: call % \
                                 (wf.get('number_external'),
                                  # For boson, need initial/final here
                                  (-1) ** (wf.get('state') == 'initial'),
-                                 wf.get('number_external'),
                                  wf.get('me_id'))
             elif argument.is_boson():
                 call_function = lambda wf: call % \
@@ -704,7 +703,6 @@ class FortranHelasCallWriter(HelasCallWriter):
                                  wf.get('number_external'),
                                  # For boson, need initial/final here
                                  (-1) ** (wf.get('state') == 'initial'),
-                                 wf.get('number_external'),
                                  wf.get('me_id'))
             else:
                 call_function = lambda wf: call % \

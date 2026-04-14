@@ -2849,7 +2849,7 @@ class RestrictModel(model_reader.ModelReader):
 
         return self.coupling_pos
         
-    def detect_identical_couplings(self, strict_zero=False):
+    def detect_identical_couplings(self, strict_zero=False, allow_minus_coupling=False):
         """return a list with the name of all vanishing couplings"""
         
         dict_value_coupling = {}
@@ -2886,15 +2886,15 @@ class RestrictModel(model_reader.ModelReader):
 
             value = limit_to_6_digit(value)
 
-            if value in dict_value_coupling:# or -1*value in dict_value_coupling:
-                #if value in dict_value_coupling:
+            if value in dict_value_coupling:
                     iden_key.add(value)
                     dict_value_coupling[value].append((name,1))
-                #else:
-                #    iden_key.add(-1*value)
-                #    dict_value_coupling[-1*value].append((name,-1))
+            elif allow_minus_coupling and -1*value in dict_value_coupling:
+                    iden_key.add(-1*value)
+                    dict_value_coupling[-1*value].append((name,-1))
             else:
                 dict_value_coupling[value] = [(name,1)]
+                
         for key in iden_key:
             tmp = []
             if key in dict_value_coupling:
