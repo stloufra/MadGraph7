@@ -2582,68 +2582,67 @@ class ALOHAWriterForPython(WriteALOHA):
     def get_coupling_def(self):
         """Generate flavor-checking / coupling-resolution code for Python routines.
 
-        For routines involving fermions:
-        - Without the ``M`` tag: ensures diagonal flavor conservation
-          (flv_index1 == flv_index2 for amplitudes; propagates flavor for
-          off-shell wavefunctions).
-        - With the ``M`` tag: uses the ``COUP`` argument (a
-          ``FLV_Coupling_py`` object) to check/set the partner flavor and
-          resolves the actual complex coupling value.
+        Only active for ``M``-tagged routines where ``COUP`` is a
+        ``FLV_Coupling_py`` object.  Non-``M`` routines use scalar couplings
+        that need no flavor filtering.
+
+        Convention for the ``flavor`` attribute on a wavefunction:
+          -1  non-merged (or unspecified) particle – skip flavor checks and
+              use the first available flavor from the coupling object so that
+              standard ``check`` commands always yield a non-zero result.
+           0  merged particle whose flavor was never set (invalid state).
+          ≥1  merged particle with a known flavor index.
         """
         out = StringIO()
 
-        # Only relevant when fermions are present
+        # Non-M routines use plain complex couplings; no flavor logic needed.
+        if 'M' not in self.tag:
+            return ''
+
+        # Only relevant for routines that involve fermions.
         if 'F' not in self.particles:
             return ''
 
-        if 'M' not in self.tag:
-            # ── Diagonal coupling: check flavor conservation ──────────────
-            if self.outgoing == 0 or self.particles[self.outgoing - 1] not in ['F']:
-                # Amplitude or non-fermion output: check flv1 == flv2
-                if not self.outgoing:
-                    fail_str = '0j'
-                else:
-                    fail_str = '%s%d' % (self.particles[self.outgoing - 1], self.outgoing)
-                out.write('    flv_index1 = F1.flavor\n')
-                out.write('    flv_index2 = F2.flavor\n')
-                out.write('    if flv_index1 != flv_index2 or flv_index1 == -1:\n')
-                out.write('        return %s\n' % fail_str)
-            else:
-                # Off-shell fermion output: propagate flavor from incoming fermion
-                incoming = [i + 1 for i in range(len(self.particles))
-                            if i + 1 != self.outgoing
-                            and self.particles[i] == 'F'][0]
-                outgoing = self.outgoing
-                out.write('    F%d.flavor = F%d.flavor\n' % (outgoing, incoming))
-            return out.getvalue()
-
         # ── M-tagged routine: COUP is a FLV_Coupling_py object ────────────
         if self.outgoing == 0 or self.particles[self.outgoing - 1] not in ['F']:
-            # Amplitude or non-fermion output
+            # Amplitude or non-fermion off-shell output
             if not self.outgoing:
                 fail_str = '0j'
             else:
                 fail_str = '%s%d' % (self.particles[self.outgoing - 1], self.outgoing)
             out.write('    flv_index1 = F1.flavor\n')
             out.write('    flv_index2 = F2.flavor\n')
-            out.write('    if flv_index1 == -1 or flv_index2 == -1:\n')
+            # flavor==0 means "merged but unset" → reject
+            out.write('    if flv_index1 == 0 or flv_index2 == 0:\n')
             out.write('        return %s\n' % fail_str)
-            out.write('    if COUP.partner.get(flv_index1, -1) != flv_index2:\n')
-            out.write('        return %s\n' % fail_str)
+            # flavor==-1 means "non-merged / unspecified" → use first available
+            out.write('    if flv_index1 == -1:\n')
+            out.write('        flv_index1 = next(iter(COUP.val), None)\n')
+            out.write('        if flv_index1 is None:\n')
+            out.write('            return %s\n' % fail_str)
+            out.write('        flv_index2 = COUP.partner.get(flv_index1, -1)\n')
+            out.write('    else:\n')
+            out.write('        if COUP.partner.get(flv_index1, -1) != flv_index2:\n')
+            out.write('            return %s\n' % fail_str)
             flv_for_coup = 'flv_index1'
         else:
-            # Off-shell fermion output
+            # Off-shell fermion output: propagate flavor to outgoing wavefunction
             incoming = [i + 1 for i in range(len(self.particles))
                         if i + 1 != self.outgoing
                         and self.particles[i] == 'F'][0]
             outgoing = self.outgoing
             out_wf = 'F%d' % outgoing
             if incoming % 2 == 1:
-                # First fermion (F1, F3, …) is the incoming leg → PARTNER
+                # First fermion (F1, F3, …) → use PARTNER
                 out.write('    flv_index%d = F%d.flavor\n' % (incoming, incoming))
-                out.write('    if flv_index%d == -1:\n' % incoming)
-                out.write('        %s.flavor = -1\n' % out_wf)
+                out.write('    if flv_index%d == 0:\n' % incoming)
+                out.write('        %s.flavor = 0\n' % out_wf)
                 out.write('        return %s\n' % out_wf)
+                out.write('    if flv_index%d == -1:\n' % incoming)
+                out.write('        flv_index%d = next(iter(COUP.val), None)\n' % incoming)
+                out.write('        if flv_index%d is None:\n' % incoming)
+                out.write('            %s.flavor = -1\n' % out_wf)
+                out.write('            return %s\n' % out_wf)
                 out.write('    flv_index2 = COUP.partner.get(flv_index%d, -1)\n' % incoming)
                 out.write('    if flv_index2 == -1:\n')
                 out.write('        %s.flavor = -1\n' % out_wf)
@@ -2651,11 +2650,16 @@ class ALOHAWriterForPython(WriteALOHA):
                 out.write('    %s.flavor = flv_index2\n' % out_wf)
                 flv_for_coup = 'flv_index%d' % incoming
             else:
-                # Second fermion (F2, F4, …) is the incoming leg → PARTNER2
+                # Second fermion (F2, F4, …) → use PARTNER2
                 out.write('    flv_index%d = F%d.flavor\n' % (incoming, incoming))
-                out.write('    if flv_index%d == -1:\n' % incoming)
-                out.write('        %s.flavor = -1\n' % out_wf)
+                out.write('    if flv_index%d == 0:\n' % incoming)
+                out.write('        %s.flavor = 0\n' % out_wf)
                 out.write('        return %s\n' % out_wf)
+                out.write('    if flv_index%d == -1:\n' % incoming)
+                out.write('        flv_index%d = next(iter(COUP.val), None)\n' % incoming)
+                out.write('        if flv_index%d is None:\n' % incoming)
+                out.write('            %s.flavor = -1\n' % out_wf)
+                out.write('            return %s\n' % out_wf)
                 out.write('    flv_index1 = COUP.partner2.get(flv_index%d, -1)\n' % incoming)
                 out.write('    if flv_index1 == -1:\n')
                 out.write('        %s.flavor = -1\n' % out_wf)
