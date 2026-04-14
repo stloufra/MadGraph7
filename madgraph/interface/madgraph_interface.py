@@ -523,6 +523,11 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info("o lorentz_invariance:",'$MG:color:GREEN')
         logger.info("   Check that the amplitude is lorentz invariant by")
         logger.info("   comparing the amplitiude in different frames")
+        logger.info("o flavor:",'$MG:color:GREEN')
+        logger.info("   Check that the flavor-merged matrix element agrees with")
+        logger.info("   the individual-flavor matrix elements computed without")
+        logger.info("   flavor grouping at the same phase-space point.")
+        logger.info("   This is useful to validate the merged-flavor method.")
         logger.info("o cms:",'$MG:color:GREEN')
         logger.info("   Check the complex mass scheme consistency by comparing")
         logger.info("   it to the narrow width approximation in the off-shell")
@@ -2966,7 +2971,7 @@ class MadGraphCmd(HelpToCmd, CheckValidForCmd, CompleteForCmd, CmdExtended):
     _tutorial_opts = ['aMCatNLO', 'stop', 'MadLoop', 'MadGraph5']
     _switch_opts = ['mg5','aMC@NLO','ML5']
     _check_opts = ['full', 'timing', 'stability', 'profile', 'permutation',
-                   'gauge','lorentz', 'brs', 'cms']
+                   'gauge','lorentz', 'brs', 'cms', 'flavor']
     _import_formats = ['model_v4', 'model', 'proc_v4', 'command', 'banner']
     _install_opts = ['Delphes', 'MadAnalysis4', 'ExRootAnalysis',
                      'update', 'Golem95', 'QCDLoop', 'maddm', 'maddump',
@@ -4447,6 +4452,7 @@ This implies that with decay chains:
         profile_time = []
         profile_stab = []
         cms_results = []
+        flavor_result = []
 
         if "_cuttools_dir" in dir(self):
             CT_dir = self._cuttools_dir
@@ -4593,6 +4599,13 @@ This implies that with decay chains:
                                           options=options)
             nb_processes += len(lorentz_result)
 
+        if args[0] in ['flavor']:
+            flavor_result = process_checks.check_flavor(myprocdef,
+                                          param_card = param_card,
+                                          options=options,
+                                          cmd = self)
+            nb_processes += len(flavor_result)
+
         if args[0] in  ['brs', 'full']:
             gauge_result = process_checks.check_gauge(myprocdef,
                                           param_card = param_card,
@@ -4707,6 +4720,9 @@ This implies that with decay chains:
         if lorentz_result:
             text += 'Lorentz invariance results:\n'
             text += process_checks.output_lorentz_inv(lorentz_result) + '\n'
+        if flavor_result:
+            text += 'Flavor grouping check results:\n'
+            text += process_checks.output_flavor(flavor_result) + '\n'
         if gauge_result:
             text += 'Gauge results:\n'
             text += process_checks.output_gauge(gauge_result) + '\n'

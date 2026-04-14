@@ -3518,6 +3518,322 @@ def check_lorentz_process(process, evaluator,options=None):
     return {'process': process, 'results': results}
 
 #===============================================================================
+# check_flavor
+#===============================================================================
+def check_flavor(process_definition, param_card=None, options=None,
+                 cmd=FakeInterface()):
+    """Check that the merged-flavor matrix element agrees with the individual-
+    flavor matrix elements for each subprocess.
+
+    For each individual-flavor subprocess (e.g. ``u u~ > t t~``, ``d d~ > t t~``,
+    etc.) the function evaluates:
+
+    1. The matrix element using the *merged* model with explicit flavor tags on
+       the external legs (so the merged coupling selects the correct flavor).
+    2. The matrix element for the same individual subprocess using the *unmerged*
+       model at the *same* phase-space point.
+
+    The two results are compared.  A successful check means both evaluations
+    agree to within a relative tolerance.
+
+    Parameters
+    ----------
+    process_definition : base_objects.ProcessDefinition
+        The process definition (may contain merged-flavor multi-legs such as
+        ``p``, ``_quark``, etc.).
+    param_card : str or None
+        Path to a param_card file.  If *None* the model defaults are used.
+    options : dict or None
+        Optional dict with keys understood by ``MatrixElementEvaluator`` (e.g.
+        ``'energy'``).
+    cmd : interface object
+        Interface object providing ``cmd.options`` etc.
+
+    Returns
+    -------
+    list of dict
+        Each dict has the keys:
+        ``'process'``       – the *individual-flavor* process string,
+        ``'value_merged'``  – ``{'m2': float, 'jamp': ...}`` from merged model
+                              (or ``None`` if no diagrams / evaluation failed),
+        ``'value_unmerged'``– same dict from the unmerged model.
+    """
+    if not isinstance(process_definition, base_objects.ProcessDefinition):
+        raise InvalidCmd(
+            "check_flavor requires a ProcessDefinition (multiprocess) object")
+
+    if options is None:
+        options = {}
+
+    multiprocess = process_definition
+    merged_model = multiprocess.get('model')
+    cmass_scheme = cmd.options['complex_mass_scheme']
+
+    # Determine the set of merged particle PDG codes and their constituents.
+    merged_particles = merged_model.get('merged_particles')  # {merged_pdg: [individual_pdgs]}
+
+    def expand_ids(pdg_code):
+        """Return list of individual pdg codes for a potentially merged one."""
+        apg = abs(pdg_code)
+        if apg in merged_particles:
+            sub_ids = merged_particles[apg]
+            if pdg_code > 0:
+                return [i for i in sub_ids if i > 0]
+            else:
+                return [-i for i in sub_ids if i > 0]
+        return [pdg_code]
+
+    # ── 1. Set up the merged-model evaluator ─────────────────────────────────
+    # Use reuse=False: since each flavor combination generates different ALOHA
+    # code (the ixxxxx/oxxxxx calls have flavor indices hardcoded), we must
+    # regenerate the matrix method for every individual-flavor call.
+    evaluator_merged = MatrixElementEvaluator(merged_model, param_card,
+                                              cmd=cmd,
+                                              auth_skipping=False, reuse=False)
+    if not cmass_scheme and multiprocess.get('perturbation_couplings') == []:
+        logger.info('Setting all widths to zero for flavor check')
+        for particle in evaluator_merged.full_model.get('particles'):
+            if particle.get('width') != 'ZERO':
+                evaluator_merged.full_model.get('parameter_dict')[
+                    particle.get('width')] = 0.
+
+    # ── 2. Import the same model *without* flavor grouping ───────────────────
+    # Using unmerge_flavors() on a deep-copy can leave color-algebra objects in
+    # an array form that the color module cannot handle.  Importing the model
+    # fresh with apply_flavor_grouping=False gives clean color objects.
+    model_path = merged_model.get('modelpath')
+    unmerged_model = import_ufo.import_model(model_path,
+                                             options={'apply_flavor_grouping': False})
+
+    evaluator_unmerged = MatrixElementEvaluator(unmerged_model, param_card,
+                                                cmd=cmd,
+                                                auth_skipping=False, reuse=True)
+    if not cmass_scheme:
+        for particle in evaluator_unmerged.full_model.get('particles'):
+            if particle.get('width') != 'ZERO':
+                evaluator_unmerged.full_model.get('parameter_dict')[
+                    particle.get('width')] = 0.
+
+    # ── 3. Build the list of individual-flavor processes to check ────────────
+    # For each multileg combination in the process definition, expand every
+    # merged-particle id into its constituent individual ids.
+    is_id_options_merged  = [leg.get('ids') for leg in multiprocess.get('legs')
+                             if not leg.get('state')]
+    fs_id_options_merged  = [leg.get('ids') for leg in multiprocess.get('legs')
+                             if leg.get('state')]
+    is_id_options_indiv   = [sum([expand_ids(i) for i in ids], [])
+                             for ids in is_id_options_merged]
+    fs_id_options_indiv   = [sum([expand_ids(i) for i in ids], [])
+                             for ids in fs_id_options_merged]
+
+    results = []
+    checked = set()   # avoid duplicate (is_ids, fs_ids) combinations
+
+    for is_flavor_ids in itertools.product(*is_id_options_indiv):
+        for fs_flavor_ids in itertools.product(*fs_id_options_indiv):
+            key = (is_flavor_ids, fs_flavor_ids)
+            if key in checked:
+                continue
+            checked.add(key)
+
+            # ── 3a. Unmerged evaluation ──────────────────────────────────────
+            unmerged_legs = base_objects.LegList(
+                [base_objects.Leg({'id': id, 'state': False})
+                 for id in is_flavor_ids] +
+                [base_objects.Leg({'id': id, 'state': True})
+                 for id in fs_flavor_ids])
+            unmerged_proc = base_objects.Process({
+                'legs': unmerged_legs,
+                'model': unmerged_model,
+                'orders': multiprocess.get('orders'),
+                'forbidden_particles': multiprocess.get('forbidden_particles'),
+                'forbidden_onsh_s_channels': multiprocess.get('forbidden_onsh_s_channels'),
+                'forbidden_s_channels': multiprocess.get('forbidden_s_channels'),
+                'perturbation_couplings': multiprocess.get('perturbation_couplings'),
+            })
+            for i, leg in enumerate(unmerged_proc.get('legs')):
+                leg.set('number', i + 1)
+
+            logger.info("Flavor check (unmerged): %s" %
+                        unmerged_proc.nice_string().replace('Process:', 'process'))
+
+            try:
+                amplitude_u = diagram_generation.Amplitude(unmerged_proc)
+            except InvalidCmd:
+                continue
+            if not amplitude_u.get('diagrams'):
+                continue
+
+            p, _ = evaluator_unmerged.get_momenta(unmerged_proc, options)
+            me_u = helas_objects.HelasMatrixElement(amplitude_u, gen_color=True)
+            val_unmerged = evaluator_unmerged.evaluate_matrix_element(
+                me_u, p=p, output='jamp', options=options)
+
+            # ── 3b. Merged evaluation with explicit flavor tags on legs ──────
+            # Map each individual-flavor id back to the merged-particle id (if
+            # it belongs to a merged group) and set the flavor attribute on the
+            # leg so the ALOHA routine selects the correct coupling entry.
+            # The FLV_Coupling convention always uses the POSITIVE (particle)
+            # PDG code as the flavor key, even for antiparticle legs.
+            merged_legs_list = []
+            for is_id_individual in is_flavor_ids:
+                merged_id = is_id_individual
+                flav_tag = []
+                for mpdg, sub_ids in merged_particles.items():
+                    if abs(is_id_individual) in sub_ids:
+                        # Use the merged-particle id (preserving sign for
+                        # particle/anti-particle), and the POSITIVE individual
+                        # pdg as the flavor tag.
+                        merged_id = mpdg if is_id_individual > 0 else -mpdg
+                        flav_tag = [abs(is_id_individual)]
+                        break
+                merged_legs_list.append(
+                    base_objects.Leg({'id': merged_id, 'state': False,
+                                      'flavor': flav_tag}))
+            for fs_id_individual in fs_flavor_ids:
+                merged_id = fs_id_individual
+                flav_tag = []
+                for mpdg, sub_ids in merged_particles.items():
+                    if abs(fs_id_individual) in sub_ids:
+                        merged_id = mpdg if fs_id_individual > 0 else -mpdg
+                        flav_tag = [abs(fs_id_individual)]
+                        break
+                merged_legs_list.append(
+                    base_objects.Leg({'id': merged_id, 'state': True,
+                                      'flavor': flav_tag}))
+
+            merged_proc = base_objects.Process({
+                'legs': base_objects.LegList(merged_legs_list),
+                'model': merged_model,
+                'orders': multiprocess.get('orders'),
+                'forbidden_particles': multiprocess.get('forbidden_particles'),
+                'forbidden_onsh_s_channels': multiprocess.get('forbidden_onsh_s_channels'),
+                'forbidden_s_channels': multiprocess.get('forbidden_s_channels'),
+                'perturbation_couplings': multiprocess.get('perturbation_couplings'),
+            })
+            for i, leg in enumerate(merged_proc.get('legs')):
+                leg.set('number', i + 1)
+
+            logger.info("Flavor check (merged):   %s" %
+                        merged_proc.nice_string().replace('Process:', 'process'))
+
+            val_merged = None
+            try:
+                amplitude_m = diagram_generation.Amplitude(merged_proc)
+            except InvalidCmd:
+                amplitude_m = None
+            if amplitude_m and amplitude_m.get('diagrams'):
+                me_m = helas_objects.HelasMatrixElement(amplitude_m, gen_color=True)
+                val_merged = evaluator_merged.evaluate_matrix_element(
+                    me_m, p=p, output='jamp', options=options)
+
+            results.append({
+                'process': unmerged_proc,
+                'value_merged': val_merged,
+                'value_unmerged': val_unmerged,
+            })
+
+    clean_added_globals(ADDED_GLOBAL)
+    return results
+
+
+
+def output_flavor(comparison_results, output='text'):
+    """Present the results of a flavor check in a nice table.
+
+    Compares the matrix element from the *merged* model against the same
+    matrix element computed with the *unmerged* model for each individual
+    flavor subprocess.
+
+    Parameters
+    ----------
+    comparison_results : list of dict
+        As returned by :func:`check_flavor`.
+    output : {'text', 'fail'}
+        If ``'fail'``, return the number of failed processes instead of the
+        formatted string.
+
+    Returns
+    -------
+    str or int
+        Formatted results table (``output='text'``) or number of failures.
+    """
+    proc_col_size = 17
+    process_header = "Process"
+
+    for data in comparison_results:
+        proc = data['process'].base_string()
+        if len(proc) + 1 > proc_col_size:
+            proc_col_size = len(proc) + 1
+
+    col_size = 18
+
+    pass_proc = 0
+    fail_proc = 0
+    no_check_proc = 0
+    failed_proc_list = []
+    no_check_proc_list = []
+
+    res_str = fixed_string_length(process_header, proc_col_size) + \
+              fixed_string_length("Merged", col_size) + \
+              fixed_string_length("Unmerged", col_size) + \
+              fixed_string_length("Relative diff.", col_size) + \
+              "Result"
+
+    for one_comp in comparison_results:
+        proc = one_comp['process'].base_string()
+        val_m = one_comp['value_merged']
+        val_u = one_comp['value_unmerged']
+
+        if val_m is None or val_u is None:
+            no_check_proc += 1
+            no_check_proc_list.append(proc)
+            res_str += '\n' + fixed_string_length(proc, proc_col_size) + \
+                       "    * No matrix element, process not checked *"
+            continue
+
+        m2_merged   = val_m['m2']
+        m2_unmerged = val_u['m2']
+
+        if m2_merged == 0 and m2_unmerged == 0:
+            no_check_proc += 1
+            no_check_proc_list.append(proc)
+            res_str += '\n' + fixed_string_length(proc, proc_col_size) + \
+                       "    * Both matrix elements are zero, process not checked *"
+            continue
+
+        ref = abs(m2_merged) if m2_merged != 0 else abs(m2_unmerged)
+        diff = abs(m2_merged - m2_unmerged) / ref
+
+        res_str += '\n' + fixed_string_length(proc, proc_col_size) + \
+                   fixed_string_length("%1.10e" % m2_merged, col_size) + \
+                   fixed_string_length("%1.10e" % m2_unmerged, col_size) + \
+                   fixed_string_length("%1.10e" % diff, col_size)
+
+        if diff < 1e-6:
+            pass_proc += 1
+            res_str += "Passed"
+        else:
+            fail_proc += 1
+            failed_proc_list.append(proc)
+            res_str += "Failed"
+
+    res_str += "\nSummary: %i/%i passed, %i/%i failed" % (
+        pass_proc, pass_proc + fail_proc,
+        fail_proc, pass_proc + fail_proc)
+
+    if fail_proc:
+        res_str += "\nFailed processes: %s" % ', '.join(failed_proc_list)
+    if no_check_proc:
+        res_str += "\nNot checked processes: %s" % ', '.join(no_check_proc_list)
+
+    if output == 'text':
+        return res_str
+    else:
+        return fail_proc
+
+
+#===============================================================================
 # check_gauge
 #===============================================================================
 def check_unitary_feynman(processes_unit, processes_feynm, param_card=None, 

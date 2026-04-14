@@ -402,5 +402,77 @@ class TestLorentzInvariance(unittest.TestCase):
 
 
 
+class TestFlavorCheck(unittest.TestCase):
+    """Test the flavor-grouping check (check_flavor / output_flavor)."""
+
+    def setUp(self):
+        self.merged_model = import_ufo.import_model(
+            'sm', options={'apply_flavor_grouping': True})
+
+    def _make_proc_def(self, is_ids, fs_ids):
+        """Helper: build a ProcessDefinition with multi-legs."""
+        legs = base_objects.MultiLegList(
+            [base_objects.MultiLeg({'ids': list(is_ids), 'state': False})] * 1 +
+            [base_objects.MultiLeg({'ids': list(is_ids), 'state': False})] * 0
+        )
+        # Build proper multi-leg list
+        all_legs = base_objects.MultiLegList()
+        for ids, state in [(is_id_list, False) for is_id_list in
+                           ([list(i) if isinstance(i, (list, tuple)) else [i]
+                             for i in is_ids])]:
+            all_legs.append(base_objects.MultiLeg({'ids': ids, 'state': state}))
+        for ids, state in [(list(i) if isinstance(i, (list, tuple)) else [i], True)
+                           for i in fs_ids]:
+            all_legs.append(base_objects.MultiLeg({'ids': ids, 'state': state}))
+        return base_objects.ProcessDefinition({
+            'legs': all_legs,
+            'model': self.merged_model,
+        })
+
+    def test_check_flavor_qqbar_to_tt(self):
+        """check_flavor for _quark _anti_quark > t t~ should pass all flavors."""
+        # _quark has PDG 81 in the merged model
+        q_id = 81
+        t_id = 6
+        proc_def = base_objects.ProcessDefinition({
+            'legs': base_objects.MultiLegList([
+                base_objects.MultiLeg({'ids': [q_id],  'state': False}),
+                base_objects.MultiLeg({'ids': [-q_id], 'state': False}),
+                base_objects.MultiLeg({'ids': [t_id],  'state': True}),
+                base_objects.MultiLeg({'ids': [-t_id], 'state': True}),
+            ]),
+            'model': self.merged_model,
+        })
+
+        result = process_checks.check_flavor(proc_def, cmd=process_checks.FakeInterface())
+        # Should have at least one entry (one per unmerged flavor)
+        self.assertTrue(len(result) > 0,
+                        "check_flavor returned no results for _quark _anti_quark > t t~")
+
+        # Every result should pass (merged agrees with unmerged)
+        fail_count = process_checks.output_flavor(result, output='fail')
+        self.assertEqual(fail_count, 0,
+                         "check_flavor: some flavor subprocesses disagree.\n" +
+                         process_checks.output_flavor(result))
+
+    def test_output_flavor_format(self):
+        """output_flavor returns a string with summary line."""
+        q_id = 81
+        t_id = 6
+        proc_def = base_objects.ProcessDefinition({
+            'legs': base_objects.MultiLegList([
+                base_objects.MultiLeg({'ids': [q_id],  'state': False}),
+                base_objects.MultiLeg({'ids': [-q_id], 'state': False}),
+                base_objects.MultiLeg({'ids': [t_id],  'state': True}),
+                base_objects.MultiLeg({'ids': [-t_id], 'state': True}),
+            ]),
+            'model': self.merged_model,
+        })
+        result = process_checks.check_flavor(proc_def, cmd=process_checks.FakeInterface())
+        text = process_checks.output_flavor(result)
+        self.assertIn('Summary:', text)
+        self.assertIn('passed', text)
+
+
 if __name__ == '__main__':
     unittest.unittest.main()
