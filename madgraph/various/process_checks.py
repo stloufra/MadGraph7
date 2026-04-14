@@ -320,17 +320,22 @@ class MatrixElementEvaluator(object):
         # of these matrix elements, it is possible to run the following cmd
 #       open('output_path','w').write(matrix_methods[process.shell_string()])
         if self.reuse:
-            # Define the routines (globally)
+            # Define the routines globally so they can be reused in future calls
             exec(matrix_methods[process.shell_string()], globals())	    
             ADDED_GLOBAL.append('Matrix_%s'  % process.shell_string())
+            exec_ns = globals()
         else:
-            # Define the routines (locally is enough)
-            exec(matrix_methods[process.shell_string()], globals())
+            # Define the routines in a local namespace to avoid overwriting
+            # globally cached matrices (e.g. from the reuse evaluator) that
+            # share the same shell_string but were generated for a different
+            # model (merged vs unmerged).
+            exec_ns = dict(globals())
+            exec(matrix_methods[process.shell_string()], exec_ns)
         # Generate phase space point to use
         if not p:
             p, w_rambo = self.get_momenta(process, options)
         # Evaluate the matrix element for the momenta p
-        exec("data = Matrix_%s()" % process.shell_string(), globals())
+        data = exec_ns['Matrix_%s' % process.shell_string()]()
         if output == "m2":
             return data.smatrix(p, self.full_model), data.amp2
         else:

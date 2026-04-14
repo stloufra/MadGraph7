@@ -2622,7 +2622,7 @@ class ALOHAWriterForPython(WriteALOHA):
             out.write('            return %s\n' % fail_str)
             out.write('        flv_index2 = COUP.partner.get(flv_index1, -1)\n')
             out.write('    else:\n')
-            out.write('        if COUP.partner.get(flv_index1, -1) != flv_index2:\n')
+            out.write('        if COUP.partner.get(flv_index1, None) != flv_index2:\n')
             out.write('            return %s\n' % fail_str)
             flv_for_coup = 'flv_index1'
         else:
