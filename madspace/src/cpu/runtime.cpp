@@ -530,35 +530,37 @@ void op_unweight(
     auto uw_weights_view_flat = uw_weights_tmp.flat_view<double, 1>(0);
     auto& runtime = instruction.runtime;
 
-    device.submit([weights_view_flat,
-                   max_weight_view_flat,
-                   indices_view_flat,
-                   uw_weights_view_flat,
-                   &runtime,
-                   batch_size,
-                   &indices,
-                   &uw_weights,
-                   indices_tmp,
-                   uw_weights_tmp]() mutable {
-        TensorView<double, 1> weights_view(weights_view_flat);
-        TensorView<double, 1> max_weight_view(max_weight_view_flat);
-        TensorView<me_int_t, 1> indices_view(indices_view_flat);
-        TensorView<double, 1> uw_weights_view(uw_weights_view_flat);
-        std::uniform_real_distribution<double> dist;
-        auto& rand_gen = runtime.rand_gen();
-        std::size_t count = 0;
-        for (std::size_t i = 0; i < batch_size; ++i) {
-            double w = weights_view[i], w_max = max_weight_view[i];
-            if (w != 0. && w > dist(rand_gen) * w_max) {
-                indices_view[count] = i;
-                uw_weights_view[count] = w > w_max ? w : w_max;
-                ++count;
+    device.submit(
+        [weights_view_flat,
+         max_weight_view_flat,
+         indices_view_flat,
+         uw_weights_view_flat,
+         &runtime,
+         batch_size,
+         &indices,
+         &uw_weights,
+         indices_tmp,
+         uw_weights_tmp]() mutable {
+            TensorView<double, 1> weights_view(weights_view_flat);
+            TensorView<double, 1> max_weight_view(max_weight_view_flat);
+            TensorView<me_int_t, 1> indices_view(indices_view_flat);
+            TensorView<double, 1> uw_weights_view(uw_weights_view_flat);
+            std::uniform_real_distribution<double> dist;
+            auto& rand_gen = runtime.rand_gen();
+            std::size_t count = 0;
+            for (std::size_t i = 0; i < batch_size; ++i) {
+                double w = weights_view[i], w_max = max_weight_view[i];
+                if (w != 0. && w > dist(rand_gen) * w_max) {
+                    indices_view[count] = i;
+                    uw_weights_view[count] = w > w_max ? w : w_max;
+                    ++count;
+                }
             }
-        }
 
-        indices = indices_tmp.slice(0, 0, count);
-        uw_weights = uw_weights_tmp.slice(0, 0, count);
-    });
+            indices = indices_tmp.slice(0, 0, count);
+            uw_weights = uw_weights_tmp.slice(0, 0, count);
+        }
+    );
 }
 
 template <typename D>
@@ -589,45 +591,47 @@ void op_histogram(
 
     std::size_t batch_size = locals[instruction.batch_size_index].size(0);
 
-    device.submit([input,
-                   input_view_flat,
-                   weights_view_flat,
-                   min_view_flat,
-                   max_view_flat,
-                   values_view_flat,
-                   square_values_view_flat,
-                   batch_size]() mutable {
-        TensorView<double, 1> input_view(input_view_flat);
-        TensorView<double, 1> weights_view(weights_view_flat);
-        TensorView<double, 1> min_view(min_view_flat);
-        TensorView<double, 1> max_view(max_view_flat);
-        TensorView<double, 2> values_view(values_view_flat);
-        TensorView<double, 2> square_values_view(square_values_view_flat);
+    device.submit(
+        [input,
+         input_view_flat,
+         weights_view_flat,
+         min_view_flat,
+         max_view_flat,
+         values_view_flat,
+         square_values_view_flat,
+         batch_size]() mutable {
+            TensorView<double, 1> input_view(input_view_flat);
+            TensorView<double, 1> weights_view(weights_view_flat);
+            TensorView<double, 1> min_view(min_view_flat);
+            TensorView<double, 1> max_view(max_view_flat);
+            TensorView<double, 2> values_view(values_view_flat);
+            TensorView<double, 2> square_values_view(square_values_view_flat);
 
-        std::size_t n_bins = values_view.size(1) - 2;
+            std::size_t n_bins = values_view.size(1) - 2;
 
-        auto bin_values = values_view[0];
-        auto bin_square_values = square_values_view[0];
-        for (std::size_t i_bin = 0; i_bin < n_bins + 2; ++i_bin) {
-            bin_values[i_bin] = 0.;
-            bin_square_values[i_bin] = 0.;
-        }
-        for (std::size_t i_sample = 0; i_sample < batch_size; ++i_sample) {
-            int i_bin_rounded = (input_view[i_sample] - min_view[i_sample]) /
-                (max_view[i_sample] - min_view[i_sample]) * n_bins;
-            int i_bin;
-            if (i_bin_rounded < 0) {
-                i_bin = 0;
-            } else if (i_bin_rounded >= n_bins) {
-                i_bin = n_bins + 1;
-            } else {
-                i_bin = i_bin_rounded + 1;
+            auto bin_values = values_view[0];
+            auto bin_square_values = square_values_view[0];
+            for (std::size_t i_bin = 0; i_bin < n_bins + 2; ++i_bin) {
+                bin_values[i_bin] = 0.;
+                bin_square_values[i_bin] = 0.;
             }
-            double w = weights_view[i_sample];
-            bin_values[i_bin] += w;
-            bin_square_values[i_bin] += w * w;
+            for (std::size_t i_sample = 0; i_sample < batch_size; ++i_sample) {
+                int i_bin_rounded = (input_view[i_sample] - min_view[i_sample]) /
+                    (max_view[i_sample] - min_view[i_sample]) * n_bins;
+                int i_bin;
+                if (i_bin_rounded < 0) {
+                    i_bin = 0;
+                } else if (i_bin_rounded >= n_bins) {
+                    i_bin = n_bins + 1;
+                } else {
+                    i_bin = i_bin_rounded + 1;
+                }
+                double w = weights_view[i_sample];
+                bin_values[i_bin] += w;
+                bin_square_values[i_bin] += w * w;
+            }
         }
-    });
+    );
 }
 
 template <typename D>
@@ -654,37 +658,39 @@ void op_vegas_histogram(
 
     std::size_t batch_size = locals[instruction.batch_size_index].size(0);
 
-    device.submit([input_view_flat,
-                   weights_view_flat,
-                   values_view_flat,
-                   counts_view_flat,
-                   batch_size]() mutable {
-        TensorView<double, 2> input_view(input_view_flat);
-        TensorView<double, 1> weights_view(weights_view_flat);
-        TensorView<double, 3> values_view(values_view_flat);
-        TensorView<me_int_t, 3> counts_view(counts_view_flat);
+    device.submit(
+        [input_view_flat,
+         weights_view_flat,
+         values_view_flat,
+         counts_view_flat,
+         batch_size]() mutable {
+            TensorView<double, 2> input_view(input_view_flat);
+            TensorView<double, 1> weights_view(weights_view_flat);
+            TensorView<double, 3> values_view(values_view_flat);
+            TensorView<me_int_t, 3> counts_view(counts_view_flat);
 
-        std::size_t n_dims = input_view.size(1);
-        std::size_t n_bins = values_view.size(2);
+            std::size_t n_dims = input_view.size(1);
+            std::size_t n_bins = values_view.size(2);
 
-        for (std::size_t i_dim = 0; i_dim < n_dims; ++i_dim) {
-            auto bin_values = values_view[0][i_dim];
-            auto bin_counts = counts_view[0][i_dim];
-            for (std::size_t i_bin = 0; i_bin < n_bins; ++i_bin) {
-                bin_values[i_bin] = 0.;
-                bin_counts[i_bin] = 0;
-            }
-            for (std::size_t i_sample = 0; i_sample < batch_size; ++i_sample) {
-                int i_bin = input_view[i_sample][i_dim] * n_bins;
-                if (i_bin < 0 || i_bin >= n_bins) {
-                    continue;
+            for (std::size_t i_dim = 0; i_dim < n_dims; ++i_dim) {
+                auto bin_values = values_view[0][i_dim];
+                auto bin_counts = counts_view[0][i_dim];
+                for (std::size_t i_bin = 0; i_bin < n_bins; ++i_bin) {
+                    bin_values[i_bin] = 0.;
+                    bin_counts[i_bin] = 0;
                 }
-                double w = weights_view[i_sample];
-                bin_values[i_bin] += w * w;
-                bin_counts[i_bin] += 1;
+                for (std::size_t i_sample = 0; i_sample < batch_size; ++i_sample) {
+                    int i_bin = input_view[i_sample][i_dim] * n_bins;
+                    if (i_bin < 0 || i_bin >= n_bins) {
+                        continue;
+                    }
+                    double w = weights_view[i_sample];
+                    bin_values[i_bin] += w * w;
+                    bin_counts[i_bin] += 1;
+                }
             }
         }
-    });
+    );
 }
 
 template <typename D>
@@ -710,27 +716,29 @@ void op_discrete_histogram(
     auto values_view_flat = values.flat_view<double, 2>(0);
     auto counts_view_flat = counts.flat_view<me_int_t, 2>(0);
 
-    device.submit([input_view_flat,
-                   weights_view_flat,
-                   values_view_flat,
-                   counts_view_flat,
-                   batch_size]() mutable {
-        TensorView<me_int_t, 1> input_view(input_view_flat);
-        TensorView<double, 1> weights_view(weights_view_flat);
-        TensorView<double, 2> values_view(values_view_flat);
-        TensorView<me_int_t, 2> counts_view(counts_view_flat);
-        std::size_t n_opts = values_view.size(1);
-        for (std::size_t i_opt = 0; i_opt < n_opts; ++i_opt) {
-            values_view[0][i_opt] = 0.;
-            counts_view[0][i_opt] = 0;
+    device.submit(
+        [input_view_flat,
+         weights_view_flat,
+         values_view_flat,
+         counts_view_flat,
+         batch_size]() mutable {
+            TensorView<me_int_t, 1> input_view(input_view_flat);
+            TensorView<double, 1> weights_view(weights_view_flat);
+            TensorView<double, 2> values_view(values_view_flat);
+            TensorView<me_int_t, 2> counts_view(counts_view_flat);
+            std::size_t n_opts = values_view.size(1);
+            for (std::size_t i_opt = 0; i_opt < n_opts; ++i_opt) {
+                values_view[0][i_opt] = 0.;
+                counts_view[0][i_opt] = 0;
+            }
+            for (std::size_t i = 0; i < batch_size; ++i) {
+                auto w = weights_view[i];
+                std::size_t index = input_view[i];
+                values_view[0][index] += w;
+                counts_view[0][index] += 1;
+            }
         }
-        for (std::size_t i = 0; i < batch_size; ++i) {
-            auto w = weights_view[i];
-            std::size_t index = input_view[i];
-            values_view[0][index] += w;
-            counts_view[0][index] += 1;
-        }
-    });
+    );
 }
 
 } // namespace

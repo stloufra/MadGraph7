@@ -29,8 +29,9 @@ std::tuple<Value, Value> build_block(
     auto rqs_condition = fb.rqs_find_bin(
         input, inverse ? heights : widths, inverse ? widths : heights, derivatives
     );
-    auto [out, det] = inverse ? fb.rqs_inverse(input, rqs_condition)
-                              : fb.rqs_forward(input, rqs_condition);
+    auto [out, det] = inverse
+        ? fb.rqs_inverse(input, rqs_condition)
+        : fb.rqs_forward(input, rqs_condition);
     return {out, fb.reduce_product(det)};
 }
 

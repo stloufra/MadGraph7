@@ -197,8 +197,9 @@ void madspace::from_json(const json& j, Function& func) {
         ValueVec instr_inputs;
         for (auto& j_input : j_instr.at("inputs")) {
             instr_inputs.push_back(
-                j_input.is_number_unsigned() ? locals.at(j_input.get<std::size_t>())
-                                             : j_input.get<Value>()
+                j_input.is_number_unsigned()
+                    ? locals.at(j_input.get<std::size_t>())
+                    : j_input.get<Value>()
             );
         }
         fb.set_current_stream(j_instr.at("stream_index").get<std::size_t>());

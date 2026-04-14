@@ -49,8 +49,9 @@ bool find_t_vertices(
                         integration_order,
                         _t_propagator_masses,
                         _t_propagator_widths,
-                        vertices.at(0) == current_index ? vertices.at(1)
-                                                        : vertices.at(0),
+                        vertices.at(0) == current_index
+                            ? vertices.at(1)
+                            : vertices.at(0),
                         line_ref.index()
                     )) {
                     is_t_vertex = true;

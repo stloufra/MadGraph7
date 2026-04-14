@@ -99,8 +99,9 @@ Integrand::Integrand(
             if (flags & return_chan_weights) {
                 ret_types.push_back(batch_float_array(
                     chan_weight_remap.size() > 0 ? remapped_chan_count
-                        : subchan_weights        ? subchan_weights->channel_count()
-                                          : diff_xs.matrix_element().diagram_count()
+                        : subchan_weights
+                        ? subchan_weights->channel_count()
+                        : diff_xs.matrix_element().diagram_count()
                 ));
             }
             if (flags & return_cwnet_input) {
@@ -336,10 +337,11 @@ Integrand::ChannelResult Integrand::build_channel_part(
         ValueVec pdf_priors;
         for (std::size_t i = 0; i < 2; ++i) {
             if (_diff_xs.has_pdf(i)) {
-                auto pdf = _pdfs.at(i)
-                               .value()
-                               .build_function(fb, {result.x_acc(i), scales.at(i + 1)})
-                               .at(0);
+                auto pdf =
+                    _pdfs.at(i)
+                        .value()
+                        .build_function(fb, {result.x_acc(i), scales.at(i + 1)})
+                        .at(0);
                 result.pdf_cache(i) = pdf;
                 pdf_priors.push_back(fb.select(pdf, _pdf_indices.at(i)));
             }
@@ -407,8 +409,9 @@ Integrand::ChannelResult Integrand::build_channel_part(
     result.weight_after_cuts() = weights_after_cuts.size() == 0
         ? fb.full({1., batch_size_acc})
         : fb.product(weights_after_cuts);
-    result.adaptive_prob() = adaptive_probs.size() == 0 ? fb.full({1., args.batch_size})
-                                                        : fb.product(adaptive_probs);
+    result.adaptive_prob() = adaptive_probs.size() == 0
+        ? fb.full({1., args.batch_size})
+        : fb.product(adaptive_probs);
     return result;
 }
 
@@ -421,8 +424,9 @@ ValueVec Integrand::build_common_part(
     // on denominators of propagators
     Value chan_weights_acc;
     std::size_t channel_count = _chan_weight_remap.size() > 0 ? _remapped_chan_count
-        : _subchan_weights ? _subchan_weights->channel_count()
-                           : _diff_xs.matrix_element().diagram_count();
+        : _subchan_weights
+        ? _subchan_weights->channel_count()
+        : _diff_xs.matrix_element().diagram_count();
     if (channel_count > 1 && _prop_chan_weights) {
         chan_weights_acc =
             _prop_chan_weights->build_function(fb, {result.momenta_acc()}).at(0);
@@ -431,8 +435,9 @@ ValueVec Integrand::build_common_part(
     // evaluate differential cross section
     ValueVec xs_args{
         result.momenta_acc(),
-        _flavor_remap.size() > 0 ? fb.gather_int(result.flavor_id(), _flavor_remap)
-                                 : result.flavor_id(),
+        _flavor_remap.size() > 0
+            ? fb.gather_int(result.flavor_id(), _flavor_remap)
+            : result.flavor_id(),
     };
     for (std::size_t i = 0; i < 2; ++i) {
         xs_args.push_back(result.x_acc(i));
@@ -474,15 +479,16 @@ ValueVec Integrand::build_common_part(
     // if given, apply channel weight network
     auto prior_chan_weights_acc = chan_weights_acc;
     if (_chan_weight_net) {
-        chan_weights_acc = _chan_weight_net.value()
-                               .build_function(
-                                   fb,
-                                   {result.momenta_acc(),
-                                    result.x_acc(0),
-                                    result.x_acc(1),
-                                    chan_weights_acc}
-                               )
-                               .at(0);
+        chan_weights_acc =
+            _chan_weight_net.value()
+                .build_function(
+                    fb,
+                    {result.momenta_acc(),
+                     result.x_acc(0),
+                     result.x_acc(1),
+                     chan_weights_acc}
+                )
+                .at(0);
     }
 
     // compute full phase-space weight

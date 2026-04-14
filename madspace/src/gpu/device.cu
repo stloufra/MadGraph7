@@ -59,13 +59,13 @@ void GpuDevice::adam_step(
     double eps,
     double bias_corr2_sqrt
 ) const {
-    //TODO
+    // TODO
 }
-
 
 MemPool::MemPool(
     const GpuDevice& device,
-    const std::vector<std::tuple<std::size_t, std::size_t, Tensor>>& cached_sizes_and_tensors,
+    const std::vector<std::tuple<std::size_t, std::size_t, Tensor>>&
+        cached_sizes_and_tensors,
     gpuStream_t stream
 ) :
     _device(device) {
@@ -89,7 +89,7 @@ MemPool::MemPool(
             pool.parent_tensor = Tensor(DataType::dt_float, {word_count}, async_device);
             pool.capacity = word_count * 8;
             pool.needed_size = word_count * 8;
-            //println("create pool {} {}", pool_index, pool.size);
+            // println("create pool {} {}", pool_index, pool.size);
         }
     }
 }
@@ -127,7 +127,12 @@ std::vector<std::pair<std::size_t, Tensor>> MemPool::reset(gpuStream_t stream) {
     return parent_tensors;
 }
 
-std::pair<void*, Tensor> MemPool::allocate(std::size_t pool_index, std::size_t size, gpuStream_t stream, std::size_t stream_index) {
+std::pair<void*, Tensor> MemPool::allocate(
+    std::size_t pool_index,
+    std::size_t size,
+    gpuStream_t stream,
+    std::size_t stream_index
+) {
     if (pool_index >= _pools.size()) {
         _pools.resize(pool_index + 1);
     }
@@ -136,15 +141,14 @@ std::pair<void*, Tensor> MemPool::allocate(std::size_t pool_index, std::size_t s
         pool.free_pointers.resize(stream_index + 1);
     }
     auto& free_pointers = pool.free_pointers.at(stream_index);
-    if (auto search = free_pointers.find(size);
-        search != free_pointers.end()) {
+    if (auto search = free_pointers.find(size); search != free_pointers.end()) {
         std::pair<void*, Tensor> ret = search->second;
         _allocs[ret.first] = {
             .pool_index = pool_index,
             .size = size,
             .parent_tensor = ret.second,
         };
-        //println("reuse {} {} {}", ret.first, pool_index, size);
+        // println("reuse {} {} {}", ret.first, pool_index, size);
         free_pointers.erase(search);
         return ret;
     } else if (pool.parent_tensor && pool.capacity - pool.size >= size) {
@@ -155,7 +159,8 @@ std::pair<void*, Tensor> MemPool::allocate(std::size_t pool_index, std::size_t s
             .size = size,
             .parent_tensor = pool.parent_tensor,
         };
-        //println("pooled {} {} {} {} {}", ptr, pool_index, size, pool.size, pool.capacity);
+        // println("pooled {} {} {} {} {}", ptr, pool_index, size, pool.size,
+        // pool.capacity);
         return {ptr, pool.parent_tensor};
     } else {
         void* ptr;
@@ -165,7 +170,7 @@ std::pair<void*, Tensor> MemPool::allocate(std::size_t pool_index, std::size_t s
             .size = size,
             .parent_tensor = Tensor(),
         };
-        //println("alloc {} {} {}", ptr, pool_index, size);
+        // println("alloc {} {} {}", ptr, pool_index, size);
         pool.needed_size += (size + 7) / 8 * 8;
         return {ptr, Tensor()};
     }
@@ -182,8 +187,10 @@ bool MemPool::free(void* ptr, std::size_t stream_index) {
         pool.free_pointers.resize(stream_index + 1);
     }
     auto& free_pointers = pool.free_pointers.at(stream_index);
-    free_pointers.emplace(alloc.size, std::pair<void*, Tensor>{ptr, alloc.parent_tensor});
-    //println("free {} {} {}", ptr, alloc.pool_index, alloc.size);
+    free_pointers.emplace(
+        alloc.size, std::pair<void*, Tensor>{ptr, alloc.parent_tensor}
+    );
+    // println("free {} {} {}", ptr, alloc.pool_index, alloc.size);
     _allocs.erase(search);
     return true;
 }
@@ -203,7 +210,9 @@ std::vector<std::pair<std::size_t, std::size_t>> MemPool::total_sizes() const {
 std::pair<void*, Tensor>
 AsyncGpuDevice::allocate(std::size_t size, AllocHint hint) const {
     if (_mem_pool && hint != AllocHint::normal && size <= 4 * 1024 * 1024) {
-        return _mem_pool->allocate(static_cast<std::size_t>(hint) - 1, size, _stream, _stream_index);
+        return _mem_pool->allocate(
+            static_cast<std::size_t>(hint) - 1, size, _stream, _stream_index
+        );
     } else {
         void* ptr;
         check_error(gpuMallocAsync(&ptr, size, _stream));

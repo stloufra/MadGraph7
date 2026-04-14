@@ -199,12 +199,13 @@ KERNELSPEC void kernel_rqs_forward(
         (where(derivative_unorm > 20., derivative_unorm, log1p(exp(derivative_unorm))) +
          MIN_DERIVATIVE) /
         softplus_scale;
-    auto derivative_plus_one = (where(
-                                    derivative_plus_one_unorm > 20.,
-                                    derivative_plus_one_unorm,
-                                    log1p(exp(derivative_plus_one_unorm))
-                                ) +
-                                MIN_DERIVATIVE) /
+    auto derivative_plus_one =
+        (where(
+             derivative_plus_one_unorm > 20.,
+             derivative_plus_one_unorm,
+             log1p(exp(derivative_plus_one_unorm))
+         ) +
+         MIN_DERIVATIVE) /
         softplus_scale;
 
     auto low_mask = input < 0.;
@@ -381,12 +382,13 @@ KERNELSPEC void kernel_rqs_inverse(
         (where(derivative_unorm > 20., derivative_unorm, log1p(exp(derivative_unorm))) +
          MIN_DERIVATIVE) /
         softplus_scale;
-    auto derivative_plus_one = (where(
-                                    derivative_plus_one_unorm > 20.,
-                                    derivative_plus_one_unorm,
-                                    log1p(exp(derivative_plus_one_unorm))
-                                ) +
-                                MIN_DERIVATIVE) /
+    auto derivative_plus_one =
+        (where(
+             derivative_plus_one_unorm > 20.,
+             derivative_plus_one_unorm,
+             log1p(exp(derivative_plus_one_unorm))
+         ) +
+         MIN_DERIVATIVE) /
         softplus_scale;
 
     auto low_mask = input < 0.;

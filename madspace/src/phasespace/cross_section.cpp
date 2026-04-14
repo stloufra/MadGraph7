@@ -128,12 +128,14 @@ ValueVec DifferentialCrossSection::build_function_impl(
     }
 
     std::array<Value, 2> pdf_outputs{1., 1.};
-    for (std::size_t i = 0; auto [pdf_output, pdf, x, pdf_indices] :
-                            zip(pdf_outputs, _pdfs, x1x2, _pdf_indices)) {
+    for (std::size_t i = 0;
+         auto [pdf_output, pdf, x, pdf_indices] :
+         zip(pdf_outputs, _pdfs, x1x2, _pdf_indices)) {
         if (pdf) {
-            pdf_output = pdf.value()
-                             .build_function(fb, {x, scales.at(i + 1), pdf_flavor_id})
-                             .at(0);
+            pdf_output =
+                pdf.value()
+                    .build_function(fb, {x, scales.at(i + 1), pdf_flavor_id})
+                    .at(0);
         } else if (pdf_indices.size() > 0) {
             pdf_output = fb.gather(
                 fb.gather_int(pdf_flavor_id, pdf_indices), args.at(arg_index++)

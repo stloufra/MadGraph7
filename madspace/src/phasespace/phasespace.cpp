@@ -280,8 +280,9 @@ Mapping::Result PhaseSpaceMapping::build_forward_impl(
         }
         if (decay_index != 0 || _map_luminosity) {
             auto s_max = fb.square(sqrt_s_max);
-            auto [s_vec, det] = _s_invariants.at(invariant_index++)
-                                    .build_forward(fb, {next_random()}, {s_min, s_max});
+            auto [s_vec, det] =
+                _s_invariants.at(invariant_index++)
+                    .build_forward(fb, {next_random()}, {s_min, s_max});
             data.mass2 = s_vec.at(0);
             data.mass = fb.sqrt(data.mass2.value());
             dets.push_back(det);

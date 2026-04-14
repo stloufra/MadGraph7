@@ -641,9 +641,10 @@ void EventGenerator::read_and_combine(
                 channel->weight_file().read(sampled_chan->weight_buffer, batch_size);
                 sampled_chan->buffer_index = 0;
             }
-            weight = sampled_chan->weight_buffer
-                         .event<EventWeightRecord>(sampled_chan->buffer_index)
-                         .weight();
+            weight =
+                sampled_chan->weight_buffer
+                    .event<EventWeightRecord>(sampled_chan->buffer_index)
+                    .weight();
             if (weight != 0.) {
                 break;
             }

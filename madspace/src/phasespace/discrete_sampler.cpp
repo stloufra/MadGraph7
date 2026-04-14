@@ -90,8 +90,9 @@ Mapping::Result DiscreteSampler::build_transform(
             probs = fb.mul(probs, conditions.at(condition_index));
             ++condition_index;
         }
-        auto [output, det] = inverse ? fb.sample_discrete_probs_inverse(input, probs)
-                                     : fb.sample_discrete_probs(input, probs);
+        auto [output, det] = inverse
+            ? fb.sample_discrete_probs_inverse(input, probs)
+            : fb.sample_discrete_probs(input, probs);
         outputs.push_back(output);
         dets.push_back(det);
     }

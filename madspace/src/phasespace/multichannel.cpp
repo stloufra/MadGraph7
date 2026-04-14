@@ -64,8 +64,9 @@ Mapping::Result MultiChannelMapping::build_impl(
             cond.push_back(condition.at(index));
         }
         fb.set_current_stream(index + 1);
-        auto [output, det] = inverse ? mapping->build_inverse(fb, in, cond)
-                                     : mapping->build_forward(fb, in, cond);
+        auto [output, det] = inverse
+            ? mapping->build_inverse(fb, in, cond)
+            : mapping->build_forward(fb, in, cond);
         auto split_out_iter = split_outputs.begin();
         for (auto& out : output) {
             split_out_iter->push_back(out);

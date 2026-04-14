@@ -339,13 +339,14 @@ void op_nonzero(
         thrust::device_pointer_cast(static_cast<me_int_t*>(indices_tmp.data()));
     auto output_ptr =
         thrust::device_pointer_cast(static_cast<me_int_t*>(output_tmp.data()));
-    auto count = thrust::copy_if(
-                     thrust_par.on(device.stream()),
-                     indices_ptr,
-                     indices_ptr + batch_size,
-                     output_ptr,
-                     NotMinusOne()
-                 ) -
+    auto count =
+        thrust::copy_if(
+            thrust_par.on(device.stream()),
+            indices_ptr,
+            indices_ptr + batch_size,
+            output_ptr,
+            NotMinusOne()
+        ) -
         output_ptr; // TODO: use stream
     output = output_tmp.slice(0, 0, count);
     indices_tmp.reset(device);
@@ -1099,9 +1100,10 @@ GpuRuntime::GpuRuntime(const Function& function_arg, ContextPtr context) :
             }
         };
 
-    for (std::size_t instr_index = 0; auto [instr, bw_wait_events] :
-                                      zip(std::views::reverse(function.instructions()),
-                                          std::views::reverse(backward_wait_events))) {
+    for (std::size_t instr_index = 0;
+         auto [instr, bw_wait_events] :
+         zip(std::views::reverse(function.instructions()),
+             std::views::reverse(backward_wait_events))) {
         for (auto& out : instr.outputs) {
             update_sync_backward(out.local_index, instr.stream_index, bw_wait_events);
         }
@@ -1120,29 +1122,29 @@ GpuRuntime::GpuRuntime(const Function& function_arg, ContextPtr context) :
     std::fill(local_source_streams.begin(), local_source_streams.end(), -1);
     nested_vector2<std::size_t> local_consumer_streams(function.locals().size());
 
-    auto update_sync = [&](std::size_t local_index,
-                           std::size_t stream_index,
-                           SizeVec& wait_events) {
-        int source_stream = local_source_streams.at(local_index);
-        if (source_stream == -1) {
-            return;
-        }
-        auto& consumer_streams = local_consumer_streams.at(local_index);
-        if (std::find(consumer_streams.begin(), consumer_streams.end(), stream_index) ==
-            consumer_streams.end()) {
-            consumer_streams.push_back(stream_index);
-        }
-        if (!sync_tracker.is_in_sync_with(stream_index, source_stream)) {
-            int& event =
-                _instructions.at(last_stream_instrs.at(source_stream)).record_event;
-            if (event == -1) {
-                event = event_count;
-                ++event_count;
+    auto update_sync =
+        [&](std::size_t local_index, std::size_t stream_index, SizeVec& wait_events) {
+            int source_stream = local_source_streams.at(local_index);
+            if (source_stream == -1) {
+                return;
             }
-            wait_events.push_back(event);
-            sync_tracker.synchronize(stream_index, source_stream);
-        }
-    };
+            auto& consumer_streams = local_consumer_streams.at(local_index);
+            if (std::find(
+                    consumer_streams.begin(), consumer_streams.end(), stream_index
+                ) == consumer_streams.end()) {
+                consumer_streams.push_back(stream_index);
+            }
+            if (!sync_tracker.is_in_sync_with(stream_index, source_stream)) {
+                int& event =
+                    _instructions.at(last_stream_instrs.at(source_stream)).record_event;
+                if (event == -1) {
+                    event = event_count;
+                    ++event_count;
+                }
+                wait_events.push_back(event);
+                sync_tracker.synchronize(stream_index, source_stream);
+            }
+        };
 
     std::vector<bool> is_input(function.locals().size());
     std::vector<bool> is_output(function.locals().size());

@@ -47,9 +47,11 @@ ChannelEventGenerator::ChannelEventGenerator(
     _batch_size(config.start_batch_size),
     _particle_count(integrand.particle_count()),
     _integrand_function(integrand.function()),
-    _unweighter_function(Unweighter({integrand.return_types().begin(),
-                                     integrand.return_types().begin() + 6})
-                             .function()) {
+    _unweighter_function(
+        Unweighter({integrand.return_types().begin(),
+                    integrand.return_types().begin() + 6})
+            .function()
+    ) {
     if (integrand.flags() != integrand_flags) {
         throw std::invalid_argument(
             "Integrand flags must be sample | return_momenta | return_random | "

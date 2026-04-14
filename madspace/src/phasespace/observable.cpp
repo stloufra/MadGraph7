@@ -164,8 +164,9 @@ std::tuple<nested_vector2<me_int_t>, nested_vector2<me_int_t>, Type> build_indic
                 );
             }
             indices = {static_cast<me_int_t>(
-                order_index_in < 0 ? -order_index_in - 1
-                                   : indices.size() - order_index_in
+                order_index_in < 0
+                    ? -order_index_in - 1
+                    : indices.size() - order_index_in
             )};
         }
     }
@@ -214,8 +215,9 @@ std::tuple<nested_vector2<me_int_t>, nested_vector2<me_int_t>, Type> build_indic
     } else {
         ret_indices = selected_indices;
     }
-    Type ret_type = (obs_type == 1 &&
-                     (ret_indices.size() > 1 || !(sum_momenta || sum_observable))) ||
+    Type ret_type =
+        (obs_type == 1 &&
+         (ret_indices.size() > 1 || !(sum_momenta || sum_observable))) ||
             obs_type == 2
         ? batch_float_array(ret_indices.at(0).size())
         : batch_float;
