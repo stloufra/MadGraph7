@@ -102,7 +102,6 @@ Integrand::Integrand(
                         : subchan_weights        ? subchan_weights->channel_count()
                                           : diff_xs.matrix_element().diagram_count()
                 ));
-                ret_types.push_back(batch_float);
             }
             if (flags & return_cwnet_input) {
                 ret_types.push_back(batch_float_array(
@@ -255,7 +254,9 @@ Integrand::ChannelResult Integrand::build_channel_part(
                     auto [index_vec, chan_det] =
                         discrete_before.build_forward(fb, {chan_random}, {});
                     result.chan_index_in_group() = index_vec.at(0);
-                    weights_before_cuts.push_back(chan_det);
+                    if (!(_flags & exclude_adaptive_and_chan_weight)) {
+                        weights_before_cuts.push_back(chan_det);
+                    }
                     adaptive_probs.push_back(chan_det);
                 }
             },
@@ -290,7 +291,9 @@ Integrand::ChannelResult Integrand::build_channel_part(
                 auto [rs, r_det] = admap.build_forward(fb, {result.r()}, cond);
                 result.latent() = rs.at(0);
                 adaptive_probs.push_back(r_det);
-                weights_before_cuts.push_back(r_det);
+                if (!(_flags & exclude_adaptive_and_chan_weight)) {
+                    weights_before_cuts.push_back(r_det);
+                }
                 flow_conditions.push_back(result.latent());
             }
         },
@@ -389,7 +392,9 @@ Integrand::ChannelResult Integrand::build_channel_part(
                         fb, {flavor_random_acc}, discrete_condition
                     );
                     result.flavor_id() = index_vec.at(0);
-                    weights_after_cuts.push_back(flavor_det);
+                    if (!(_flags & exclude_adaptive_and_chan_weight)) {
+                        weights_after_cuts.push_back(flavor_det);
+                    }
                     auto ones = fb.full({1., args.batch_size});
                     adaptive_probs.push_back(
                         fb.batch_scatter(result.indices_acc(), ones, flavor_det)
@@ -481,14 +486,10 @@ ValueVec Integrand::build_common_part(
     }
 
     // compute full phase-space weight
-    Value selected_chan_weight_acc;
-    if (channel_count > 1) {
+    if (channel_count > 1 && !(_flags & exclude_adaptive_and_chan_weight)) {
         Value chan_index_acc =
             fb.batch_gather(result.indices_acc(), result.chan_index());
-        selected_chan_weight_acc = fb.gather(chan_index_acc, chan_weights_acc);
-        weights_after_cuts.push_back(selected_chan_weight_acc);
-    } else {
-        selected_chan_weight_acc = 1.;
+        weights_after_cuts.push_back(fb.gather(chan_index_acc, chan_weights_acc));
     }
     auto weight = fb.mul(
         result.weight_before_cuts(),
@@ -522,7 +523,7 @@ ValueVec Integrand::build_common_part(
     }
     if (_flags & return_latent) {
         outputs.push_back(result.latent());
-        outputs.push_back(result.adaptive_prob());
+        outputs.push_back(fb.div(1., result.adaptive_prob()));
     }
     if (_flags & return_channel) {
         outputs.push_back(result.chan_index());
@@ -531,17 +532,12 @@ ValueVec Integrand::build_common_part(
         auto cw_flat = fb.full(
             {1. / channel_count, args.batch_size, static_cast<me_int_t>(channel_count)}
         );
-        auto ones = fb.full({1., args.batch_size});
         if (channel_count > 1) {
             outputs.push_back(
                 fb.batch_scatter(result.indices_acc(), cw_flat, prior_chan_weights_acc)
             );
-            outputs.push_back(
-                fb.batch_scatter(result.indices_acc(), ones, selected_chan_weight_acc)
-            );
         } else {
             outputs.push_back(cw_flat);
-            outputs.push_back(ones);
         }
     }
     if (_flags & return_cwnet_input) {
@@ -651,7 +647,8 @@ ValueVec MultiChannelIntegrand::build_function_impl(
         common_args.max_weight = args.at(1);
     }
     std::vector<Integrand::ChannelResult> results;
-    for (std::size_t index = 0; auto [integrand, chan_size] : zip(_integrands, all_batch_sizes)) {
+    for (std::size_t index = 0;
+         auto [integrand, chan_size] : zip(_integrands, all_batch_sizes)) {
         fb.set_current_stream(index + 1);
         auto channel_args = common_args;
         channel_args.r = fb.random(chan_size, integrand->_random_dim);

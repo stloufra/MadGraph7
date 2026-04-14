@@ -194,6 +194,22 @@ mul:
   differentiable: True
   dims: 0
 
+div:
+  inputs:
+    - name: in1
+      type: [float, ...]
+      desc: first input to division
+    - name: in2
+      type: [float, ...]
+      desc: second input to division
+  outputs:
+    - name: out
+      type: [float, ...]
+      desc: quotient of the two inputs
+  desc: Computes the quotient of the two inputs.
+  differentiable: True
+  dims: 0
+
 reduce_sum:
   inputs:
     - name: in1
@@ -215,6 +231,18 @@ reduce_sum_vector:
       type: [float, ..., m]
       desc:
   dims: 0
+
+batch_reduce_mean:
+  inputs:
+    - name: in
+      type: [float]
+      desc:
+  outputs:
+    - name: out
+      type: [float, single]
+      desc:
+  differentiable: True
+  custom_op: True
 
 reduce_product:
   inputs:
@@ -2237,6 +2265,69 @@ one_hot:
     - name: output
       type: [float, n]
       desc:
+
+madnis_abs_weight:
+  inputs:
+    - name: f
+      type: [float]
+      desc:
+    - name: q
+      type: [float]
+      desc:
+  outputs:
+    - name: w
+      type: [float]
+      desc:
+  differentiable: True
+
+madnis_variance:
+  inputs:
+    - name: f
+      type: [float]
+      desc:
+    - name: g
+      type: [float]
+      desc:
+    - name: q
+      type: [float]
+      desc:
+    - name: mean
+      type: [float]
+      desc:
+  outputs:
+    - name: w
+      type: [float]
+      desc:
+  differentiable: True
+
+madnis_single_channel_variance:
+  inputs:
+    - name: var
+      type: [float]
+      desc:
+    - name: abs_mean
+      type: [float]
+      desc:
+      backward_arg: True
+  outputs:
+    - name: loss
+      type: [float]
+      desc:
+  differentiable: True
+
+madnis_multi_channel_variance:
+  inputs:
+    - name: vars
+      type: [float, c]
+      desc:
+    - name: abs_means
+      type: [float, c]
+      desc:
+  outputs:
+    - name: loss
+      type: [float]
+      desc:
+  differentiable: True
 
 ---
 title: Indexing

@@ -137,6 +137,7 @@ add_library(
     src/phasespace/t_propagator_mapping.cpp
     src/phasespace/phasespace.cpp
     src/phasespace/multichannel.cpp
+    src/phasespace/madnis.cpp
     src/phasespace/rambo.cpp
     src/phasespace/cuts.cpp
     src/phasespace/observable.cpp
@@ -187,6 +188,7 @@ add_library(
     include/madspace/phasespace/t_propagator_mapping.h
     include/madspace/phasespace/phasespace.h
     include/madspace/phasespace/multichannel.h
+    include/madspace/phasespace/madnis.h
     include/madspace/phasespace/rambo.h
     include/madspace/phasespace/cuts.h
     include/madspace/phasespace/observable.h

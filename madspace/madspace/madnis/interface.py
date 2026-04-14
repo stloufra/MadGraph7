@@ -16,6 +16,7 @@ MADNIS_INTEGRAND_FLAGS = (
     | ms.Integrand.return_chan_weights
     | ms.Integrand.return_cwnet_input
     | ms.Integrand.return_discrete_latent
+    | ms.Integrand.exclude_adaptive_and_chan_weight
 )
 
 
@@ -116,12 +117,11 @@ class IntegrandFunction:
         channels = channels.bincount(minlength=self.channel_count).cpu().to(torch.int32)
         channels = channels[self.channel_mask]
         (
-            full_weight,
+            weight,
             latent,
-            inv_prob,
+            prob,
             chan_index,
             alphas_prior,
-            alpha_selected,
             y,
             *rest,
         ) = self.multi_runtime(channels)
@@ -129,10 +129,6 @@ class IntegrandFunction:
         x_parts = [latent, *rest]
         x = torch.cat(
             [xi.double().reshape(latent.shape[0], -1) for xi in x_parts], dim=1
-        )
-        prob = 1 / inv_prob
-        weight = torch.where(
-            alpha_selected == 0.0, 0.0, full_weight * prob / alpha_selected
         )
         channel_perm_inv = torch.argsort(channel_perm)
         return (

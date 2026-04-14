@@ -67,12 +67,20 @@ Value mul(Value in1, Value in2) {
     return instruction("mul", {in1, in2})[0];
 }
 
+Value div(Value in1, Value in2) {
+    return instruction("div", {in1, in2})[0];
+}
+
 Value reduce_sum(Value in1) {
     return instruction("reduce_sum", {in1})[0];
 }
 
 Value reduce_sum_vector(Value in1) {
     return instruction("reduce_sum_vector", {in1})[0];
+}
+
+Value batch_reduce_mean(Value in) {
+    return instruction("batch_reduce_mean", {in})[0];
 }
 
 Value reduce_product(Value in1) {
@@ -547,6 +555,22 @@ Value argsort(Value input) {
 
 Value one_hot(Value index, Value option_count) {
     return instruction("one_hot", {index, option_count})[0];
+}
+
+Value madnis_abs_weight(Value f, Value q) {
+    return instruction("madnis_abs_weight", {f, q})[0];
+}
+
+Value madnis_variance(Value f, Value g, Value q, Value mean) {
+    return instruction("madnis_variance", {f, g, q, mean})[0];
+}
+
+Value madnis_single_channel_variance(Value var, Value abs_mean) {
+    return instruction("madnis_single_channel_variance", {var, abs_mean})[0];
+}
+
+Value madnis_multi_channel_variance(Value vars, Value abs_means) {
+    return instruction("madnis_multi_channel_variance", {vars, abs_means})[0];
 }
 
 Value nonzero(Value input) {

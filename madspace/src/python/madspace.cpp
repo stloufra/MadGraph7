@@ -1149,6 +1149,10 @@ PYBIND11_MODULE(_madspace_py, m) {
         .def_readonly_static(
             "return_discrete_latent", &Integrand::return_discrete_latent
         )
+        .def_readonly_static(
+            "exclude_adaptive_and_chan_weight",
+            &Integrand::exclude_adaptive_and_chan_weight
+        )
         .def_readonly_static("matrix_element_inputs", &Integrand::matrix_element_inputs)
         .def_readonly_static(
             "matrix_element_outputs", &Integrand::matrix_element_outputs

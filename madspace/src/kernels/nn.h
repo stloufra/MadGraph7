@@ -656,6 +656,100 @@ kernel_one_hot(IIn<T, 0> index, IIn<T, 0> option_count, FOut<T, 1> output) {
 }
 
 template <typename T>
+KERNELSPEC void kernel_madnis_abs_weight(FIn<T, 0> f, FIn<T, 0> q, FOut<T, 0> w) {
+    w = fabs(f) / q;
+}
+
+template <typename T>
+KERNELSPEC void backward_kernel_madnis_abs_weight(
+    FIn<T, 0> f, FIn<T, 0> q, FIn<T, 0> out_grad, FOut<T, 0> f_grad, FOut<T, 0> q_grad
+) {
+    auto f_abs = fabs(f);
+    auto f_abs_grad = out_grad / q;
+    q_grad += -out_grad * f_abs / (q * q);
+    f_grad += where(f < 0., -f_abs_grad, f_abs_grad);
+}
+
+template <typename T>
+KERNELSPEC void kernel_madnis_variance(
+    FIn<T, 0> f, FIn<T, 0> g, FIn<T, 0> q, FIn<T, 0> mean, FOut<T, 0> var
+) {
+    auto diff = f / q - mean;
+    var = g * diff * diff / q;
+}
+
+template <typename T>
+KERNELSPEC void backward_kernel_madnis_variance(
+    FIn<T, 0> f,
+    FIn<T, 0> g,
+    FIn<T, 0> q,
+    FIn<T, 0> mean,
+    FIn<T, 0> var_grad,
+    FOut<T, 0> f_grad,
+    FOut<T, 0> g_grad,
+    FOut<T, 0> q_grad,
+    FOut<T, 0> mean_grad
+) {
+    auto diff = f / q - mean;
+    auto diff2 = diff * diff;
+    g_grad += var_grad * diff2 / q;
+    auto diff_grad = 2. * var_grad * g / q * diff;
+    mean_grad += -diff_grad;
+    f_grad += diff_grad / q;
+    q_grad += -(var_grad * g * diff2 + diff_grad * f) / (q * q);
+}
+
+template <typename T>
+KERNELSPEC void kernel_madnis_single_channel_variance(
+    FIn<T, 0> var, FIn<T, 0> abs_mean, FOut<T, 0> loss
+) {
+    loss = var / (abs_mean * abs_mean);
+}
+
+template <typename T>
+KERNELSPEC void backward_kernel_madnis_single_channel_variance(
+    FIn<T, 0> abs_mean,
+    FIn<T, 0> loss_grad,
+    FOut<T, 0> vars_grad,
+    FOut<T, 0> abs_means_grad
+) {
+    vars_grad += loss_grad / (abs_mean * abs_mean);
+}
+
+template <typename T>
+KERNELSPEC void kernel_madnis_multi_channel_variance(
+    FIn<T, 1> vars, FIn<T, 1> abs_means, FOut<T, 0> loss
+) {
+    FVal<T> std_sum(0.), abs_mean_sum(0.);
+    for (std::size_t i = 0; i < vars.size(); ++i) {
+        std_sum = std_sum + sqrt(vars[i]);
+        abs_mean_sum = abs_mean_sum + abs_means[0];
+    }
+    auto std_sum_norm = std_sum / abs_mean_sum;
+    loss = std_sum_norm * std_sum_norm;
+}
+
+template <typename T>
+KERNELSPEC void backward_kernel_madnis_multi_channel_variance(
+    FIn<T, 1> vars,
+    FIn<T, 1> abs_means,
+    FIn<T, 0> loss_grad,
+    FOut<T, 1> vars_grad,
+    FOut<T, 1> abs_means_grad
+) {
+    FVal<T> std_sum(0.), abs_mean_sum(0.);
+    for (std::size_t i = 0; i < vars.size(); ++i) {
+        std_sum = std_sum + sqrt(vars[i]);
+        abs_mean_sum = abs_mean_sum + abs_means[0];
+    }
+    auto std_sum_norm = std_sum / abs_mean_sum;
+    auto std_sum_grad = 2. * loss_grad * std_sum_norm / abs_mean_sum;
+    for (std::size_t i = 0; i < vars.size(); ++i) {
+        vars_grad[i] += -0.5 * std_sum_grad / sqrt(vars[i]);
+    }
+}
+
+template <typename T>
 KERNELSPEC void kernel_adam_step(
     FIn<T, 0> gradient,
     FOut<T, 0> parameter,

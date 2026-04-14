@@ -12,6 +12,7 @@
 #include "phasespace/integrand.h"
 #include "phasespace/invariants.h"
 #include "phasespace/luminosity.h"
+#include "phasespace/madnis.h"
 #include "phasespace/matrix_element.h"
 #include "phasespace/mlp.h"
 #include "phasespace/multichannel.h"

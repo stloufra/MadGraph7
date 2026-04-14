@@ -534,6 +534,19 @@ void op_batch_scatter(
     }
 }
 
+void op_batch_reduce_mean(
+    const GpuRuntime::Instruction& instruction,
+    TensorVec& locals,
+    const AsyncGpuDevice& device
+) {}
+
+void backward_op_batch_reduce_mean(
+    const GpuRuntime::Instruction& instruction,
+    TensorVec& locals,
+    TensorVec& local_grads,
+    const AsyncGpuDevice& device
+) {}
+
 void op_offset_indices(
     const GpuRuntime::Instruction& instruction,
     TensorVec& locals,

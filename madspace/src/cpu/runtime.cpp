@@ -405,6 +405,58 @@ void op_batch_scatter(
 }
 
 template <typename D>
+void op_batch_reduce_mean(
+    const CpuRuntime::Instruction& instruction, TensorVec& locals, const D& device
+) {
+    auto& input = locals[instruction.input_indices[0]];
+    auto& output = locals[instruction.output_indices[0]];
+    output = Tensor(DataType::dt_float, {1}, device);
+    device.sync_barrier();
+
+    auto input_view_flat = input.flat_view<double, 1>(0);
+    auto output_view_flat = output.flat_view<double, 1>(0);
+    std::size_t batch_size = input.size(0);
+    device.submit([input_view_flat, output_view_flat, batch_size]() mutable {
+        TensorView<double, 1> input_view(input_view_flat);
+        TensorView<double, 1> output_view(output_view_flat);
+        double sum = 0.;
+        for (std::size_t i = 0; i < batch_size; ++i) {
+            sum += input_view[i];
+        }
+        output_view[0] = sum / batch_size;
+    });
+}
+
+template <typename D>
+void backward_op_batch_reduce_mean(
+    const CpuRuntime::Instruction& instruction,
+    TensorVec& locals,
+    TensorVec& local_grads,
+    const D& device
+) {
+    auto& input = locals[instruction.input_indices[0]];
+    auto& input_grad = locals[instruction.input_indices[0]];
+    auto& output_grad = locals[instruction.output_indices[0]];
+    if (!input_grad) {
+        input_grad = Tensor(DataType::dt_float, input.shape(), device);
+        input_grad.zero(device);
+    }
+    device.sync_barrier();
+
+    auto input_grad_view_flat = input_grad.flat_view<double, 1>(0);
+    auto output_grad_view_flat = output_grad.flat_view<double, 1>(0);
+    std::size_t batch_size = input.size(0);
+    device.submit([input_grad_view_flat, output_grad_view_flat, batch_size]() mutable {
+        TensorView<double, 1> input_grad_view(input_grad_view_flat);
+        TensorView<double, 1> output_grad_view(output_grad_view_flat);
+        double grad = output_grad_view[0] / batch_size;
+        for (std::size_t i = 0; i < batch_size; ++i) {
+            input_grad_view[i] += grad;
+        }
+    });
+}
+
+template <typename D>
 void op_offset_indices(
     const CpuRuntime::Instruction& instruction, TensorVec& locals, const D& device
 ) {

@@ -38,8 +38,25 @@ KERNELSPEC void backward_kernel_mul(
     FOut<T, 0> in1_grad,
     FOut<T, 0> in2_grad
 ) {
-    in1_grad = out_grad * in2;
-    in2_grad = out_grad * in1;
+    in1_grad += out_grad * in2;
+    in2_grad += out_grad * in1;
+}
+
+template <typename T>
+KERNELSPEC void kernel_div(FIn<T, 0> in1, FIn<T, 0> in2, FOut<T, 0> out) {
+    out = in1 / in2;
+}
+
+template <typename T>
+KERNELSPEC void backward_kernel_div(
+    FIn<T, 0> in1,
+    FIn<T, 0> in2,
+    FIn<T, 0> out_grad,
+    FOut<T, 0> in1_grad,
+    FOut<T, 0> in2_grad
+) {
+    in1_grad += out_grad / in2;
+    in2_grad += -out_grad * in1 / (in2 * in2);
 }
 
 template <typename T>

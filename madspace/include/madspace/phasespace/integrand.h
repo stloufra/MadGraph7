@@ -40,6 +40,7 @@ public:
     inline static const int return_cwnet_input = 512;
     inline static const int return_discrete = 1024;
     inline static const int return_discrete_latent = 2048;
+    inline static const int exclude_adaptive_and_chan_weight = 4096;
 
     inline static const std::vector<MatrixElement::MatrixElementInput>
         matrix_element_inputs = {
