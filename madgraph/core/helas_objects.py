@@ -5178,10 +5178,14 @@ class HelasMatrixElement(base_objects.PhysicsObject):
             pdg = [one_flavor[i] if id > 0 else -one_flavor[i] for i,id in enumerate(pdgs)]
 
             #check if restricted flavor
+            # The restricted_flavor list holds absolute (positive) PDG codes
+            # (the convention established by the flavor tag on merged legs).
+            # The pdg list already has the correct sign (negative for
+            # antiparticles), so compare absolute values here.
             if restricted_flavor != [None]*len(external_wfs):
                 skip = False
                 for i,rf in enumerate(restricted_flavor):
-                    if rf is not None and pdg[i] not in rf:
+                    if rf is not None and abs(pdg[i]) not in rf:
                         skip = True
                         break
                 if skip:
