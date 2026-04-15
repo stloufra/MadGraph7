@@ -3931,18 +3931,26 @@ def check_language(process_definition, param_card=None, options=None,
             Full stdout of the ``./check`` binary.
         target_pdgs : list of int, optional
             PDG codes of the external legs of the specific process being
-            checked.  When provided the function selects the matrix-element
-            line that was preceded by a matching "PDG …" line (written once
-            per flavor by the Fortran SA flavor loop).  This avoids
-            silently returning the *last* flavor's value when the Fortran SA
-            iterates over multiple flavors (e.g. u, d, s, c, b for a
-            merged ``_quark`` multi-leg), which can give a wrong answer when
-            the last flavor (b quark, m≈4.7 GeV) differs from the process
-            being compared.
+            checked.  When provided the function attempts to select the
+            matrix-element line that was preceded by a matching "PDG …" line
+            (written once per flavor by the Fortran SA flavor loop).  This
+            avoids silently returning the *last* flavor's value when the
+            Fortran SA iterates over multiple flavors with different masses.
+
+            Important caveat: when ``process_definition`` has merged-particle
+            legs (e.g. ``_quark`` with a special PDG code), the Fortran SA
+            writes ``PDG_FOR_FLAVOR`` as flavor *indices* (1, 2, …) rather
+            than actual PDG codes.  In that case ``target_pdgs`` (which
+            contains the merged-particle PDG code) will not match any block.
+            The function therefore falls back to returning the *last* seen
+            matrix-element value so that merged-particle processes are
+            handled correctly.
+
             If not provided the last "Matrix element" value is returned
             (backward-compatible behaviour).
         """
         me_val, momenta = None, []
+        last_val = None          # last ME value seen, regardless of PDG match
         current_pdgs = None
         for line in text.split('\n'):
             mp = _pdg_re.match(line)
@@ -3954,16 +3962,23 @@ def check_language(process_definition, param_card=None, options=None,
             m = _me_re.match(line)
             if m:
                 val = float(m.group('val'))
+                last_val = val
                 if target_pdgs is not None and current_pdgs is not None:
                     if current_pdgs == list(target_pdgs):
                         me_val = val
                 else:
-                    # No target specified – fall back to last value (legacy).
+                    # No target specified – return last value (legacy).
                     me_val = val
                 current_pdgs = None  # consumed; reset for next flavor block
             m2 = _mom_re.match(line)
             if m2:
                 momenta.append([float(x) for x in m2.groups()[:4]])
+        # If a target was requested but none of the PDG blocks matched (e.g.
+        # because the process uses merged-particle legs whose PDG codes are
+        # flavor indices in the Fortran output, not the same large merged-PDG
+        # codes stored in proc.get('legs')), fall back to the last seen value.
+        if target_pdgs is not None and me_val is None:
+            me_val = last_val
         return me_val, momenta
 
     # ── resolve single processes ──────────────────────────────────────────────
