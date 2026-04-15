@@ -549,15 +549,35 @@ class TestMultiLanguageComparison(unittest.TestCase):
              (?P<p2>-?\d*\.\d*E[+-]?\d*)\s+
              (?P<p3>-?\d*\.\d*E[+-]?\d*)""",
         re.IGNORECASE | re.VERBOSE)
+    # Matches the "PDG  2  -2  6  -6" line written per flavor by Fortran SA.
+    _pdg_re = re.compile(r'^\s*PDG\s+(.+)$', re.IGNORECASE)
 
-    def _parse_sa_output(self, text):
-        """Return (me_value, [[E,px,py,pz], ...]) from check binary output."""
+    def _parse_sa_output(self, text, target_pdgs=None):
+        """Return (me_value, [[E,px,py,pz], ...]) from check binary output.
+
+        If *target_pdgs* is given the matrix-element value for the flavor
+        whose preceding "PDG …" line matches those PDG codes is returned.
+        Otherwise the last matrix-element value is returned.
+        """
         momenta = []
         me_val = None
+        current_pdgs = None
         for line in text.split('\n'):
+            mp = self._pdg_re.match(line)
+            if mp:
+                try:
+                    current_pdgs = [int(x) for x in mp.group(1).split()]
+                except ValueError:
+                    current_pdgs = None
             m = self._me_re.match(line)
             if m:
-                me_val = float(m.group('val'))
+                val = float(m.group('val'))
+                if target_pdgs is not None and current_pdgs is not None:
+                    if current_pdgs == list(target_pdgs):
+                        me_val = val
+                else:
+                    me_val = val
+                current_pdgs = None
             m2 = self._mom_re.match(line)
             if m2:
                 momenta.append([float(x) for x in m2.groups()[:4]])
@@ -585,6 +605,71 @@ class TestMultiLanguageComparison(unittest.TestCase):
     # ------------------------------------------------------------------
     # Tests
     # ------------------------------------------------------------------
+    def test_parse_sa_output_flavor_selection(self):
+        """_parse_sa_output must select the matrix element matching target_pdgs.
+
+        When the Fortran SA iterates over multiple flavors (e.g., u, d, b for
+        a merged _quark leg) it prints one "PDG …" + "Matrix element = …" pair
+        per flavor.  Without PDG-aware parsing the *last* flavor's value is
+        returned.  For a quark with non-zero mass (b, m≈4.7 GeV) this gives a
+        different answer than Python, which evaluates for the specific process
+        PDG codes.  The fix is to select the ME value whose PDG line matches
+        the target process legs.
+        """
+        # Simulated Fortran SA output with three flavors:
+        #   u (PDG 2 -2 6 -6)  → ME = 0.6177
+        #   d (PDG 1 -1 6 -6)  → ME = 0.6178 (same coupling; differs by ~1e-4
+        #                                       due to mass in PS generation)
+        #   b (PDG 5 -5 6 -6)  → ME = 0.5894 (b mass ≈ 4.7 GeV gives ~5% diff)
+        fake_output = (
+            "\n Phase space point:\n"
+            "  1   5.0000000E+02  0.0000000E+00  0.0000000E+00  4.9000000E+02\n"
+            "  2   5.0000000E+02  0.0000000E+00  0.0000000E+00 -4.9000000E+02\n"
+            "  3   6.0000000E+02  1.0000000E+02  2.0000000E+02 -3.0000000E+02\n"
+            "  4   4.0000000E+02 -1.0000000E+02 -2.0000000E+02  3.0000000E+02\n"
+            " PDG           2          -2           6          -6\n"
+            " Matrix element =  0.617700E+00 GeV^  -4\n"
+            " -----------------------------------------------------------------------------\n"
+            " PDG           1          -1           6          -6\n"
+            " Matrix element =  0.617800E+00 GeV^  -4\n"
+            " -----------------------------------------------------------------------------\n"
+            " PDG           5          -5           6          -6\n"
+            " Matrix element =  0.589400E+00 GeV^  -4\n"
+            " -----------------------------------------------------------------------------\n"
+        )
+
+        # Without target_pdgs: backward-compat, returns last flavor (b quark).
+        me, p = self._parse_sa_output(fake_output)
+        self.assertAlmostEqual(me, 0.5894, places=7,
+                               msg='Without target_pdgs should return last ME')
+        self.assertEqual(len(p), 4,
+                         'Should parse 4 momentum vectors')
+
+        # With u quark target: must return u quark ME (0.6177).
+        me_u, _ = self._parse_sa_output(fake_output, target_pdgs=[2, -2, 6, -6])
+        self.assertAlmostEqual(me_u, 0.6177, places=7,
+                               msg='target_pdgs=[2,-2,6,-6] should return u ME')
+
+        # With d quark target: must return d quark ME (0.6178).
+        me_d, _ = self._parse_sa_output(fake_output, target_pdgs=[1, -1, 6, -6])
+        self.assertAlmostEqual(me_d, 0.6178, places=7,
+                               msg='target_pdgs=[1,-1,6,-6] should return d ME')
+
+        # With b quark target: must return b quark ME (0.5894).
+        me_b, _ = self._parse_sa_output(fake_output, target_pdgs=[5, -5, 6, -6])
+        self.assertAlmostEqual(me_b, 0.5894, places=7,
+                               msg='target_pdgs=[5,-5,6,-6] should return b ME')
+
+        # The b quark ME must differ noticeably from u/d (>1%) since b has mass.
+        rel_ub = abs(me_u - me_b) / abs(me_u)
+        self.assertGreater(rel_ub, 0.01,
+                           'u and b quark MEs should differ by >1%% due to b mass')
+
+        # A PDG combination that is not in the output returns None.
+        me_s, _ = self._parse_sa_output(fake_output, target_pdgs=[3, -3, 6, -6])
+        self.assertIsNone(me_s,
+                          'Unknown target_pdgs should return None, not a wrong ME')
+
     def test_python_vs_fortran_epem_aa(self):
         """e+ e- > a a: Python and Fortran SA must agree within 1e-4 rel."""
         if not self.has_fortran:

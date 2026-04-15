@@ -3919,14 +3919,48 @@ def check_language(process_definition, param_card=None, options=None,
              (?P<p2>-?\d*\.\d*E[+-]?\d*)\s+
              (?P<p3>-?\d*\.\d*E[+-]?\d*)""",
         re.IGNORECASE | re.VERBOSE)
+    # Matches the "PDG  2  -2  6  -6" line in the Fortran SA flavor loop.
+    _pdg_re = re.compile(r'^\s*PDG\s+(.+)$', re.IGNORECASE)
 
-    def _parse_sa_output(text):
-        """Parse stdout of a SA check binary; return (me_value, momenta)."""
+    def _parse_sa_output(text, target_pdgs=None):
+        """Parse stdout of a SA check binary; return (me_value, momenta).
+
+        Parameters
+        ----------
+        text : str
+            Full stdout of the ``./check`` binary.
+        target_pdgs : list of int, optional
+            PDG codes of the external legs of the specific process being
+            checked.  When provided the function selects the matrix-element
+            line that was preceded by a matching "PDG …" line (written once
+            per flavor by the Fortran SA flavor loop).  This avoids
+            silently returning the *last* flavor's value when the Fortran SA
+            iterates over multiple flavors (e.g. u, d, s, c, b for a
+            merged ``_quark`` multi-leg), which can give a wrong answer when
+            the last flavor (b quark, m≈4.7 GeV) differs from the process
+            being compared.
+            If not provided the last "Matrix element" value is returned
+            (backward-compatible behaviour).
+        """
         me_val, momenta = None, []
+        current_pdgs = None
         for line in text.split('\n'):
+            mp = _pdg_re.match(line)
+            if mp:
+                try:
+                    current_pdgs = [int(x) for x in mp.group(1).split()]
+                except ValueError:
+                    current_pdgs = None
             m = _me_re.match(line)
             if m:
-                me_val = float(m.group('val'))
+                val = float(m.group('val'))
+                if target_pdgs is not None and current_pdgs is not None:
+                    if current_pdgs == list(target_pdgs):
+                        me_val = val
+                else:
+                    # No target specified – fall back to last value (legacy).
+                    me_val = val
+                current_pdgs = None  # consumed; reset for next flavor block
             m2 = _mom_re.match(line)
             if m2:
                 momenta.append([float(x) for x in m2.groups()[:4]])
@@ -4052,7 +4086,10 @@ def check_language(process_definition, param_card=None, options=None,
                             out_f = subprocess.check_output(
                                 './check', cwd=check_dir_f,
                                 stderr=subprocess.STDOUT).decode()
-                            me_f, p_f = _parse_sa_output(out_f)
+                            me_f, p_f = _parse_sa_output(
+                                out_f,
+                                target_pdgs=[leg.get('id')
+                                             for leg in proc.get('legs')])
                             if me_f is not None and p_f:
                                 val_f    = {'m2': me_f}
                                 p_from_f = p_f
