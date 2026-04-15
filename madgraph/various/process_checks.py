@@ -3999,7 +3999,16 @@ def check_language(process_definition, param_card=None, options=None,
 
         me    = helas_objects.HelasMatrixElement(amplitude, gen_color=True)
         wl = misc.make_unique(me.get_used_lorentz())
-        wc = misc.make_unique([c for l in me.get_used_couplings() for c in l])
+        # get_used_couplings may include FLV_Coupling objects which are not
+        # hashable (they inherit from dict). Deduplicate by name to be safe.
+        _seen_wc = set()
+        wc = []
+        for l in me.get_used_couplings():
+            for c in l:
+                key = c if isinstance(c, str) else c.get('name')
+                if key not in _seen_wc:
+                    _seen_wc.add(key)
+                    wc.append(c)
         mg5opt = {
             'fortran_compiler': fortran_compiler,
             'cpp_compiler':     cpp_compiler,
