@@ -7,7 +7,7 @@ class Matrix_%(process_string)s(object):
     def clean(self):
         self.jamp = []
 
-    def smatrix(self,p, model):
+    def smatrix(self, p, model, flavor=None):
         #  
         %(info_lines)s
         # 
@@ -40,13 +40,13 @@ class Matrix_%(process_string)s(object):
         self.helEvals = []
         ans = 0.
         for hel in helicities:
-            t = self.matrix(p, hel, model)
+            t = self.matrix(p, hel, model, flavor)
             ans = ans + t
             self.helEvals.append([hel, t.real / denominator ])
         ans = ans / denominator
         return ans.real
 
-    def matrix(self, p, hel, model):
+    def matrix(self, p, hel, model, flavor=None):
         #  
         %(info_lines)s
         #

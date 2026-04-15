@@ -210,6 +210,11 @@ class MatrixElementEvaluator(object):
         process = matrix_element.get('processes')[0]
         model = process.get('model')
 
+        # Extract per-leg flavor indices for FLV_Coupling / merged-particle models.
+        # For legs without an explicit flavor tag the value is -1 (no flavor).
+        legs = process.get('legs')
+        flavor = [leg.get('flavor')[0] if leg.get('flavor') else -1
+                  for leg in legs]
 
         if "matrix_elements" not in self.stored_quantities:
             self.stored_quantities['matrix_elements'] = []
@@ -221,11 +226,11 @@ class MatrixElementEvaluator(object):
                     self.stored_quantities['matrix_elements'].append(matrix_element)
                 # Evaluate the matrix element for the momenta p
                 matrix = eval("Matrix_%s()" % process.shell_string(), globals())
-                me_value = matrix.smatrix(p, self.full_model)
+                me_value = matrix.smatrix(p, self.full_model, flavor)
                 if output == "m2":
-                    return matrix.smatrix(p, self.full_model), matrix.amp2
+                    return matrix.smatrix(p, self.full_model, flavor), matrix.amp2
                 else:
-                    m2 = matrix.smatrix(p, self.full_model)
+                    m2 = matrix.smatrix(p, self.full_model, flavor)
                 return {'m2': m2, output:getattr(matrix, output)}
             except NameError:
                 pass
@@ -339,9 +344,9 @@ class MatrixElementEvaluator(object):
         # Evaluate the matrix element for the momenta p
         data = exec_ns['Matrix_%s' % process.shell_string()]()
         if output == "m2":
-            return data.smatrix(p, self.full_model), data.amp2
+            return data.smatrix(p, self.full_model, flavor), data.amp2
         else:
-            m2 = data.smatrix(p,self.full_model)
+            m2 = data.smatrix(p, self.full_model, flavor)
             return {'m2': m2, output:getattr(data, output)}
     
     @staticmethod
