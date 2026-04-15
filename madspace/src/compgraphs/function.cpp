@@ -76,8 +76,8 @@ std::ostream& madspace::operator<<(std::ostream& out, const InstructionCall& cal
 
 std::ostream& madspace::operator<<(std::ostream& out, const Function& func) {
     out << "Inputs:\n";
-    for (auto& input : func.inputs()) {
-        out << "  " << input << " : " << input.type << "\n";
+    for (auto [name, input] : zip(func.inputs().keys(), func.inputs())) {
+        out << "  " << input << " : " << input.type << "=" << name << "\n";
     }
     out << "Globals:\n";
     for (auto& [name, global] : func.globals()) {
@@ -88,8 +88,8 @@ std::ostream& madspace::operator<<(std::ostream& out, const Function& func) {
         out << "  " << instr << "\n";
     }
     out << "Outputs:\n";
-    for (auto& output : func.outputs()) {
-        out << "  " << output << " : " << output.type << "\n";
+    for (auto [name, output] : zip(func.outputs().keys(), func.outputs())) {
+        out << "  " << name << "=" << output << " : " << output.type << "\n";
     }
     return out;
 }
@@ -107,14 +107,16 @@ void madspace::to_json(json& j, const Function& func) {
     json inputs(json::value_t::array);
     json outputs(json::value_t::array);
     json globals(json::value_t::array);
-    for (auto& input : func.inputs()) {
+    for (auto [name, input] : zip(func.inputs().keys(), func.inputs())) {
         inputs.push_back(
             input.type.dtype == DataType::batch_sizes ?
             json{
+                {"name", name},
                 {"local", input},
                 {"dtype", input.type.dtype},
                 {"batch_sizes", input.type.batch_size_list},
             } : json{
+                {"name", name},
                 {"local", input},
                 {"dtype", input.type.dtype},
                 {"batch_size", input.type.batch_size},
@@ -122,9 +124,10 @@ void madspace::to_json(json& j, const Function& func) {
             }
         );
     }
-    for (auto& output : func.outputs()) {
+    for (auto [name, output] : zip(func.outputs().keys(), func.outputs())) {
         outputs.push_back(
             json{
+                {"name", name},
                 {"local", output},
                 {"dtype", output.type.dtype},
                 {"shape", output.type.shape},
@@ -150,29 +153,36 @@ void madspace::to_json(json& j, const Function& func) {
 }
 
 void madspace::from_json(const json& j, Function& func) {
-    TypeVec input_types, output_types;
+    NamedVector<Type> input_types, output_types;
     std::vector<std::size_t> input_locals, output_locals;
     for (auto& j_input : j.at("inputs")) {
+        auto name = j_input.at("name").get<std::string>();
         if (j_input.at("dtype").get<DataType>() == DataType::batch_sizes) {
-            input_types.emplace_back(
-                j_input.at("batch_sizes").get<std::vector<BatchSize>>()
+            input_types.push_back(
+                name, j_input.at("batch_sizes").get<std::vector<BatchSize>>()
             );
         } else {
             BatchSize batch_size = BatchSize::one;
             j_input.at("batch_size").get_to<BatchSize>(batch_size);
-            input_types.emplace_back(
-                j_input.at("dtype").get<DataType>(),
-                batch_size,
-                j_input.at("shape").get<std::vector<int>>()
+            input_types.push_back(
+                name,
+                Type(
+                    j_input.at("dtype").get<DataType>(),
+                    batch_size,
+                    j_input.at("shape").get<std::vector<int>>()
+                )
             );
         }
         input_locals.push_back(j_input.at("local").get<std::size_t>());
     }
     for (auto& j_output : j.at("outputs")) {
-        output_types.emplace_back(
-            j_output.at("dtype").get<DataType>(),
-            BatchSize::one,
-            j_output.at("shape").get<std::vector<int>>()
+        output_types.push_back(
+            j_output.at("name").get<std::string>(),
+            Type(
+                j_output.at("dtype").get<DataType>(),
+                BatchSize::one,
+                j_output.at("shape").get<std::vector<int>>()
+            )
         );
         output_locals.push_back(j_output.at("local").get<std::size_t>());
     }
@@ -219,14 +229,14 @@ void madspace::from_json(const json& j, Function& func) {
 }
 
 FunctionBuilder::FunctionBuilder(
-    const std::vector<Type> input_types, const std::vector<Type> _output_types
+    const NamedVector<Type>& input_types, const NamedVector<Type>& _output_types
 ) :
     _output_types(_output_types), _current_stream(0) {
-    for (auto input_type : input_types) {
+    for (auto [name, input_type] : zip(input_types.keys(), input_types)) {
         Value value(input_type, _locals.size());
         _locals.push_back(value);
         _local_sources.push_back(-1);
-        _inputs.push_back(value);
+        _inputs.push_back(name, value);
     }
     for (auto output_type : _output_types) {
         _outputs.push_back(std::nullopt);
@@ -234,7 +244,9 @@ FunctionBuilder::FunctionBuilder(
 }
 
 FunctionBuilder::FunctionBuilder(const Function& function) :
-    _inputs(function.inputs()), _locals(function.inputs()), _current_stream(0) {
+    _inputs(function.inputs()),
+    _locals(function.inputs().values()),
+    _current_stream(0) {
     TypeVec output_types;
     for (auto& output : function.outputs()) {
         output_types.push_back(output.type);
@@ -403,14 +415,15 @@ FunctionBuilder::instruction(InstructionPtr instruction, const ValueVec& args) {
 }
 
 Function FunctionBuilder::function() {
-    ValueVec func_outputs;
-    int output_index = 1;
-    for (auto output : _outputs) {
+    NamedVector<Value> func_outputs;
+
+    auto output_names = _output_types.keys();
+    for (std::size_t output_index = 0; auto output : _outputs) {
         if (output) {
-            func_outputs.push_back(output.value());
+            func_outputs.push_back(output_names.at(output_index), output.value());
         } else {
             throw std::invalid_argument(
-                std::format("No value assigned to output {}", output_index)
+                std::format("No value assigned to output {}", output_index + 1)
             );
         }
         ++output_index;

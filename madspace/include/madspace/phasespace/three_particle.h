@@ -7,20 +7,7 @@ namespace madspace {
 
 class ThreeBodyDecay : public Mapping {
 public:
-    ThreeBodyDecay(bool com) :
-        Mapping(
-            "ThreeBodyDecay",
-            [&] {
-                TypeVec input_types(9, batch_float);
-                if (!com) {
-                    input_types.push_back(batch_four_vec);
-                }
-                return input_types;
-            }(),
-            {batch_four_vec, batch_four_vec, batch_four_vec},
-            {}
-        ),
-        _com(com) {}
+    ThreeBodyDecay(bool com);
     std::size_t random_dim() const { return 5; }
 
 private:
@@ -47,15 +34,7 @@ public:
         double s_invariant_power = 0,
         double s_mass = 0,
         double s_width = 0
-    ) :
-        Mapping(
-            "TwoToThreeParticleScattering",
-            {batch_float, batch_float, batch_float, batch_float, batch_float},
-            {batch_four_vec, batch_four_vec},
-            {batch_four_vec, batch_four_vec, batch_four_vec}
-        ),
-        _t_invariant(t_invariant_power, t_mass, t_width),
-        _s_invariant(s_invariant_power, s_mass, s_width) {}
+    );
 
 private:
     Result build_forward_impl(

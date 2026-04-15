@@ -36,8 +36,8 @@ MultiChannelMapping::MultiChannelMapping(
 
 Mapping::Result MultiChannelMapping::build_impl(
     FunctionBuilder& fb,
-    const ValueVec& inputs,
-    const ValueVec& conditions,
+    const NamedVector<Value>& inputs,
+    const NamedVector<Value>& conditions,
     bool inverse
 ) const {
     auto& counts = conditions.back();

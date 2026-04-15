@@ -56,7 +56,10 @@ def _init():
 
     def function_generator_call(self, *args):
         if not hasattr(self, "runtime"):
-            self.runtime = FunctionRuntime(self.function())
+            function = self.function()
+            # self.arg_names = function.arg_types().keys()
+            # self.ret_names = function.return_types().keys()
+            self.runtime = FunctionRuntime(function)
         outputs = call_and_convert(self.runtime, args)
         if len(outputs) == 1:
             return outputs[0]

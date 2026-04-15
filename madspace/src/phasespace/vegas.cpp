@@ -19,6 +19,19 @@ ValueVec VegasHistogram::build_function_impl(
     return {values, counts};
 }
 
+VegasMapping::VegasMapping(
+    std::size_t dimension, std::size_t bin_count, const std::string& prefix
+) :
+    Mapping(
+        "VegasMapping",
+        {batch_float_array(dimension)},
+        {batch_float_array(dimension)},
+        {}
+    ),
+    _dimension(dimension),
+    _bin_count(bin_count),
+    _grid_name(prefixed_name(prefix, "vegas_grid")) {}
+
 Mapping::Result VegasMapping::build_forward_impl(
     FunctionBuilder& fb,
     const NamedVector<Value>& inputs,

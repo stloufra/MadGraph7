@@ -159,6 +159,12 @@ public:
             push_back(key, value);
         }
     }
+    NamedVector(const std::vector<std::pair<std::string, T>>& items) {
+        reserve(items.size());
+        for (auto& [key, value] : items) {
+            push_back(key, value);
+        }
+    }
 
     const std::vector<T>& values() const { return _values; }
     const std::unordered_map<std::string, std::size_t>& index_map() const {
@@ -172,39 +178,39 @@ public:
         return ret;
     }
 
-    auto begin() { return _values.begin(); }
-    auto begin() const { return _values.begin(); }
-    auto rbegin() { return _values.rbegin(); }
-    auto rbegin() const { return _values.rbegin(); }
-    auto end() { return _values.end(); }
-    auto end() const { return _values.end(); }
-    auto rend() { return _values.rend(); }
-    auto rend() const { return _values.rend(); }
+    decltype(auto) begin() { return _values.begin(); }
+    decltype(auto) begin() const { return _values.begin(); }
+    decltype(auto) rbegin() { return _values.rbegin(); }
+    decltype(auto) rbegin() const { return _values.rbegin(); }
+    decltype(auto) end() { return _values.end(); }
+    decltype(auto) end() const { return _values.end(); }
+    decltype(auto) rend() { return _values.rend(); }
+    decltype(auto) rend() const { return _values.rend(); }
 
-    auto front() { return _values.front(); }
-    auto front() const { return _values.front(); }
-    auto back() { return _values.back(); }
-    auto back() const { return _values.back(); }
+    decltype(auto) front() { return _values.front(); }
+    decltype(auto) front() const { return _values.front(); }
+    decltype(auto) back() { return _values.back(); }
+    decltype(auto) back() const { return _values.back(); }
 
-    auto at(std::size_t index) { return _values.at(index); }
-    auto at(std::size_t index) const { return _values.at(index); }
-    auto at(std::string key) { return _values.at(_index_map.at(key)); }
-    auto at(std::string key) const { return _values.at(_index_map.at(key)); }
-    auto operator[](std::size_t index) { return at(index); }
-    auto operator[](std::size_t index) const { return at(index); }
-    auto operator[](std::string key) { return at(key); }
-    auto operator[](std::string key) const { return at(key); }
+    decltype(auto) at(std::size_t index) { return _values.at(index); }
+    decltype(auto) at(std::size_t index) const { return _values.at(index); }
+    decltype(auto) at(std::string key) { return _values.at(_index_map.at(key)); }
+    decltype(auto) at(std::string key) const { return _values.at(_index_map.at(key)); }
+    decltype(auto) operator[](std::size_t index) { return at(index); }
+    decltype(auto) operator[](std::size_t index) const { return at(index); }
+    decltype(auto) operator[](std::string key) { return at(key); }
+    decltype(auto) operator[](std::string key) const { return at(key); }
 
     bool empty() const { return _values.empty(); }
     std::size_t size() const { return _values.size(); }
     void reserve(std::size_t capacity) { _values.reserve(capacity); }
 
-    void push_back(const std::string& key, auto&& value) {
+    void push_back(const std::string& key, const T& value) {
         if (_index_map.contains(key)) {
             throw std::invalid_argument("Key already present in NamedVector");
         }
         _index_map[key] = _values.size();
-        _values.push_back(std::forward<decltype(value)>(value));
+        _values.push_back(value);
     }
     void insert_back(const NamedVector<T>& other) {
         std::size_t old_size = size();

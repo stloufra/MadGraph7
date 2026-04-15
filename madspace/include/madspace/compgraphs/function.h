@@ -9,6 +9,7 @@
 #include <nlohmann/json.hpp>
 
 #include "instruction.h"
+#include "madspace/util.h"
 
 namespace madspace {
 
@@ -25,8 +26,8 @@ public:
 
     Function() = default;
 
-    const ValueVec& inputs() const { return _inputs; }
-    const ValueVec& outputs() const { return _outputs; }
+    const NamedVector<Value>& inputs() const { return _inputs; }
+    const NamedVector<Value>& outputs() const { return _outputs; }
     const ValueVec& locals() const { return _locals; }
     const std::vector<std::pair<std::string, Value>>& globals() const {
         return _globals;
@@ -38,8 +39,8 @@ public:
 
 private:
     Function(
-        const ValueVec& inputs,
-        const ValueVec& outputs,
+        const NamedVector<Value>& inputs,
+        const NamedVector<Value>& outputs,
         const ValueVec& locals,
         const std::vector<std::pair<std::string, Value>>& globals,
         const std::vector<InstructionCall>& instructions
@@ -50,8 +51,8 @@ private:
         _globals(globals),
         _instructions(instructions) {}
 
-    ValueVec _inputs;
-    ValueVec _outputs;
+    NamedVector<Value> _inputs;
+    NamedVector<Value> _outputs;
     ValueVec _locals;
     std::vector<std::pair<std::string, Value>> _globals;
     std::vector<InstructionCall> _instructions;
@@ -71,7 +72,7 @@ void from_json(const nlohmann::json& j, Function& call);
 class FunctionBuilder {
 public:
     FunctionBuilder(
-        const std::vector<Type> _input_types, const std::vector<Type> _output_types
+        const NamedVector<Type>& _input_types, const NamedVector<Type>& _output_types
     );
     FunctionBuilder(const Function& function);
     Value input(int index) const;
@@ -94,8 +95,8 @@ public:
 #include "function_builder_mixin.h"
 
 private:
-    std::vector<Type> _output_types;
-    ValueVec _inputs;
+    NamedVector<Type> _output_types;
+    NamedVector<Value> _inputs;
     std::vector<std::optional<Value>> _outputs;
     std::map<LiteralValue, Value> _literals;
     ValueVec _locals;

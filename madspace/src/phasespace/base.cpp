@@ -123,10 +123,10 @@ NamedVector<Value> Mapping::build_inverse(
 }
 
 Function Mapping::forward_function() const {
-    auto arg_types = _input_types.values();
-    arg_types.insert(arg_types.end(), _condition_types.begin(), _condition_types.end());
-    auto ret_types = _output_types.values();
-    ret_types.push_back(batch_float);
+    auto arg_types = _input_types;
+    arg_types.insert_back(_condition_types);
+    auto ret_types = _output_types;
+    ret_types.push_back("det", batch_float);
     FunctionBuilder fb(arg_types, ret_types);
     auto n_inputs = _input_types.size();
     auto n_outputs = _output_types.size();
@@ -141,10 +141,10 @@ Function Mapping::forward_function() const {
 }
 
 Function Mapping::inverse_function() const {
-    auto arg_types = _output_types.values();
-    arg_types.insert(arg_types.end(), _condition_types.begin(), _condition_types.end());
-    auto ret_types = _input_types.values();
-    ret_types.push_back(batch_float);
+    auto arg_types = _output_types;
+    arg_types.insert_back(_condition_types);
+    auto ret_types = _input_types;
+    ret_types.push_back("det", batch_float);
     FunctionBuilder fb(arg_types, ret_types);
     auto n_inputs = _input_types.size();
     auto n_outputs = _output_types.size();
@@ -173,7 +173,7 @@ NamedVector<Value> FunctionGenerator::build_function(
 }
 
 Function FunctionGenerator::function() const {
-    FunctionBuilder fb(_arg_types.values(), _return_types.values());
+    FunctionBuilder fb(_arg_types, _return_types);
     auto outputs = build_function_impl(
         fb, {_arg_types.keys(), fb.input_range(0, _arg_types.size())}
     );

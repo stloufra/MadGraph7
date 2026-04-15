@@ -15,8 +15,8 @@ public:
 private:
     Result build_impl(
         FunctionBuilder& fb,
-        const ValueVec& inputs,
-        const ValueVec& conditions,
+        const NamedVector<Value>& inputs,
+        const NamedVector<Value>& conditions,
         bool inverse
     ) const;
     Result build_forward_impl(

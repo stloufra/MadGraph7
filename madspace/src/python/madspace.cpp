@@ -62,7 +62,7 @@ public:
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override {
         PYBIND11_OVERRIDE_PURE(
-            ValueVec, FunctionGenerator, build_function_impl, &fb, &args
+            NamedVector<Value>, FunctionGenerator, build_function_impl, &fb, &args
         );
     }
 };
@@ -95,6 +95,25 @@ void add_enum(
     );
     enumeration.export_values();
     py::implicitly_convertible<std::string, EnumType>();
+}
+
+template <typename T>
+void named_vector_instance(py::module_& m, const char* name) {
+    py::classh<NamedVector<T>>(m, name)
+        .def(py::init<>())
+        .def(
+            py::init<const std::vector<std::string>&, const std::vector<T>&>(),
+            py::arg("keys"),
+            py::arg("values")
+        )
+        .def(
+            py::init<const std::vector<std::pair<std::string, T>>&>(), py::arg("items")
+        )
+        .def("__len__", &NamedVector<T>::size)
+        .def("values", &NamedVector<T>::values)
+        .def("index_map", &NamedVector<T>::index_map)
+        .def("keys", &NamedVector<T>::keys)
+        .def("push_back", &NamedVector<T>::push_back, py::arg("name"), py::arg("item"));
 }
 
 } // namespace
@@ -155,6 +174,9 @@ PYBIND11_MODULE(_madspace_py, m) {
         .def_readonly("local_index", &Value::local_index);
     py::implicitly_convertible<me_int_t, Value>();
     py::implicitly_convertible<double, Value>();
+
+    named_vector_instance<Value>(m, "NamedValues");
+    named_vector_instance<Type>(m, "NamedTypes");
 
     py::classh<InstructionCall>(m, "InstructionCall")
         .def("__str__", &to_string<InstructionCall>)
@@ -259,7 +281,7 @@ PYBIND11_MODULE(_madspace_py, m) {
     auto& fb =
         py::classh<FunctionBuilder>(m, "FunctionBuilder")
             .def(
-                py::init<const std::vector<Type>, const std::vector<Type>>(),
+                py::init<const NamedVector<Type>&, const NamedVector<Type>&>(),
                 py::arg("input_types"),
                 py::arg("output_types")
             )
@@ -296,9 +318,9 @@ PYBIND11_MODULE(_madspace_py, m) {
         .def(
             py::init<
                 const std::string&,
-                const TypeVec&,
-                const TypeVec&,
-                const TypeVec&>(),
+                const NamedVector<Type>&,
+                const NamedVector<Type>&,
+                const NamedVector<Type>&>(),
             py::arg("name"),
             py::arg("input_types"),
             py::arg("output_types"),
@@ -308,14 +330,38 @@ PYBIND11_MODULE(_madspace_py, m) {
         .def("inverse_function", &Mapping::inverse_function)
         .def(
             "build_forward",
-            &Mapping::build_forward,
+            py::overload_cast<FunctionBuilder&, const ValueVec&, const ValueVec&>(
+                &Mapping::build_forward, py::const_
+            ),
+            py::arg("builder"),
+            py::arg("inputs"),
+            py::arg("conditions")
+        )
+        .def(
+            "build_forward",
+            py::overload_cast<
+                FunctionBuilder&,
+                const NamedVector<Value>&,
+                const NamedVector<Value>&>(&Mapping::build_forward, py::const_),
             py::arg("builder"),
             py::arg("inputs"),
             py::arg("conditions")
         )
         .def(
             "build_inverse",
-            &Mapping::build_inverse,
+            py::overload_cast<FunctionBuilder&, const ValueVec&, const ValueVec&>(
+                &Mapping::build_inverse, py::const_
+            ),
+            py::arg("builder"),
+            py::arg("inputs"),
+            py::arg("conditions")
+        )
+        .def(
+            "build_inverse",
+            py::overload_cast<
+                FunctionBuilder&,
+                const NamedVector<Value>&,
+                const NamedVector<Value>&>(&Mapping::build_inverse, py::const_),
             py::arg("builder"),
             py::arg("inputs"),
             py::arg("conditions")
@@ -325,7 +371,10 @@ PYBIND11_MODULE(_madspace_py, m) {
         m, "FunctionGenerator", py::dynamic_attr()
     )
         .def(
-            py::init<const std::string&, const TypeVec&, const TypeVec&>(),
+            py::init<
+                const std::string&,
+                const NamedVector<Type>&,
+                const NamedVector<Type>&>(),
             py::arg("name"),
             py::arg("arg_types"),
             py::arg("return_types")
@@ -333,7 +382,17 @@ PYBIND11_MODULE(_madspace_py, m) {
         .def("function", &FunctionGenerator::function)
         .def(
             "build_function",
-            &FunctionGenerator::build_function,
+            py::overload_cast<FunctionBuilder&, const ValueVec&>(
+                &FunctionGenerator::build_function, py::const_
+            ),
+            py::arg("builder"),
+            py::arg("args")
+        )
+        .def(
+            "build_function",
+            py::overload_cast<FunctionBuilder&, const NamedVector<Value>&>(
+                &FunctionGenerator::build_function, py::const_
+            ),
             py::arg("builder"),
             py::arg("args")
         );

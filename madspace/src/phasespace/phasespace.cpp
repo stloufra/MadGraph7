@@ -290,7 +290,7 @@ Mapping::Result PhaseSpaceMapping::build_forward_impl(
             auto invariant =
                 _s_invariants.at(invariant_index++)
                     .build_forward(fb, {next_random()}, {s_min, s_max});
-            data.mass2 = invariant["s"];
+            data.mass2 = invariant["invariant"];
             data.mass = fb.sqrt(data.mass2.value());
             dets.push_back(invariant["det"]);
         } else if (decay_index == 0) {
@@ -542,7 +542,7 @@ Mapping::Result PhaseSpaceMapping::build_inverse_impl(
             auto invariant =
                 _s_invariants.at(invariant_index++)
                     .build_inverse(fb, {data.mass2.value()}, {s_min, s_max});
-            random_out.push_back(invariant["r"]);
+            random_out.push_back(invariant["random"]);
             dets.push_back(invariant["det"]);
         } else if (decay_index == 0) {
             data.mass2 = _sqrt_s_lab * _sqrt_s_lab;

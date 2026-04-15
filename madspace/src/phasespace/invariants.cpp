@@ -5,9 +5,9 @@ using namespace madspace;
 Invariant::Invariant(double power, double mass, double width) :
     Mapping(
         "Invariant",
-        {{"r", batch_float}},
-        {{"s", batch_float}},
-        {{"s_min", batch_float}, {"s_max", batch_float}}
+        {{"random", batch_float}},
+        {{"invariant", batch_float}},
+        {{"invariant_min", batch_float}, {"invariant_max", batch_float}}
     ),
     _power(power),
     _mass(mass),
@@ -25,7 +25,7 @@ Mapping::Result Invariant::build_forward_impl(
         : _power == 1
         ? fb.stable_invariant(r, _mass, s_min, s_max)
         : fb.stable_invariant_nu(r, _mass, _power, s_min, s_max);
-    return {{{"s", s}}, det};
+    return {{{"invariant", s}}, det};
 }
 
 Mapping::Result Invariant::build_inverse_impl(
@@ -40,5 +40,5 @@ Mapping::Result Invariant::build_inverse_impl(
         : _power == 1
         ? fb.stable_invariant_inverse(s, _mass, s_min, s_max)
         : fb.stable_invariant_nu_inverse(s, _mass, _power, s_min, s_max);
-    return {{{"r", r}}, det};
+    return {{{"random", r}}, det};
 }
