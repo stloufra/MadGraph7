@@ -700,6 +700,60 @@ class TestMultiLanguageComparison(unittest.TestCase):
         finally:
             self._shutil.rmtree(parent, ignore_errors=True)
 
+    def test_check_language_function_epem_aa(self):
+        """check_language() must return Passed for e+ e- > a a when at least
+        one compiled backend (gfortran or g++) is available."""
+        model = self.model
+        me_obj = self.matrix_element
+
+        # Build a single Process (not a ProcessDefinition) so check_language
+        # takes the non-ProcessDefinition branch.
+        import madgraph.core.base_objects as _bo
+        legs = _bo.LegList([
+            _bo.Leg({'id': -11, 'state': False, 'number': 1}),
+            _bo.Leg({'id':  11, 'state': False, 'number': 2}),
+            _bo.Leg({'id':  22, 'state': True,  'number': 3}),
+            _bo.Leg({'id':  22, 'state': True,  'number': 4}),
+        ])
+        proc = _bo.Process({
+            'legs': legs, 'model': model,
+            'orders': {}, 'forbidden_particles': [],
+            'forbidden_onsh_s_channels': [],
+            'forbidden_s_channels': [],
+            'perturbation_couplings': [],
+        })
+
+        results = process_checks.check_language(proc)
+        self.assertEqual(len(results), 1)
+
+        entry = results[0]
+        self.assertIsNotNone(entry['value_python'],
+                             'Python evaluation returned None')
+        me_py = entry['value_python']['m2']
+        self.assertGreater(abs(me_py), 0., 'Python ME is zero')
+
+        if not (self.has_fortran or self.has_cpp):
+            self.skipTest('No compiled backend available')
+
+        # At least one compiled backend must agree with Python
+        if entry['value_fortran'] is not None:
+            me_f = entry['value_fortran']['m2']
+            rel = abs(me_f - me_py) / abs(me_py)
+            self.assertLess(rel, 1e-4,
+                            'Fortran/Python disagree: F=%g Py=%g rel=%g'
+                            % (me_f, me_py, rel))
+        if entry['value_cpp'] is not None:
+            me_cpp = entry['value_cpp']['m2']
+            rel = abs(me_cpp - me_py) / abs(me_py)
+            self.assertLess(rel, 1e-4,
+                            'C++/Python disagree: C++=%g Py=%g rel=%g'
+                            % (me_cpp, me_py, rel))
+
+        # output_language must produce a 'Passed' line
+        text = process_checks.output_language(results)
+        self.assertIn('Passed', text)
+        self.assertIn('Summary', text)
+
 
 if __name__ == '__main__':
     unittest.unittest.main()

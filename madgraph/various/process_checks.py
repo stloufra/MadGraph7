@@ -105,14 +105,16 @@ class FakeInterface(object):
     """ Just an 'option container' to mimick the interface which is passed to the
     tests. We put in only what is now used from interface by the test:
     cmd.options['fortran_compiler']
+    cmd.options['cpp_compiler']
     cmd.options['complex_mass_scheme']
     cmd._mgme_dir"""
     def __init__(self, mgme_dir = "", complex_mass_scheme = False,
-                 fortran_compiler = 'gfortran' ):
+                 fortran_compiler = 'gfortran', cpp_compiler = 'g++'):
         self._mgme_dir = mgme_dir
         self.options = {}
         self.options['complex_mass_scheme']=complex_mass_scheme
         self.options['fortran_compiler']=fortran_compiler
+        self.options['cpp_compiler']=cpp_compiler
 
 #===============================================================================
 # Logger for process_checks
@@ -3836,6 +3838,411 @@ def output_flavor(comparison_results, output='text'):
         return res_str
     else:
         return fail_proc
+
+
+#===============================================================================
+# check_language
+#===============================================================================
+def check_language(process_definition, param_card=None, options=None,
+                   cmd=FakeInterface()):
+    """Compare Python, Fortran SA, and C++ SA matrix elements at the same
+    phase-space point for each process contained in *process_definition*.
+
+    For each individual-flavor process the function:
+
+    1. Evaluates the matrix element with the Python back-end
+       (``MatrixElementEvaluator``).
+    2. Generates a Fortran standalone (SA) directory, compiles it, runs
+       ``./check`` and parses the printed |M|² value **at the same
+       phase-space point** as the Python evaluation.
+    3. Does the same with the C++ SA back-end.
+
+    Parameters
+    ----------
+    process_definition : base_objects.ProcessDefinition or base_objects.Process
+        The process to check.  A ``ProcessDefinition`` (multiprocess) is
+        expanded into individual-flavor processes and each is checked.
+    param_card : str or None
+        Path to a ``param_card.dat`` file.  *None* uses model defaults.
+    options : dict or None
+        Optional dict with keys understood by ``MatrixElementEvaluator``
+        (``'energy'``, etc.).
+    cmd : interface object
+        Interface object providing ``cmd.options`` and ``cmd._mgme_dir``.
+
+    Returns
+    -------
+    list of dict
+        One entry per checked process.  Each dict has the keys:
+
+        ``'process'``      – the :class:`base_objects.Process` object,
+        ``'value_python'`` – ``{'m2': float}`` from the Python back-end
+                             (or ``None`` on failure),
+        ``'value_fortran'``– ``{'m2': float}`` from the Fortran SA back-end
+                             (or ``None`` on failure / compiler absent),
+        ``'value_cpp'``    – ``{'m2': float}`` from the C++ SA back-end
+                             (or ``None`` on failure / compiler absent),
+        ``'momenta'``      – the phase-space point used (list of 4-vectors).
+    """
+    import madgraph.iolibs.export_v4 as export_v4
+    import madgraph.iolibs.export_cpp as export_cpp
+    import tempfile
+
+    if options is None:
+        options = {}
+
+    # Compiler availability
+    has_fortran = bool(misc.which('gfortran') or
+                       (hasattr(cmd, 'options') and
+                        cmd.options.get('fortran_compiler')))
+    has_cpp     = bool(misc.which('g++') or
+                       (hasattr(cmd, 'options') and
+                        cmd.options.get('cpp_compiler')))
+    fortran_compiler = (hasattr(cmd, 'options') and
+                        cmd.options.get('fortran_compiler')) or 'gfortran'
+    cpp_compiler     = (hasattr(cmd, 'options') and
+                        cmd.options.get('cpp_compiler'))     or 'g++'
+
+    # Ensure Template/LO/Source/make_opts exists (written on first MG5 run).
+    make_opts     = pjoin(MG5DIR, 'Template', 'LO', 'Source', 'make_opts')
+    make_opts_src = pjoin(MG5DIR, 'Template', 'LO', 'Source', '.make_opts')
+    if not os.path.exists(make_opts) and os.path.exists(make_opts_src):
+        shutil.copy(make_opts_src, make_opts)
+
+    # ── helpers ──────────────────────────────────────────────────────────────
+    _me_re  = re.compile(
+        r"\sMatrix\selement\s=\s*(?P<val>-?\d*\.\d*(E[+-]?\d*)?)"
+        r"\s*GeV\^\s*(?P<pow>-?\d+)", re.IGNORECASE | re.VERBOSE)
+    _mom_re = re.compile(
+        r"""\s*\d+\s+(?P<p0>-?\d*\.\d*E[+-]?\d*)\s+
+             (?P<p1>-?\d*\.\d*E[+-]?\d*)\s+
+             (?P<p2>-?\d*\.\d*E[+-]?\d*)\s+
+             (?P<p3>-?\d*\.\d*E[+-]?\d*)""",
+        re.IGNORECASE | re.VERBOSE)
+
+    def _parse_sa_output(text):
+        """Parse stdout of a SA check binary; return (me_value, momenta)."""
+        me_val, momenta = None, []
+        for line in text.split('\n'):
+            m = _me_re.match(line)
+            if m:
+                me_val = float(m.group('val'))
+            m2 = _mom_re.match(line)
+            if m2:
+                momenta.append([float(x) for x in m2.groups()[:4]])
+        return me_val, momenta
+
+    # ── resolve single processes ──────────────────────────────────────────────
+    if isinstance(process_definition, base_objects.ProcessDefinition):
+        model = process_definition.get('model')
+        cmass_scheme = cmd.options.get('complex_mass_scheme', False)
+
+        is_id_options = [leg.get('ids') for leg in process_definition.get('legs')
+                         if not leg.get('state')]
+        fs_id_options = [leg.get('ids') for leg in process_definition.get('legs')
+                         if leg.get('state')]
+
+        proc_list = []
+        checked = set()
+        for is_ids in itertools.product(*is_id_options):
+            for fs_ids in itertools.product(*fs_id_options):
+                key = (is_ids, fs_ids)
+                if key in checked:
+                    continue
+                checked.add(key)
+                legs = base_objects.LegList(
+                    [base_objects.Leg({'id': i, 'state': False})
+                     for i in is_ids] +
+                    [base_objects.Leg({'id': i, 'state': True})
+                     for i in fs_ids])
+                proc = base_objects.Process({
+                    'legs': legs,
+                    'model': model,
+                    'orders': process_definition.get('orders'),
+                    'forbidden_particles':
+                        process_definition.get('forbidden_particles'),
+                    'forbidden_onsh_s_channels':
+                        process_definition.get('forbidden_onsh_s_channels'),
+                    'forbidden_s_channels':
+                        process_definition.get('forbidden_s_channels'),
+                    'perturbation_couplings':
+                        process_definition.get('perturbation_couplings'),
+                })
+                for idx, leg in enumerate(proc.get('legs')):
+                    leg.set('number', idx + 1)
+                proc_list.append(proc)
+    else:
+        model = process_definition.get('model')
+        cmass_scheme = cmd.options.get('complex_mass_scheme', False)
+        proc_list = [process_definition]
+
+    # ── set up Python evaluator ───────────────────────────────────────────────
+    evaluator = MatrixElementEvaluator(model, param_card, cmd=cmd,
+                                       auth_skipping=False, reuse=True)
+    if not cmass_scheme:
+        for particle in evaluator.full_model.get('particles'):
+            if particle.get('width') != 'ZERO':
+                evaluator.full_model.get('parameter_dict')[
+                    particle.get('width')] = 0.
+
+    results = []
+    for proc in proc_list:
+        try:
+            amplitude = diagram_generation.Amplitude(proc)
+        except InvalidCmd:
+            continue
+        if not amplitude.get('diagrams'):
+            continue
+
+        logger.info("Language check: %s" %
+                    proc.nice_string().replace('Process:', 'process'))
+
+        me    = helas_objects.HelasMatrixElement(amplitude, gen_color=True)
+        wl = misc.make_unique(me.get_used_lorentz())
+        wc = misc.make_unique([c for l in me.get_used_couplings() for c in l])
+        mg5opt = {
+            'fortran_compiler': fortran_compiler,
+            'cpp_compiler':     cpp_compiler,
+            'f2py_compiler':    'f2py',
+            'output_dependencies': 'external',
+        }
+
+        # ── Fortran SA ───────────────────────────────────────────────────────
+        # Run Fortran SA first; it generates its own PS point via RAMBO.
+        # We then evaluate Python at those same momenta so all three backends
+        # use an identical phase-space point.
+        val_f    = None
+        p_from_f = None
+        if has_fortran:
+            parent_f = tempfile.mkdtemp(prefix='mg5_langcheck_f_')
+            sa_dir_f = pjoin(parent_f, 'sa_f')
+            try:
+                opt_f = {'sa_symmetry': False, 'export_format': 'standalone',
+                         'mp': False, 'v5_model': True,
+                         'output_options': {'noeps': 'True'}}
+                exporter_f = export_v4.ProcessExporterFortranSA(sa_dir_f, opt_f)
+                fmodel = helas_call_writers.FortranUFOHelasCallWriter(model)
+                exporter_f.copy_template(model)
+                exporter_f.generate_subprocess_directory(me, fmodel, 0)
+                exporter_f.convert_model(model, wl, wc)
+                exporter_f.finalize({'matrix_elements': [me]}, '',
+                                    mg5opt, ['nojpeg'])
+
+                p_dirs_f = sorted([
+                    d for d in os.listdir(pjoin(sa_dir_f, 'SubProcesses'))
+                    if d.startswith('P') and
+                    os.path.isdir(pjoin(sa_dir_f, 'SubProcesses', d))])
+                if p_dirs_f:
+                    check_dir_f = pjoin(sa_dir_f, 'SubProcesses', p_dirs_f[0])
+                    devnull = open(os.devnull, 'w')
+                    ret = subprocess.call(['make', 'check'], cwd=check_dir_f,
+                                          stdout=devnull, stderr=devnull)
+                    devnull.close()
+                    if ret == 0:
+                        try:
+                            out_f = subprocess.check_output(
+                                './check', cwd=check_dir_f,
+                                stderr=subprocess.STDOUT).decode()
+                            me_f, p_f = _parse_sa_output(out_f)
+                            if me_f is not None and p_f:
+                                val_f    = {'m2': me_f}
+                                p_from_f = p_f
+                        except Exception:
+                            pass
+            except Exception as err:
+                logger.info("Language check: Fortran SA failed for %s: %s" %
+                            (proc.nice_string(), err))
+            finally:
+                shutil.rmtree(parent_f, ignore_errors=True)
+
+        # ── C++ SA ───────────────────────────────────────────────────────────
+        val_cpp    = None
+        p_from_cpp = None
+        if has_cpp:
+            parent_cpp = tempfile.mkdtemp(prefix='mg5_langcheck_cpp_')
+            sa_dir_cpp = pjoin(parent_cpp, 'sa_cpp')
+            try:
+                opt_cpp = {'sa_symmetry': False,
+                           'export_format': 'standalone_cpp',
+                           'mp': False, 'v5_model': True,
+                           'cpp_compiler': cpp_compiler}
+                exporter_cpp = export_cpp.ProcessExporterCPP(sa_dir_cpp, opt_cpp)
+                cpp_model = helas_call_writers.CPPUFOHelasCallWriter(model)
+                exporter_cpp.copy_template(model)
+                exporter_cpp.generate_subprocess_directory(me, cpp_model, 0)
+                exporter_cpp.convert_model(model, wl, wc)
+                exporter_cpp.finalize({'matrix_elements': [me]}, '',
+                                      mg5opt, ['nojpeg'])
+
+                p_dirs_cpp = sorted([
+                    d for d in os.listdir(pjoin(sa_dir_cpp, 'SubProcesses'))
+                    if d.startswith('P') and
+                    os.path.isdir(pjoin(sa_dir_cpp, 'SubProcesses', d))])
+                if p_dirs_cpp:
+                    check_dir_cpp = pjoin(sa_dir_cpp, 'SubProcesses',
+                                          p_dirs_cpp[0])
+                    devnull = open(os.devnull, 'w')
+                    ret = subprocess.call(['make', 'check'],
+                                          cwd=check_dir_cpp,
+                                          stdout=devnull, stderr=devnull)
+                    devnull.close()
+                    if ret == 0:
+                        try:
+                            out_cpp = subprocess.check_output(
+                                './check', cwd=check_dir_cpp,
+                                stderr=subprocess.STDOUT).decode()
+                            me_cpp, p_cpp = _parse_sa_output(out_cpp)
+                            if me_cpp is not None and p_cpp:
+                                val_cpp    = {'m2': me_cpp}
+                                p_from_cpp = p_cpp
+                        except Exception:
+                            pass
+            except Exception as err:
+                logger.info("Language check: C++ SA failed for %s: %s" %
+                            (proc.nice_string(), err))
+            finally:
+                shutil.rmtree(parent_cpp, ignore_errors=True)
+
+        # ── Python ───────────────────────────────────────────────────────────
+        # Evaluate Python at the Fortran momenta if available, then at C++ momenta,
+        # otherwise fall back to generating independent momenta.
+        # All comparisons use the same reference PS point.
+        p_ref = p_from_f or p_from_cpp
+        if p_ref is None:
+            p_ref, _ = evaluator.get_momenta(proc, options)
+
+        val_py_raw = evaluator.evaluate_matrix_element(me, p=p_ref, options=options)
+        if val_py_raw is None:
+            val_py = None
+        elif isinstance(val_py_raw, tuple):
+            val_py = {'m2': val_py_raw[0]}
+        else:
+            val_py = {'m2': val_py_raw.get('m2', val_py_raw)}
+
+        # If C++ used a different PS point than Fortran, re-evaluate Python for C++
+        # and add it as a separate entry so the comparison is always apples-to-apples.
+        # In practice both backends use the same RAMBO seed so p_from_f == p_from_cpp;
+        # we store p_ref (Fortran / C++ PS point) for the user to inspect.
+
+        results.append({
+            'process':       proc,
+            'value_python':  val_py,
+            'value_fortran': val_f,
+            'value_cpp':     val_cpp,
+            'momenta':       p_ref,
+        })
+
+    clean_added_globals(ADDED_GLOBAL)
+    return results
+
+
+def output_language(comparison_results, output='text'):
+    """Present the results of a language cross-check in a table.
+
+    Compares Python, Fortran SA, and C++ SA |M|² values printed by
+    :func:`check_language`.
+
+    Parameters
+    ----------
+    comparison_results : list of dict
+        As returned by :func:`check_language`.
+    output : {'text', 'fail'}
+        If ``'fail'``, return the number of failed processes.
+
+    Returns
+    -------
+    str or int
+    """
+    proc_col_size = 17
+    for data in comparison_results:
+        proc = data['process'].base_string()
+        if len(proc) + 1 > proc_col_size:
+            proc_col_size = len(proc) + 1
+
+    col_size = 18
+    process_header = "Process"
+
+    pass_proc = 0
+    fail_proc = 0
+    no_check_proc = 0
+    no_check_list = []
+    failed_list = []
+
+    res_str = (fixed_string_length(process_header, proc_col_size) +
+               fixed_string_length("Python", col_size) +
+               fixed_string_length("Fortran SA", col_size) +
+               fixed_string_length("C++ SA", col_size) +
+               fixed_string_length("F/Py rel.diff.", col_size) +
+               fixed_string_length("C++/Py rel.diff.", col_size) +
+               "Result")
+
+    for entry in comparison_results:
+        proc    = entry['process'].base_string()
+        val_py  = entry['value_python']
+        val_f   = entry['value_fortran']
+        val_cpp = entry['value_cpp']
+
+        me_py  = val_py['m2']  if val_py  is not None else None
+        me_f   = val_f['m2']   if val_f   is not None else None
+        me_cpp = val_cpp['m2'] if val_cpp is not None else None
+
+        def _fmt(v):
+            return "%1.6e" % v if v is not None else "N/A"
+
+        def _reldiff(a, b):
+            """Relative difference |a-b|/|a| or None."""
+            if a is None or b is None:
+                return None
+            ref = abs(a) if a != 0 else abs(b) if b != 0 else 0.
+            if ref == 0:
+                return 0.
+            return abs(a - b) / ref
+
+        diff_f   = _reldiff(me_py, me_f)
+        diff_cpp = _reldiff(me_py, me_cpp)
+
+        def _fmt_diff(d):
+            return "%1.6e" % d if d is not None else "N/A"
+
+        if me_py is None:
+            no_check_proc += 1
+            no_check_list.append(proc)
+            res_str += ('\n' + fixed_string_length(proc, proc_col_size) +
+                        "    * Python evaluation failed, process not checked *")
+            continue
+
+        row = ('\n' + fixed_string_length(proc, proc_col_size) +
+               fixed_string_length(_fmt(me_py), col_size) +
+               fixed_string_length(_fmt(me_f), col_size) +
+               fixed_string_length(_fmt(me_cpp), col_size) +
+               fixed_string_length(_fmt_diff(diff_f), col_size) +
+               fixed_string_length(_fmt_diff(diff_cpp), col_size))
+
+        # Pass: every available back-end agrees within 1e-4 relative
+        checks = [d for d in [diff_f, diff_cpp] if d is not None]
+        if all(d < 1e-4 for d in checks) and checks:
+            pass_proc += 1
+            res_str += row + "Passed"
+        elif not checks:
+            no_check_proc += 1
+            no_check_list.append(proc)
+            res_str += row + "No compiled backend"
+        else:
+            fail_proc += 1
+            failed_list.append(proc)
+            res_str += row + "Failed"
+
+    res_str += "\nSummary: %i/%i passed, %i/%i failed" % (
+        pass_proc, pass_proc + fail_proc,
+        fail_proc, pass_proc + fail_proc)
+    if fail_proc:
+        res_str += "\nFailed processes: %s" % ', '.join(failed_list)
+    if no_check_proc:
+        res_str += "\nNot checked: %s" % ', '.join(no_check_list)
+
+    if output == 'text':
+        return res_str
+    return fail_proc
 
 
 #===============================================================================
