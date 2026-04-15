@@ -4113,32 +4113,45 @@ def check_language(process_definition, param_card=None, options=None,
                 shutil.rmtree(parent_cpp, ignore_errors=True)
 
         # ── Python ───────────────────────────────────────────────────────────
-        # Evaluate Python at the Fortran momenta if available, then at C++ momenta,
-        # otherwise fall back to generating independent momenta.
-        # All comparisons use the same reference PS point.
-        p_ref = p_from_f or p_from_cpp
-        if p_ref is None:
-            p_ref, _ = evaluator.get_momenta(proc, options)
+        # The Fortran SA and C++ SA each generate their own independent PS point
+        # (different energies: 1000 GeV vs 1500 GeV, different RAMBO
+        # implementations). To get an apples-to-apples comparison, Python is
+        # evaluated independently at *each* backend's own PS point:
+        #   - val_py      : Python at Fortran PS point  → for the F/Py comparison
+        #   - val_py_cpp  : Python at C++ PS point      → for the C++/Py comparison
+        # If a backend is unavailable, Python falls back to an independently
+        # generated PS point so that at least a single value is stored.
 
-        val_py_raw = evaluator.evaluate_matrix_element(me, p=p_ref, options=options)
-        if val_py_raw is None:
-            val_py = None
-        elif isinstance(val_py_raw, tuple):
-            val_py = {'m2': val_py_raw[0]}
+        def _eval_py(p):
+            raw = evaluator.evaluate_matrix_element(me, p=p, options=options)
+            if raw is None:
+                return None
+            if isinstance(raw, tuple):
+                return {'m2': raw[0]}
+            return {'m2': raw.get('m2', raw)}
+
+        if p_from_f is not None:
+            val_py = _eval_py(p_from_f)
+        elif p_from_cpp is not None:
+            val_py = _eval_py(p_from_cpp)
         else:
-            val_py = {'m2': val_py_raw.get('m2', val_py_raw)}
+            p_fallback, _ = evaluator.get_momenta(proc, options)
+            val_py = _eval_py(p_fallback)
 
-        # If C++ used a different PS point than Fortran, re-evaluate Python for C++
-        # and add it as a separate entry so the comparison is always apples-to-apples.
-        # In practice both backends use the same RAMBO seed so p_from_f == p_from_cpp;
-        # we store p_ref (Fortran / C++ PS point) for the user to inspect.
+        # Python re-evaluated at the C++ PS point (may equal val_py when
+        # C++ is not available or uses the same momenta as Fortran).
+        if p_from_cpp is not None and p_from_cpp != p_from_f:
+            val_py_cpp = _eval_py(p_from_cpp)
+        else:
+            val_py_cpp = val_py
 
         results.append({
-            'process':       proc,
-            'value_python':  val_py,
-            'value_fortran': val_f,
-            'value_cpp':     val_cpp,
-            'momenta':       p_ref,
+            'process':          proc,
+            'value_python':     val_py,
+            'value_python_cpp': val_py_cpp,
+            'value_fortran':    val_f,
+            'value_cpp':        val_cpp,
+            'momenta':          p_from_f or p_from_cpp,
         })
 
     clean_added_globals(ADDED_GLOBAL)
@@ -4188,10 +4201,14 @@ def output_language(comparison_results, output='text'):
     for entry in comparison_results:
         proc    = entry['process'].base_string()
         val_py  = entry['value_python']
+        # Python re-evaluated at the C++ PS point (same as val_py when C++ is
+        # unavailable or shares the Fortran PS point).
+        val_py_cpp = entry.get('value_python_cpp', val_py)
         val_f   = entry['value_fortran']
         val_cpp = entry['value_cpp']
 
         me_py  = val_py['m2']  if val_py  is not None else None
+        me_py_cpp = val_py_cpp['m2'] if val_py_cpp is not None else me_py
         me_f   = val_f['m2']   if val_f   is not None else None
         me_cpp = val_cpp['m2'] if val_cpp is not None else None
 
@@ -4208,7 +4225,8 @@ def output_language(comparison_results, output='text'):
             return abs(a - b) / ref
 
         diff_f   = _reldiff(me_py, me_f)
-        diff_cpp = _reldiff(me_py, me_cpp)
+        # Use Python evaluated at the C++ PS point for apples-to-apples comparison.
+        diff_cpp = _reldiff(me_py_cpp, me_cpp)
 
         def _fmt_diff(d):
             return "%1.6e" % d if d is not None else "N/A"

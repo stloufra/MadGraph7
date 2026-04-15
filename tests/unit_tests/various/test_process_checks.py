@@ -754,6 +754,68 @@ class TestMultiLanguageComparison(unittest.TestCase):
         self.assertIn('Passed', text)
         self.assertIn('Summary', text)
 
+    def test_check_language_gg_ttx_cpp_ps_point(self):
+        """g g > t t~: C++ must agree with Python when each is evaluated at
+        the *same* phase-space point.
+
+        Previously check_language evaluated Python at the Fortran PS point
+        (SQRTS=1000 GeV) and compared that value against C++ evaluated at its
+        own independently-generated PS point (energy=1500 GeV).  The ~5%
+        disagreement was purely a PS-point mismatch, not a real code bug.
+
+        After the fix, check_language stores value_python_cpp (Python
+        re-evaluated at the C++ PS point) and output_language uses that for
+        the C++/Py relative difference.  This test verifies the fix.
+        """
+        if not self.has_cpp:
+            self.skipTest('g++ not available')
+
+        import madgraph.core.base_objects as _bo
+        import madgraph.core.diagram_generation as _dg
+        import madgraph.core.helas_objects as _ho
+
+        model = self.model
+        legs = _bo.LegList([
+            _bo.Leg({'id': 21, 'state': False, 'number': 1}),
+            _bo.Leg({'id': 21, 'state': False, 'number': 2}),
+            _bo.Leg({'id':  6, 'state': True,  'number': 3}),
+            _bo.Leg({'id': -6, 'state': True,  'number': 4}),
+        ])
+        proc = _bo.Process({
+            'legs': legs, 'model': model,
+            'orders': {}, 'forbidden_particles': [],
+            'forbidden_onsh_s_channels': [],
+            'forbidden_s_channels': [],
+            'perturbation_couplings': [],
+        })
+
+        results = process_checks.check_language(proc)
+        self.assertEqual(len(results), 1, 'Expected exactly one subprocess result')
+
+        entry = results[0]
+        self.assertIsNotNone(entry['value_python'],
+                             'Python evaluation returned None')
+        self.assertIn('value_python_cpp', entry,
+                      'value_python_cpp key missing – apples-to-apples fix not applied')
+
+        if entry['value_cpp'] is None:
+            self.skipTest('C++ SA evaluation failed (no g++ or compile error)')
+
+        me_cpp    = entry['value_cpp']['m2']
+        me_py_cpp = entry['value_python_cpp']['m2']
+
+        self.assertGreater(abs(me_cpp), 0., 'C++ ME is zero – unexpected')
+        rel_diff = abs(me_cpp - me_py_cpp) / abs(me_cpp)
+        self.assertLess(rel_diff, 1e-4,
+                        'C++ and Python (at C++ PS point) disagree: '
+                        'C++=%g  Py@cpp_ps=%g  rel_diff=%g'
+                        % (me_cpp, me_py_cpp, rel_diff))
+
+        # output_language must also report Passed
+        text = process_checks.output_language(results)
+        self.assertIn('Passed', text,
+                      'output_language reported failure for g g > t t~:\n' + text)
+
 
 if __name__ == '__main__':
     unittest.unittest.main()
