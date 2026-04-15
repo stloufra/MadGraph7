@@ -3990,6 +3990,7 @@ def check_language(process_definition, param_card=None, options=None,
     if isinstance(process_definition, base_objects.ProcessDefinition):
         model = process_definition.get('model')
         cmass_scheme = cmd.options.get('complex_mass_scheme', False)
+        merged_particles = model.get('merged_particles') or {}
 
         is_id_options = [leg.get('ids') for leg in process_definition.get('legs')
                          if not leg.get('state')]
@@ -4000,15 +4001,77 @@ def check_language(process_definition, param_card=None, options=None,
         checked = set()
         for is_ids in itertools.product(*is_id_options):
             for fs_ids in itertools.product(*fs_id_options):
+                # For merged-particle models, expand over individual flavors.
+                # Each unique merged-particle TYPE (abs(id)) shares ONE flavor
+                # across all its legs (particle and antiparticle), ensuring
+                # same-flavor pairing (e.g. _quark and _anti_quark both get
+                # flavor=f so we produce q q~ -> t t~ not q q'~ -> t t~).
+                if merged_particles:
+                    all_ids = list(is_ids) + list(fs_ids)
+                    # Collect unique merged-particle types present in this
+                    # combination and their individual-flavor options.
+                    mpdg_list = sorted({
+                        mpdg
+                        for pid in all_ids
+                        for mpdg in merged_particles
+                        if abs(pid) == mpdg
+                    })
+                    if mpdg_list:
+                        flavor_options = [merged_particles[m] for m in mpdg_list]
+                        for flav_combo in itertools.product(*flavor_options):
+                            mpdg_flavor = dict(zip(mpdg_list, flav_combo))
+                            key = (is_ids, fs_ids, flav_combo)
+                            if key in checked:
+                                continue
+                            checked.add(key)
+                            legs_list = []
+                            for pid, state in ([(p, False) for p in is_ids] +
+                                               [(p, True)  for p in fs_ids]):
+                                merged_id, flav_tag = pid, []
+                                for mpdg, sub_ids in merged_particles.items():
+                                    if abs(pid) == mpdg:
+                                        # pid is already a merged-particle id;
+                                        # keep it and attach the chosen flavor.
+                                        merged_id = mpdg if pid > 0 else -mpdg
+                                        flav_tag  = [mpdg_flavor[mpdg]]
+                                        break
+                                    elif abs(pid) in sub_ids:
+                                        # pid is an individual id inside a
+                                        # merged group; map to merged id.
+                                        merged_id = mpdg if pid > 0 else -mpdg
+                                        flav_tag  = [mpdg_flavor[mpdg]]
+                                        break
+                                legs_list.append(base_objects.Leg(
+                                    {'id': merged_id, 'state': state,
+                                     'flavor': flav_tag}))
+                            proc = base_objects.Process({
+                                'legs': base_objects.LegList(legs_list),
+                                'model': model,
+                                'orders': process_definition.get('orders'),
+                                'forbidden_particles':
+                                    process_definition.get('forbidden_particles'),
+                                'forbidden_onsh_s_channels':
+                                    process_definition.get(
+                                        'forbidden_onsh_s_channels'),
+                                'forbidden_s_channels':
+                                    process_definition.get('forbidden_s_channels'),
+                                'perturbation_couplings':
+                                    process_definition.get('perturbation_couplings'),
+                            })
+                            for idx, leg in enumerate(proc.get('legs')):
+                                leg.set('number', idx + 1)
+                            proc_list.append(proc)
+                        continue  # procs for this (is_ids, fs_ids) already added
+
+                # No merged particles in this combination (or non-merged model):
+                # original single-proc behaviour.
                 key = (is_ids, fs_ids)
                 if key in checked:
                     continue
                 checked.add(key)
                 legs = base_objects.LegList(
-                    [base_objects.Leg({'id': i, 'state': False})
-                     for i in is_ids] +
-                    [base_objects.Leg({'id': i, 'state': True})
-                     for i in fs_ids])
+                    [base_objects.Leg({'id': i, 'state': False}) for i in is_ids] +
+                    [base_objects.Leg({'id': i, 'state': True})  for i in fs_ids])
                 proc = base_objects.Process({
                     'legs': legs,
                     'model': model,
@@ -4040,6 +4103,12 @@ def check_language(process_definition, param_card=None, options=None,
                     particle.get('width')] = 0.
 
     results = []
+    # Cache SA output text (stdout of ./check) keyed by the merged-leg-id
+    # tuple.  All individual-flavor procs expanded from the same merged
+    # process share the same matrix element code, so we compile once and
+    # re-parse the output with per-flavor target_pdgs.
+    sa_f_output_cache   = {}   # {merged_leg_id_tuple: str | None}
+    sa_cpp_output_cache = {}   # {merged_leg_id_tuple: str | None}
     for proc in proc_list:
         try:
             amplitude = diagram_generation.Amplitude(proc)
@@ -4074,100 +4143,138 @@ def check_language(process_definition, param_card=None, options=None,
         # Run Fortran SA first; it generates its own PS point via RAMBO.
         # We then evaluate Python at those same momenta so all three backends
         # use an identical phase-space point.
+        #
+        # The SA binary for a merged-particle process prints one PDG+ME block
+        # per flavor combination.  We cache the raw stdout by merged-leg-id
+        # tuple so that the compilation happens only once for all
+        # individual-flavor procs that share the same matrix element code.
         val_f    = None
         p_from_f = None
         if has_fortran:
-            parent_f = tempfile.mkdtemp(prefix='mg5_langcheck_f_')
-            sa_dir_f = pjoin(parent_f, 'sa_f')
-            try:
-                opt_f = {'sa_symmetry': False, 'export_format': 'standalone',
-                         'mp': False, 'v5_model': True,
-                         'output_options': {'noeps': 'True'}}
-                exporter_f = export_v4.ProcessExporterFortranSA(sa_dir_f, opt_f)
-                fmodel = helas_call_writers.FortranUFOHelasCallWriter(model)
-                exporter_f.copy_template(model)
-                exporter_f.generate_subprocess_directory(me, fmodel, 0)
-                exporter_f.convert_model(model, wl, wc)
-                exporter_f.finalize({'matrix_elements': [me]}, '',
-                                    mg5opt, ['nojpeg'])
+            sa_key_f = tuple(leg.get('id') for leg in proc.get('legs'))
+            if sa_key_f not in sa_f_output_cache:
+                # First encounter: build, compile, run; cache the output text.
+                sa_f_output_cache[sa_key_f] = None   # sentinel: tried
+                parent_f = tempfile.mkdtemp(prefix='mg5_langcheck_f_')
+                sa_dir_f = pjoin(parent_f, 'sa_f')
+                try:
+                    opt_f = {'sa_symmetry': False, 'export_format': 'standalone',
+                             'mp': False, 'v5_model': True,
+                             'output_options': {'noeps': 'True'}}
+                    exporter_f = export_v4.ProcessExporterFortranSA(sa_dir_f, opt_f)
+                    fmodel = helas_call_writers.FortranUFOHelasCallWriter(model)
+                    exporter_f.copy_template(model)
+                    # Use a deep copy so that generate_subprocess_directory
+                    # cannot corrupt the original me (it may trim diagrams as
+                    # a side-effect when handling merged-particle flavors).
+                    me_f = copy.deepcopy(me)
+                    exporter_f.generate_subprocess_directory(me_f, fmodel, 0)
+                    exporter_f.convert_model(model, wl, wc)
+                    exporter_f.finalize({'matrix_elements': [me_f]}, '',
+                                        mg5opt, ['nojpeg'])
 
-                p_dirs_f = sorted([
-                    d for d in os.listdir(pjoin(sa_dir_f, 'SubProcesses'))
-                    if d.startswith('P') and
-                    os.path.isdir(pjoin(sa_dir_f, 'SubProcesses', d))])
-                if p_dirs_f:
-                    check_dir_f = pjoin(sa_dir_f, 'SubProcesses', p_dirs_f[0])
-                    devnull = open(os.devnull, 'w')
-                    ret = subprocess.call(['make', 'check'], cwd=check_dir_f,
-                                          stdout=devnull, stderr=devnull)
-                    devnull.close()
-                    if ret == 0:
-                        try:
-                            out_f = subprocess.check_output(
-                                './check', cwd=check_dir_f,
-                                stderr=subprocess.STDOUT).decode()
-                            me_f, p_f = _parse_sa_output(
-                                out_f,
-                                target_pdgs=[leg.get('id')
-                                             for leg in proc.get('legs')])
-                            if me_f is not None and p_f:
-                                val_f    = {'m2': me_f}
-                                p_from_f = p_f
-                        except Exception:
-                            pass
-            except Exception as err:
-                logger.info("Language check: Fortran SA failed for %s: %s" %
-                            (proc.nice_string(), err))
-            finally:
-                shutil.rmtree(parent_f, ignore_errors=True)
+                    p_dirs_f = sorted([
+                        d for d in os.listdir(pjoin(sa_dir_f, 'SubProcesses'))
+                        if d.startswith('P') and
+                        os.path.isdir(pjoin(sa_dir_f, 'SubProcesses', d))])
+                    if p_dirs_f:
+                        check_dir_f = pjoin(sa_dir_f, 'SubProcesses', p_dirs_f[0])
+                        devnull = open(os.devnull, 'w')
+                        ret = subprocess.call(['make', 'check'], cwd=check_dir_f,
+                                              stdout=devnull, stderr=devnull)
+                        devnull.close()
+                        if ret == 0:
+                            try:
+                                out_f = subprocess.check_output(
+                                    './check', cwd=check_dir_f,
+                                    stderr=subprocess.STDOUT).decode()
+                                sa_f_output_cache[sa_key_f] = out_f
+                            except Exception:
+                                pass
+                except Exception as err:
+                    logger.info("Language check: Fortran SA failed for %s: %s" %
+                                (proc.nice_string(), err))
+                finally:
+                    shutil.rmtree(parent_f, ignore_errors=True)
+
+            out_f_text = sa_f_output_cache.get(sa_key_f)
+            if out_f_text is not None:
+                # Build target_pdgs using individual PDG codes from flavor tags
+                # so _parse_sa_output can select the correct per-flavor block.
+                # For legs without a flavor tag (non-merged), use the leg id.
+                target_pdgs_f = [
+                    (leg.get('flavor')[0] if leg.get('id') > 0
+                     else -leg.get('flavor')[0])
+                    if leg.get('flavor') else leg.get('id')
+                    for leg in proc.get('legs')]
+                me_f, p_f = _parse_sa_output(out_f_text, target_pdgs=target_pdgs_f)
+                if me_f is not None and p_f:
+                    val_f    = {'m2': me_f}
+                    p_from_f = p_f
 
         # ── C++ SA ───────────────────────────────────────────────────────────
         val_cpp    = None
         p_from_cpp = None
         if has_cpp:
-            parent_cpp = tempfile.mkdtemp(prefix='mg5_langcheck_cpp_')
-            sa_dir_cpp = pjoin(parent_cpp, 'sa_cpp')
-            try:
-                opt_cpp = {'sa_symmetry': False,
-                           'export_format': 'standalone_cpp',
-                           'mp': False, 'v5_model': True,
-                           'cpp_compiler': cpp_compiler}
-                exporter_cpp = export_cpp.ProcessExporterCPP(sa_dir_cpp, opt_cpp)
-                cpp_model = helas_call_writers.CPPUFOHelasCallWriter(model)
-                exporter_cpp.copy_template(model)
-                exporter_cpp.generate_subprocess_directory(me, cpp_model, 0)
-                exporter_cpp.convert_model(model, wl, wc)
-                exporter_cpp.finalize({'matrix_elements': [me]}, '',
-                                      mg5opt, ['nojpeg'])
+            sa_key_cpp = tuple(leg.get('id') for leg in proc.get('legs'))
+            if sa_key_cpp not in sa_cpp_output_cache:
+                sa_cpp_output_cache[sa_key_cpp] = None   # sentinel: tried
+                parent_cpp = tempfile.mkdtemp(prefix='mg5_langcheck_cpp_')
+                sa_dir_cpp = pjoin(parent_cpp, 'sa_cpp')
+                try:
+                    opt_cpp = {'sa_symmetry': False,
+                               'export_format': 'standalone_cpp',
+                               'mp': False, 'v5_model': True,
+                               'cpp_compiler': cpp_compiler}
+                    exporter_cpp = export_cpp.ProcessExporterCPP(sa_dir_cpp, opt_cpp)
+                    cpp_model = helas_call_writers.CPPUFOHelasCallWriter(model)
+                    exporter_cpp.copy_template(model)
+                    # Use a deep copy to protect the original me from
+                    # side-effects of generate_subprocess_directory.
+                    me_cpp_sa = copy.deepcopy(me)
+                    exporter_cpp.generate_subprocess_directory(me_cpp_sa, cpp_model, 0)
+                    exporter_cpp.convert_model(model, wl, wc)
+                    exporter_cpp.finalize({'matrix_elements': [me_cpp_sa]}, '',
+                                          mg5opt, ['nojpeg'])
 
-                p_dirs_cpp = sorted([
-                    d for d in os.listdir(pjoin(sa_dir_cpp, 'SubProcesses'))
-                    if d.startswith('P') and
-                    os.path.isdir(pjoin(sa_dir_cpp, 'SubProcesses', d))])
-                if p_dirs_cpp:
-                    check_dir_cpp = pjoin(sa_dir_cpp, 'SubProcesses',
-                                          p_dirs_cpp[0])
-                    devnull = open(os.devnull, 'w')
-                    ret = subprocess.call(['make', 'check'],
-                                          cwd=check_dir_cpp,
-                                          stdout=devnull, stderr=devnull)
-                    devnull.close()
-                    if ret == 0:
-                        try:
-                            out_cpp = subprocess.check_output(
-                                './check', cwd=check_dir_cpp,
-                                stderr=subprocess.STDOUT).decode()
-                            me_cpp, p_cpp = _parse_sa_output(out_cpp)
-                            if me_cpp is not None and p_cpp:
-                                val_cpp    = {'m2': me_cpp}
-                                p_from_cpp = p_cpp
-                        except Exception:
-                            pass
-            except Exception as err:
-                logger.info("Language check: C++ SA failed for %s: %s" %
-                            (proc.nice_string(), err))
-            finally:
-                shutil.rmtree(parent_cpp, ignore_errors=True)
+                    p_dirs_cpp = sorted([
+                        d for d in os.listdir(pjoin(sa_dir_cpp, 'SubProcesses'))
+                        if d.startswith('P') and
+                        os.path.isdir(pjoin(sa_dir_cpp, 'SubProcesses', d))])
+                    if p_dirs_cpp:
+                        check_dir_cpp = pjoin(sa_dir_cpp, 'SubProcesses',
+                                              p_dirs_cpp[0])
+                        devnull = open(os.devnull, 'w')
+                        ret = subprocess.call(['make', 'check'],
+                                              cwd=check_dir_cpp,
+                                              stdout=devnull, stderr=devnull)
+                        devnull.close()
+                        if ret == 0:
+                            try:
+                                out_cpp = subprocess.check_output(
+                                    './check', cwd=check_dir_cpp,
+                                    stderr=subprocess.STDOUT).decode()
+                                sa_cpp_output_cache[sa_key_cpp] = out_cpp
+                            except Exception:
+                                pass
+                except Exception as err:
+                    logger.info("Language check: C++ SA failed for %s: %s" %
+                                (proc.nice_string(), err))
+                finally:
+                    shutil.rmtree(parent_cpp, ignore_errors=True)
+
+            out_cpp_text = sa_cpp_output_cache.get(sa_key_cpp)
+            if out_cpp_text is not None:
+                target_pdgs_cpp = [
+                    (leg.get('flavor')[0] if leg.get('id') > 0
+                     else -leg.get('flavor')[0])
+                    if leg.get('flavor') else leg.get('id')
+                    for leg in proc.get('legs')]
+                me_cpp, p_cpp = _parse_sa_output(out_cpp_text,
+                                                  target_pdgs=target_pdgs_cpp)
+                if me_cpp is not None and p_cpp:
+                    val_cpp    = {'m2': me_cpp}
+                    p_from_cpp = p_cpp
 
         # ── Python ───────────────────────────────────────────────────────────
         # The Fortran SA and C++ SA each generate their own independent PS point

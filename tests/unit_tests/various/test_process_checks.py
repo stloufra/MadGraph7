@@ -30,8 +30,6 @@ import madgraph.various.process_checks as process_checks
 import madgraph.various.misc as misc
 import models.import_ufo as import_ufo
 import models.model_reader as model_reader
-from six.moves import range
-
 _file_path = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0]
 
 #===============================================================================
@@ -457,7 +455,75 @@ class TestFlavorCheck(unittest.TestCase):
                          "check_flavor: some flavor subprocesses disagree.\n" +
                          process_checks.output_flavor(result))
 
-    def test_output_flavor_format(self):
+    def test_check_language_proclist_merged_expansion(self):
+        """check_language expands merged-particle legs to individual flavors.
+
+        When a ProcessDefinition contains a merged-particle leg (e.g. _quark
+        with PDG 81), check_language should build one proc per individual-flavor
+        combination (d d~ > t t~, u u~ > t t~, ...) with explicit flavor tags
+        on the merged legs so that both Fortran and Python evaluate the same
+        specific flavor.
+        """
+        q_id = 81
+        t_id = 6
+        proc_def = base_objects.ProcessDefinition({
+            'legs': base_objects.MultiLegList([
+                base_objects.MultiLeg({'ids': [q_id],  'state': False}),
+                base_objects.MultiLeg({'ids': [-q_id], 'state': False}),
+                base_objects.MultiLeg({'ids': [t_id],  'state': True}),
+                base_objects.MultiLeg({'ids': [-t_id], 'state': True}),
+            ]),
+            'model': self.merged_model,
+        })
+
+        merged_particles = self.merged_model.get('merged_particles') or {}
+        # Gather the individual quark ids that make up particle 81
+        indiv_quark_ids = sorted(
+            merged_particles.get(q_id, []))
+        self.assertTrue(len(indiv_quark_ids) > 1,
+                        "Expected multiple individual quarks in merged particle 81")
+
+        # Call check_language with no compilers so no SA is run; we only care
+        # about proc_list construction here.
+        results = process_checks.check_language(
+            proc_def,
+            param_card=None,
+            options=None,
+            cmd=process_checks.FakeInterface(),
+        )
+
+        # results contains one entry per individual-flavor combination.
+        # Each proc should have merged leg ids (81, -81) but individual-flavor
+        # flavor tags.
+        flavor_combos = set()
+        for entry in results:
+            proc = entry['process']
+            legs = proc.get('legs')
+            # IS legs
+            is_legs = [l for l in legs if not l.get('state')]
+            fs_legs = [l for l in legs if l.get('state')]
+            # Merged leg ids must be 81 / -81
+            for leg in is_legs:
+                self.assertEqual(abs(leg.get('id')), q_id,
+                                 "IS leg should use merged id %d" % q_id)
+            # Each IS leg must carry an explicit individual flavor tag
+            for leg in is_legs:
+                self.assertTrue(len(leg.get('flavor')) > 0,
+                                "IS merged leg must have a flavor tag")
+                flav = leg.get('flavor')[0]
+                self.assertIn(flav, indiv_quark_ids,
+                              "Flavor tag must be an individual quark PDG")
+            # Collect the flavor combo
+            combo = tuple(l.get('flavor')[0] if l.get('flavor') else l.get('id')
+                          for l in is_legs)
+            flavor_combos.add(combo)
+
+        # Should have one entry per individual quark flavor
+        self.assertEqual(len(flavor_combos), len(indiv_quark_ids),
+                         "Expected one proc per individual quark flavor, got: %s"
+                         % str(flavor_combos))
+
+
         """output_flavor returns a string with summary line."""
         q_id = 81
         t_id = 6
