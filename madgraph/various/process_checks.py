@@ -325,7 +325,39 @@ class MatrixElementEvaluator(object):
             return None
         # If one wants to output the python code generated for the computation
         # of these matrix elements, it is possible to run the following cmd
-#       open('output_path','w').write(matrix_methods[process.shell_string()])
+        if False:
+            fsock = open('output%s.py' % process.shell_string(), 'w')
+            text = """
+import madgraph
+import models.model_reader as model_reader
+import aloha.template_files.wavefunctions as wavefunctions
+from aloha.template_files.wavefunctions import \
+     ixxxxx, oxxxxx, vxxxxx, sxxxxx
+import cmath
+
+
+import madgraph.interface.master_interface as Cmd
+"""
+            fsock.write(text)
+            for routine in aloha_routines:
+                fsock.write(routine)
+            fsock.write(matrix_methods[process.shell_string()])
+            if not p:
+                p, w_rambo = self.get_momenta(process, options)
+            text= """
+if __name__ == '__main__':
+    
+     interface = Cmd.MasterCmd()
+     interface.exec_cmd('import model sm')  # or whatever model you need
+    
+     model = interface._curr_model
+     runner = Matrix_%s()
+     p =  %s
+     flavor = %s
+     print(flavor, runner.smatrix(p, model, flavor))
+    """ % (process.shell_string(), str(p), str(flavor))
+            fsock.write(text)
+            fsock.close()
         if self.reuse:
             # Define the routines globally so they can be reused in future calls
             exec(matrix_methods[process.shell_string()], globals())	    
