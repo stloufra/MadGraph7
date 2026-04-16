@@ -3927,6 +3927,49 @@ def check_language(process_definition, param_card=None, options=None,
     # Matches the "PDG  2  -2  6  -6" lines written by the flavor loop.
     _pdg_re = re.compile(r'^\s*PDG\s+(.+)$', re.IGNORECASE)
 
+    def _parse_all_flavors_dict(text):
+        """Parse ALL PDG blocks in SA output.
+
+        Returns an OrderedDict mapping ``pdg_tuple → me_value``.
+        Each PDG line like ``PDG 2 -2 23 21`` followed by a
+        ``Matrix element = ...`` line produces one entry.
+        """
+        from collections import OrderedDict
+        result = OrderedDict()
+        current_pdgs = None
+        for line in text.split('\n'):
+            mp = _pdg_re.match(line)
+            if mp:
+                try:
+                    current_pdgs = tuple(int(x) for x in mp.group(1).split())
+                except ValueError:
+                    current_pdgs = None
+            m = _me_re.match(line)
+            if m:
+                val = float(m.group('val'))
+                key = current_pdgs  # None when no PDG line precedes this ME
+                if key not in result:  # keep first occurrence per combination
+                    result[key] = val
+                current_pdgs = None
+        return result
+
+    def _pdg_tuple_to_label(pdg_tuple, m, proc):
+        """Convert a tuple of PDG codes to a human-readable process label.
+
+        E.g. ``(2, -2, 23, 21)`` → ``'u u~ > z g'``.
+        Falls back to a numeric string on any error.
+        """
+        try:
+            ninitial = sum(1 for l in proc.get('legs') if not l.get('state'))
+            names = []
+            for pdg in pdg_tuple:
+                part = m.get_particle(pdg)
+                names.append(part.get_name() if part else str(pdg))
+            return (' '.join(names[:ninitial]) + ' > ' +
+                    ' '.join(names[ninitial:]))
+        except Exception:
+            return str(pdg_tuple)
+
     def _parse_sa_output(text, target_pdgs=None):
         """Parse stdout of a SA check binary; return (me_value, momenta).
 
@@ -4038,8 +4081,7 @@ def check_language(process_definition, param_card=None, options=None,
         sa_key = tuple(leg.get('id') for leg in proc.get('legs'))
 
         # ── Fortran SA ───────────────────────────────────────────────────────
-        val_f    = None
-        p_from_f = None
+        out_f_text = None
         if has_fortran:
             if sa_key not in sa_f_output_cache:
                 sa_f_output_cache[sa_key] = None
@@ -4083,21 +4125,9 @@ def check_language(process_definition, param_card=None, options=None,
                     shutil.rmtree(parent_f, ignore_errors=True)
 
             out_f_text = sa_f_output_cache.get(sa_key)
-            if out_f_text is not None:
-                target_pdgs_f = [
-                    (leg.get('flavor')[0] if leg.get('id') > 0
-                     else -leg.get('flavor')[0])
-                    if leg.get('flavor') else leg.get('id')
-                    for leg in proc.get('legs')]
-                me_f_val, p_f = _parse_sa_output(out_f_text,
-                                                  target_pdgs=target_pdgs_f)
-                if me_f_val is not None and p_f:
-                    val_f    = {'m2': me_f_val}
-                    p_from_f = p_f
 
         # ── C++ SA ───────────────────────────────────────────────────────────
-        val_cpp    = None
-        p_from_cpp = None
+        out_cpp_text = None
         if has_cpp:
             if sa_key not in sa_cpp_output_cache:
                 sa_cpp_output_cache[sa_key] = None
@@ -4145,24 +4175,46 @@ def check_language(process_definition, param_card=None, options=None,
                     shutil.rmtree(parent_cpp, ignore_errors=True)
 
             out_cpp_text = sa_cpp_output_cache.get(sa_key)
-            if out_cpp_text is not None:
-                target_pdgs_cpp = [
-                    (leg.get('flavor')[0] if leg.get('id') > 0
-                     else -leg.get('flavor')[0])
-                    if leg.get('flavor') else leg.get('id')
-                    for leg in proc.get('legs')]
-                me_cpp_val, p_cpp = _parse_sa_output(out_cpp_text,
-                                                      target_pdgs=target_pdgs_cpp)
-                if me_cpp_val is not None and p_cpp:
-                    val_cpp    = {'m2': me_cpp_val}
-                    p_from_cpp = p_cpp
 
-        results.append({
-            'process':       proc,
-            'value_fortran': val_f,
-            'value_cpp':     val_cpp,
-            'momenta':       p_from_f or p_from_cpp,
-        })
+        # ── per-flavor comparison ─────────────────────────────────────────────
+        # Parse ALL PDG blocks from both SA outputs and match by PDG tuple so
+        # that merged-particle processes (e.g. _quark _anti_quark > z g) are
+        # compared flavor-by-flavor: u u~ > z g, d d~ > z g, etc.
+        from collections import OrderedDict as _OD
+        flavors_f   = _parse_all_flavors_dict(out_f_text)   if out_f_text   else _OD()
+        flavors_cpp = _parse_all_flavors_dict(out_cpp_text) if out_cpp_text else _OD()
+
+        # Union of PDG keys in order: Fortran first, then any C++-only keys.
+        all_keys = list(dict.fromkeys(
+            list(flavors_f.keys()) + list(flavors_cpp.keys())))
+
+        if not all_keys:
+            # Neither backend ran → one placeholder entry so the process still
+            # appears in the output table.
+            results.append({
+                'process':        proc,
+                'process_label':  proc.base_string(),
+                'value_fortran':  None,
+                'value_cpp':      None,
+                'momenta':        None,
+            })
+        else:
+            for key in all_keys:
+                me_f_val   = flavors_f.get(key)
+                me_cpp_val = flavors_cpp.get(key)
+
+                if key is None:
+                    label = proc.base_string()
+                else:
+                    label = _pdg_tuple_to_label(key, model, proc)
+
+                results.append({
+                    'process':        proc,
+                    'process_label':  label,
+                    'value_fortran':  {'m2': me_f_val}   if me_f_val   is not None else None,
+                    'value_cpp':      {'m2': me_cpp_val} if me_cpp_val is not None else None,
+                    'momenta':        None,
+                })
 
     clean_added_globals(ADDED_GLOBAL)
     return results
@@ -4184,7 +4236,7 @@ def output_language(comparison_results, output='text'):
     """
     proc_col_size = 17
     for data in comparison_results:
-        proc = data['process'].base_string()
+        proc = data.get('process_label', data['process'].base_string())
         if len(proc) + 1 > proc_col_size:
             proc_col_size = len(proc) + 1
 
@@ -4218,7 +4270,7 @@ def output_language(comparison_results, output='text'):
         return "%1.6e" % d if d is not None else "N/A"
 
     for entry in comparison_results:
-        proc    = entry['process'].base_string()
+        proc    = entry.get('process_label', entry['process'].base_string())
         val_f   = entry['value_fortran']
         val_cpp = entry['value_cpp']
 

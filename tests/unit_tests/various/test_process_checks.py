@@ -488,11 +488,19 @@ class TestFlavorCheck(unittest.TestCase):
     def test_check_language_proclist_merged_expansion(self):
         """check_language with a merged-particle ProcessDefinition.
 
-        The new check_language no longer expands merged-particle legs into
-        individual flavors – that expansion is handled internally by the SA
-        binaries (Fortran and C++) via their built-in flavor loops.
-        check_language should therefore return exactly ONE result for the
-        merged process ``_quark _anti_quark > t t~``.
+        For ``_quark _anti_quark > t t~``, the SA binaries internally loop over
+        all individual quark flavors.  check_language must therefore return one
+        result entry per flavor combination (u u~ > t t~, d d~ > t t~, …)
+        when at least one compiled backend is available, or exactly one
+        placeholder entry when no backend can run.
+
+        Each returned entry must:
+        * carry the original merged-id Process object so callers can trace back
+          which merged process it came from,
+        * have a ``process_label`` string that includes '>' and the individual
+          flavor particle names.
+        * have Fortran and C++ values that agree within 1e-4 relative when both
+          backends ran successfully.
         """
         q_id = 81
         t_id = 6
@@ -506,8 +514,6 @@ class TestFlavorCheck(unittest.TestCase):
             'model': self.merged_model,
         })
 
-        # Call check_language with no compilers so no SA is run; we only care
-        # about proc_list construction here.
         results = process_checks.check_language(
             proc_def,
             param_card=None,
@@ -515,17 +521,35 @@ class TestFlavorCheck(unittest.TestCase):
             cmd=process_checks.FakeInterface(),
         )
 
-        # The new design: one result for the merged process, not one per flavor.
-        self.assertEqual(len(results), 1,
-                         "Expected exactly one result for merged process, got %d"
-                         % len(results))
-        proc = results[0]['process']
-        legs = proc.get('legs')
-        is_legs = [l for l in legs if not l.get('state')]
-        # Merged leg ids must be preserved as-is (81 / -81).
-        for leg in is_legs:
-            self.assertEqual(abs(leg.get('id')), q_id,
-                             "IS leg should use merged id %d" % q_id)
+        self.assertGreater(len(results), 0,
+                           "Expected at least one result for merged process")
+
+        for entry in results:
+            # The original Process object must use the merged-particle ids.
+            proc = entry['process']
+            legs = proc.get('legs')
+            is_legs = [l for l in legs if not l.get('state')]
+            for leg in is_legs:
+                self.assertEqual(abs(leg.get('id')), q_id,
+                                 "IS leg should use merged id %d" % q_id)
+
+            # Every entry must carry a process_label with a '>' separator.
+            label = entry.get('process_label', '')
+            self.assertIn('>', label,
+                          "process_label should contain '>' separator: %r" % label)
+
+            # When both backends ran they must agree within 1e-4 relative.
+            vf  = entry['value_fortran']
+            vc  = entry['value_cpp']
+            if vf is not None and vc is not None:
+                me_f   = vf['m2']
+                me_cpp = vc['m2']
+                ref = abs(me_f) if me_f != 0 else abs(me_cpp)
+                if ref > 0:
+                    rel = abs(me_f - me_cpp) / ref
+                    self.assertLess(rel, 1e-4,
+                                    "Fortran/C++ disagree for %s: F=%g C++=%g "
+                                    "rel=%g" % (label, me_f, me_cpp, rel))
 
     def test_output_flavor_summary(self):
         """output_flavor returns a string with summary line."""

@@ -2756,12 +2756,16 @@ class ProcessExporterCPP(VirtualExporter):
         unique_flavors = list(map_all_flv.values())
         maxflavor = max(len(unique_flavors), 1)
 
-        # Map individual PDG → flavor index (1-based) inside each merged group.
+        # Map individual PDG → flavor index (0-based) inside each merged group.
+        # The C++ ALOHA routines index their val[] and partner[] arrays from 0,
+        # so the first member of a merged group gets index 0, the second gets 1,
+        # etc.  Non-merged particles keep the sentinel value 0 (they never
+        # participate in flavor-indexed val[] lookups).
         pdg_to_flv_index = {}
         merged = (model.get('merged_particles') or {}) if model is not None else {}
         for group_id, sub_ids in merged.items():
             for j, pdg in enumerate(sub_ids):
-                pdg_to_flv_index[pdg] = j + 1
+                pdg_to_flv_index[pdg] = j          # 0-based
 
         # Build the C++ 2-D array initialisers.
         if not unique_flavors:
@@ -2778,16 +2782,12 @@ class ProcessExporterCPP(VirtualExporter):
                 for j, flv_idx in enumerate(flv_tuple):
                     raw_pdg = all_pdgs[j]
                     sign    = 1 if raw_pdg >= 0 else -1
-                    if flv_idx != 1:
-                        # Merged particle: look up flavor index
+                    if abs(raw_pdg) in merged:
+                        # Merged particle: look up 0-based flavor index.
                         f_row.append(str(pdg_to_flv_index.get(flv_idx, 0)))
                         p_row.append(str(sign * flv_idx))
-                    elif abs(raw_pdg) in merged:
-                        # Merged group but this is the first (default) element
-                        f_row.append('1')
-                        p_row.append(str(sign * flv_idx))
                     else:
-                        # Non-merged particle
+                        # Non-merged particle: 0 means "not flavor-merged".
                         f_row.append('0')
                         p_row.append(str(raw_pdg))
                 flavor_rows.append('{' + ', '.join(f_row) + '}')
