@@ -2622,11 +2622,12 @@ class ProcessExporterCPP(VirtualExporter):
     oneprocessclass = OneProcessExporterCPP
     s= _file_path + 'iolibs/template_files/'
     from_template = {'src': [s+'rambo.h', s+'rambo.cc', s+'read_slha.h', s+'read_slha.cc'],
-                     'SubProcesses': [s+'check_sa.cpp']}
-    to_link_in_P = ['check_sa.cpp', 'Makefile']
+                     'SubProcesses': []}
+    to_link_in_P = ['Makefile']
     template_src_make = pjoin(_file_path, 'iolibs', 'template_files','Makefile_sa_cpp_src')
     template_Sub_make = pjoin(_file_path, 'iolibs', 'template_files','Makefile_sa_cpp_sp') 
     create_model_class =  UFOModelConverterCPP
+    _check_sa_cpp_template = pjoin(_file_path, 'iolibs', 'template_files', 'check_sa.cpp')
     
 
     def __init__(self, dir_path = "", opt=None):
@@ -2721,6 +2722,89 @@ class ProcessExporterCPP(VirtualExporter):
     #===============================================================================
     # generate_subprocess_directory
     #===============================================================================
+    def write_check_sa_cpp(self, matrix_element, dirpath):
+        """Write a per-process check_sa.cpp with flavor arrays filled in.
+
+        This mirrors the Fortran ``write_check_sa`` in ``export_v4.py``:
+        it reads the template ``check_sa.cpp``, fills in ``%(maxflavor)d``,
+        ``%(nexternal)d``, ``%(flavor_arr)s``, and ``%(pdg_arr)s``, then
+        writes the result into *dirpath*/check_sa.cpp.
+
+        The resulting binary is invoked as ``./check [energy]``; when *energy*
+        is omitted it defaults to 1500 GeV.
+        """
+        template = open(self._check_sa_cpp_template).read()
+
+        # Get the model from the matrix element (self.model may not be set yet).
+        model = (self.model if self.model is not None else
+                 matrix_element.get('processes')[0].get('model'))
+
+        all_flavors = matrix_element.get_external_flavors(all_perm=False)
+        all_pdgs    = [l.get('id') for l in
+                       matrix_element.get('processes')[0].get('legs')]
+        nexternal   = len(all_pdgs)
+
+        # Deduplicate flavor combinations (same logic as the Fortran exporter):
+        # two different (flv1, flv2, …) tuples that give the same coupling are
+        # collapsed to a single entry.
+        map_all_flv = {}
+        for flv1 in all_flavors:
+            coup = matrix_element.get_coupling_for_flv(flv1, model)
+            if coup not in map_all_flv:
+                map_all_flv[coup] = flv1
+
+        unique_flavors = list(map_all_flv.values())
+        maxflavor = max(len(unique_flavors), 1)
+
+        # Map individual PDG → flavor index (1-based) inside each merged group.
+        pdg_to_flv_index = {}
+        merged = (model.get('merged_particles') or {}) if model is not None else {}
+        for group_id, sub_ids in merged.items():
+            for j, pdg in enumerate(sub_ids):
+                pdg_to_flv_index[pdg] = j + 1
+
+        # Build the C++ 2-D array initialisers.
+        if not unique_flavors:
+            # Non-merged model: single default flavor (all zeros → default C++
+            # sigmaKin behavior).
+            flavor_rows = ['{' + ', '.join(['0'] * nexternal) + '}']
+            pdg_rows    = ['{' + ', '.join(str(p) for p in all_pdgs) + '}']
+        else:
+            flavor_rows = []
+            pdg_rows    = []
+            for flv_tuple in unique_flavors:
+                f_row = []
+                p_row = []
+                for j, flv_idx in enumerate(flv_tuple):
+                    raw_pdg = all_pdgs[j]
+                    sign    = 1 if raw_pdg >= 0 else -1
+                    if flv_idx != 1:
+                        # Merged particle: look up flavor index
+                        f_row.append(str(pdg_to_flv_index.get(flv_idx, 0)))
+                        p_row.append(str(sign * flv_idx))
+                    elif abs(raw_pdg) in merged:
+                        # Merged group but this is the first (default) element
+                        f_row.append('1')
+                        p_row.append(str(sign * flv_idx))
+                    else:
+                        # Non-merged particle
+                        f_row.append('0')
+                        p_row.append(str(raw_pdg))
+                flavor_rows.append('{' + ', '.join(f_row) + '}')
+                pdg_rows.append('{' + ', '.join(p_row) + '}')
+
+        flavor_arr_str = '{' + ', '.join(flavor_rows) + '}'
+        pdg_arr_str    = '{' + ', '.join(pdg_rows)    + '}'
+
+        content = template % {
+            'maxflavor': maxflavor,
+            'nexternal': nexternal,
+            'flavor_arr': flavor_arr_str,
+            'pdg_arr':    pdg_arr_str,
+        }
+        with open(pjoin(dirpath, 'check_sa.cpp'), 'w') as fout:
+            fout.write(content)
+
     def generate_subprocess_directory(self, matrix_element, cpp_helas_call_writer,
                                       proc_number=None):
         """Generate the Pxxxxx directory for a subprocess in C++ standalone,
@@ -2744,7 +2828,9 @@ class ProcessExporterCPP(VirtualExporter):
             # Create the process .h and .cc files
             process_exporter_cpp.generate_process_files()
             for file in self.to_link_in_P:
-                ln('../%s' % file) 
+                ln('../%s' % file)
+        # Write a per-process check_sa.cpp with flavor info filled in
+        self.write_check_sa_cpp(matrix_element, dirpath)
         return
 
     @staticmethod

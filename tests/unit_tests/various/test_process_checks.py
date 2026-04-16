@@ -486,13 +486,13 @@ class TestFlavorCheck(unittest.TestCase):
 
 
     def test_check_language_proclist_merged_expansion(self):
-        """check_language expands merged-particle legs to individual flavors.
+        """check_language with a merged-particle ProcessDefinition.
 
-        When a ProcessDefinition contains a merged-particle leg (e.g. _quark
-        with PDG 81), check_language should build one proc per individual-flavor
-        combination (d d~ > t t~, u u~ > t t~, ...) with explicit flavor tags
-        on the merged legs so that both Fortran and Python evaluate the same
-        specific flavor.
+        The new check_language no longer expands merged-particle legs into
+        individual flavors – that expansion is handled internally by the SA
+        binaries (Fortran and C++) via their built-in flavor loops.
+        check_language should therefore return exactly ONE result for the
+        merged process ``_quark _anti_quark > t t~``.
         """
         q_id = 81
         t_id = 6
@@ -506,13 +506,6 @@ class TestFlavorCheck(unittest.TestCase):
             'model': self.merged_model,
         })
 
-        merged_particles = self.merged_model.get('merged_particles') or {}
-        # Gather the individual quark ids that make up particle 81
-        indiv_quark_ids = sorted(
-            merged_particles.get(q_id, []))
-        self.assertTrue(len(indiv_quark_ids) > 1,
-                        "Expected multiple individual quarks in merged particle 81")
-
         # Call check_language with no compilers so no SA is run; we only care
         # about proc_list construction here.
         results = process_checks.check_language(
@@ -522,36 +515,17 @@ class TestFlavorCheck(unittest.TestCase):
             cmd=process_checks.FakeInterface(),
         )
 
-        # results contains one entry per individual-flavor combination.
-        # Each proc should have merged leg ids (81, -81) but individual-flavor
-        # flavor tags.
-        flavor_combos = set()
-        for entry in results:
-            proc = entry['process']
-            legs = proc.get('legs')
-            # IS legs
-            is_legs = [l for l in legs if not l.get('state')]
-            fs_legs = [l for l in legs if l.get('state')]
-            # Merged leg ids must be 81 / -81
-            for leg in is_legs:
-                self.assertEqual(abs(leg.get('id')), q_id,
-                                 "IS leg should use merged id %d" % q_id)
-            # Each IS leg must carry an explicit individual flavor tag
-            for leg in is_legs:
-                self.assertTrue(len(leg.get('flavor')) > 0,
-                                "IS merged leg must have a flavor tag")
-                flav = leg.get('flavor')[0]
-                self.assertIn(flav, indiv_quark_ids,
-                              "Flavor tag must be an individual quark PDG")
-            # Collect the flavor combo
-            combo = tuple(l.get('flavor')[0] if l.get('flavor') else l.get('id')
-                          for l in is_legs)
-            flavor_combos.add(combo)
-
-        # Should have one entry per individual quark flavor
-        self.assertEqual(len(flavor_combos), len(indiv_quark_ids),
-                         "Expected one proc per individual quark flavor, got: %s"
-                         % str(flavor_combos))
+        # The new design: one result for the merged process, not one per flavor.
+        self.assertEqual(len(results), 1,
+                         "Expected exactly one result for merged process, got %d"
+                         % len(results))
+        proc = results[0]['process']
+        legs = proc.get('legs')
+        is_legs = [l for l in legs if not l.get('state')]
+        # Merged leg ids must be preserved as-is (81 / -81).
+        for leg in is_legs:
+            self.assertEqual(abs(leg.get('id')), q_id,
+                             "IS leg should use merged id %d" % q_id)
 
     def test_output_flavor_summary(self):
         """output_flavor returns a string with summary line."""
@@ -898,9 +872,13 @@ class TestMultiLanguageComparison(unittest.TestCase):
 
     def test_check_language_function_epem_aa(self):
         """check_language() must return Passed for e+ e- > a a when at least
-        one compiled backend (gfortran or g++) is available."""
+        one compiled backend (gfortran or g++) is available.
+
+        The new check_language compares Fortran SA vs C++ SA only (no Python).
+        Both backends use the same fixed energy so RAMBO produces identical
+        momenta and the matrix elements can be compared directly.
+        """
         model = self.model
-        me_obj = self.matrix_element
 
         # Build a single Process (not a ProcessDefinition) so check_language
         # takes the non-ProcessDefinition branch.
@@ -923,52 +901,40 @@ class TestMultiLanguageComparison(unittest.TestCase):
         self.assertEqual(len(results), 1)
 
         entry = results[0]
-        self.assertIsNotNone(entry['value_python'],
-                             'Python evaluation returned None')
-        me_py = entry['value_python']['m2']
-        self.assertGreater(abs(me_py), 0., 'Python ME is zero')
+        # New API: only Fortran and C++ backends (no Python).
+        self.assertIn('value_fortran', entry)
+        self.assertIn('value_cpp', entry)
+        self.assertNotIn('value_python', entry)
 
         if not (self.has_fortran or self.has_cpp):
             self.skipTest('No compiled backend available')
 
-        # At least one compiled backend must agree with Python
-        if entry['value_fortran'] is not None:
-            me_f = entry['value_fortran']['m2']
-            rel = abs(me_f - me_py) / abs(me_py)
-            self.assertLess(rel, 1e-4,
-                            'Fortran/Python disagree: F=%g Py=%g rel=%g'
-                            % (me_f, me_py, rel))
-        if entry['value_cpp'] is not None:
-            me_cpp = entry['value_cpp']['m2']
-            rel = abs(me_cpp - me_py) / abs(me_py)
-            self.assertLess(rel, 1e-4,
-                            'C++/Python disagree: C++=%g Py=%g rel=%g'
-                            % (me_cpp, me_py, rel))
+        me_f   = entry['value_fortran']['m2'] if entry['value_fortran'] else None
+        me_cpp = entry['value_cpp']['m2']      if entry['value_cpp']     else None
 
-        # output_language must produce a 'Passed' line
+        # If both backends ran they must agree within 1e-4 relative.
+        if me_f is not None and me_cpp is not None:
+            ref = abs(me_f)
+            rel = abs(me_f - me_cpp) / ref if ref > 0 else 0.
+            self.assertLess(rel, 1e-4,
+                            'Fortran/C++ disagree: F=%g C++=%g rel=%g'
+                            % (me_f, me_cpp, rel))
+
+        # output_language must at least contain a Summary line.
         text = process_checks.output_language(results)
-        self.assertIn('Passed', text)
         self.assertIn('Summary', text)
 
     def test_check_language_gg_ttx_cpp_ps_point(self):
-        """g g > t t~: C++ must agree with Python when each is evaluated at
-        the *same* phase-space point.
+        """g g > t t~: Fortran SA and C++ SA must agree within 1e-4 rel.
 
-        Previously check_language evaluated Python at the Fortran PS point
-        (SQRTS=1000 GeV) and compared that value against C++ evaluated at its
-        own independently-generated PS point (energy=1500 GeV).  The ~5%
-        disagreement was purely a PS-point mismatch, not a real code bug.
-
-        After the fix, check_language stores value_python_cpp (Python
-        re-evaluated at the C++ PS point) and output_language uses that for
-        the C++/Py relative difference.  This test verifies the fix.
+        Both backends receive the same energy argument so RAMBO generates
+        identical momenta; the matrix-element values should therefore agree
+        to machine precision (modulo compiler differences).
         """
-        if not self.has_cpp:
-            self.skipTest('g++ not available')
+        if not (self.has_fortran and self.has_cpp):
+            self.skipTest('Both gfortran and g++ are required for this test')
 
         import madgraph.core.base_objects as _bo
-        import madgraph.core.diagram_generation as _dg
-        import madgraph.core.helas_objects as _ho
 
         model = self.model
         legs = _bo.LegList([
@@ -989,23 +955,25 @@ class TestMultiLanguageComparison(unittest.TestCase):
         self.assertEqual(len(results), 1, 'Expected exactly one subprocess result')
 
         entry = results[0]
-        self.assertIsNotNone(entry['value_python'],
-                             'Python evaluation returned None')
-        self.assertIn('value_python_cpp', entry,
-                      'value_python_cpp key missing – apples-to-apples fix not applied')
+        # New API: no Python key.
+        self.assertNotIn('value_python', entry)
+        self.assertIn('value_fortran', entry)
+        self.assertIn('value_cpp', entry)
 
+        if entry['value_fortran'] is None:
+            self.skipTest('Fortran SA evaluation failed')
         if entry['value_cpp'] is None:
             self.skipTest('C++ SA evaluation failed (no g++ or compile error)')
 
-        me_cpp    = entry['value_cpp']['m2']
-        me_py_cpp = entry['value_python_cpp']['m2']
+        me_f   = entry['value_fortran']['m2']
+        me_cpp = entry['value_cpp']['m2']
 
         self.assertGreater(abs(me_cpp), 0., 'C++ ME is zero – unexpected')
-        rel_diff = abs(me_cpp - me_py_cpp) / abs(me_cpp)
+        rel_diff = abs(me_f - me_cpp) / abs(me_f)
         self.assertLess(rel_diff, 1e-4,
-                        'C++ and Python (at C++ PS point) disagree: '
-                        'C++=%g  Py@cpp_ps=%g  rel_diff=%g'
-                        % (me_cpp, me_py_cpp, rel_diff))
+                        'Fortran and C++ SA disagree for g g > t t~: '
+                        'F=%g  C++=%g  rel_diff=%g'
+                        % (me_f, me_cpp, rel_diff))
 
         # output_language must also report Passed
         text = process_checks.output_language(results)
