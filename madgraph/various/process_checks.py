@@ -3596,12 +3596,13 @@ def check_flavor(process_definition, param_card=None, options=None,
         return [pdg_code]
 
     # ── 1. Set up the merged-model evaluator ─────────────────────────────────
-    # Use reuse=False: since each flavor combination generates different ALOHA
-    # code (the ixxxxx/oxxxxx calls have flavor indices hardcoded), we must
-    # regenerate the matrix method for every individual-flavor call.
+    # Use reuse=True: all individual-flavor processes for the same merged
+    # process share the same matrix class (the merged PDG codes give the same
+    # shell_string), and flavor is a runtime argument passed to smatrix, so
+    # the class can safely be reused across different flavor evaluations.
     evaluator_merged = MatrixElementEvaluator(merged_model, param_card,
                                               cmd=cmd,
-                                              auth_skipping=False, reuse=False)
+                                              auth_skipping=False, reuse=True)
     if not cmass_scheme and multiprocess.get('perturbation_couplings') == []:
         logger.info('Setting all widths to zero for flavor check')
         for particle in evaluator_merged.full_model.get('particles'):

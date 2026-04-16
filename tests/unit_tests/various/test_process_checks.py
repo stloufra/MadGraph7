@@ -455,6 +455,36 @@ class TestFlavorCheck(unittest.TestCase):
                          "check_flavor: some flavor subprocesses disagree.\n" +
                          process_checks.output_flavor(result))
 
+    def test_check_flavor_qqbar_to_zg(self):
+        """check_flavor for _quark _anti_quark > z g (mixed merged+non-merged FS).
+
+        This process has non-M gluon vertices mixed with M-tagged Z vertices.
+        Flavor must be propagated through the non-M gluon off-shell wavefunction
+        so the subsequent M-tagged Z amplitude receives the correct flavor.
+        """
+        q_id = 81
+        z_id = 23
+        g_id = 21
+        proc_def = base_objects.ProcessDefinition({
+            'legs': base_objects.MultiLegList([
+                base_objects.MultiLeg({'ids': [q_id],  'state': False}),
+                base_objects.MultiLeg({'ids': [-q_id], 'state': False}),
+                base_objects.MultiLeg({'ids': [z_id],  'state': True}),
+                base_objects.MultiLeg({'ids': [g_id],  'state': True}),
+            ]),
+            'model': self.merged_model,
+        })
+
+        result = process_checks.check_flavor(proc_def, cmd=process_checks.FakeInterface())
+        self.assertTrue(len(result) > 0,
+                        "check_flavor returned no results for _quark _anti_quark > z g")
+
+        fail_count = process_checks.output_flavor(result, output='fail')
+        self.assertEqual(fail_count, 0,
+                         "check_flavor: some flavor subprocesses disagree.\n" +
+                         process_checks.output_flavor(result))
+
+
     def test_check_language_proclist_merged_expansion(self):
         """check_language expands merged-particle legs to individual flavors.
 
@@ -523,7 +553,7 @@ class TestFlavorCheck(unittest.TestCase):
                          "Expected one proc per individual quark flavor, got: %s"
                          % str(flavor_combos))
 
-
+    def test_output_flavor_summary(self):
         """output_flavor returns a string with summary line."""
         q_id = 81
         t_id = 6
