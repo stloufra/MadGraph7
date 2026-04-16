@@ -20,6 +20,7 @@ import fractions
 import glob
 import itertools
 import logging
+import math
 import os
 import re
 import shutil
@@ -124,6 +125,23 @@ class ProcessExporterPython(object):
             # Averaging initial state color, spin, and identical FS particles
             den_factor_line = self.get_den_factor_line(matrix_element)
             replace_dict['den_factor_line'] = den_factor_line
+
+            # Information for the flavor-dependent symmetry factor (broken_sym).
+            # For merged-particle processes different flavor combinations may have
+            # a different identical-particle symmetry factor in the final state.
+            # The base-process PIDs and its identical-particle factorial are stored
+            # so that smatrix can apply the correct per-flavor correction at
+            # runtime, matching the BROKEN_SYM logic in the Fortran/C++ outputs.
+            _pid_data = matrix_element.get('processes')[0].get_final_ids_after_decay()
+            replace_dict['broken_sym_pid'] = repr(list(_pid_data))
+            _old_factor = 1
+            _done = []
+            for _val in _pid_data:
+                if _val not in _done:
+                    _done.append(_val)
+                    _old_factor *= math.factorial(_pid_data.count(_val))
+            replace_dict['broken_sym_old_factor'] = _old_factor
+            replace_dict['ninitial'] = ninitial
 
             # Extract process info lines for all processes
             process_lines = self.get_process_info_lines(matrix_element)
