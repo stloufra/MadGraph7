@@ -590,13 +590,15 @@ class MadgraphSubprocess:
         self.subproc_id = subproc_id
         self.multi_channel_data = None
 
-        api_path = self.meta["path"]
-        if not os.path.isfile(api_path):
+        api_path_format = self.meta["me_path"]
+        subproc_path = self.meta["path"]
+        if not os.path.isfile(api_path_format):
             cwd = os.getcwd()
-            api_dir = os.path.dirname(api_path)
-            logger.info(f"Compiling subprocess {api_dir}")
-            os.chdir(api_dir)
-            subprocess.run(["make"])
+            subproc_dir = os.path.dirname(subproc_path)
+            logger.info(f"Compiling subprocess {subproc_dir}")
+            os.chdir(subproc_path)
+            backend = self.process.run_card["run"]["device"]
+            subprocess.run(["make", "-j", f"BACKEND={backend}"])
             os.chdir(cwd)
 
         self.incoming_masses = [
