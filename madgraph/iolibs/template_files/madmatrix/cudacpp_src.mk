@@ -74,9 +74,6 @@ MADMATRIX_COMMONLIB = madmatrix_common_$(BACKEND)
 # First target (default goal)
 all.$(TAG): $(BUILDDIR)/.build.$(TAG) $(LIBDIR)/lib$(MADMATRIX_COMMONLIB).so
 
-# Target (and build options): debug
-debug: all.$(TAG)
-
 # Target: tag-specific build lockfile (only in BUILDDIR; LIBDIR is shared across backends)
 override oldtagsb=`if [ -d $(BUILDDIR) ]; then find $(BUILDDIR) -maxdepth 1 -name '.build.*' ! -name '.build.$(TAG)' -exec echo $(shell pwd)/{} \; ; fi`
 

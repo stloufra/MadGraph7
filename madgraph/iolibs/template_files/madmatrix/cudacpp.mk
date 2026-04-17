@@ -404,6 +404,15 @@ endif
 INCFLAGS = -I.
 OPTFLAGS = -O3 # this ends up in GPUFLAGS too (should it?), cannot add -Ofast or -ffast-math here
 
+# PROFILE=1: reduced optimisation + symbols suitable for profilers (perf, gprof, valgrind...)
+# DEBUG=1  : no optimisation + full debug symbols
+# Both flags propagate automatically to src/ sub-makes via MAKEFLAGS.
+ifeq ($(PROFILE),1)
+  override OPTFLAGS = -O2
+else ifeq ($(DEBUG),1)
+  override OPTFLAGS = -O0
+endif
+
 # Dependency on src directory
 # The common library name carries the full BACKEND suffix so each vectorisation/GPU variant is distinct.
 MADMATRIX_COMMONLIB = madmatrix_common_$(BACKEND)
@@ -642,6 +651,12 @@ ifneq ($(MADMATRIX_CHANNELID_DEBUG),)
   GPUFLAGS += -DMGONGPU_CHANNELID_DEBUG
 endif
 
+#=== Configure profiling/debug symbols
+ifneq ($(filter 1,$(PROFILE) $(DEBUG)),)
+  CXXFLAGS += -g -fno-omit-frame-pointer
+  GPUFLAGS += $(XCOMPILERFLAG) -g $(XCOMPILERFLAG) -fno-omit-frame-pointer
+endif
+
 #-------------------------------------------------------------------------------
 
 #=== Configure build directories and build lockfiles ===
@@ -693,13 +708,6 @@ objects_lib=$(BUILDDIR)/CPPProcess.o $(BUILDDIR)/color_sum.o $(BUILDDIR)/MatrixE
 # First target (default goal): build the process library (which also builds the common library as a dependency)
 all.$(TAG): $(BUILDDIR)/.build.$(TAG) $(LIBDIR)/lib$(MADMATRIX_LIB).so
 
-# Target (and build options): debug
-MAKEDEBUG=
-debug: OPTFLAGS = -g -O0
-debug: CUDA_OPTFLAGS = -G
-debug: MAKEDEBUG := debug
-debug: all.$(TAG)
-
 # Target (and build options): address sanitizer #207
 ###CXXLIBFLAGSASAN =
 ###GPULIBFLAGSASAN =
@@ -707,7 +715,7 @@ debug: all.$(TAG)
 ###asan: CUDA_OPTFLAGS = -G $(XCOMPILERFLAG) -fsanitize=address $(XCOMPILERFLAG) -fno-omit-frame-pointer
 ###asan: CXXLIBFLAGSASAN = -fsanitize=address
 ###asan: GPULIBFLAGSASAN = -Xlinker -fsanitize=address -Xlinker -shared
-###asan: MAKEDEBUG := debug
+###asan: all.$(TAG)
 ###asan: all.$(TAG)
 
 # Target: tag-specific build lockfiles
@@ -754,7 +762,7 @@ endif
 commonlib : $(LIBDIR)/lib$(MADMATRIX_COMMONLIB).so
 
 $(LIBDIR)/lib$(MADMATRIX_COMMONLIB).so: $(SRC)/*.h $(SRC)/*.cc $(BUILDDIR)/.build.$(TAG)
-	$(MAKE) -C $(SRC) $(MAKEDEBUG) BACKEND=$(BACKEND)
+	$(MAKE) -C $(SRC) BACKEND=$(BACKEND)
 
 #-------------------------------------------------------------------------------
 
