@@ -109,8 +109,8 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
                     'MemoryAccessCouplings.h', # this is generated from a template in Subprocesses but we still link it in P1
                     'umami.h', 'umami.cc']
 
-    template_src_make = pjoin(templates_path, 'cudacpp_src.mk')
-    template_Sub_make = pjoin(templates_path, 'cudacpp.mk')
+    template_src_make = pjoin(templates_path, 'madmatrix_src.mk')
+    template_Sub_make = pjoin(templates_path, 'madmatrix.mk')
 
     dirs_to_create = ['bin', 'src', 'lib', 'Cards', 'SubProcesses']
 
