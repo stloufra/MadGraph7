@@ -4847,7 +4847,7 @@ end
         try:
             self.assertEqual(text_split, target_split)         
         except Exception:
-            self.assertEqual(text_split, target2_split)
+            raise
 
     def test_short_fortranwriter_CFF(self):
         """ test that python writer works """

@@ -1672,9 +1672,13 @@ class ALOHAWriterForCPP(WriteALOHA):
         out = StringIO()
         # define the type of function and argument
         if not 'no_include' in mode:
-            out.write('#include \"Parameters_%s.h\"\n' % self.model_name)
+            model = getattr(self.routine, 'model', None)
+            if model is not None:
+                model_name = model.__name__
+                if '.' in model_name:
+                    model_name = model_name.split('.')[-1]
+                out.write('#include \"Parameters_%s.h\"\n' % model_name)
             out.write('#include \"%s.h\"\n\n' % self.name)
-            #out.write('#include \"Parameters_%s.h\"\n' % self.model_name)
         args = []
         misc.sprint(couplings, self.tag)
         tmp = [ ]
@@ -2616,9 +2620,12 @@ class ALOHAWriterForPython(WriteALOHA):
                 out.write('        return %s\n' % fail_str)
             else:
                 # Off-shell fermion output: copy flavor from incoming fermion.
-                incoming = [i + 1 for i in range(len(self.particles))
+                incoming_list = [i + 1 for i in range(len(self.particles))
                             if i + 1 != self.outgoing
-                            and self.particles[i] == 'F'][0]
+                            and self.particles[i] == 'F']
+                if not incoming_list:
+                    return out.getvalue()
+                incoming = incoming_list[0]
                 outgoing = self.outgoing
                 out_wf = 'F%d' % outgoing
                 in_wf  = 'F%d' % incoming
@@ -2645,9 +2652,12 @@ class ALOHAWriterForPython(WriteALOHA):
             flv_for_coup = 'flv_index1'
         else:
             # Off-shell fermion output: propagate flavor to outgoing wavefunction
-            incoming = [i + 1 for i in range(len(self.particles))
+            incoming_list = [i + 1 for i in range(len(self.particles))
                         if i + 1 != self.outgoing
-                        and self.particles[i] == 'F'][0]
+                        and self.particles[i] == 'F']
+            if not incoming_list:
+                return out.getvalue()
+            incoming = incoming_list[0]
             outgoing = self.outgoing
             out_wf = 'F%d' % outgoing
             if incoming % 2 == 1:
