@@ -3684,11 +3684,12 @@ class Test_AbstractModel(unittest.TestCase):
         #print type_sn, inter_type[1], inter_type[2], new_inter['couplings']
         self.assertEqual(new_inter.get('id') % 10, 1)
         self.assertEqual(new_inter.get('color'), I_wtb['color'])
-        self.assertEqual(new_inter.get('lorentz'), ['FFV2', 'FFV3', 'FFV5'])
+        self.assertEqual(new_inter.get('lorentz'), ['FFS1', 'FFS3', 'FFV2', 'FFV6'])
         self.assertEqual(new_inter.get('couplings'), 
                          {(0,0):'G%03d0001' %type_sn,
                           (0,1):'G%03d0101' %type_sn,
-                          (0,2):'G%03d0201' %type_sn})
+                          (0,2):'G%03d0201' %type_sn,
+                          (0,3):'G%03d0301' %type_sn})
 
 
     def test_get_interactions_type(self):
