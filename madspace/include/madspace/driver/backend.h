@@ -16,7 +16,8 @@ public:
     virtual std::pair<TensorVec, TensorVec> run_backward(
         const TensorVec& output_grads,
         const TensorVec& stored_locals,
-        const std::vector<bool>& eval_grad
+        const std::vector<bool>& eval_grad,
+        bool return_contiguous_grads = false
     ) = 0;
     friend std::unique_ptr<Runtime>
     build_runtime(const Function& function, ContextPtr context, bool concurrent);

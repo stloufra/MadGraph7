@@ -370,10 +370,12 @@ FunctionBuilder::instruction(InstructionPtr instruction, const ValueVec& args) {
 
     // simplify square(sqrt(x))
     if (opcode == opcodes::square) {
-        auto& source_instr =
-            _instructions.at(_local_sources.at(args.at(0).local_index));
-        if (source_instr.instruction->opcode() == opcodes::sqrt) {
-            return {_locals.at(source_instr.inputs.at(0).local_index)};
+        int source_index = _local_sources.at(args.at(0).local_index);
+        if (source_index != -1) {
+            auto& source_instr = _instructions.at(source_index);
+            if (source_instr.instruction->opcode() == opcodes::sqrt) {
+                return {_locals.at(source_instr.inputs.at(0).local_index)};
+            }
         }
     }
 

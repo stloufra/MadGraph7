@@ -996,9 +996,9 @@ PYBIND11_MODULE(_madspace_py, m) {
                 bool dlpack_version_cache = false;
                 for (std::size_t i = 0;
                      auto [input, type] : zip(inputs, opt.input_types())) {
-                    tensors.push_back(dlpack_to_tensor(
-                        input, batch_float, i, device, &dlpack_version_cache
-                    ));
+                    tensors.push_back(
+                        dlpack_to_tensor(input, type, i, device, &dlpack_version_cache)
+                    );
                     ++i;
                 }
                 return opt.step(tensors);

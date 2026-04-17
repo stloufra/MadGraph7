@@ -25,6 +25,12 @@ case 10:
 case 11:
     backward_op_unsqueeze(instr, locals, local_grads, device);
     break;
+case 12:
+    backward_batch_foreach<tensor_foreach_dynamic<backward_kernel_add<GpuTypes>, 3, 2>, 2, 1, 2, 0>(instr, locals, local_grads, {0,1}, {}, device);
+    break;
+case 14:
+    backward_batch_foreach<tensor_foreach_dynamic<backward_kernel_sub<GpuTypes>, 3, 2>, 2, 1, 2, 0>(instr, locals, local_grads, {0,1}, {}, device);
+    break;
 case 15:
     backward_batch_foreach<tensor_foreach_dynamic<backward_kernel_mul<GpuTypes>, 3, 2>, 2, 1, 2, 0>(instr, locals, local_grads, {0,1}, {}, device);
     break;
@@ -36,6 +42,12 @@ case 19:
     break;
 case 20:
     backward_batch_foreach<tensor_foreach<backward_kernel_reduce_product<GpuTypes>, 2, 1, 1>, 1, 1, 1, 0>(instr, locals, local_grads, {0}, {}, device);
+    break;
+case 21:
+    backward_batch_foreach<tensor_foreach_dynamic<backward_kernel_sqrt<GpuTypes>, 2, 1>, 1, 1, 1, 0>(instr, locals, local_grads, {0}, {}, device);
+    break;
+case 22:
+    backward_batch_foreach<tensor_foreach_dynamic<backward_kernel_square<GpuTypes>, 2, 1>, 1, 1, 1, 0>(instr, locals, local_grads, {0}, {}, device);
     break;
 case 101:
     backward_op_matmul(instr, locals, local_grads, device);

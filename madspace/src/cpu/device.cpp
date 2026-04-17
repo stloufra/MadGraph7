@@ -86,7 +86,7 @@ void CpuDevice::adam_step(
         3>(
         {&gradient},
         {&parameter, &exp_avg, &exp_avg_sq},
-        1,
+        gradient.size(0),
         *this,
         step_size,
         beta1,

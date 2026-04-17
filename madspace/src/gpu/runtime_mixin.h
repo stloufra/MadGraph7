@@ -65,10 +65,10 @@ case 20:
     batch_foreach<tensor_foreach<kernel_reduce_product<GpuTypes>, 1, 1, 1>, 1, 1>(instr, locals, device);
     break;
 case 21:
-    batch_foreach<tensor_foreach<kernel_sqrt<GpuTypes>, 1, 1, 1>, 1, 1>(instr, locals, device);
+    batch_foreach<tensor_foreach_dynamic<kernel_sqrt<GpuTypes>, 1, 1>, 1, 1>(instr, locals, device);
     break;
 case 22:
-    batch_foreach<tensor_foreach<kernel_square<GpuTypes>, 1, 1, 1>, 1, 1>(instr, locals, device);
+    batch_foreach<tensor_foreach_dynamic<kernel_square<GpuTypes>, 1, 1>, 1, 1>(instr, locals, device);
     break;
 case 23:
     batch_foreach<tensor_foreach_dynamic<kernel_min<GpuTypes>, 2, 1>, 2, 1>(instr, locals, device);

@@ -41,7 +41,8 @@ public:
     std::pair<TensorVec, TensorVec> run_backward(
         const TensorVec& output_grads,
         const TensorVec& stored_locals,
-        const std::vector<bool>& eval_grad
+        const std::vector<bool>& eval_grad,
+        bool return_contiguous_grads
     ) override;
 
     Context& context() { return *_context; }
@@ -60,12 +61,14 @@ private:
     std::pair<TensorVec, TensorVec> run_backward_single(
         const TensorVec& output_grads,
         const TensorVec& stored_locals,
-        const std::vector<bool>& eval_grad
+        const std::vector<bool>& eval_grad,
+        bool return_contiguous_grads
     ) const;
     std::pair<TensorVec, TensorVec> run_backward_concurrent(
         const TensorVec& output_grads,
         const TensorVec& stored_locals,
-        const std::vector<bool>& eval_grad
+        const std::vector<bool>& eval_grad,
+        bool return_contiguous_grads
     ) const;
 
     std::vector<Instruction> _instructions;
@@ -74,6 +77,8 @@ private:
     TensorVec _locals_init;
     std::vector<bool> _requires_grad_init;
     SizeVec _grad_global_indices;
+    std::vector<Sizes> _grad_global_shapes;
+    std::size_t _grad_global_total_size;
     ContextPtr _context;
     ThreadResource<std::mt19937> _rand_gens;
     bool _concurrent;

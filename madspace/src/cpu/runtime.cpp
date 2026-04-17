@@ -435,8 +435,8 @@ void backward_op_batch_reduce_mean(
     const D& device
 ) {
     auto& input = locals[instruction.input_indices[0]];
-    auto& input_grad = locals[instruction.input_indices[0]];
-    auto& output_grad = locals[instruction.output_indices[0]];
+    auto& input_grad = local_grads[instruction.input_indices[0]];
+    auto& output_grad = local_grads[instruction.output_indices[0]];
     if (!input_grad) {
         input_grad = Tensor(DataType::dt_float, input.shape(), device);
         input_grad.zero(device);
@@ -894,6 +894,7 @@ CpuRuntime::CpuRuntime(const Function& function, ContextPtr context, bool concur
         index = instr_index_map.at(index);
     }
 
+    _grad_global_total_size = 0;
     for (auto& [name, value] : function.globals()) {
         Tensor global = context->global(name);
         auto& global_shape = value.type.shape;
@@ -909,6 +910,8 @@ CpuRuntime::CpuRuntime(const Function& function, ContextPtr context, bool concur
         if (context->global_requires_grad(name)) {
             _requires_grad_init.at(value.local_index) = true;
             _grad_global_indices.push_back(value.local_index);
+            _grad_global_shapes.push_back(global.shape());
+            _grad_global_total_size += global.shape().product();
         }
     }
 
@@ -952,12 +955,17 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> CpuRuntime::run_with_grad(
 std::pair<TensorVec, TensorVec> CpuRuntime::run_backward(
     const TensorVec& output_grads,
     const TensorVec& stored_locals,
-    const std::vector<bool>& eval_grad
+    const std::vector<bool>& eval_grad,
+    bool return_contiguous_grads
 ) {
     if (_concurrent && _context->thread_pool().thread_count() > 1) {
-        return run_backward_concurrent(output_grads, stored_locals, eval_grad);
+        return run_backward_concurrent(
+            output_grads, stored_locals, eval_grad, return_contiguous_grads
+        );
     } else {
-        return run_backward_single(output_grads, stored_locals, eval_grad);
+        return run_backward_single(
+            output_grads, stored_locals, eval_grad, return_contiguous_grads
+        );
     }
 }
 
@@ -1036,7 +1044,8 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> CpuRuntime::run_with_grad_si
 std::pair<TensorVec, TensorVec> CpuRuntime::run_backward_single(
     const TensorVec& output_grads,
     const TensorVec& stored_locals,
-    const std::vector<bool>& eval_grad
+    const std::vector<bool>& eval_grad,
+    bool return_contiguous_grads
 ) const {
     auto& device = CpuDevice::instance();
     TensorVec local_grads(stored_locals.size());
@@ -1044,6 +1053,14 @@ std::pair<TensorVec, TensorVec> CpuRuntime::run_backward_single(
     for (auto [index, grad] : zip(_output_indices, output_grads)) {
         local_grads[index] = grad;
     }
+
+    Tensor all_global_grads(DataType::dt_float, {_grad_global_total_size});
+    all_global_grads.zero();
+    TensorVec global_grads = all_global_grads.split_and_reshape(_grad_global_shapes);
+    for (auto [index, grad] : zip(_grad_global_indices, global_grads)) {
+        local_grads[index] = grad;
+    }
+
     for (auto [instr, instr_eval_grad] :
          zip(std::views::reverse(_instructions), std::views::reverse(eval_grad))) {
         if (!instr_eval_grad) {
@@ -1062,12 +1079,10 @@ std::pair<TensorVec, TensorVec> CpuRuntime::run_backward_single(
 #include "runtime_backward_mixin.h"
         }
     }
-    TensorVec global_grads;
-    global_grads.reserve(_grad_global_indices.size());
-    for (std::size_t index : _grad_global_indices) {
-        global_grads.push_back(local_grads[index]);
-    }
-    return {{local_grads.begin(), local_grads.begin() + _input_count}, global_grads};
+    return {
+        {local_grads.begin(), local_grads.begin() + _input_count},
+        return_contiguous_grads ? TensorVec{all_global_grads} : global_grads
+    };
 }
 
 std::tuple<TensorVec, TensorVec, std::vector<bool>> CpuRuntime::run_concurrent(
@@ -1202,12 +1217,20 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> CpuRuntime::run_concurrent(
 std::pair<TensorVec, TensorVec> CpuRuntime::run_backward_concurrent(
     const TensorVec& output_grads,
     const TensorVec& stored_locals,
-    const std::vector<bool>& eval_grad
+    const std::vector<bool>& eval_grad,
+    bool return_contiguous_grads
 ) const {
     auto& thread_pool = _context->thread_pool();
     TensorVec local_grads(stored_locals.size());
     TensorVec locals(stored_locals);
     for (auto [index, grad] : zip(_output_indices, output_grads)) {
+        local_grads[index] = grad;
+    }
+
+    Tensor all_global_grads(DataType::dt_float, {_grad_global_total_size});
+    all_global_grads.zero();
+    TensorVec global_grads = all_global_grads.split_and_reshape(_grad_global_shapes);
+    for (auto [index, grad] : zip(_grad_global_indices, global_grads)) {
         local_grads[index] = grad;
     }
 
@@ -1299,12 +1322,10 @@ std::pair<TensorVec, TensorVec> CpuRuntime::run_backward_concurrent(
         }
     }
 
-    TensorVec global_grads;
-    global_grads.reserve(_grad_global_indices.size());
-    for (std::size_t index : _grad_global_indices) {
-        global_grads.push_back(local_grads[index]);
-    }
-    return {{local_grads.begin(), local_grads.begin() + _input_count}, global_grads};
+    return {
+        {local_grads.begin(), local_grads.begin() + _input_count},
+        return_contiguous_grads ? TensorVec{all_global_grads} : global_grads
+    };
 }
 
 extern "C" Runtime*

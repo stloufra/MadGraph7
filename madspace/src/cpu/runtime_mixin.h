@@ -65,10 +65,10 @@ case 20:
     batch_foreach<tensor_foreach<kernel_reduce_product<CpuTypes>, kernel_reduce_product<SimdTypes>, 1, 1, 1, DeviceType>, 1, 1>(instr, locals, device);
     break;
 case 21:
-    batch_foreach<tensor_foreach<kernel_sqrt<CpuTypes>, kernel_sqrt<SimdTypes>, 1, 1, 1, DeviceType>, 1, 1>(instr, locals, device);
+    batch_foreach<tensor_foreach_dynamic<kernel_sqrt<CpuTypes>, kernel_sqrt<SimdTypes>, 1, 1, DeviceType>, 1, 1>(instr, locals, device);
     break;
 case 22:
-    batch_foreach<tensor_foreach<kernel_square<CpuTypes>, kernel_square<SimdTypes>, 1, 1, 1, DeviceType>, 1, 1>(instr, locals, device);
+    batch_foreach<tensor_foreach_dynamic<kernel_square<CpuTypes>, kernel_square<SimdTypes>, 1, 1, DeviceType>, 1, 1>(instr, locals, device);
     break;
 case 23:
     batch_foreach<tensor_foreach_dynamic<kernel_min<CpuTypes>, kernel_min<SimdTypes>, 2, 1, DeviceType>, 2, 1>(instr, locals, device);

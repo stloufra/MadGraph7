@@ -331,7 +331,6 @@ public:
             1,
             {},
             0,
-            0,
             batch_sizes
         }) {}
 
@@ -400,18 +399,14 @@ public:
     TensorView<T, dim> view() {
         check_impl();
         T* data = static_cast<T*>(impl->data);
-        return TensorView<T, dim>(
-            &data[impl->offset], impl->stride.data(), impl->shape.data()
-        );
+        return TensorView<T, dim>(data, impl->stride.data(), impl->shape.data());
     }
 
     template <class T, int dim>
     const TensorView<T, dim> view() const {
         check_impl();
         T* data = static_cast<T*>(impl->data);
-        return TensorView<T, dim>(
-            &data[impl->offset], impl->stride.data(), impl->shape.data()
-        );
+        return TensorView<T, dim>(data, impl->stride.data(), impl->shape.data());
     }
 
     template <class T, int dim>
@@ -419,7 +414,7 @@ public:
         check_impl();
         T* data = static_cast<T*>(impl->data);
         if (flatten_count <= 1) {
-            return {&data[impl->offset], impl->stride, impl->shape};
+            return {data, impl->stride, impl->shape};
         }
         if (flatten_count > impl->contiguous_dims) {
             throw std::invalid_argument("can only flatten contiguous dimensions");
@@ -433,7 +428,7 @@ public:
             shape.push_back(impl->shape[i]);
             stride.push_back(impl->stride[i]);
         }
-        return {&data[impl->offset], stride, shape};
+        return {data, stride, shape};
     }
 
     void* data() {
@@ -456,7 +451,6 @@ public:
         check_impl();
         return impl->shape[i];
     }
-    std::size_t offset() const { return impl->offset; }
     DataType dtype() const {
         check_impl();
         return impl->dtype;
@@ -627,7 +621,6 @@ private:
         TensorImpl* data_owner;
         std::atomic<int> ref_count = 1;
         Sizes stride;
-        std::size_t offset;
         std::size_t contiguous_dims;
         SizeVec batch_sizes;
 

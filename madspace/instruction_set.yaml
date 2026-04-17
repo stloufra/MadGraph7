@@ -146,6 +146,7 @@ add:
       type: [float, ...]
       desc: sum of the two inputs
   desc: Computes the sum of the two inputs.
+  differentiable: True
   dims: 0
 
 add_int:
@@ -176,6 +177,7 @@ sub:
       type: [float, ...]
       desc: difference of the two inputs
   desc: Computes the difference of the two inputs.
+  differentiable: True
   dims: 0
 
 mul:
@@ -258,22 +260,26 @@ reduce_product:
 sqrt:
   inputs:
     - name: in1
-      type: [float]
+      type: [float, ...]
       desc:
   outputs:
     - name: out
-      type: [float]
+      type: [float, ...]
       desc:
+  differentiable: True
+  dims: 0
 
 square:
   inputs:
     - name: in1
-      type: [float]
+      type: [float, ...]
       desc:
   outputs:
     - name: out
-      type: [float]
+      type: [float, ...]
       desc:
+  differentiable: True
+  dims: 0
 
 min:
   inputs:

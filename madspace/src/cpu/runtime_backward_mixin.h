@@ -25,6 +25,12 @@ case 10:
 case 11:
     backward_op_unsqueeze(instr, locals, local_grads, device);
     break;
+case 12:
+    backward_batch_foreach<tensor_foreach_dynamic<backward_kernel_add<CpuTypes>, backward_kernel_add<SimdTypes>, 3, 2, DeviceType>, 2, 1, 2, 0>(instr, locals, local_grads, {0,1}, {}, device);
+    break;
+case 14:
+    backward_batch_foreach<tensor_foreach_dynamic<backward_kernel_sub<CpuTypes>, backward_kernel_sub<SimdTypes>, 3, 2, DeviceType>, 2, 1, 2, 0>(instr, locals, local_grads, {0,1}, {}, device);
+    break;
 case 15:
     backward_batch_foreach<tensor_foreach_dynamic<backward_kernel_mul<CpuTypes>, backward_kernel_mul<SimdTypes>, 3, 2, DeviceType>, 2, 1, 2, 0>(instr, locals, local_grads, {0,1}, {}, device);
     break;
@@ -36,6 +42,12 @@ case 19:
     break;
 case 20:
     backward_batch_foreach<tensor_foreach<backward_kernel_reduce_product<CpuTypes>, backward_kernel_reduce_product<SimdTypes>, 2, 1, 1, DeviceType>, 1, 1, 1, 0>(instr, locals, local_grads, {0}, {}, device);
+    break;
+case 21:
+    backward_batch_foreach<tensor_foreach_dynamic<backward_kernel_sqrt<CpuTypes>, backward_kernel_sqrt<SimdTypes>, 2, 1, DeviceType>, 1, 1, 1, 0>(instr, locals, local_grads, {0}, {}, device);
+    break;
+case 22:
+    backward_batch_foreach<tensor_foreach_dynamic<backward_kernel_square<CpuTypes>, backward_kernel_square<SimdTypes>, 2, 1, DeviceType>, 1, 1, 1, 0>(instr, locals, local_grads, {0}, {}, device);
     break;
 case 101:
     backward_op_matmul(instr, locals, local_grads, device);

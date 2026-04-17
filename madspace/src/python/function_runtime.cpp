@@ -155,7 +155,7 @@ py::object madspace_py::tensor_to_dlpack(
              dtype,
              context->shape.data(),
              context->stride.data(),
-             tensor.offset() * tensor.dtype_size()},
+             0},
             static_cast<void*>(context),
             &deleter
         };

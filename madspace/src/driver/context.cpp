@@ -222,7 +222,9 @@ Tensor Context::reallocate_globals_contiguously(const std::vector<std::string>& 
     }
     Tensor parent(dtype, {total_size}, device());
     for (auto [name, tensor] : zip(names, parent.split_and_reshape(shapes))) {
-        _globals.at(name).first = tensor;
+        auto& global = _globals.at(name).first;
+        tensor.copy_from(global);
+        global = tensor;
     }
     return parent;
 }

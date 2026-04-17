@@ -16,6 +16,18 @@ KERNELSPEC void kernel_add(FIn<T, 0> in1, FIn<T, 0> in2, FOut<T, 0> out) {
 }
 
 template <typename T>
+KERNELSPEC void backward_kernel_add(
+    FIn<T, 0> in1,
+    FIn<T, 0> in2,
+    FIn<T, 0> out_grad,
+    FOut<T, 0> in1_grad,
+    FOut<T, 0> in2_grad
+) {
+    in1_grad += out_grad;
+    in2_grad += out_grad;
+}
+
+template <typename T>
 KERNELSPEC void kernel_add_int(IIn<T, 0> in1, IIn<T, 0> in2, IOut<T, 0> out) {
     out = in1 + in2;
 }
@@ -23,6 +35,18 @@ KERNELSPEC void kernel_add_int(IIn<T, 0> in1, IIn<T, 0> in2, IOut<T, 0> out) {
 template <typename T>
 KERNELSPEC void kernel_sub(FIn<T, 0> in1, FIn<T, 0> in2, FOut<T, 0> out) {
     out = in1 - in2;
+}
+
+template <typename T>
+KERNELSPEC void backward_kernel_sub(
+    FIn<T, 0> in1,
+    FIn<T, 0> in2,
+    FIn<T, 0> out_grad,
+    FOut<T, 0> in1_grad,
+    FOut<T, 0> in2_grad
+) {
+    in1_grad += out_grad;
+    in2_grad += -out_grad;
 }
 
 template <typename T>
@@ -108,12 +132,24 @@ backward_kernel_reduce_product(FIn<T, 1> in, FIn<T, 0> out_grad, FOut<T, 1> in_g
 
 template <typename T>
 KERNELSPEC void kernel_sqrt(FIn<T, 0> in, FOut<T, 0> out) {
-    out = sqrt(where(in >= 0., in, 0.));
+    out = sqrt(where(in > 0., in, 0.));
+}
+
+template <typename T>
+KERNELSPEC void
+backward_kernel_sqrt(FIn<T, 0> in, FIn<T, 0> out_grad, FOut<T, 0> in_grad) {
+    in_grad += where(in > 0., -0.5 * out_grad / sqrt(in), 0.);
 }
 
 template <typename T>
 KERNELSPEC void kernel_square(FIn<T, 0> in, FOut<T, 0> out) {
     out = in * in;
+}
+
+template <typename T>
+KERNELSPEC void
+backward_kernel_square(FIn<T, 0> in, FIn<T, 0> out_grad, FOut<T, 0> in_grad) {
+    in_grad += 2. * in * out_grad;
 }
 
 template <typename T>

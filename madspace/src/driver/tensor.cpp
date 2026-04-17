@@ -18,13 +18,12 @@ Tensor Tensor::select(std::size_t axis, std::size_t index) const {
         impl->dtype,
         new_shape,
         impl->device,
-        impl->data,
+        static_cast<uint8_t*>(impl->data) + index * impl->stride[axis] * dtype_size(),
         false,
         std::nullopt,
         impl,
         1,
         new_stride,
-        impl->offset + index * impl->stride[axis],
         std::min(impl->contiguous_dims, axis)
     });
 }
@@ -37,14 +36,13 @@ Tensor Tensor::slice(std::size_t axis, std::size_t start, std::size_t stop) cons
         impl->dtype,
         new_shape,
         impl->device,
-        impl->data,
+        static_cast<uint8_t*>(impl->data) + start * impl->stride[axis] * dtype_size(),
         false,
         std::nullopt,
         impl,
         1,
         impl->stride,
-        impl->offset + start * impl->stride[axis],
-        std::min(impl->contiguous_dims, axis)
+        std::min(impl->contiguous_dims, axis + 1)
     });
 }
 
@@ -98,7 +96,6 @@ Tensor Tensor::unsqueeze(std::size_t axis) const {
         impl,
         1,
         new_stride,
-        impl->offset,
         impl->contiguous_dims + (axis <= impl->contiguous_dims)
     });
 }
@@ -115,7 +112,6 @@ Tensor Tensor::expand(const Sizes& shape) const {
         impl,
         1,
         Sizes(shape.size(), 0),
-        impl->offset,
         0
     });
 }
@@ -138,7 +134,6 @@ Tensor Tensor::reshape(const Sizes& new_shape) const {
         impl,
         1,
         {},
-        impl->offset,
         0
     });
     ret.init_stride();
@@ -177,7 +172,6 @@ Tensor Tensor::factor_dim(std::size_t axis, std::size_t factor) {
         impl,
         1,
         new_stride,
-        impl->offset,
         impl->contiguous_dims + (axis <= impl->contiguous_dims)
     });
 }

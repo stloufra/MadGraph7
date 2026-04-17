@@ -32,9 +32,10 @@ AdamOptimizer::AdamOptimizer(
     }
     _parameter = context->reallocate_globals_contiguously(param_names);
     _runtime = build_runtime(function, context);
-    _parameter = Tensor(_parameter.dtype(), _parameter.shape(), _parameter.device());
     _exp_avg = Tensor(_parameter.dtype(), _parameter.shape(), _parameter.device());
+    _exp_avg.zero();
     _exp_avg_sq = Tensor(_parameter.dtype(), _parameter.shape(), _parameter.device());
+    _exp_avg_sq.zero();
     _input_types.reserve(function.inputs().size());
     for (auto& input : function.inputs()) {
         _input_types.push_back(input.type);
@@ -54,7 +55,7 @@ TensorVec AdamOptimizer::step(const TensorVec& inputs) {
     DevicePtr device = _context->device();
     output_grads.at(0) = _one;
     auto [input_grads, global_grads] =
-        _runtime->run_backward(output_grads, stored_locals, eval_grad);
+        _runtime->run_backward(output_grads, stored_locals, eval_grad, true);
     device->adam_step(
         global_grads.at(0),
         _parameter,
