@@ -2799,8 +2799,9 @@ class Test_IdentifyHelasTag(unittest.TestCase):
         self.assertEqual(h_zz_eemumu_Tag, h_zz_mumumumu_Tag)
         # Lorentz structure of z > e e~ != z > ve ve~
         self.assertNotEqual(h_zz_eemumu_Tag, h_zz_eeveve_Tag)
-        # Lorentz structure of z > up-type up-type != z > down-type down-type
-        self.assertNotEqual(h_zz_ssss_Tag, h_zz_sscc_Tag)
+        # In the flavor-merged SM model, s and c quarks share the same Lorentz
+        # structures for the Z vertex, so their HELAS tags are equal.
+        self.assertEqual(h_zz_ssss_Tag, h_zz_sscc_Tag)
         self.assertNotEqual(h_zz_sscc_Tag, h_ww_sscc_Tag)
         self.assertNotEqual(h_zz_sscc_Tag, h_zz_eemumu_Tag)
 
@@ -2810,6 +2811,82 @@ class Test_IdentifyHelasTag(unittest.TestCase):
         new_tag = diagram_generation.DiagramTag(new_diagram)
         old_tag = diagram_generation.DiagramTag(h_zz_ssss)
         #print new_tag, old_tag
+        self.assertEqual(new_tag, old_tag)
+
+    def test_helas_comparison_unmerged(self):
+        """Test the ability to identify Helas calls using unmerged SM model."""
+
+        # Load an unmerged (non-flavor-grouped) model for this test so that
+        # up-type and down-type quarks have distinct Lorentz structures.
+        sm_path = import_ufo.find_ufo_path('sm')
+        unmerged_base = import_ufo.import_model(sm_path, options={'apply_flavor_grouping': False})
+        my_model = decay_objects.DecayModel(unmerged_base, True)
+        param_path = os.path.join(_file_path,'../input_files/param_card_sm.dat')
+        my_model.read_param_card(param_path)
+
+        particles = my_model.get('particles')
+        interactions = my_model.get('interactions')
+        inter_list = copy.copy(interactions)
+        no_want_pid = [1, 2, 15, 16, 21]
+        for pid in no_want_pid:
+            particles.remove(my_model.get_particle(pid))
+        for inter in inter_list:
+            if any([p.get('pdg_code') in no_want_pid for p in inter.get('particles')]):
+                interactions.remove(inter)
+        my_model.set('name', 'my_smallsm_unmerged')
+        my_model.set('particles', particles)
+        my_model.set('interactions', interactions)
+        my_model.find_vertexlist()
+
+        # Turn higgs decay into 4-body
+        decay_objects.mdl_MH = 80
+        h = my_model.get_particle(25)
+        h.find_channels(4, my_model)
+
+        for c in h.get_channels(4, True):
+            pids = set([l['id'] for l in c.get_final_legs()])
+            if pids == set([3, -3, 4, -4]) and \
+                    c['vertices'][0]['legs'][-1]['id'] == 23:
+                h_zz_sscc = c
+                h_zz_sscc_Tag = decay_objects.IdentifyHelasTag(h_zz_sscc, my_model)
+            if pids == set([3, -3, 3, -3]):
+                h_zz_ssss = c
+                h_zz_ssss_Tag = decay_objects.IdentifyHelasTag(h_zz_ssss, my_model)
+            if pids == set([5, -5, 5, -5]):
+                h_zz_bbbb = c
+                h_zz_bbbb_Tag = decay_objects.IdentifyHelasTag(h_zz_bbbb, my_model)
+            if pids == set([11, -11, 12, -12]) and \
+                    c['vertices'][0]['legs'][-1]['id'] == 23:
+                h_zz_eeveve = c
+                h_zz_eeveve_Tag = decay_objects.IdentifyHelasTag(h_zz_eeveve, my_model)
+            if pids == set([11, -11, 13, -13]):
+                h_zz_eemumu = c
+                h_zz_eemumu_Tag = decay_objects.IdentifyHelasTag(h_zz_eemumu, my_model)
+            if pids == set([13, -13, 13, -13]):
+                h_zz_mumumumu = c
+                h_zz_mumumumu_Tag = decay_objects.IdentifyHelasTag(h_zz_mumumumu, my_model)
+            if pids == set([3, -3, 4, -4]) and \
+                    abs(c['vertices'][0]['legs'][-1]['id']) == 24:
+                h_ww_sscc = c
+                h_ww_sscc_Tag = decay_objects.IdentifyHelasTag(h_ww_sscc, my_model)
+            if pids == set([11, -11, 12, -12]) and \
+                    abs(c['vertices'][0]['legs'][-1]['id']) == 24:
+                h_ww_eeveve = c
+                h_ww_eeveve_Tag = decay_objects.IdentifyHelasTag(h_ww_eeveve, my_model)
+
+        self.assertEqual(h_zz_ssss_Tag, h_zz_bbbb_Tag)
+        self.assertEqual(h_zz_eemumu_Tag, h_zz_mumumumu_Tag)
+        # Lorentz structure of z > e e~ != z > ve ve~
+        self.assertNotEqual(h_zz_eemumu_Tag, h_zz_eeveve_Tag)
+        # In the unmerged model, Lorentz structure of z > ss != z > sc
+        self.assertNotEqual(h_zz_ssss_Tag, h_zz_sscc_Tag)
+        self.assertNotEqual(h_zz_sscc_Tag, h_ww_sscc_Tag)
+        self.assertNotEqual(h_zz_sscc_Tag, h_zz_eemumu_Tag)
+
+        # Test diagram_from_tag
+        new_diagram = h_zz_ssss_Tag.diagram_from_tag(my_model)
+        new_tag = diagram_generation.DiagramTag(new_diagram)
+        old_tag = diagram_generation.DiagramTag(h_zz_ssss)
         self.assertEqual(new_tag, old_tag)
 
     def test_helas_helpers(self):
