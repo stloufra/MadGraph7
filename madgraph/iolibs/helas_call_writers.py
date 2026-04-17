@@ -411,7 +411,7 @@ class FortranHelasCallWriter(HelasCallWriter):
 
         # SM gluon 4-vertex components
 
-        key = ((3, 3, 3, 3, 1,tuple()), ('gggg3',))
+        key = ((3, 3, 3, 3, 1, tuple(), tuple()), ('gggg3',))
         call = lambda wf: \
                "CALL JGGGXX(W(%d),W(%d),W(%d),%s,W(%d))" % \
                (FortranHelasCallWriter.sorted_mothers(wf)[1].get('me_id'),
@@ -430,7 +430,7 @@ class FortranHelasCallWriter(HelasCallWriter):
                 amp.get('coupling')[0],
                 amp.get('number'))
         self.add_amplitude(key, call)
-        key = ((3, 3, 3, 3, 1 ,tuple()), ('gggg2',))
+        key = ((3, 3, 3, 3, 1, tuple(), tuple()), ('gggg2',))
         call = lambda wf: \
                "CALL JGGGXX(W(%d),W(%d),W(%d),%s,W(%d))" % \
                (FortranHelasCallWriter.sorted_mothers(wf)[0].get('me_id'),
@@ -449,7 +449,7 @@ class FortranHelasCallWriter(HelasCallWriter):
                 amp.get('coupling')[0],
                 amp.get('number'))
         self.add_amplitude(key, call)
-        key = ((3, 3, 3, 3, 1,tuple()), ('gggg1',))
+        key = ((3, 3, 3, 3, 1, tuple(), tuple()), ('gggg1',))
         call = lambda wf: \
                "CALL JGGGXX(W(%d),W(%d),W(%d),%s,W(%d))" % \
                (FortranHelasCallWriter.sorted_mothers(wf)[2].get('me_id'),
