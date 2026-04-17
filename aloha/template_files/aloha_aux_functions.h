@@ -14,6 +14,16 @@ struct ALOHAOBJ{
 };
 //ALOHAOBJ::ALOHAOBJ() {}
 
+struct ALOHAOBJ2D{
+     double p[4];
+     std::complex<double> W[16];
+     int flv_index =1;
+
+     public:
+        //ALOHAOBJ(double p[4], std::complex<double> W[4], int flav):p(p), W(W), flav(flav){};
+        inline ALOHAOBJ2D() {};
+};
+//ALOHAOBJ2D::ALOHAOBJ2D() {}
 
 #endif
 #ifndef i_guard
@@ -32,10 +42,10 @@ void oxxxxx(double p[4],double fmass,int nhel,int nsf, int flv,  ALOHAOBJ &fo);
 #include <complex>
 void sxxxxx(double p[4],int nss, ALOHAOBJ &sc);
 #endif
-#ifndef i_guard
-#define i_guard
+#ifndef t_guard
+#define t_guard
 #include <complex>
-//void txxxxx(double p[4],double tmass,int nhel,int nst,std::complex<double> fi[18]);
+void txxxxx(double p[4],double tmass,int nhel,int nst,ALOHAOBJ2D fi[18]);
 #endif
 #ifndef v_guard
 #define v_guard

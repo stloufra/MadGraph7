@@ -580,7 +580,10 @@ class ALOHAWriterForFortran(WriteALOHA):
                 type = type[5:]
                 #determine the size of the list
                 if name[0] in ['F', 'V', 'S', 'T', 'R'] and not aloha.loop_mode:
-                    out.write(' type(aloha) %s\n' % (name))
+                    if name[0] not in ['T', 'R']:
+                        out.write(' type(aloha) %s\n' % (name))
+                    else:
+                        out.write(' type(aloha2d) %s\n' % (name))
                     if name not in argument_var:
                         size=self.get_size(name, -2)
                         #to_end.append("allocate(%s %% W(%s))" % (name,size))
@@ -1565,6 +1568,9 @@ class ALOHAWriterForCPP(WriteALOHA):
     type2def['alohaV'] = 'ALOHAOBJ '
     type2def['alohaR'] = 'ALOHAOBJ ' 
     type2def['alohaT'] = 'ALOHAOBJ '
+    type2def['aloha2'] = 'ALOHAOBJ '
+    type2def['aloha1'] = 'ALOHAOBJ '
+    type2def['aloha3'] = 'ALOHAOBJ2D '
     type2def['pointer_vertex'] = '&' # using complex<double> & vertex)
     type2def['pointer_coup'] = ''
     #variable overwritten by gpu
