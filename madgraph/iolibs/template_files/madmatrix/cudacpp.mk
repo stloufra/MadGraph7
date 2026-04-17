@@ -4,26 +4,84 @@
 # Further modified by: S. Hageboeck, D. Massaro, O. Mattelaer, S. Roiser, J. Teig, A. Valassi (2020-2025).
 # Integrated with the MadGraph7 project in Feb 2026.
 
-#=== Determine the name of this makefile (https://ftp.gnu.org/old-gnu/Manuals/make-3.80/html_node/make_17.html)
-#=== NB: use ':=' to ensure that the value of CUDACPP_MAKEFILE is not modified further down after including make_opts
-#=== NB: use 'override' to ensure that the value can not be modified from the outside
-override CUDACPP_MAKEFILE := $(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST))
-###$(info CUDACPP_MAKEFILE='$(CUDACPP_MAKEFILE)')
+#=== Check that the user-defined choices of BACKEND, FPTYPE, HELINL, HRDCOD are supported
+#=== Configure default values for these variables if no user-defined choices exist
 
-#=== NB: different names (e.g. cudacpp.mk and cudacpp_src.mk) are used in the Subprocess and src directories
-override CUDACPP_SRC_MAKEFILE = cudacpp_src.mk
+# Set the default BACKEND (CUDA, HIP or C++/SIMD) choice
+ifeq ($(BACKEND),)
+  override BACKEND = cppauto
+endif
 
-#-------------------------------------------------------------------------------
+# Set the default FPTYPE (floating point type) choice
+# NB: this only affects manual 'make' builds (madevent 'launch' builds are controlled by floating_type in run_card.dat)
+ifeq ($(FPTYPE),)
+  # OLD DEFAULT UP TO v1.00.00 INCLUDED (inconsistent with default floating_type='m' in run_card.dat)
+  ###override FPTYPE = d
+  # NEW DEFAULT (#995) AS OF v1.00.01 (now consistent with default floating_type='m' in run_card.dat)
+  override FPTYPE = m
+endif
 
-#=== Include cudacpp_config.mk
+# Set the default HELINL (inline helicities?) choice
+ifeq ($(HELINL),)
+  override HELINL = 0
+endif
 
-# Check that the user-defined choices of BACKEND, FPTYPE, HELINL, HRDCOD are supported (and configure defaults if no user-defined choices exist)
-# Stop with an error if BACKEND=cuda and nvcc is missing or if BACKEND=hip and hipcc is missing.
-# Determine CUDACPP_BUILDDIR from a DIRTAG based on BACKEND, FPTYPE, HELINL, HRDCOD and from the user-defined choice of USEBUILDDIR
-include ../../src/cudacpp_config.mk
+# Set the default HRDCOD (hardcode cIPD physics parameters?) choice
+ifeq ($(HRDCOD),)
+  override HRDCOD = 0
+endif
 
-# Export CUDACPP_BUILDDIR (so that there is no need to check/define it again in cudacpp_src.mk)
-export CUDACPP_BUILDDIR
+# Check that the user-defined choices of BACKEND, FPTYPE, HELINL, HRDCOD are supported
+# (NB: use 'filter' and 'words' instead of 'findstring' because they properly handle whitespace-separated words)
+override SUPPORTED_BACKENDS = cuda hip cppnone cppsse4 cppavx2 cpp512y cpp512z cppauto
+ifneq ($(words $(filter $(BACKEND), $(SUPPORTED_BACKENDS))),1)
+  $(error Invalid backend BACKEND='$(BACKEND)': supported backends are $(foreach backend,$(SUPPORTED_BACKENDS),'$(backend)'))
+endif
+
+override SUPPORTED_FPTYPES = d f m
+ifneq ($(words $(filter $(FPTYPE), $(SUPPORTED_FPTYPES))),1)
+  $(error Invalid fptype FPTYPE='$(FPTYPE)': supported fptypes are $(foreach fptype,$(SUPPORTED_FPTYPES),'$(fptype)'))
+endif
+
+override SUPPORTED_HELINLS = 0 1
+ifneq ($(words $(filter $(HELINL), $(SUPPORTED_HELINLS))),1)
+  $(error Invalid helinl HELINL='$(HELINL)': supported helinls are $(foreach helinl,$(SUPPORTED_HELINLS),'$(helinl)'))
+endif
+
+override SUPPORTED_HRDCODS = 0 1
+ifneq ($(words $(filter $(HRDCOD), $(SUPPORTED_HRDCODS))),1)
+  $(error Invalid hrdcod HRDCOD='$(HRDCOD)': supported hrdcods are $(foreach hrdcod,$(SUPPORTED_HRDCODS),'$(hrdcod)'))
+endif
+
+# Stop immediately if BACKEND=cuda but nvcc is missing
+ifeq ($(BACKEND),cuda)
+  ifeq ($(shell which nvcc 2>/dev/null),)
+    $(error BACKEND=$(BACKEND) but nvcc was not found)
+  endif
+endif
+
+# Stop immediately if BACKEND=hip but hipcc is missing
+ifeq ($(BACKEND),hip)
+  ifeq ($(shell which hipcc 2>/dev/null),)
+    $(error BACKEND=$(BACKEND) but hipcc was not found)
+  endif
+endif
+
+#=== Configure MADMATRIX_BUILDDIR
+
+# Build directory "full" tag (used for build lockfiles to prevent mixing builds with different options)
+override DIRTAG := $(patsubst cpp%,%,$(BACKEND))_$(FPTYPE)_inl$(HELINL)_hrd$(HRDCOD)
+
+# Build directory: current directory by default, or build.<BACKEND> if USEBUILDDIR==1
+# NB: using '=' (not ':=') ensures BACKEND is evaluated lazily after potential cppauto resolution
+ifeq ($(USEBUILDDIR),1)
+  override MADMATRIX_BUILDDIR = build.$(BACKEND)
+else
+  override MADMATRIX_BUILDDIR = .
+endif
+
+# Export MADMATRIX_BUILDDIR to src/Makefile
+export MADMATRIX_BUILDDIR
 
 #-------------------------------------------------------------------------------
 
@@ -45,14 +103,19 @@ UNAME_P := $(shell uname -p)
 UNAME_M := $(shell uname -m)
 
 #-------------------------------------------------------------------------------
+# src folder
+override SRC := ../../src
 
-#=== Include the common MG5aMC Makefile options
+#-------------------------------------------------------------------------------
 
-# OM: including make_opts is crucial for MG5aMC flag consistency/documentation
-# AV: disable the inclusion of make_opts if the file has not been generated (standalone cudacpp)
-ifneq ($(wildcard ../../Source/make_opts),)
-  include ../../Source/make_opts
-endif
+# Library output directory: libraries are ALWAYS placed in LIBDIR, independently of USEBUILDDIR.
+# Can be overridden on the command line (e.g. make LIBDIR=/abs/path); defaults to ../../lib.
+# NB: LIBDIR is resolved to an absolute path so it can be passed unchanged to sub-makes via export.
+LIBDIR ?= ../../lib
+override LIBDIR := $(abspath $(LIBDIR))
+export LIBDIR
+
+$(info Building objects in BUILDDIR=$(BUILDDIR), libraries in LIBDIR=$(LIBDIR))
 
 #-------------------------------------------------------------------------------
 
@@ -114,7 +177,7 @@ ifneq ($(shell $(CXX) --version | egrep '^Apple clang'),)
   CXXFLAGS += -mmacosx-version-min=11.3
 endif
 
-# Export CXXFLAGS (so that there is no need to check/define it again in cudacpp_src.mk)
+# Export CXXFLAGS (so that there is no need to check/define it again in src/Makefile)
 export CXXFLAGS
 
 #-------------------------------------------------------------------------------
@@ -165,7 +228,7 @@ endif
 # Unlike what happened in the past, nvcc and hipcc must have already been added to PATH. Using 'which nvcc' and 'which hipcc',
 # their existence and their location is checked, and the variables CUDA_HOME and HIP_HOME are internally set by this makefile.
 # This must be still done before backend-specific customizations, e.g. because CURAND and NVTX are also used in C++ builds.
-# Note also that a preliminary check for nvcc and hipcc if BACKEND is cuda or hip is performed in cudacpp_config.mk.
+# Note also that a preliminary check for nvcc and hipcc if BACKEND is cuda or hip is performed at the top of this Makefile.
 # - Note also that the REQUIRE_CUDA variable (which was used in the past, e.g. for CI tests on GPU #443) is now (PR #798) no
 # longer necessary, as it is now equivalent to BACKEND=cuda. Similarly, there is no need to introduce a REQUIRE_HIP variable.
 
@@ -308,11 +371,14 @@ else
 
 endif
 
-# Export GPUCC, GPUFLAGS, GPULANGUAGE, GPUSUFFIX (so that there is no need to check/define them again in cudacpp_src.mk)
+# Export GPUCC, GPUFLAGS, GPULANGUAGE, GPUSUFFIX (so that there is no need to check/define them again in src/Makefile)
 export GPUCC
 export GPUFLAGS
 export GPULANGUAGE
 export GPUSUFFIX
+
+# Export BACKEND (resolved from cppauto above if needed; used e.g. to name the common library)
+export BACKEND
 
 #-------------------------------------------------------------------------------
 
@@ -339,64 +405,10 @@ INCFLAGS = -I.
 OPTFLAGS = -O3 # this ends up in GPUFLAGS too (should it?), cannot add -Ofast or -ffast-math here
 
 # Dependency on src directory
-ifeq ($(GPUCC),)
-MG5AMC_COMMONLIB = mg5amc_common_cpp
-else
-MG5AMC_COMMONLIB = mg5amc_common_$(GPUSUFFIX)
-endif
-LIBFLAGS = -L$(LIBDIR) -l$(MG5AMC_COMMONLIB)
-INCFLAGS += -I../../src
-
-# Compiler-specific googletest build directory (#125 and #738)
-ifneq ($(shell $(CXX) --version | grep '^Intel(R) oneAPI DPC++/C++ Compiler'),)
-  override CXXNAME = icpx$(shell $(CXX) --version | head -1 | cut -d' ' -f5)
-else ifneq ($(shell $(CXX) --version | egrep '^clang'),)
-  override CXXNAME = clang$(shell $(CXX) --version | head -1 | cut -d' ' -f3)
-else ifneq ($(shell $(CXX) --version | grep '^g++ (GCC)'),)
-  override CXXNAME = gcc$(shell $(CXX) --version | head -1 | cut -d' ' -f3)
-else
-  override CXXNAME = unknown
-endif
-###$(info CXXNAME=$(CXXNAME))
-override CXXNAMESUFFIX = _$(CXXNAME)
-
-# Export CXXNAMESUFFIX (so that there is no need to check/define it again in cudacpp_test.mk)
-export CXXNAMESUFFIX
-
-# Dependency on test directory
-# Within the madgraph4gpu git repo: by default use a common gtest installation in <topdir>/test (optionally use an external or local gtest)
-# Outside the madgraph4gpu git repo: by default do not build the tests (optionally use an external or local gtest)
-# Do not build the tests if USEGTEST is equal to 0 (default inside launch_plugin.py, see https://github.com/madgraph5/madgraph4gpu/issues/878)
-###GTEST_ROOT = /cvmfs/sft.cern.ch/lcg/releases/gtest/1.11.0-21e8c/x86_64-centos8-gcc11-opt/# example of an external gtest installation
-###LOCALGTEST = yes# comment this out (or use make LOCALGTEST=yes) to build tests using a local gtest installation
-TESTDIRCOMMON = ../../../../../test
-TESTDIRLOCAL = ../../test
-ifeq ($(USEGTEST),0)
-  TESTDIR=
-  GTEST_ROOT=
-else ifneq ($(wildcard $(GTEST_ROOT)),)
-  TESTDIR=
-else ifneq ($(LOCALGTEST),)
-  TESTDIR=$(TESTDIRLOCAL)
-  GTEST_ROOT=$(TESTDIR)/googletest/install$(CXXNAMESUFFIX)
-else ifneq ($(wildcard ../../../../../epochX/cudacpp/CODEGEN),)
-  TESTDIR=$(TESTDIRCOMMON)
-  GTEST_ROOT= $(TESTDIR)/googletest/install$(CXXNAMESUFFIX)
-else
-  TESTDIR=
-endif
-ifneq ($(GTEST_ROOT),)
-  GTESTLIBDIR = $(GTEST_ROOT)/lib64/
-  GTESTLIBS = $(GTESTLIBDIR)/libgtest.a
-  GTESTINC = -I$(GTEST_ROOT)/include
-else
-  GTESTLIBDIR =
-  GTESTLIBS =
-  GTESTINC =
-endif
-###$(info GTEST_ROOT = $(GTEST_ROOT))
-###$(info LOCALGTEST = $(LOCALGTEST))
-###$(info TESTDIR = $(TESTDIR))
+# The common library name carries the full BACKEND suffix so each vectorisation/GPU variant is distinct.
+MADMATRIX_COMMONLIB = madmatrix_common_$(BACKEND)
+LIBFLAGS = -L$(LIBDIR) -l$(MADMATRIX_COMMONLIB)
+INCFLAGS += -I$(SRC)
 
 #-------------------------------------------------------------------------------
 
@@ -435,10 +447,10 @@ ifeq ($(USEOPENMP),1)
     ###override OMPFLAGS = # disable OpenMP MT on Intel (was ok without GPUCC but not ok with GPUCC before #578)
   else ifneq ($(shell $(CXX) --version | egrep '^clang version 16'),)
     ###override OMPFLAGS = # disable OpenMP on clang16 #904
-    $(error OpenMP is not supported by cudacpp on clang16 - issue #904)
+    $(error OpenMP is not supported by MadMatrix on clang16 - issue #904)
   else ifneq ($(shell $(CXX) --version | egrep '^clang version 17'),)
     ###override OMPFLAGS = # disable OpenMP on clang17 #904
-    $(error OpenMP is not supported by cudacpp on clang17 - issue #904)
+    $(error OpenMP is not supported by MadMatrix on clang17 - issue #904)
   else ifneq ($(shell $(CXX) --version | egrep '^(clang)'),)
     override OMPFLAGS = -fopenmp
     ###override OMPFLAGS = # disable OpenMP MT on clang (was not ok without or with nvcc before #578)
@@ -453,57 +465,6 @@ ifeq ($(USEOPENMP),1)
 else
   ###$(info USEOPENMP!=1: will build without OpenMP)
   override OMPFLAGS =
-endif
-
-#-------------------------------------------------------------------------------
-
-#=== Configure defaults and check if user-defined choices exist for RNDGEN (legacy!), HASCURAND, HASHIPRAND
-
-# If the legacy RNDGEN exists, this take precedence over any HASCURAND choice (but a warning is printed out)
-###$(info RNDGEN=$(RNDGEN))
-ifneq ($(RNDGEN),)
-  $(warning Environment variable RNDGEN is no longer supported, please use HASCURAND instead!)
-  ifeq ($(RNDGEN),hasCurand)
-    override HASCURAND = $(RNDGEN)
-  else ifeq ($(RNDGEN),hasNoCurand)
-    override HASCURAND = $(RNDGEN)
-  else ifneq ($(RNDGEN),hasNoCurand)
-    $(error Unknown RNDGEN='$(RNDGEN)': only 'hasCurand' and 'hasNoCurand' are supported - but use HASCURAND instead!)
-  endif
-endif
-
-# Set the default HASCURAND (curand random number generator) choice, if no prior choice exists for HASCURAND
-# (NB: allow HASCURAND=hasCurand even if $(GPUCC) does not point to nvcc: assume CUDA_HOME was defined correctly...)
-ifeq ($(HASCURAND),)
-  ifeq ($(GPUCC),) # CPU-only build
-    ifeq ($(CUDA_INC),)
-      # $(CUDA_HOME)/include/ does not exist (see #965)
-      override HASCURAND = hasNoCurand
-    else ifeq ($(wildcard $(CUDA_HOME)/include/curand.h),)
-      # $(CUDA_HOME)/include/ exists but CURAND headers do not exist? (see #965)
-      override HASCURAND = hasNoCurand
-    else
-      # By default, assume that curand is installed if a CUDA installation exists
-      override HASCURAND = hasCurand
-    endif
-  else ifeq ($(findstring nvcc,$(GPUCC)),nvcc) # Nvidia GPU build
-    # By default, assume that curand is installed if a CUDA build is requested
-    override HASCURAND = hasCurand
-  else # non-Nvidia GPU build
-    override HASCURAND = hasNoCurand
-  endif
-endif
-
-# Set the default HASHIPRAND (hiprand random number generator) choice, if no prior choice exists for HASHIPRAND
-# (NB: allow HASHIPRAND=hasHiprand even if $(GPUCC) does not point to hipcc: assume HIP_HOME was defined correctly...)
-ifeq ($(HASHIPRAND),)
-  ifeq ($(GPUCC),) # CPU-only build
-    override HASHIPRAND = hasNoHiprand
-  else ifeq ($(findstring hipcc,$(GPUCC)),hipcc) # AMD GPU build
-    override HASHIPRAND = hasHiprand
-  else # non-AMD GPU build
-    override HASHIPRAND = hasNoHiprand
-  endif
 endif
 
 #-------------------------------------------------------------------------------
@@ -643,41 +604,13 @@ else ifneq ($(HRDCOD),0)
   $(error Unknown HRDCOD='$(HRDCOD)': only '0' and '1' are supported)
 endif
 
-#=== Set the CUDA/HIP/C++ compiler and linker flags appropriate to user-defined choices of HASCURAND, HASHIPRAND
-
-$(info HASCURAND=$(HASCURAND))
-$(info HASHIPRAND=$(HASHIPRAND))
-override RNDCXXFLAGS=
-override RNDLIBFLAGS=
-
-# Set the RNDCXXFLAGS and RNDLIBFLAGS build flags appropriate to each HASCURAND choice (example: "make HASCURAND=hasNoCurand")
-ifeq ($(HASCURAND),hasNoCurand)
-  override RNDCXXFLAGS += -DMGONGPU_HAS_NO_CURAND
-else ifeq ($(HASCURAND),hasCurand)
-  override RNDLIBFLAGS += -L$(CUDA_HOME)/lib64/ -lcurand # NB: -lcuda is not needed here!
-else
-  $(error Unknown HASCURAND='$(HASCURAND)': only 'hasCurand' and 'hasNoCurand' are supported)
-endif
-
-# Set the RNDCXXFLAGS and RNDLIBFLAGS build flags appropriate to each HASHIPRAND choice (example: "make HASHIPRAND=hasNoHiprand")
-ifeq ($(HASHIPRAND),hasNoHiprand)
-  override RNDCXXFLAGS += -DMGONGPU_HAS_NO_HIPRAND
-else ifeq ($(HASHIPRAND),hasHiprand)
-  override RNDLIBFLAGS += -L$(HIP_HOME)/lib/ -lhiprand
-else ifneq ($(HASHIPRAND),hasHiprand)
-  $(error Unknown HASHIPRAND='$(HASHIPRAND)': only 'hasHiprand' and 'hasNoHiprand' are supported)
-endif
-
-#$(info RNDCXXFLAGS=$(RNDCXXFLAGS))
-#$(info RNDLIBFLAGS=$(RNDLIBFLAGS))
-
 #=== Set the CUDA/HIP/C++ compiler and linker flags appropriate to user-defined choices of HASBLAS
 
 $(info HASBLAS=$(HASBLAS))
 override BLASCXXFLAGS=
 override BLASLIBFLAGS=
 
-# Set the RNDCXXFLAGS and RNDLIBFLAGS build flags appropriate to each HASBLAS choice (example: "make HASBLAS=hasNoBlas")
+# Set the BLASCXXFLAGS and BLASLIBFLAGS build flags appropriate to each HASBLAS choice (example: "make HASBLAS=hasNoBlas")
 ifeq ($(HASBLAS),hasNoBlas)
   override BLASCXXFLAGS += -DMGONGPU_HAS_NO_BLAS
 else ifeq ($(HASBLAS),hasBlas)
@@ -704,7 +637,7 @@ GPUFLAGS += $(XCOMPILERFLAG) -fPIC
 #-------------------------------------------------------------------------------
 
 #=== Configure channelid debugging
-ifneq ($(MG5AMC_CHANNELID_DEBUG),)
+ifneq ($(MADMATRIX_CHANNELID_DEBUG),)
   CXXFLAGS += -DMGONGPU_CHANNELID_DEBUG
   GPUFLAGS += -DMGONGPU_CHANNELID_DEBUG
 endif
@@ -713,42 +646,32 @@ endif
 
 #=== Configure build directories and build lockfiles ===
 
-# Build lockfile "full" tag (defines full specification of build options that cannot be intermixed)
-# (Rationale: avoid mixing of builds with different random number generators)
-override TAG = $(patsubst cpp%%,%%,$(BACKEND))_$(FPTYPE)_inl$(HELINL)_hrd$(HRDCOD)_$(HASCURAND)_$(HASHIPRAND)
+# Build lockfile "full" tag (defines full specification of object-file builds that cannot be intermixed)
+override TAG = $(patsubst cpp%,%,$(BACKEND))_$(FPTYPE)_inl$(HELINL)_hrd$(HRDCOD)
 
-# Export TAG (so that there is no need to check/define it again in cudacpp_src.mk)
-export TAG
+# Export TAG (so that there is no need to check/define it again in src/Makefile)
+xport TAG
 
-# Build directory: current directory by default, or build.$(DIRTAG) if USEBUILDDIR==1
-override BUILDDIR = $(CUDACPP_BUILDDIR)
-ifeq ($(USEBUILDDIR),1)
-  override LIBDIR = ../../lib/$(BUILDDIR)
-  override LIBDIRRPATH = '$$ORIGIN/../$(LIBDIR)'
-  $(info Building in BUILDDIR=$(BUILDDIR) for tag=$(TAG) (USEBUILDDIR == 1))
-else
-  override LIBDIR = ../../lib
-  override LIBDIRRPATH = '$$ORIGIN/$(LIBDIR)'
-  $(info Building in BUILDDIR=$(BUILDDIR) for tag=$(TAG) (USEBUILDDIR != 1))
-endif
+# Build directory for object files: current directory by default, or build.<BACKEND> if USEBUILDDIR==1
+override BUILDDIR = $(MADMATRIX_BUILDDIR)
+
 ###override INCDIR = ../../include
-###$(info Building in BUILDDIR=$(BUILDDIR) for tag=$(TAG))
 
-# On Linux, set rpath to LIBDIR to make it unnecessary to use LD_LIBRARY_PATH
-# Use relative paths with respect to the executables or shared libraries ($ORIGIN on Linux)
-# On Darwin, building libraries with absolute paths in LIBDIR makes this unnecessary
+# On Linux, embed the absolute LIBDIR as rpath so LD_LIBRARY_PATH is not needed.
+# Since LIBDIR is absolute, the same rpath works regardless of where the executable lives.
+# On Darwin, libraries use absolute install_name so rpath is not needed.
 ifeq ($(UNAME_S),Darwin)
   override CXXLIBFLAGSRPATH =
   override GPULIBFLAGSRPATH =
   override CXXLIBFLAGSRPATH2 =
   override GPULIBFLAGSRPATH2 =
 else
-  # RPATH to gpu/cpp libs when linking executables
-  override CXXLIBFLAGSRPATH = -Wl,-rpath=$(LIBDIRRPATH)
-  override GPULIBFLAGSRPATH = -Xlinker -rpath=$(LIBDIRRPATH)
-  # RPATH to common lib when linking gpu/cpp libs
-  override CXXLIBFLAGSRPATH2 = -Wl,-rpath='$$ORIGIN'
-  override GPULIBFLAGSRPATH2 = -Xlinker -rpath='$$ORIGIN'
+  # RPATH for executables: find the process lib (and its common-lib dependency) in LIBDIR
+  override CXXLIBFLAGSRPATH = -Wl,-rpath=$(LIBDIR)
+  override GPULIBFLAGSRPATH = -Xlinker -rpath=$(LIBDIR)
+  # RPATH for the process shared lib itself: find the common lib in the same LIBDIR
+  override CXXLIBFLAGSRPATH2 = -Wl,-rpath=$(LIBDIR)
+  override GPULIBFLAGSRPATH2 = -Xlinker -rpath=$(LIBDIR)
 endif
 
 # Setting LD_LIBRARY_PATH or DYLD_LIBRARY_PATH in the RUNTIME is no longer necessary (neither on Linux nor on Mac)
@@ -758,26 +681,17 @@ override RUNTIME =
 #=== Makefile TARGETS and build rules below
 #===============================================================================
 
+processid_short=$(shell basename $(CURDIR) | awk -F_ '{print $$(NF-1)"_"$$NF}')
+###$(info processid_short=$(processid_short))
 
-ifeq ($(GPUCC),)
-  cxx_checkmain=$(BUILDDIR)/check_cpp.exe
-  cxx_fcheckmain=$(BUILDDIR)/fcheck_cpp.exe
-  cxx_testmain=$(BUILDDIR)/runTest_cpp.exe
-else
-  gpu_checkmain=$(BUILDDIR)/check_$(GPUSUFFIX).exe
-  gpu_fcheckmain=$(BUILDDIR)/fcheck_$(GPUSUFFIX).exe
-  gpu_testmain=$(BUILDDIR)/runTest_$(GPUSUFFIX).exe
-endif
+MADMATRIX_LIB = madmatrix_$(processid_short)_$(BACKEND)
+objects_lib=$(BUILDDIR)/CPPProcess.o $(BUILDDIR)/color_sum.o $(BUILDDIR)/MatrixElementKernels.o $(BUILDDIR)/CrossSectionKernels.o $(BUILDDIR)/umami.o
 
 # Explicitly define the default goal (this is not necessary as it is the first target, which is implicitly the default goal)
 .DEFAULT_GOAL := all.$(TAG)
 
-# First target (default goal)
-ifeq ($(GPUCC),)
-all.$(TAG): $(BUILDDIR)/.build.$(TAG) $(LIBDIR)/lib$(MG5AMC_COMMONLIB).so $(cxx_checkmain) $(cxx_fcheckmain) $(if $(GTESTLIBS),$(cxx_testmain))
-else
-all.$(TAG): $(BUILDDIR)/.build.$(TAG) $(LIBDIR)/lib$(MG5AMC_COMMONLIB).so $(gpu_checkmain) $(gpu_fcheckmain) $(if $(GTESTLIBS),$(gpu_testmain))
-endif
+# First target (default goal): build the process library (which also builds the common library as a dependency)
+all.$(TAG): $(BUILDDIR)/.build.$(TAG) $(LIBDIR)/lib$(MADMATRIX_LIB).so
 
 # Target (and build options): debug
 MAKEDEBUG=
@@ -800,33 +714,14 @@ debug: all.$(TAG)
 override oldtagsb=`if [ -d $(BUILDDIR) ]; then find $(BUILDDIR) -maxdepth 1 -name '.build.*' ! -name '.build.$(TAG)' -exec echo $(shell pwd)/{} \; ; fi`
 $(BUILDDIR)/.build.$(TAG):
 	@if [ ! -d $(BUILDDIR) ]; then echo "mkdir -p $(BUILDDIR)"; mkdir -p $(BUILDDIR); fi
-	@if [ "$(oldtagsb)" != "" ]; then echo "Cannot build for tag=$(TAG) as old builds exist for other tags:"; echo "  $(oldtagsb)"; echo "Please run 'make clean' first\nIf 'make clean' is not enough: run 'make clean USEBUILDDIR=1 AVX=$(AVX) FPTYPE=$(FPTYPE)' or 'make cleanall'"; exit 1; fi
+	@if [ "$(oldtagsb)" != "" ]; then echo "Cannot build for tag=$(TAG) as old builds exist for other tags:"; echo "  $(oldtagsb)"; echo "Please run 'make clean' first\nIf 'make clean' is not enough: run 'make clean USEBUILDDIR=1 BACKEND=$(BACKEND) FPTYPE=$(FPTYPE)' or 'make cleanall'"; exit 1; fi
 	@touch $(BUILDDIR)/.build.$(TAG)
 
-# Apply special build flags only to CrossSectionKernel_<cpp|$(GPUSUFFIX)>.o (no fast math, see #117 and #516)
-# Added edgecase for HIP compilation
+# Apply special build flags only to CrossSectionKernels.o (no fast math, see #117 and #516)
 ifeq ($(shell $(CXX) --version | grep ^nvc++),)
-$(BUILDDIR)/CrossSectionKernels_cpp.o: CXXFLAGS := $(filter-out -ffast-math,$(CXXFLAGS))
-$(BUILDDIR)/CrossSectionKernels_cpp.o: CXXFLAGS += -fno-fast-math
-$(BUILDDIR)/CrossSectionKernels_$(GPUSUFFIX).o: GPUFLAGS += $(XCOMPILERFLAG) -fno-fast-math
-endif
-
-# Apply special build flags only to check_sa_<cpp|$(GPUSUFFIX)>.o (NVTX in timermap.h, #679)
-$(BUILDDIR)/check_sa_cpp.o: CXXFLAGS += $(USE_NVTX) $(CUDA_INC)
-$(BUILDDIR)/check_sa_$(GPUSUFFIX).o: CXXFLAGS += $(USE_NVTX) $(CUDA_INC)
-
-# Apply special build flags only to check_sa_<cpp|$(GPUSUFFIX)>.o and (Cu|Hip)randRandomNumberKernel_<cpp|$(GPUSUFFIX)>.o
-$(BUILDDIR)/check_sa_cpp.o: CXXFLAGS += $(RNDCXXFLAGS)
-$(BUILDDIR)/check_sa_$(GPUSUFFIX).o: GPUFLAGS += $(RNDCXXFLAGS)
-$(BUILDDIR)/CurandRandomNumberKernel_cpp.o: CXXFLAGS += $(RNDCXXFLAGS)
-$(BUILDDIR)/CurandRandomNumberKernel_$(GPUSUFFIX).o: GPUFLAGS += $(RNDCXXFLAGS)
-$(BUILDDIR)/HiprandRandomNumberKernel_cpp.o: CXXFLAGS += $(RNDCXXFLAGS)
-$(BUILDDIR)/HiprandRandomNumberKernel_$(GPUSUFFIX).o: GPUFLAGS += $(RNDCXXFLAGS)
-ifeq ($(HASCURAND),hasCurand) # curand headers, #679
-$(BUILDDIR)/CurandRandomNumberKernel_cpp.o: CXXFLAGS += $(CUDA_INC)
-endif
-ifeq ($(HASHIPRAND),hasHiprand) # hiprand headers
-$(BUILDDIR)/HiprandRandomNumberKernel_cpp.o: CXXFLAGS += $(HIP_INC)
+$(BUILDDIR)/CrossSectionKernels.o: CXXFLAGS := $(filter-out -ffast-math,$(CXXFLAGS))
+$(BUILDDIR)/CrossSectionKernels.o: CXXFLAGS += -fno-fast-math
+$(BUILDDIR)/CrossSectionKernels.o: GPUFLAGS += $(XCOMPILERFLAG) -fno-fast-math
 endif
 
 # Avoid "warning: builtin __has_trivial_... is deprecated; use __is_trivially_... instead" in GPUCC with icx2023 (#592)
@@ -836,30 +731,19 @@ GPUFLAGS += -Wno-deprecated-builtins
 endif
 endif
 
-# Avoid clang warning "overriding '-ffp-contract=fast' option with '-ffp-contract=on'" (#516)
-# This patch does remove the warning, but I prefer to keep it disabled for the moment...
-###ifneq ($(shell $(CXX) --version | egrep '^(clang|Apple clang|Intel)'),)
-###$(BUILDDIR)/CrossSectionKernels_cpp.o: CXXFLAGS += -Wno-overriding-t-option
-###ifneq ($(GPUCC),)
-###$(BUILDDIR)/CrossSectionKernels_$(GPUSUFFIX).o: GPUFLAGS += $(XCOMPILERFLAG) -Wno-overriding-t-option
-###endif
-###endif
-
 #### Apply special build flags only to CPPProcess.o (-flto)
-###$(BUILDDIR)/CPPProcess_cpp.o: CXXFLAGS += -flto
+###$(BUILDDIR)/CPPProcess.o: CXXFLAGS += -flto
 
-#### Apply special build flags only to CPPProcess.o (AVXFLAGS)
-###$(BUILDDIR)/CPPProcess_cpp.o: CXXFLAGS += $(AVXFLAGS)
-
-# Generic target and build rules: objects from C++ compilation
-# (NB do not include CUDA_INC here! add it only for NVTX or curand #679)
-$(BUILDDIR)/%%_cpp.o : %%.cc *.h ../../src/*.h $(BUILDDIR)/.build.$(TAG)
+# Generic target and build rules: objects from C++ or CUDA/HIP compilation.
+# Object files use a plain .o suffix; the TAG lockfile in BUILDDIR prevents silent mixing of
+# incompatible backends (different BACKEND, FPTYPE, etc.) in the same directory.
+# Use USEBUILDDIR=1 to build for multiple backends simultaneously without cleaning.
+ifeq ($(GPUCC),)
+$(BUILDDIR)/%.o : %.cc *.h $(SRC)/*.h $(BUILDDIR)/.build.$(TAG)
 	@if [ ! -d $(BUILDDIR) ]; then echo "mkdir -p $(BUILDDIR)"; mkdir -p $(BUILDDIR); fi
 	$(CXX) $(CPPFLAGS) $(INCFLAGS) $(CXXFLAGS) -c $< -o $@
-
-# Generic target and build rules: objects from CUDA or HIP compilation
-ifneq ($(GPUCC),)
-$(BUILDDIR)/%%_$(GPUSUFFIX).o : %%.cc *.h ../../src/*.h $(BUILDDIR)/.build.$(TAG)
+else
+$(BUILDDIR)/%.o : %.cc *.h $(SRC)/*.h $(BUILDDIR)/.build.$(TAG)
 	@if [ ! -d $(BUILDDIR) ]; then echo "mkdir -p $(BUILDDIR)"; mkdir -p $(BUILDDIR); fi
 	$(GPUCC) $(CPPFLAGS) $(INCFLAGS) $(GPUFLAGS) -c -x $(GPULANGUAGE) $< -o $@
 endif
@@ -867,280 +751,63 @@ endif
 #-------------------------------------------------------------------------------
 
 # Target (and build rules): common (src) library
-commonlib : $(LIBDIR)/lib$(MG5AMC_COMMONLIB).so
+commonlib : $(LIBDIR)/lib$(MADMATRIX_COMMONLIB).so
 
-$(LIBDIR)/lib$(MG5AMC_COMMONLIB).so: ../../src/*.h ../../src/*.cc $(BUILDDIR)/.build.$(TAG)
-	$(MAKE) -C ../../src $(MAKEDEBUG) -f $(CUDACPP_SRC_MAKEFILE)
-
-#-------------------------------------------------------------------------------
-
-processid_short=$(shell basename $(CURDIR) | awk -F_ '{print $$(NF-1)"_"$$NF}')
-###$(info processid_short=$(processid_short))
-
-MG5AMC_CXXLIB = mg5amc_$(processid_short)_cpp
-cxx_objects_lib=$(BUILDDIR)/CPPProcess_cpp.o $(BUILDDIR)/color_sum_cpp.o $(BUILDDIR)/MatrixElementKernels_cpp.o $(BUILDDIR)/BridgeKernels_cpp.o $(BUILDDIR)/CrossSectionKernels_cpp.o $(BUILDDIR)/umami_cpp.o 
-cxx_objects_exe=$(BUILDDIR)/CommonRandomNumberKernel_cpp.o $(BUILDDIR)/RamboSamplingKernels_cpp.o
-
-ifneq ($(GPUCC),)
-MG5AMC_GPULIB = mg5amc_$(processid_short)_$(GPUSUFFIX)
-gpu_objects_lib=$(BUILDDIR)/CPPProcess_$(GPUSUFFIX).o $(BUILDDIR)/color_sum_$(GPUSUFFIX).o $(BUILDDIR)/MatrixElementKernels_$(GPUSUFFIX).o $(BUILDDIR)/BridgeKernels_$(GPUSUFFIX).o $(BUILDDIR)/CrossSectionKernels_$(GPUSUFFIX).o $(BUILDDIR)/umami_$(GPUSUFFIX).o 
-gpu_objects_exe=$(BUILDDIR)/CommonRandomNumberKernel_$(GPUSUFFIX).o $(BUILDDIR)/RamboSamplingKernels_$(GPUSUFFIX).o
-endif
-
-# Target (and build rules): C++ and CUDA/HIP shared libraries
-$(LIBDIR)/lib$(MG5AMC_CXXLIB).so: $(BUILDDIR)/fbridge_cpp.o
-$(LIBDIR)/lib$(MG5AMC_CXXLIB).so: cxx_objects_lib += $(BUILDDIR)/fbridge_cpp.o
-$(LIBDIR)/lib$(MG5AMC_CXXLIB).so: $(LIBDIR)/lib$(MG5AMC_COMMONLIB).so $(cxx_objects_lib)
-	$(CXX) -shared -o $@ $(cxx_objects_lib) $(CXXLIBFLAGSRPATH2) -L$(LIBDIR) -l$(MG5AMC_COMMONLIB)
-
-ifneq ($(GPUCC),)
-$(LIBDIR)/lib$(MG5AMC_GPULIB).so: $(BUILDDIR)/fbridge_$(GPUSUFFIX).o
-$(LIBDIR)/lib$(MG5AMC_GPULIB).so: gpu_objects_lib += $(BUILDDIR)/fbridge_$(GPUSUFFIX).o
-$(LIBDIR)/lib$(MG5AMC_GPULIB).so: $(LIBDIR)/lib$(MG5AMC_COMMONLIB).so $(gpu_objects_lib)
-	$(GPUCC) --shared -o $@ $(gpu_objects_lib) $(GPULIBFLAGSRPATH2) -L$(LIBDIR) -l$(MG5AMC_COMMONLIB) $(BLASLIBFLAGS)
-# Bypass std::filesystem completely to ease portability on LUMI #803
-#ifneq ($(findstring hipcc,$(GPUCC)),)
-#	$(GPUCC) --shared -o $@ $(gpu_objects_lib) $(GPULIBFLAGSRPATH2) -L$(LIBDIR) -l$(MG5AMC_COMMONLIB) -lstdc++fs
-#else
-#	$(GPUCC) --shared -o $@ $(gpu_objects_lib) $(GPULIBFLAGSRPATH2) -L$(LIBDIR) -l$(MG5AMC_COMMONLIB)
-#endif
-endif
+$(LIBDIR)/lib$(MADMATRIX_COMMONLIB).so: $(SRC)/*.h $(SRC)/*.cc $(BUILDDIR)/.build.$(TAG)
+	$(MAKE) -C $(SRC) $(MAKEDEBUG) BACKEND=$(BACKEND)
 
 #-------------------------------------------------------------------------------
 
-# Target (and build rules): Fortran include files
-###$(INCDIR)/%%.inc : ../%%.inc
-###	@if [ ! -d $(INCDIR) ]; then echo "mkdir -p $(INCDIR)"; mkdir -p $(INCDIR); fi
-###	\cp $< $@
-
-#-------------------------------------------------------------------------------
-
-# Target (and build rules): C++ and CUDA/HIP standalone executables
-###$(cxx_checkmain): LIBFLAGS += $(CXXLIBFLAGSASAN)
-$(cxx_checkmain): LIBFLAGS += $(CXXLIBFLAGSRPATH) # avoid the need for LD_LIBRARY_PATH
-$(cxx_checkmain): $(BUILDDIR)/check_sa_cpp.o $(LIBDIR)/lib$(MG5AMC_CXXLIB).so $(cxx_objects_exe) $(BUILDDIR)/CurandRandomNumberKernel_cpp.o $(BUILDDIR)/HiprandRandomNumberKernel_cpp.o
-	$(CXX) -o $@ $(BUILDDIR)/check_sa_cpp.o $(OMPFLAGS) -ldl -pthread $(LIBFLAGS) -L$(LIBDIR) -l$(MG5AMC_CXXLIB) $(cxx_objects_exe) $(BUILDDIR)/CurandRandomNumberKernel_cpp.o $(BUILDDIR)/HiprandRandomNumberKernel_cpp.o $(RNDLIBFLAGS)
-
-ifneq ($(GPUCC),)
-###$(gpu_checkmain): LIBFLAGS += $(GPULIBFLAGSASAN)
-ifneq ($(shell $(CXX) --version | grep ^Intel),)
-$(gpu_checkmain): LIBFLAGS += -lintlc # compile with icpx and link with GPUCC (undefined reference to `_intel_fast_memcpy')
-$(gpu_checkmain): LIBFLAGS += -lsvml # compile with icpx and link with GPUCC (undefined reference to `__svml_cos4_l9')
-else ifneq ($(shell $(CXX) --version | grep ^nvc++),) # support nvc++ #531
-$(gpu_checkmain): LIBFLAGS += -L$(patsubst %%bin/nvc++,%%lib,$(subst ccache ,,$(CXX))) -lnvhpcatm -lnvcpumath -lnvc
-endif
-$(gpu_checkmain): LIBFLAGS += $(GPULIBFLAGSRPATH) # avoid the need for LD_LIBRARY_PATH
-$(gpu_checkmain): LIBFLAGS += $(BLASLIBFLAGS)
-$(gpu_checkmain): $(BUILDDIR)/check_sa_$(GPUSUFFIX).o $(LIBDIR)/lib$(MG5AMC_GPULIB).so $(gpu_objects_exe) $(BUILDDIR)/CurandRandomNumberKernel_$(GPUSUFFIX).o $(BUILDDIR)/HiprandRandomNumberKernel_$(GPUSUFFIX).o
-	$(GPUCC) -o $@ $(BUILDDIR)/check_sa_$(GPUSUFFIX).o $(LIBFLAGS) -L$(LIBDIR) -l$(MG5AMC_GPULIB) $(gpu_objects_exe) $(BUILDDIR)/CurandRandomNumberKernel_$(GPUSUFFIX).o $(BUILDDIR)/HiprandRandomNumberKernel_$(GPUSUFFIX).o $(RNDLIBFLAGS)
-endif
-
-#-------------------------------------------------------------------------------
-
-# Generic target and build rules: objects from Fortran compilation
-# (NB In this makefile, this only applies to fcheck_sa_fortran.o)
-# (NB -fPIC was added to fix clang16 build #904, but this seems better for other cases too and is consistent to c++ and cuda builds)
-$(BUILDDIR)/%%_fortran.o : %%.f *.inc
-	@if [ ! -d $(BUILDDIR) ]; then echo "mkdir -p $(BUILDDIR)"; mkdir -p $(BUILDDIR); fi
-	$(FC) -I. -fPIC -c $< -o $@
-
-# Generic target and build rules: objects from Fortran compilation
-###$(BUILDDIR)/%%_fortran.o : %%.f *.inc
-###	@if [ ! -d $(INCDIR) ]; then echo "mkdir -p $(INCDIR)"; mkdir -p $(INCDIR); fi
-###	@if [ ! -d $(BUILDDIR) ]; then echo "mkdir -p $(BUILDDIR)"; mkdir -p $(BUILDDIR); fi
-###	$(FC) -I. -I$(INCDIR) -c $< -o $@
-
-# Target (and build rules): Fortran standalone executables
-###$(BUILDDIR)/fcheck_sa_fortran.o : $(INCDIR)/fbridge.inc
-
-###$(cxx_fcheckmain): LIBFLAGS += $(CXXLIBFLAGSASAN)
-ifeq ($(UNAME_S),Darwin)
-$(cxx_fcheckmain): LIBFLAGS += -L$(shell dirname $(shell $(FC) --print-file-name libgfortran.dylib)) # add path to libgfortran on Mac #375
-endif
-$(cxx_fcheckmain): LIBFLAGS += $(CXXLIBFLAGSRPATH) # avoid the need for LD_LIBRARY_PATH
-$(cxx_fcheckmain): $(BUILDDIR)/fcheck_sa_fortran.o $(BUILDDIR)/fsampler_cpp.o $(LIBDIR)/lib$(MG5AMC_CXXLIB).so $(cxx_objects_exe)
-ifneq ($(findstring hipcc,$(GPUCC)),) # link fortran/c++/hip using $FC when hipcc is used #802
-	$(FC) -o $@ $(BUILDDIR)/fcheck_sa_fortran.o $(OMPFLAGS) $(BUILDDIR)/fsampler_cpp.o $(LIBFLAGS) -lgfortran -L$(LIBDIR) -l$(MG5AMC_CXXLIB) $(cxx_objects_exe) -lstdc++
-else
-	$(CXX) -o $@ $(BUILDDIR)/fcheck_sa_fortran.o $(OMPFLAGS) $(BUILDDIR)/fsampler_cpp.o $(LIBFLAGS) -lgfortran -L$(LIBDIR) -l$(MG5AMC_CXXLIB) $(cxx_objects_exe)
-endif
-
-ifneq ($(GPUCC),)
-###$(gpu_fcheckmain): LIBFLAGS += $(GPULIBFLAGSASAN)
-ifneq ($(shell $(CXX) --version | grep ^Intel),)
-$(gpu_fcheckmain): LIBFLAGS += -lintlc # compile with icpx and link with GPUCC (undefined reference to `_intel_fast_memcpy')
-$(gpu_fcheckmain): LIBFLAGS += -lsvml # compile with icpx and link with GPUCC (undefined reference to `__svml_cos4_l9')
-endif
-ifeq ($(UNAME_S),Darwin)
-$(gpu_fcheckmain): LIBFLAGS += -L$(shell dirname $(shell $(FC) --print-file-name libgfortran.dylib)) # add path to libgfortran on Mac #375
-endif
-$(gpu_fcheckmain): LIBFLAGS += $(GPULIBFLAGSRPATH) # avoid the need for LD_LIBRARY_PATH
-$(gpu_fcheckmain): LIBFLAGS += $(BLASLIBFLAGS)
-$(gpu_fcheckmain): $(BUILDDIR)/fcheck_sa_fortran.o $(BUILDDIR)/fsampler_$(GPUSUFFIX).o $(LIBDIR)/lib$(MG5AMC_GPULIB).so $(gpu_objects_exe)
-ifneq ($(findstring hipcc,$(GPUCC)),) # link fortran/c++/hip using $FC when hipcc is used #802
-	$(FC) -o $@ $(BUILDDIR)/fcheck_sa_fortran.o $(BUILDDIR)/fsampler_$(GPUSUFFIX).o $(LIBFLAGS) -lgfortran -L$(LIBDIR) -l$(MG5AMC_GPULIB) $(gpu_objects_exe) -lstdc++ -L$(HIP_HOME)/lib -lamdhip64
-else
-	$(GPUCC) -o $@ $(BUILDDIR)/fcheck_sa_fortran.o $(BUILDDIR)/fsampler_$(GPUSUFFIX).o $(LIBFLAGS) -lgfortran -L$(LIBDIR) -l$(MG5AMC_GPULIB) $(gpu_objects_exe)
-endif
-endif
-
-#-------------------------------------------------------------------------------
-
-# Target (and build rules): test objects and test executable
+# Target (and build rules): process shared library (C++ or CUDA/HIP, selected by GPUCC)
 ifeq ($(GPUCC),)
-$(BUILDDIR)/testxxx_cpp.o: $(GTESTLIBS)
-$(BUILDDIR)/testxxx_cpp.o: INCFLAGS += $(GTESTINC)
-$(BUILDDIR)/testxxx_cpp.o: testxxx_cc_ref.txt
-$(cxx_testmain): $(BUILDDIR)/testxxx_cpp.o
-$(cxx_testmain): cxx_objects_exe += $(BUILDDIR)/testxxx_cpp.o # Comment out this line to skip the C++ test of xxx functions
+$(LIBDIR)/lib$(MADMATRIX_LIB).so: $(LIBDIR)/lib$(MADMATRIX_COMMONLIB).so $(objects_lib)
+	$(CXX) -shared -o $@ $(objects_lib) $(CXXLIBFLAGSRPATH2) -L$(LIBDIR) -l$(MADMATRIX_COMMONLIB)
 else
-$(BUILDDIR)/testxxx_$(GPUSUFFIX).o: $(GTESTLIBS)
-$(BUILDDIR)/testxxx_$(GPUSUFFIX).o: INCFLAGS += $(GTESTINC)
-$(BUILDDIR)/testxxx_$(GPUSUFFIX).o: testxxx_cc_ref.txt
-$(gpu_testmain): $(BUILDDIR)/testxxx_$(GPUSUFFIX).o
-$(gpu_testmain): gpu_objects_exe += $(BUILDDIR)/testxxx_$(GPUSUFFIX).o # Comment out this line to skip the CUDA/HIP test of xxx functions
-endif
-
-ifneq ($(UNAME_S),Darwin) # Disable testmisc on Darwin (workaround for issue #838)
-ifeq ($(GPUCC),)
-$(BUILDDIR)/testmisc_cpp.o: $(GTESTLIBS)
-$(BUILDDIR)/testmisc_cpp.o: INCFLAGS += $(GTESTINC)
-$(cxx_testmain): $(BUILDDIR)/testmisc_cpp.o
-$(cxx_testmain): cxx_objects_exe += $(BUILDDIR)/testmisc_cpp.o # Comment out this line to skip the C++ miscellaneous tests
-else
-$(BUILDDIR)/testmisc_$(GPUSUFFIX).o: $(GTESTLIBS)
-$(BUILDDIR)/testmisc_$(GPUSUFFIX).o: INCFLAGS += $(GTESTINC)
-$(gpu_testmain): $(BUILDDIR)/testmisc_$(GPUSUFFIX).o
-$(gpu_testmain): gpu_objects_exe += $(BUILDDIR)/testmisc_$(GPUSUFFIX).o # Comment out this line to skip the CUDA/HIP miscellaneous tests
-endif
-endif
-
-ifeq ($(GPUCC),)
-$(BUILDDIR)/runTest_cpp.o: $(GTESTLIBS)
-$(BUILDDIR)/runTest_cpp.o: INCFLAGS += $(GTESTINC)
-$(cxx_testmain): $(BUILDDIR)/runTest_cpp.o
-$(cxx_testmain): cxx_objects_exe += $(BUILDDIR)/runTest_cpp.o
-else
-$(BUILDDIR)/runTest_$(GPUSUFFIX).o: $(GTESTLIBS)
-$(BUILDDIR)/runTest_$(GPUSUFFIX).o: INCFLAGS += $(GTESTINC)
-ifneq ($(shell $(CXX) --version | grep ^Intel),)
-$(gpu_testmain): LIBFLAGS += -lintlc # compile with icpx and link with GPUCC (undefined reference to `_intel_fast_memcpy')
-$(gpu_testmain): LIBFLAGS += -lsvml # compile with icpx and link with GPUCC (undefined reference to `__svml_cos4_l9')
-else ifneq ($(shell $(CXX) --version | grep ^nvc++),) # support nvc++ #531
-$(gpu_testmain): LIBFLAGS += -L$(patsubst %%bin/nvc++,%%lib,$(subst ccache ,,$(CXX))) -lnvhpcatm -lnvcpumath -lnvc
-endif
-$(gpu_testmain): $(BUILDDIR)/runTest_$(GPUSUFFIX).o
-$(gpu_testmain): gpu_objects_exe  += $(BUILDDIR)/runTest_$(GPUSUFFIX).o
-endif
-
-ifeq ($(GPUCC),)
-$(cxx_testmain): $(GTESTLIBS)
-$(cxx_testmain): INCFLAGS +=  $(GTESTINC)
-$(cxx_testmain): LIBFLAGS += -L$(GTESTLIBDIR) -lgtest # adding also -lgtest_main is no longer necessary since we added main() to testxxx.cc
-else
-$(gpu_testmain): $(GTESTLIBS)
-$(gpu_testmain): INCFLAGS +=  $(GTESTINC)
-$(gpu_testmain): LIBFLAGS += -L$(GTESTLIBDIR) -lgtest # adding also -lgtest_main is no longer necessary since we added main() to testxxx.cc
-endif
-
-ifeq ($(GPUCC),) # if at all, OMP is used only in CXX builds (not in GPU builds)
-ifneq ($(OMPFLAGS),)
-ifneq ($(shell $(CXX) --version | egrep '^Intel'),)
-$(cxx_testmain): LIBFLAGS += -liomp5 # see #578 (not '-qopenmp -static-intel' as in https://stackoverflow.com/questions/45909648)
-else ifneq ($(shell $(CXX) --version | egrep '^clang'),)
-$(cxx_testmain): LIBFLAGS += -L $(shell dirname $(shell $(CXX) -print-file-name=libc++.so)) -lomp # see #604
-###else ifneq ($(shell $(CXX) --version | egrep '^Apple clang'),)
-###$(cxx_testmain): LIBFLAGS += ???? # OMP is not supported yet by cudacpp for Apple clang (see #578 and #604)
-else
-$(cxx_testmain): LIBFLAGS += -lgomp
-endif
-endif
-endif
-
-# Test quadmath in testmisc.cc tests for constexpr_math #627
-###ifeq ($(GPUCC),)
-###$(cxx_testmain): LIBFLAGS += -lquadmath
-###else
-###$(gpu_testmain): LIBFLAGS += -lquadmath
-###endif
-
-# Bypass std::filesystem completely to ease portability on LUMI #803
-###ifneq ($(findstring hipcc,$(GPUCC)),)
-###$(gpu_testmain): LIBFLAGS += -lstdc++fs
-###endif
-
-ifeq ($(GPUCC),) # link only runTest_cpp.o
-###$(cxx_testmain): LIBFLAGS += $(CXXLIBFLAGSASAN)
-$(cxx_testmain): LIBFLAGS += $(CXXLIBFLAGSRPATH) # avoid the need for LD_LIBRARY_PATH
-$(cxx_testmain): $(LIBDIR)/lib$(MG5AMC_COMMONLIB).so $(cxx_objects_lib) $(cxx_objects_exe) $(GTESTLIBS)
-	$(CXX) -o $@ $(cxx_objects_lib) $(cxx_objects_exe) -ldl -pthread $(LIBFLAGS)
-else # link only runTest_$(GPUSUFFIX).o (new: in the past, this was linking both runTest_cpp.o and runTest_$(GPUSUFFIX).o)
-###$(gpu_testmain): LIBFLAGS += $(GPULIBFLAGSASAN)
-$(gpu_testmain): LIBFLAGS += $(GPULIBFLAGSRPATH) # avoid the need for LD_LIBRARY_PATH
-$(gpu_testmain): LIBFLAGS += $(BLASLIBFLAGS)
-$(gpu_testmain): $(LIBDIR)/lib$(MG5AMC_COMMONLIB).so $(gpu_objects_lib) $(gpu_objects_exe) $(GTESTLIBS)
-ifneq ($(findstring hipcc,$(GPUCC)),) # link fortran/c++/hip using $FC when hipcc is used #802
-	$(FC) -o $@ $(gpu_objects_lib) $(gpu_objects_exe) -ldl $(LIBFLAGS) -lstdc++ -lpthread -L$(HIP_HOME)/lib -lamdhip64
-else
-	$(GPUCC) -o $@ $(gpu_objects_lib) $(gpu_objects_exe) -ldl $(LIBFLAGS) -lcuda
-endif
-endif
-
-# Use target gtestlibs to build only googletest
-ifneq ($(GTESTLIBS),)
-gtestlibs: $(GTESTLIBS)
-endif
-
-# Use flock (Linux only, no Mac) to allow 'make -j' if googletest has not yet been downloaded https://stackoverflow.com/a/32666215
-$(GTESTLIBS):
-ifneq ($(shell which flock 2>/dev/null),)
-	@if [ ! -d $(BUILDDIR) ]; then echo "mkdir -p $(BUILDDIR)"; mkdir -p $(BUILDDIR); fi
-	flock $(BUILDDIR)/.make_test.lock $(MAKE) -C $(TESTDIR)
-else
-	if [ -d $(TESTDIR) ]; then $(MAKE) -C $(TESTDIR); fi
+$(LIBDIR)/lib$(MADMATRIX_LIB).so: $(LIBDIR)/lib$(MADMATRIX_COMMONLIB).so $(objects_lib)
+	$(GPUCC) --shared -o $@ $(objects_lib) $(GPULIBFLAGSRPATH2) -L$(LIBDIR) -l$(MADMATRIX_COMMONLIB) $(BLASLIBFLAGS)
 endif
 
 #-------------------------------------------------------------------------------
 
 # Target: build all targets in all BACKEND modes (each BACKEND mode in a separate build directory)
-# Split the bldall target into separate targets to allow parallel 'make -j bldall' builds
-# (Obsolete hack, no longer needed as there is no INCDIR: add a fbridge.inc dependency to bldall, to ensure it is only copied once for all BACKEND modes)
+# Split the bldall target into separate targets to allow parallel 'make -j bldall' builds.
+# Pass LIBDIR explicitly so 'make bldall LIBDIR=/path' works end-to-end.
+# (GNU make auto-forwards command-line vars via MAKEFLAGS, but being explicit is safer and self-documenting.)
+_BLDFLAGS = USEBUILDDIR=1 LIBDIR=$(LIBDIR)
+
 bldcuda:
 	@echo
-	$(MAKE) USEBUILDDIR=1 BACKEND=cuda -f $(CUDACPP_MAKEFILE)
+	$(MAKE) $(_BLDFLAGS) BACKEND=cuda
 
 bldhip:
 	@echo
-	$(MAKE) USEBUILDDIR=1 BACKEND=hip -f $(CUDACPP_MAKEFILE)
+	$(MAKE) $(_BLDFLAGS) BACKEND=hip
 
 bldnone:
 	@echo
-	$(MAKE) USEBUILDDIR=1 BACKEND=cppnone -f $(CUDACPP_MAKEFILE)
+	$(MAKE) $(_BLDFLAGS) BACKEND=cppnone
 
 bldsse4:
 	@echo
-	$(MAKE) USEBUILDDIR=1 BACKEND=cppsse4 -f $(CUDACPP_MAKEFILE)
+	$(MAKE) $(_BLDFLAGS) BACKEND=cppsse4
 
 bldavx2:
 	@echo
-	$(MAKE) USEBUILDDIR=1 BACKEND=cppavx2 -f $(CUDACPP_MAKEFILE)
+	$(MAKE) $(_BLDFLAGS) BACKEND=cppavx2
 
 bld512y:
 	@echo
-	$(MAKE) USEBUILDDIR=1 BACKEND=cpp512y -f $(CUDACPP_MAKEFILE)
+	$(MAKE) $(_BLDFLAGS) BACKEND=cpp512y
 
 bld512z:
 	@echo
-	$(MAKE) USEBUILDDIR=1 BACKEND=cpp512z -f $(CUDACPP_MAKEFILE)
+	$(MAKE) $(_BLDFLAGS) BACKEND=cpp512z
 
 ifeq ($(UNAME_P),ppc64le)
-###bldavxs: $(INCDIR)/fbridge.inc bldnone bldsse4
 bldavxs: bldnone bldsse4
 else ifneq (,$(filter $(UNAME_M),arm64 aarch64))
-###bldavxs: $(INCDIR)/fbridge.inc bldnone bldsse4
 bldavxs: bldnone bldsse4
 else
-###bldavxs: $(INCDIR)/fbridge.inc bldnone bldsse4 bldavx2 bld512y bld512z
 bldavxs: bldnone bldsse4 bldavx2 bld512y bld512z
 endif
 
@@ -1161,123 +828,26 @@ endif
 #-------------------------------------------------------------------------------
 
 # Target: clean the builds
-.PHONY: clean
+.PHONY: clean cleanall
 
+# clean: remove objects and libraries for the selected BACKEND only.
 clean:
 ifeq ($(USEBUILDDIR),1)
 	rm -rf $(BUILDDIR)
 else
-	rm -f $(BUILDDIR)/.build.* $(BUILDDIR)/*.o $(BUILDDIR)/*.exe
-	rm -f $(LIBDIR)/lib*.so
-endif
-	$(MAKE) -C ../../src clean -f $(CUDACPP_SRC_MAKEFILE)
-###	rm -rf $(INCDIR)
-
+	rm -f $(BUILDDIR)/.build.* $(BUILDDIR)/*.o
+	rm -f $(LIBDIR)/lib$(MADMATRIX_LIB).so
+	rm -f $(BACKEND_LOG)
+	$(MAKE) -C $(SRC) clean BACKEND=$(BACKEND)
+ 
+# cleanall: remove objects and libraries for ALL backends.
 cleanall:
-	@echo
-	$(MAKE) USEBUILDDIR=0 clean -f $(CUDACPP_MAKEFILE)
-	@echo
-	$(MAKE) USEBUILDDIR=0 -C ../../src cleanall -f $(CUDACPP_SRC_MAKEFILE)
 	rm -rf build.*
-
-# Target: clean the builds as well as the gtest installation(s)
-distclean: cleanall
-ifneq ($(wildcard $(TESTDIRCOMMON)),)
-	$(MAKE) -C $(TESTDIRCOMMON) clean
-endif
-	$(MAKE) -C $(TESTDIRLOCAL) clean
+	rm -f ./.build.* ./*.o
+	rm -f $(LIBDIR)/libmadmatrix_$(processid_short)_*.so
+	$(MAKE) -C $(SRC) cleanall
 
 #-------------------------------------------------------------------------------
-
-# Target: show system and compiler information
-info:
-	@echo ""
-	@uname -spn # e.g. Linux nodename.cern.ch x86_64
-ifeq ($(UNAME_S),Darwin)
-	@sysctl -a | grep -i brand
-	@sysctl -a | grep machdep.cpu | grep features || true
-	@sysctl -a | grep hw.physicalcpu:
-	@sysctl -a | grep hw.logicalcpu:
-else
-	@cat /proc/cpuinfo | grep "model name" | sort -u
-	@cat /proc/cpuinfo | grep "flags" | sort -u
-	@cat /proc/cpuinfo | grep "cpu cores" | sort -u
-	@cat /proc/cpuinfo | grep "physical id" | sort -u
-endif
-	@echo ""
-ifneq ($(shell which nvidia-smi 2>/dev/null),)
-	nvidia-smi -L
-	@echo ""
-endif
-	@echo USECCACHE=$(USECCACHE)
-ifeq ($(USECCACHE),1)
-	ccache --version | head -1
-endif
-	@echo ""
-	@echo GPUCC=$(GPUCC)
-ifneq ($(GPUCC),)
-	$(GPUCC) --version
-endif
-	@echo ""
-	@echo CXX=$(CXX)
-ifneq ($(shell $(CXX) --version | grep ^clang),)
-	@echo $(CXX) -v
-	@$(CXX) -v |& egrep -v '(Found|multilib)'
-	@readelf -p .comment `$(CXX) -print-libgcc-file-name` |& grep 'GCC: (GNU)' | grep -v Warning | sort -u | awk '{print "GCC toolchain:",$$5}'
-else
-	$(CXX) --version
-endif
-	@echo ""
-	@echo FC=$(FC)
-	$(FC) --version
-
-#-------------------------------------------------------------------------------
-
-# Target: 'make test' (execute runTest.exe, and compare check.exe with fcheck.exe)
-# [NB: THIS IS WHAT IS TESTED IN THE GITHUB CI!]
-# [NB: This used to be called 'make check' but the name has been changed as this has nothing to do with 'check.exe']
-test: runTest cmpFcheck
-
-# Target: runTest (run the C++ or CUDA/HIP test executable runTest.exe)
-runTest: all.$(TAG)
-ifeq ($(GPUCC),)
-	$(RUNTIME) $(BUILDDIR)/runTest_cpp.exe
-else
-	$(RUNTIME) $(BUILDDIR)/runTest_$(GPUSUFFIX).exe
-endif
-
-# Target: runCheck (run the C++ or CUDA/HIP standalone executable check.exe, with a small number of events)
-runCheck: all.$(TAG)
-ifeq ($(GPUCC),)
-	$(RUNTIME) $(BUILDDIR)/check_cpp.exe -p 2 32 2
-else
-	$(RUNTIME) $(BUILDDIR)/check_$(GPUSUFFIX).exe -p 2 32 2
-endif
-
-# Target: runFcheck (run the Fortran standalone executable - with C++ or CUDA/HIP MEs - fcheck.exe, with a small number of events)
-runFcheck: all.$(TAG)
-ifeq ($(GPUCC),)
-	$(RUNTIME) $(BUILDDIR)/fcheck_cpp.exe 2 32 2
-else
-	$(RUNTIME) $(BUILDDIR)/fcheck_$(GPUSUFFIX).exe 2 32 2
-endif
-
-# Target: cmpFcheck (compare ME results from the C++/CUDA/HIP and Fortran with C++/CUDA/HIP MEs standalone executables, with a small number of events)
-cmpFcheck: all.$(TAG)
-	@echo
-ifeq ($(GPUCC),)
-	@echo "$(BUILDDIR)/check_cpp.exe --common -p 2 32 2"
-	@echo "$(BUILDDIR)/fcheck_cpp.exe 2 32 2"
-	@me1=$(shell $(RUNTIME) $(BUILDDIR)/check_cpp.exe --common -p 2 32 2 | grep MeanMatrix | awk '{print $$4}'); me2=$(shell $(RUNTIME) $(BUILDDIR)/fcheck_cpp.exe 2 32 2 | grep Average | awk '{print $$4}'); echo "Avg ME (C++/C++)    = $${me1}"; echo "Avg ME (F77/C++)    = $${me2}"; if [ "$${me2}" == "NaN" ]; then echo "ERROR! Fortran calculation (F77/C++) returned NaN"; elif [ "$${me2}" == "" ]; then echo "ERROR! Fortran calculation (F77/C++) crashed"; else python3 -c "me1=$${me1}; me2=$${me2}; reldif=abs((me2-me1)/me1); print('Relative difference =', reldif); ok = reldif <= 2E-4; print ( '%%s (relative difference %%s 2E-4)' %% ( ('OK','<=') if ok else ('ERROR','>') ) ); import sys; sys.exit(0 if ok else 1)"; fi
-else
-	@echo "$(BUILDDIR)/check_$(GPUSUFFIX).exe --common -p 2 32 2"
-	@echo "$(BUILDDIR)/fcheck_$(GPUSUFFIX).exe 2 32 2"
-	@me1=$(shell $(RUNTIME) $(BUILDDIR)/check_$(GPUSUFFIX).exe --common -p 2 32 2 | grep MeanMatrix | awk '{print $$4}'); me2=$(shell $(RUNTIME) $(BUILDDIR)/fcheck_$(GPUSUFFIX).exe 2 32 2 | grep Average | awk '{print $$4}'); echo "Avg ME (C++/GPU)   = $${me1}"; echo "Avg ME (F77/GPU)   = $${me2}"; if [ "$${me2}" == "NaN" ]; then echo "ERROR! Fortran calculation (F77/GPU) crashed"; elif [ "$${me2}" == "" ]; then echo "ERROR! Fortran calculation (F77/GPU) crashed"; else python3 -c "me1=$${me1}; me2=$${me2}; reldif=abs((me2-me1)/me1); print('Relative difference =', reldif); ok = reldif <= 2E-4; print ( '%%s (relative difference %%s 2E-4)' %% ( ('OK','<=') if ok else ('ERROR','>') ) ); import sys; sys.exit(0 if ok else 1)"; fi
-endif
-
-# Target: cuda-memcheck (run the CUDA standalone executable gcheck.exe with a small number of events through cuda-memcheck)
-cuda-memcheck: all.$(TAG)
-	$(RUNTIME) $(CUDA_HOME)/bin/cuda-memcheck --check-api-memory-access yes --check-deprecated-instr yes --check-device-heap yes --demangle full --language c --leak-check full --racecheck-report all --report-api-errors all --show-backtrace yes --tool memcheck --track-unused-memory yes $(BUILDDIR)/check_$(GPUSUFFIX).exe -p 2 32 2
 
 # Detect backend (to be used in case of 'cppauto' to give info to the user)
 .PHONY: detect-backend
