@@ -329,8 +329,7 @@ else ifeq ($(BACKEND),hip)
   GPULANGUAGE = hip
   GPUSUFFIX = hip
 
-  # Optimization flags
-  override OPTFLAGS = -O2 # work around "Memory access fault" in gq_ttq for HIP #806: disable hipcc -O3 optimizations
+  # Optimization flags (HIP -O2 workaround applied after OPTFLAGS = -O3 below, see #806)
   GPUFLAGS = $(foreach opt, $(OPTFLAGS), $(XCOMPILERFLAG) $(opt))
 
   # DEBUG FLAGS (for #806: see https://hackmd.io/@gmarkoma/lumi_finland)
@@ -402,11 +401,17 @@ endif
 #=== Configure common compiler flags for C++ and CUDA/HIP
 
 INCFLAGS = -I.
-OPTFLAGS = -O3 # this ends up in GPUFLAGS too (should it?), cannot add -Ofast or -ffast-math here
+OPTFLAGS = -O3
+
+# HIP requires -O2 to avoid "Memory access fault" in gq_ttq (#806)
+ifeq ($(BACKEND),hip)
+  override OPTFLAGS = -O2
+endif
 
 # PROFILE=1: reduced optimisation + symbols suitable for profilers (perf, gprof, valgrind...)
 # DEBUG=1  : no optimisation + full debug symbols
 # Both flags propagate automatically to src/ sub-makes via MAKEFLAGS.
+# These override the HIP workaround above intentionally: DEBUG in particular must always win.
 ifeq ($(PROFILE),1)
   override OPTFLAGS = -O2
 else ifeq ($(DEBUG),1)
