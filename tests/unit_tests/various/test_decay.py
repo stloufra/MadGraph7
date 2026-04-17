@@ -670,7 +670,7 @@ class Test_DecayModel2(unittest.TestCase):
                 Test_DecayModel2.base_model = Test_DecayModel.base_model
                 Test_DecayModel2.my_testmodel_base = Test_DecayModel.my_testmodel_base
             else:
-                Test_DecayModel2.base_model = import_ufo.import_model('MSSM_SLHA2')
+                Test_DecayModel2.base_model = import_ufo.import_model('MSSM_SLHA2', options={'apply_flavor_grouping': False})
                 Test_DecayModel2.my_testmodel_base = import_ufo.import_model('sm')
 
         #if hasattr(Test_DecayModel2,'my_testmodel'):
@@ -794,7 +794,7 @@ class Test_DecayModel(unittest.TestCase):
                 Test_DecayModel.base_model = Test_DecayModel2.base_model
                 Test_DecayModel.my_testmodel_base = Test_DecayModel2.my_testmodel_base
             else:
-                Test_DecayModel.base_model = import_ufo.import_model('MSSM_SLHA2')
+                Test_DecayModel.base_model = import_ufo.import_model('MSSM_SLHA2', options={'apply_flavor_grouping': False})
                 Test_DecayModel.my_testmodel_base = import_ufo.import_model('sm')
         
         if hasattr(Test_DecayModel,'my_testmodel'):
@@ -955,7 +955,7 @@ class Test_DecayModel(unittest.TestCase):
     def test_find_mssm_decay_groups(self):
         """Test finding the decay groups of the MSSM"""
 
-        mssm = import_ufo.import_model('MSSM_SLHA2')
+        mssm = import_ufo.import_model('MSSM_SLHA2', options={'apply_flavor_grouping': False})
         decay_mssm = decay_objects.DecayModel(mssm, True)
         decay_mssm.find_decay_groups()
         goal_groups = [[25, 35, 36, 37],
@@ -969,7 +969,7 @@ class Test_DecayModel(unittest.TestCase):
     def test_find_mssm_decay_groups_modified_mssm(self):
         """Test finding the decay groups of the MSSM"""
 
-        mssm = import_ufo.import_model('MSSM_SLHA2')
+        mssm = import_ufo.import_model('MSSM_SLHA2', options={'apply_flavor_grouping': False})
         particles = mssm.get('particles')
         no_want_particle_codes = [1000022, 1000023, 1000024, -1000024, 
                                   1000025, 1000035, 1000037, -1000037]
@@ -1011,7 +1011,7 @@ class Test_DecayModel(unittest.TestCase):
     def test_find_mssm_decay_groups_general(self):
         """Test finding the decay groups of the MSSM"""
 
-        mssm = import_ufo.import_model('MSSM_SLHA2')
+        mssm = import_ufo.import_model('MSSM_SLHA2', options={'apply_flavor_grouping': False})
         decay_mssm = decay_objects.DecayModel(mssm, True)
         # Read data to find massless SM-like particle
         param_path = os.path.join(_file_path,
@@ -1048,7 +1048,7 @@ class Test_DecayModel(unittest.TestCase):
            Test to get decay_groups and stable_particles from get."""
 
         # Setup the mssm with parameters read in.
-        mssm = import_ufo.import_model('MSSM_SLHA2')
+        mssm = import_ufo.import_model('MSSM_SLHA2', options={'apply_flavor_grouping': False})
         decay_mssm = decay_objects.DecayModel(mssm, True)
         particles = decay_mssm.get('particles')
         param_path = os.path.join(_file_path,
@@ -1355,7 +1355,7 @@ class Test_DecayModel(unittest.TestCase):
 
 
         # Read mssm
-        model_base = import_ufo.import_model('MSSM_SLHA2')
+        model_base = import_ufo.import_model('MSSM_SLHA2', options={'apply_flavor_grouping': False})
         model = decay_objects.DecayModel(model_base, True)
         param_path = os.path.join(_file_path,'../input_files/param_card_mssm.dat')
         model.read_param_card(param_path)
@@ -1441,9 +1441,9 @@ class Test_DecayModel(unittest.TestCase):
         # GC_365 should not change
         self.assertAlmostEqual(eval('decay_objects.'+coup0.name), coup0_old)
 
-        # Both of GC_114 ('aS',) and GC_15 ('aEWSM1', 'aS') should change
+        # GC_7 ('aS',) should change (its formula is 1j*G)
         self.assertAlmostEqual(eval('decay_objects.'+coup_aS.name), \
-                                   1j*decay_objects.G**2)
+                                   1j*decay_objects.G)
 
         # copying the expr of 
         self.assertAlmostEqual(eval('decay_objects.'+coup_both.name), \
