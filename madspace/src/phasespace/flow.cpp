@@ -319,6 +319,6 @@ Mapping::Result Flow::build_transform(
     }
 
     return {
-        {{inverse ? "data" : "latent", fb.select(x, dim_positions)}}, fb.product(dets)
+        {{inverse ? "latent" : "data", fb.select(x, dim_positions)}}, fb.product(dets)
     };
 }

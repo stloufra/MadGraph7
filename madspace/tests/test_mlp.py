@@ -40,7 +40,10 @@ def activation(request):
 
 
 def test_activation(mlp, activation):
-    fb = ms.FunctionBuilder([ms.batch_float_array(10)], [ms.batch_float_array(10)])
+    fb = ms.FunctionBuilder(
+        ms.NamedTypes([("in", ms.batch_float_array(10))]),
+        ms.NamedTypes([("out", ms.batch_float_array(10))]),
+    )
     fb.output(0, getattr(fb, activation)(fb.input(0)))
     func = FunctionModule(fb.function())
     x = 10 * torch.randn((1000, 10))

@@ -473,8 +473,8 @@ Mapping::Result PhaseSpaceMapping::build_inverse_impl(
                 data.computed_mass = decay_out.at(decay_map.random_dim());
                 random_out_reversed.insert(
                     random_out_reversed.end(),
-                    decay_out.rend() - decay_map.random_dim() - 1,
-                    decay_out.rend() - 1
+                    decay_out.rend() - decay_map.random_dim(),
+                    decay_out.rend()
                 );
                 if (data.decay.index != 0) {
                     data.momentum = decay_out.at(decay_out.size() - 2);
@@ -507,8 +507,8 @@ Mapping::Result PhaseSpaceMapping::build_inverse_impl(
                 auto t_result = t_mapping.build_inverse(fb, args, conds);
                 random_out_reversed.insert(
                     random_out_reversed.end(),
-                    t_result.rend() - t_mapping.random_dim() - 1,
-                    t_result.rend() - 1
+                    t_result.rend() - t_mapping.random_dim(),
+                    t_result.rend()
                 );
                 dets.push_back(t_result["det"]);
             },

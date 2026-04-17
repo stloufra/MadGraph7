@@ -31,7 +31,7 @@ ChannelWeightNetwork::ChannelWeightNetwork(
         {{"momenta", batch_four_vec_array(particle_count)},
          {"x1", batch_float},
          {"x2", batch_float},
-         {"prior_channel_weights", batch_float_array(channel_count)}},
+         {"prior", batch_float_array(channel_count)}},
         {{"channel_weights", batch_float_array(channel_count)}}
     ),
     _preprocessing(particle_count),
@@ -53,7 +53,7 @@ NamedVector<Value> ChannelWeightNetwork::build_function_impl(
         fb.global(_mask_name, DataType::dt_float, {static_cast<int>(_channel_count)});
     auto net_input =
         _preprocessing.build_function(fb, {args["momenta"], args["x1"], args["x2"]});
-    auto net_output = _mlp.build_function(fb, net_input).at(0);
+    auto net_output = _mlp.build_function(fb, net_input.values()).at(0);
     return {
         {"channel_weights", fb.softmax_prior(net_output, fb.mul(args["prior"], mask))}
     };

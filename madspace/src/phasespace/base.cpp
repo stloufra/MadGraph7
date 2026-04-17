@@ -88,7 +88,7 @@ NamedVector<Value> Mapping::build_forward(
     try {
         NamedVector<Value> sorted_inputs = inputs.sort_like(_input_types.index_map());
         NamedVector<Value> sorted_conditions =
-            inputs.sort_like(_condition_types.index_map());
+            conditions.sort_like(_condition_types.index_map());
         check_types(sorted_inputs, _input_types, "Input");
         check_types(sorted_conditions, _condition_types, "Condition");
         auto [outputs, det] = build_forward_impl(fb, sorted_inputs, sorted_conditions);
@@ -110,13 +110,14 @@ NamedVector<Value> Mapping::build_inverse(
     try {
         NamedVector<Value> sorted_inputs = inputs.sort_like(_output_types.index_map());
         NamedVector<Value> sorted_conditions =
-            inputs.sort_like(_condition_types.index_map());
+            conditions.sort_like(_condition_types.index_map());
         check_types(sorted_inputs, _output_types, "Input");
         check_types(sorted_conditions, _condition_types, "Condition");
         auto [outputs, det] = build_inverse_impl(fb, sorted_inputs, sorted_conditions);
         NamedVector<Value> sorted_outputs = outputs.sort_like(_input_types.index_map());
         check_types(sorted_outputs, _input_types, "Output");
         check_types({{"det", det}}, {{"det", batch_float}}, "Determinant");
+        outputs.push_back("det", det);
         return outputs;
     }
     CATCH_ERRORS(name());
@@ -165,7 +166,8 @@ NamedVector<Value> FunctionGenerator::build_function(
         NamedVector<Value> sorted_args = args.sort_like(_arg_types.index_map());
         check_types(sorted_args, _arg_types, "Argument");
         auto outputs = build_function_impl(fb, sorted_args);
-        NamedVector<Value> sorted_outputs = args.sort_like(_return_types.index_map());
+        NamedVector<Value> sorted_outputs =
+            outputs.sort_like(_return_types.index_map());
         check_types(sorted_outputs, _return_types, "Output");
         return outputs;
     }
