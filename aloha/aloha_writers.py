@@ -1686,7 +1686,6 @@ class ALOHAWriterForCPP(WriteALOHA):
                 out.write('#include \"Parameters_%s.h\"\n' % model_name)
             out.write('#include \"%s.h\"\n\n' % self.name)
         args = []
-        misc.sprint(couplings, self.tag)
         tmp = [ ]
         for format, argname in self.define_argument_list(couplings):
             if format.startswith('list'):
@@ -1696,7 +1695,6 @@ class ALOHAWriterForCPP(WriteALOHA):
             else:
                 type = self.type2def[format]
                 list_arg = ''
-            misc.sprint(argname,self.tag)
             if argname.startswith('COUP'):
                 point = self.type2def['pointer_coup']
                 if 'M' in self.tag:
@@ -1811,7 +1809,6 @@ class ALOHAWriterForCPP(WriteALOHA):
                 continue
             elif self.offshell:
                 p.append('{0}{1}{2}.p[%(i)s]'.format(signs[i],type,i+1,type))
-                misc.sprint(p[-1])    
                 
             if self.declaration.is_used('P%s' % (i+1)):
                 self.get_one_momenta_def(i+1, out)
