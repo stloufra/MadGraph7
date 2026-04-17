@@ -508,6 +508,8 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info("o full:",'$MG:color:GREEN')
         logger.info("   Perform all four checks described below:")
         logger.info("   permutation, brs, gauge and lorentz_invariance.")
+        logger.info("   If the model uses flavor grouping (merged particles),")
+        logger.info("   the flavor check is also performed automatically.")
         logger.info("o permutation:",'$MG:color:GREEN')
         logger.info("   Check that the model and MG5 are working properly")
         logger.info("   by generating permutations of the process and checking")
@@ -523,6 +525,16 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info("o lorentz_invariance:",'$MG:color:GREEN')
         logger.info("   Check that the amplitude is lorentz invariant by")
         logger.info("   comparing the amplitiude in different frames")
+        logger.info("o flavor:",'$MG:color:GREEN')
+        logger.info("   Check that the flavor-merged matrix element agrees with")
+        logger.info("   the individual-flavor matrix elements computed without")
+        logger.info("   flavor grouping at the same phase-space point.")
+        logger.info("   This is useful to validate the merged-flavor method.")
+        logger.info("o language:",'$MG:color:GREEN')
+        logger.info("   Cross-check the matrix element by comparing the Python,")
+        logger.info("   Fortran standalone (SA), and C++ standalone (SA) back-ends")
+        logger.info("   at the same phase-space point.  Requires gfortran / g++.")
+        logger.info("   Example: check language p p > e+ e-",'$MG:color:GREEN')
         logger.info("o cms:",'$MG:color:GREEN')
         logger.info("   Check the complex mass scheme consistency by comparing")
         logger.info("   it to the narrow width approximation in the off-shell")
@@ -2966,7 +2978,7 @@ class MadGraphCmd(HelpToCmd, CheckValidForCmd, CompleteForCmd, CmdExtended):
     _tutorial_opts = ['aMCatNLO', 'stop', 'MadLoop', 'MadGraph5']
     _switch_opts = ['mg5','aMC@NLO','ML5']
     _check_opts = ['full', 'timing', 'stability', 'profile', 'permutation',
-                   'gauge','lorentz', 'brs', 'cms']
+                   'gauge','lorentz', 'brs', 'cms', 'flavor', 'language']
     _import_formats = ['model_v4', 'model', 'proc_v4', 'command', 'banner']
     _install_opts = ['Delphes', 'MadAnalysis4', 'ExRootAnalysis',
                      'update', 'Golem95', 'QCDLoop', 'maddm', 'maddump',
@@ -4447,6 +4459,8 @@ This implies that with decay chains:
         profile_time = []
         profile_stab = []
         cms_results = []
+        flavor_result = []
+        language_result = []
 
         if "_cuttools_dir" in dir(self):
             CT_dir = self._cuttools_dir
@@ -4593,6 +4607,25 @@ This implies that with decay chains:
                                           options=options)
             nb_processes += len(lorentz_result)
 
+        _merged_pdgs = myprocdef.get('model').get('merged_particles') if myprocdef else {}
+        _proc_has_merged = myprocdef and any(
+            abs(pid) in _merged_pdgs
+            for leg in myprocdef.get('legs')
+            for pid in leg.get('ids'))
+        if args[0] in ['flavor'] or (args[0] == 'full' and _proc_has_merged):
+            flavor_result = process_checks.check_flavor(myprocdef,
+                                          param_card = param_card,
+                                          options=options,
+                                          cmd = self)
+            nb_processes += len(flavor_result)
+
+        if args[0] in ['language']:
+            language_result = process_checks.check_language(myprocdef,
+                                          param_card = param_card,
+                                          options=options,
+                                          cmd = self)
+            nb_processes += len(language_result)
+
         if args[0] in  ['brs', 'full']:
             gauge_result = process_checks.check_gauge(myprocdef,
                                           param_card = param_card,
@@ -4707,6 +4740,12 @@ This implies that with decay chains:
         if lorentz_result:
             text += 'Lorentz invariance results:\n'
             text += process_checks.output_lorentz_inv(lorentz_result) + '\n'
+        if flavor_result:
+            text += 'Flavor grouping check results:\n'
+            text += process_checks.output_flavor(flavor_result) + '\n'
+        if language_result:
+            text += 'Language comparison results (Fortran SA / C++ SA):\n'
+            text += process_checks.output_language(language_result) + '\n'
         if gauge_result:
             text += 'Gauge results:\n'
             text += process_checks.output_gauge(gauge_result) + '\n'
