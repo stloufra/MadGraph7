@@ -891,17 +891,17 @@ class UFOHELASCallWriterTest(unittest.TestCase):
             self.mybasemodel)
         
         result = fortran_model.get_matrix_element_calls(self.mymatrixelement)
-        solution =['CALL VXXXXX(P(0,1),zero,NHEL(1),-1*IC(1),W(1,1))',
-                   'CALL VXXXXX(P(0,2),wmas,NHEL(2),-1*IC(2),W(1,2))',
-                   'CALL VXXXXX(P(0,3),zero,NHEL(3),+1*IC(3),W(1,3))',
-                   'CALL VXXXXX(P(0,4),wmas,NHEL(4),+1*IC(4),W(1,4))',
-                   'CALL VXXXXX(P(0,5),zmas,NHEL(5),+1*IC(5),W(1,5))',
-                   'CALL VVVV1_4(W(1,1),W(1,3),W(1,2),GC_51,wmas,wwid,W(1,6))',
+        solution =['CALL VXXXXX(P(0,1),zero,NHEL(1),-1,W(1))',
+                   'CALL VXXXXX(P(0,2),wmas,NHEL(2),-1,W(2))',
+                   'CALL VXXXXX(P(0,3),zero,NHEL(3),+1,W(3))',
+                   'CALL VXXXXX(P(0,4),wmas,NHEL(4),+1,W(4))',
+                   'CALL VXXXXX(P(0,5),zmas,NHEL(5),+1,W(5))',
+                   'CALL VVVV1_4(W(1),W(3),W(2),GC_51,wmas,wwid,W(6))',
                    '# Amplitude(s) for diagram number 1',
-                   'CALL VVV1_0(W(1,6),W(1,4),W(1,5),GC_12,AMP(1))',
-                   'CALL VVVV1_3(W(1,1),W(1,3),W(1,4),GC_51,wmas,wwid,W(1,6))',
+                   'CALL VVV1_0(W(6),W(4),W(5),GC_12,AMP(1))',
+                   'CALL VVVV1_3(W(1),W(3),W(4),GC_51,wmas,wwid,W(6))',
                    '# Amplitude(s) for diagram number 2',
-                   'CALL VVV1_0(W(1,2),W(1,6),W(1,5),GC_12,AMP(2))']
+                   'CALL VVV1_0(W(2),W(6),W(5),GC_12,AMP(2))']
 
         
         for i, line in enumerate(solution):
@@ -992,45 +992,45 @@ class UFOHELASCALLWriterComplexMass(unittest.TestCase):
             self.mybasemodel)
         
         result = fortran_model.get_matrix_element_calls(self.mymatrixelement)
-        solution = """CALL VXXXXX(P(0,1),ZERO,NHEL(1),-1*IC(1),W(1,1))
-CALL VXXXXX(P(0,2),mdl_MW,NHEL(2),-1*IC(2),W(1,2))
-CALL VXXXXX(P(0,3),ZERO,NHEL(3),+1*IC(3),W(1,3))
-CALL VXXXXX(P(0,4),mdl_MW,NHEL(4),+1*IC(4),W(1,4))
-CALL VXXXXX(P(0,5),mdl_MZ,NHEL(5),+1*IC(5),W(1,5))
-CALL VVV1_3(W(1,1),W(1,2),-GC_3,DCMPLX(CMASS_mdl_MW),W(1,6))
-CALL VVV1_2(W(1,3),W(1,4),-GC_3,DCMPLX(CMASS_mdl_MW),W(1,7))
+        solution = """CALL VXXXXX(P(0,1),ZERO,NHEL(1),-1,W(1))
+CALL VXXXXX(P(0,2),mdl_MW,NHEL(2),-1,W(2))
+CALL VXXXXX(P(0,3),ZERO,NHEL(3),+1,W(3))
+CALL VXXXXX(P(0,4),mdl_MW,NHEL(4),+1,W(4))
+CALL VXXXXX(P(0,5),mdl_MZ,NHEL(5),+1,W(5))
+CALL VVV1_3(W(1),W(2),GC_4,DCMPLX(CMASS_mdl_MW),W(6))
+CALL VVV1_2(W(3),W(4),GC_4,DCMPLX(CMASS_mdl_MW),W(7))
 # Amplitude(s) for diagram number 1
-CALL VVV1_0(W(1,6),W(1,7),W(1,5),GC_53,AMP(1))
-CALL VVV1_1(W(1,4),W(1,5),GC_53,DCMPLX(CMASS_mdl_MW),W(1,8))
+CALL VVV1_0(W(6),W(7),W(5),GC_53,AMP(1))
+CALL VVV1_1(W(4),W(5),GC_53,DCMPLX(CMASS_mdl_MW),W(8))
 # Amplitude(s) for diagram number 2
-CALL VVV1_0(W(1,3),W(1,6),W(1,8),-GC_3,AMP(2))
+CALL VVV1_0(W(3),W(6),W(8),GC_4,AMP(2))
 # Amplitude(s) for diagram number 3
-CALL VVVV5_0(W(1,3),W(1,6),W(1,4),W(1,5),GC_57,AMP(3))
-CALL VVV1_2(W(1,1),W(1,4),-GC_3,DCMPLX(CMASS_mdl_MW),W(1,6))
-CALL VVV1_3(W(1,3),W(1,2),-GC_3,DCMPLX(CMASS_mdl_MW),W(1,9))
+CALL VVVV5_0(W(3),W(6),W(4),W(5),GC_57,AMP(3))
+CALL VVV1_2(W(1),W(4),GC_4,DCMPLX(CMASS_mdl_MW),W(6))
+CALL VVV1_3(W(3),W(2),GC_4,DCMPLX(CMASS_mdl_MW),W(9))
 # Amplitude(s) for diagram number 4
-CALL VVV1_0(W(1,9),W(1,6),W(1,5),GC_53,AMP(4))
-CALL VVV1_2(W(1,2),W(1,5),GC_53,DCMPLX(CMASS_mdl_MW),W(1,10))
+CALL VVV1_0(W(9),W(6),W(5),GC_53,AMP(4))
+CALL VVV1_2(W(2),W(5),GC_53,DCMPLX(CMASS_mdl_MW),W(10))
 # Amplitude(s) for diagram number 5
-CALL VVV1_0(W(1,3),W(1,10),W(1,6),-GC_3,AMP(5))
+CALL VVV1_0(W(3),W(10),W(6),GC_4,AMP(5))
 # Amplitude(s) for diagram number 6
-CALL VVVV5_0(W(1,3),W(1,2),W(1,6),W(1,5),GC_57,AMP(6))
+CALL VVVV5_0(W(3),W(2),W(6),W(5),GC_57,AMP(6))
 # Amplitude(s) for diagram number 7
-CALL VVV1_0(W(1,1),W(1,9),W(1,8),-GC_3,AMP(7))
+CALL VVV1_0(W(1),W(9),W(8),GC_4,AMP(7))
 # Amplitude(s) for diagram number 8
-CALL VVV1_0(W(1,1),W(1,10),W(1,7),-GC_3,AMP(8))
-CALL VVVV2_4(W(1,1),W(1,3),W(1,2),GC_5,DCMPLX(CMASS_mdl_MW),W(1,10))
+CALL VVV1_0(W(1),W(10),W(7),GC_4,AMP(8))
+CALL VVVV2_4(W(1),W(3),W(2),GC_5,DCMPLX(CMASS_mdl_MW),W(10))
 # Amplitude(s) for diagram number 9
-CALL VVV1_0(W(1,10),W(1,4),W(1,5),GC_53,AMP(9))
-CALL VVVV5_3(W(1,1),W(1,2),W(1,5),GC_57,DCMPLX(CMASS_mdl_MW),W(1,10))
+CALL VVV1_0(W(10),W(4),W(5),GC_53,AMP(9))
+CALL VVVV5_3(W(1),W(2),W(5),GC_57,DCMPLX(CMASS_mdl_MW),W(10))
 # Amplitude(s) for diagram number 10
-CALL VVV1_0(W(1,3),W(1,10),W(1,4),-GC_3,AMP(10))
-CALL VVVV2_3(W(1,1),W(1,3),W(1,4),GC_5,DCMPLX(CMASS_mdl_MW),W(1,10))
+CALL VVV1_0(W(3),W(10),W(4),GC_4,AMP(10))
+CALL VVVV2_3(W(1),W(3),W(4),GC_5,DCMPLX(CMASS_mdl_MW),W(10))
 # Amplitude(s) for diagram number 11
-CALL VVV1_0(W(1,2),W(1,10),W(1,5),GC_53,AMP(11))
-CALL VVVV5_2(W(1,1),W(1,4),W(1,5),GC_57,DCMPLX(CMASS_mdl_MW),W(1,10))
+CALL VVV1_0(W(2),W(10),W(5),GC_53,AMP(11))
+CALL VVVV5_2(W(1),W(4),W(5),GC_57,DCMPLX(CMASS_mdl_MW),W(10))
 # Amplitude(s) for diagram number 12
-CALL VVV1_0(W(1,3),W(1,2),W(1,10),-GC_3,AMP(12))"""
+CALL VVV1_0(W(3),W(2),W(10),GC_4,AMP(12))"""
 
         self.assertEqual(solution.split('\n'), result)
 
