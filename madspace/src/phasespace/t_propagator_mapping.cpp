@@ -9,9 +9,27 @@ TPropagatorMapping::TPropagatorMapping(
 ) :
     Mapping(
         "TPropagatorMapping",
-        TypeVec(3 * integration_order.size() - 1, batch_float),
-        TypeVec(integration_order.size() + 3, batch_four_vec),
-        TypeVec(integration_order.size() + 2, batch_float)
+        [&] {
+            NamedVector<Type> input_types;
+            for (std::size_t i = 0; i < 3 * integration_order.size() - 1; ++i) {
+                input_types.push_back(std::format("random{}", i), batch_float);
+            }
+            return input_types;
+        }(),
+        [&] {
+            NamedVector<Type> output_types;
+            for (std::size_t i = 0; i < integration_order.size() + 3; ++i) {
+                output_types.push_back(std::format("momentum{}", i), batch_four_vec);
+            }
+            return output_types;
+        }(),
+        [&] {
+            NamedVector<Type> cond_types{{"com_energy", batch_float}};
+            for (std::size_t i = 0; i < integration_order.size() + 1; ++i) {
+                cond_types.push_back(std::format("mass{}", i), batch_float);
+            }
+            return cond_types;
+        }()
     ),
     _integration_order(integration_order),
     _com_scattering(true, invariant_power),
@@ -64,11 +82,11 @@ Mapping::Result TPropagatorMapping::build_forward_impl(
                  std::views::reverse(max_masses_subtract))) {
             auto s_min = fb.square(min_mass);
             auto s_max = fb.square(fb.sub(max_mass, max_mass_subtract));
-            auto [s_vec, det] =
+            auto s_result =
                 _uniform_invariant.build_forward(fb, {next_random()}, {s_min, s_max});
-            auto mass = fb.sqrt(s_vec.at(0));
+            auto mass = fb.sqrt(s_result["invariant"]);
             mass_sum_invariants.push_back(mass);
-            dets.push_back(det);
+            dets.push_back(s_result["det"]);
             max_mass = mass;
         }
     }
@@ -90,7 +108,7 @@ Mapping::Result TPropagatorMapping::build_forward_impl(
         first = false;
         std::size_t sampled_index = index + side;
         auto mass = m_out.at(sampled_index);
-        auto [ks, det] = scattering.build_forward(
+        auto ks = scattering.build_forward(
             fb,
             {next_random(), next_random(), mass_sum, mass},
             {side ? p1_rest : p2_rest, side ? p2_rest : p1_rest}
@@ -98,7 +116,7 @@ Mapping::Result TPropagatorMapping::build_forward_impl(
         k_rest = ks.at(0);
         auto k = ks.at(1);
         p_ext.at(sampled_index + 2) = k;
-        dets.push_back(det);
+        dets.push_back(ks["det"]);
         if (side) {
             p2_rest = fb.sub(p2_rest, k);
         } else {
@@ -106,7 +124,7 @@ Mapping::Result TPropagatorMapping::build_forward_impl(
         }
     }
     p_ext.at(_integration_order.back() + 2) = k_rest;
-    return {p_ext, fb.product(dets)};
+    return {{output_types().keys(), p_ext}, fb.product(dets)};
 }
 
 Mapping::Result TPropagatorMapping::build_inverse_impl(
@@ -132,8 +150,9 @@ Mapping::Result TPropagatorMapping::build_inverse_impl(
             marked_indices.at(_integration_order.at(i) + _sample_sides.at(i) + 2) = 1;
             invariant_factors.push_back(marked_indices);
         }
-        ValueVec mass_sum_invariants =
-            fb.unstack(fb.invariants_from_momenta(fb.stack(inputs), invariant_factors));
+        ValueVec mass_sum_invariants = fb.unstack(
+            fb.invariants_from_momenta(fb.stack(inputs.values()), invariant_factors)
+        );
 
         // compute sums of outgoing masses, starting from those sampled last
         ValueVec min_masses{fb.add(m_out.at(last_index), m_out.at(last_index + 1))};
@@ -155,10 +174,9 @@ Mapping::Result TPropagatorMapping::build_inverse_impl(
                  std::views::reverse(max_masses_subtract))) {
             auto s_min = fb.square(min_mass);
             auto s_max = fb.square(fb.sub(max_mass, max_mass_subtract));
-            auto [r_vec, det] =
-                _uniform_invariant.build_inverse(fb, {mass2}, {s_min, s_max});
-            random_out.push_back(r_vec.at(0));
-            dets.push_back(det);
+            auto result = _uniform_invariant.build_inverse(fb, {mass2}, {s_min, s_max});
+            random_out.push_back(result["random"]);
+            dets.push_back(result["det"]);
             max_mass = fb.sqrt(mass2);
         }
     }
@@ -174,12 +192,12 @@ Mapping::Result TPropagatorMapping::build_inverse_impl(
         auto mass = m_out.at(sampled_index);
         auto k = inputs.at(sampled_index + 2);
         k_rest = fb.sub(k_rest, k);
-        auto [rs, det] = scattering.build_inverse(
+        auto rs = scattering.build_inverse(
             fb, {k_rest, k}, {side ? p1_rest : p2_rest, side ? p2_rest : p1_rest}
         );
         random_out.push_back(rs.at(0));
         random_out.push_back(rs.at(1));
-        dets.push_back(det);
+        dets.push_back(rs["det"]);
         if (side) {
             p2_rest = fb.sub(p2_rest, k);
         } else {
@@ -187,5 +205,5 @@ Mapping::Result TPropagatorMapping::build_inverse_impl(
         }
     }
 
-    return {random_out, fb.product(dets)};
+    return {{input_types().keys(), random_out}, fb.product(dets)};
 }

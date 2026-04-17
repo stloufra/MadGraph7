@@ -48,8 +48,14 @@ ChannelEventGenerator::ChannelEventGenerator(
     _particle_count(integrand.particle_count()),
     _integrand_function(integrand.function()),
     _unweighter_function(
-        Unweighter({integrand.return_types().begin(),
-                    integrand.return_types().begin() + 6})
+        Unweighter([&] {
+            auto& ret_types = integrand.return_types();
+            auto keys = ret_types.keys();
+            return NamedVector<Type>(
+                {keys.begin(), keys.begin() + 6},
+                {ret_types.begin(), ret_types.begin() + 6}
+            );
+        }())
             .function()
     ) {
     if (integrand.flags() != integrand_flags) {

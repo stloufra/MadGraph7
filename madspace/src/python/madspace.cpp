@@ -1147,7 +1147,7 @@ PYBIND11_MODULE(_madspace_py, m) {
         .def("matrix_element", &DifferentialCrossSection::matrix_element);
 
     py::classh<Unweighter, FunctionGenerator>(m, "Unweighter")
-        .def(py::init<const TypeVec&>(), py::arg("types"));
+        .def(py::init<const NamedVector<Type>&>(), py::arg("types"));
     py::classh<Integrand, FunctionGenerator>(m, "Integrand")
         .def(
             py::init<

@@ -7,7 +7,6 @@
 #include <cmath>
 #include <format>
 #include <numeric>
-#include <ranges>
 
 using namespace madspace;
 
@@ -161,9 +160,10 @@ Flow::Flow(
 ) :
     Mapping(
         "Flow",
-        {batch_float_array(input_dim)},
-        {batch_float_array(input_dim)},
-        condition_dim == 0 ? TypeVec{} : TypeVec{batch_float_array(condition_dim)}
+        {{"latent", batch_float_array(input_dim)}},
+        {{"data", batch_float_array(input_dim)}},
+        condition_dim == 0 ? NamedVector<Type>{}
+                           : NamedVector<Type>{{"c", batch_float_array(condition_dim)}}
     ),
     _input_dim(input_dim),
     _condition_dim(condition_dim),
@@ -244,7 +244,7 @@ Mapping::Result Flow::build_forward_impl(
     const NamedVector<Value>& inputs,
     const NamedVector<Value>& conditions
 ) const {
-    return build_transform(fb, inputs, conditions, false);
+    return build_transform(fb, inputs.values(), conditions.values(), false);
 }
 
 Mapping::Result Flow::build_inverse_impl(
@@ -252,7 +252,7 @@ Mapping::Result Flow::build_inverse_impl(
     const NamedVector<Value>& inputs,
     const NamedVector<Value>& conditions
 ) const {
-    return build_transform(fb, inputs, conditions, true);
+    return build_transform(fb, inputs.values(), conditions.values(), true);
 }
 
 Mapping::Result Flow::build_transform(
@@ -318,5 +318,7 @@ Mapping::Result Flow::build_transform(
         std::for_each(_coupling_blocks.begin(), _coupling_blocks.end(), loop_body);
     }
 
-    return {{fb.select(x, dim_positions)}, fb.product(dets)};
+    return {
+        {{inverse ? "data" : "latent", fb.select(x, dim_positions)}}, fb.product(dets)
+    };
 }

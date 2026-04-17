@@ -16,7 +16,7 @@ namespace madspace {
 
 class Unweighter : public FunctionGenerator {
 public:
-    Unweighter(const TypeVec& types);
+    Unweighter(const NamedVector<Type>& types);
 
 private:
     NamedVector<Value> build_function_impl(
@@ -152,7 +152,7 @@ private:
     ) const override;
     ChannelResult
     build_channel_part(FunctionBuilder& fb, const ChannelArgs& args) const;
-    ValueVec build_common_part(
+    NamedVector<Value> build_common_part(
         FunctionBuilder& fb, const ChannelArgs& args, ChannelResult& result
     ) const;
 

@@ -187,10 +187,10 @@ public:
     decltype(auto) rend() { return _values.rend(); }
     decltype(auto) rend() const { return _values.rend(); }
 
-    decltype(auto) front() { return _values.front(); }
-    decltype(auto) front() const { return _values.front(); }
-    decltype(auto) back() { return _values.back(); }
-    decltype(auto) back() const { return _values.back(); }
+    decltype(auto) front() { return _values.at(0); }
+    decltype(auto) front() const { return _values.at(0); }
+    decltype(auto) back() { return _values.at(size() - 1); }
+    decltype(auto) back() const { return _values.at(size() - 1); }
 
     decltype(auto) at(std::size_t index) { return _values.at(index); }
     decltype(auto) at(std::size_t index) const { return _values.at(index); }
