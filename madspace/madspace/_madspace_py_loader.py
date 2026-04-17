@@ -2,6 +2,7 @@ import ctypes
 import logging
 import os
 import platform
+from collections import namedtuple
 
 # pre-load libmadspace
 ctypes.CDLL(
@@ -56,27 +57,30 @@ def _init():
 
     def function_generator_call(self, *args):
         if not hasattr(self, "runtime"):
-            function = self.function()
-            # self.arg_names = function.arg_types().keys()
-            # self.ret_names = function.return_types().keys()
-            self.runtime = FunctionRuntime(function)
+            func = self.function()
+            self.runtime = FunctionRuntime(func)
+            self.ret_tuple = namedtuple("Result", func.outputs.keys())
         outputs = call_and_convert(self.runtime, args)
         if len(outputs) == 1:
             return outputs[0]
         else:
-            return outputs
+            return self.ret_tuple(outputs)
 
     def map_forward(self, inputs, conditions=[]):
         if not hasattr(self, "forward_runtime"):
-            self.forward_runtime = FunctionRuntime(self.forward_function())
+            func = self.forward_function()
+            self.forward_runtime = FunctionRuntime(func)
+            self.forward_tuple = namedtuple("Result", func.outputs.keys())
         outputs = call_and_convert(self.forward_runtime, [*inputs, *conditions])
-        return outputs[:-1], outputs[-1]
+        return self.forward_tuple(*outputs)
 
     def map_inverse(self, inputs, conditions=[]):
         if not hasattr(self, "inverse_runtime"):
-            self.inverse_runtime = FunctionRuntime(self.inverse_function())
+            func = self.inverse_function()
+            self.inverse_runtime = FunctionRuntime(func)
+            self.inverse_tuple = namedtuple("Result", func.outputs.keys())
         outputs = call_and_convert(self.inverse_runtime, [*inputs, *conditions])
-        return outputs[:-1], outputs[-1]
+        return self.inverse_tuple(*outputs)
 
     def tensor_numpy(tensor):
         import numpy  # Lazy-load numpy, to make it optional dependency
