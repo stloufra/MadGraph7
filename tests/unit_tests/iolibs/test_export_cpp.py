@@ -393,7 +393,7 @@ class Sigma_sm_qqx_qqx : public Sigma2Process
 
     // Private functions to calculate the matrix element for all subprocesses
     // Calculate wavefunctions
-    void calculate_wavefunctions(const int perm[], const int hel[]); 
+    void calculate_wavefunctions(const int perm[], const int hel[], const int flavor[]); 
     static const int nwavefuncs = 8; 
     std::complex<double> w[nwavefuncs][18]; 
     static const int namplitudes = 4; 
@@ -658,7 +658,7 @@ double Sigma_sm_qqx_qqx::weightDecay(Event& process, int iResBeg, int iResEnd)
 // Evaluate |M|^2 for each subprocess
 
 void Sigma_sm_qqx_qqx::calculate_wavefunctions(const int perm[], const int
-    hel[])
+    hel[], const int flavor[])
 {
   // Calculate wavefunctions for all processes
   double p[nexternal][4]; 
@@ -674,10 +674,10 @@ void Sigma_sm_qqx_qqx::calculate_wavefunctions(const int perm[], const int
   }
 
   // Calculate all wavefunctions
-  ixxxxx(p[perm[0]], mME[0], hel[0], +1, w[0]); 
-  oxxxxx(p[perm[1]], mME[1], hel[1], -1, w[1]); 
-  oxxxxx(p[perm[2]], mME[2], hel[2], +1, w[2]); 
-  ixxxxx(p[perm[3]], mME[3], hel[3], -1, w[3]); 
+  ixxxxx(p[perm[0]], mME[0], hel[0], +1, flavor[0], w[0]); 
+  oxxxxx(p[perm[1]], mME[1], hel[1], -1, flavor[1], w[1]); 
+  oxxxxx(p[perm[2]], mME[2], hel[2], +1, flavor[2], w[2]); 
+  ixxxxx(p[perm[3]], mME[3], hel[3], -1, flavor[3], w[3]); 
   FFV1_3(w[0], w[1], pars->GC_10, pars->ZERO, pars->ZERO, w[4]); 
   FFV2_5_3(w[0], w[1], pars->GC_35, pars->GC_47, pars->MZ, pars->WZ, w[5]); 
   FFV1_3(w[0], w[2], pars->GC_10, pars->ZERO, pars->ZERO, w[6]); 
@@ -970,7 +970,8 @@ double Sigma_sm_qq_six::weightDecay(Event& process, int iResBeg, int iResEnd)
 //--------------------------------------------------------------------------
 // Evaluate |M|^2 for each subprocess
 
-void Sigma_sm_qq_six::calculate_wavefunctions(const int perm[], const int hel[])
+void Sigma_sm_qq_six::calculate_wavefunctions(const int perm[], const int
+    hel[], const int flavor[])
 {
   // Calculate wavefunctions for all processes
   double p[nexternal][4]; 
@@ -986,8 +987,8 @@ void Sigma_sm_qq_six::calculate_wavefunctions(const int perm[], const int hel[])
   }
 
   // Calculate all wavefunctions
-  oxxxxx(p[perm[0]], mME[0], hel[0], -1, w[0]); 
-  ixxxxx(p[perm[1]], mME[1], hel[1], +1, w[1]); 
+  oxxxxx(p[perm[0]], mME[0], hel[0], -1, flavor[0], w[0]); 
+  ixxxxx(p[perm[1]], mME[1], hel[1], +1, flavor[1], w[1]); 
   sxxxxx(p[perm[2]], +1, w[2]); 
 
   // Calculate all amplitudes
