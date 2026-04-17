@@ -81,7 +81,7 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
                          'mgOnGpuFptypes.h', 'mgOnGpuCxtypes.h', 'mgOnGpuVectors.h',
                          'constexpr_math.h', 'read_slha.h', 'read_slha.cc'
                      ]),
-                     'SubProcesses': relative_path_list(templates_path, ['nvtx.h', 'GpuRuntime.h', 'GpuAbstraction.h', 'color_sum.h',
+                     'SubProcesses': relative_path_list(templates_path, ['nvtx.h', 'GpuRuntime.h', 'GpuAbstraction.h', 'color_sum.h', 'color_sum.cc',
                                       'MemoryAccessHelpers.h', 'MemoryAccessVectors.h',
                                       'MemoryAccessMatrixElements.h', 'MemoryAccessMomenta.h',
                                       'MemoryAccessRandomNumbers.h', 'MemoryAccessWeights.h',
