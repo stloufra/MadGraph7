@@ -438,7 +438,7 @@ def import_full_model(model_path, decay=False, prefix='', options={}):
                     # are not compatible with FFV optimization so they should
                     # use the pickle directly (which has properly restricted
                     # wavefunction counterterms).
-                    if not model.get('perturbation_couplings'):
+                    if not dict.get(model, 'perturbation_couplings'):
                         logger.info('reload from .py file')
                         bypass_pkl = True
 

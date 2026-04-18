@@ -570,7 +570,7 @@ class TestRestrictModel(unittest.TestCase):
              suppression and replacement in the vertex """
         
         self.model.locate_coupling()
-        zero, iden = self.model.detect_identical_couplings()
+        zero, iden = self.model.detect_identical_couplings(allow_minus_coupling=True)
         self.assertEqual(len(iden), 14)
         
         # Check that All the code/model is the one intended for this test

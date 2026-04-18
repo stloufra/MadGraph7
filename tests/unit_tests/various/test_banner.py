@@ -550,7 +550,7 @@ class TestRunCard(unittest.TestCase):
     
 
     def setUp(self):
-        self.debugging = unittest.debug
+        self.debugging = getattr(unittest, 'debug', False)
         if not self.debugging:
             self.tmpdir = tempfile.mkdtemp(prefix='amc')
             #if os.path.exists(self.tmpdir):
