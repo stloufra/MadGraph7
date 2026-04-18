@@ -5172,7 +5172,6 @@ class HelasMatrixElement(base_objects.PhysicsObject):
             allow_triming = True
             self.reset_has_flavor()
 
-        misc.sprint('need to decide which permutation to keep --only one for the moment--')
         for one_flavor in itertools.product(*[to_map[abs(id)] for id in pdgs]):
             # get the actual pdg code (with the sign)
             pdg = [one_flavor[i] if id > 0 else -one_flavor[i] for i,id in enumerate(pdgs)]
@@ -5252,7 +5251,6 @@ class HelasMatrixElement(base_objects.PhysicsObject):
     
     def reset_has_flavor(self):
         """reset the has_flavor attribute for all diagrams"""
-        misc.sprint('resetting has_flavor for all diagrams')
         for diag in self.get('diagrams'):
             diag.has_flavor = False
     
