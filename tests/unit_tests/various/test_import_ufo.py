@@ -567,7 +567,49 @@ class TestRestrictModel(unittest.TestCase):
   
     def test_merge_iden_couplings(self):
         """ check that the merged couplings are treated correctly:
-             suppression and replacement in the vertex """
+             suppression and replacement in the vertex (allow_minus_coupling=False) """
+        
+        self.model.locate_coupling()
+        zero, iden = self.model.detect_identical_couplings()
+        self.assertEqual(len(iden), 2)
+        
+        # Check that All the code/model is the one intended for this test
+        target = [i for i in iden if len(i)==7][0] 
+        target2 = [i[0] for i in target]
+        GC = target2[0]
+        
+        check_content = [['d', 'u', 'w+'], ['s', 'c', 'w+'], ['b', 't', 'w+'], ['u', 'd', 'w+'], ['c', 's', 'w+'], ['t', 'b', 'w+'], ['e-', 've', 'w+'], ['m-', 'vm', 'w+'], ['tt-', 'vt', 'w+'], ['ve', 'e-', 'w+'], ['vm', 'm-', 'w+'], ['vt', 'tt-', 'w+']]
+        content =  [[p.get('name') for p in v.get('particles')] \
+               for v in self.model.get('interactions') \
+               if any([c in target2 for c in v['couplings'].values()])]
+
+        self.assertEqual(len(check_content),len(content))#, 'test not up-to-date'      
+
+        vertex_id = [v.get('id') \
+               for v in self.model.get('interactions') \
+               if any([c in target2 for c in v['couplings'].values()])]
+
+
+        for id in vertex_id:
+            is_in_target = False
+            for coup in self.model.get_interaction(id)['couplings'].values():
+                if coup in target2:
+                    is_in_target = True
+            assert is_in_target == True, 'test not up-to-date'
+        
+        # check now that everything is fine
+        self.model.merge_iden_couplings(target)
+        for id in vertex_id:
+            has_GC = False
+            for coup in self.model.get_interaction(id)['couplings'].values():
+                self.assertNotIn(coup, target[1:])
+                if coup == GC:
+                    has_GC = True
+            self.assertTrue(has_GC, True)
+
+    def test_merge_iden_couplings_with_minus(self):
+        """ check that the merged couplings are treated correctly with allow_minus_coupling=True:
+             suppression and replacement in the vertex, including opposite-sign couplings """
         
         self.model.locate_coupling()
         zero, iden = self.model.detect_identical_couplings(allow_minus_coupling=True)
@@ -616,8 +658,6 @@ class TestRestrictModel(unittest.TestCase):
         content =  [[p.get('name') for p in v.get('particles')] \
                for v in self.model.get('interactions') \
                if any([c in target2 for c in v['couplings'].values()])]
-        #content =  [[v.get('couplings').values() for p in v.get('particles')] \
-        #       for v in self.model.get('interactions')]
         self.assertEqual(len(check_content),len(content))#, 'test not up-to-date'
         
         vertex_id = [v.get('id') \
@@ -640,7 +680,6 @@ class TestRestrictModel(unittest.TestCase):
                     has_GC = True
             self.assertTrue(has_GC, True)
         
-                 
 
     def test_remove_couplings(self):
         """ check that the detection of irrelevant interactions works """
