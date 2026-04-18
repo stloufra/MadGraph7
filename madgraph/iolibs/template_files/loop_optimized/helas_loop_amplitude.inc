@@ -1,4 +1,5 @@
       SUBROUTINE %(proc_prefix)sLOOP_%(nloopline)d%(nwfsargs_header)s(%(pairingargs)s%(wfsargs)s%(margs)s RANK, SQUAREDSOINDEX, LOOPNUM)
+      USE ALOHA_OBJECT
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=%(nexternal)d)
       INTEGER    NLOOPLINE
@@ -70,9 +71,9 @@ C
 	  common/%(proc_prefix)sAMPL/AMPL
 ## }
 
-	  %(complex_dp_format)s W(20,NWAVEFUNCS)
+	  type(aloha) W(NWAVEFUNCS)
 	  common/%(proc_prefix)sW/W
-      %(complex_mp_format)s MP_W(20,NWAVEFUNCS)
+      type(mp_aloha) MP_W(NWAVEFUNCS)
       common/%(proc_prefix)sMP_W/MP_W
 
 	  %(real_dp_format)s LSCALE 

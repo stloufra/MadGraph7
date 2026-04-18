@@ -1,4 +1,5 @@
       SUBROUTINE %(proc_prefix)sLOOP_%(nloopline)d%(nwfsargs_header)s_%(ncplsargs)d( LID, %(pairingargs)s%(wfsargs)s%(margs)s%(cplsargs)s RANK, LSYMFACT, LMULTIPLIER, AMPLN, RES, STABLE)
+      USE ALOHA_OBJECT
 
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=%(nexternal)d)
@@ -45,7 +46,7 @@ C
 	  %(mass_mp_format)s MP_ML(NEXTERNAL+2)
       common/%(proc_prefix)sMP_LOOP/MP_LC,MP_ML
 
-	  %(complex_dp_format)s W(20,NWAVEFUNCS%(ncomb_helas_objs)s)
+	  type(aloha) W(NWAVEFUNCS%(ncomb_helas_objs)s)
 	  INTEGER VALIDH
 	  common/%(proc_prefix)sWFCTS/W  
 	  common/%(proc_prefix)sVALIDH/VALIDH

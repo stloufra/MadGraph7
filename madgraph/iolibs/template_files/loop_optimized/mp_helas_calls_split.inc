@@ -1,6 +1,7 @@
       SUBROUTINE %(proc_prefix)s%(bunch_name)s_%(bunch_number)d(P,NHEL,H,IC)
 C       
-      use %(proc_prefix)sPOLYNOMIAL_CONSTANTS      
+      use %(proc_prefix)sPOLYNOMIAL_CONSTANTS
+      USE ALOHA_OBJECT
       IMPLICIT NONE
 C  
 C CONSTANTS
@@ -58,7 +59,7 @@ C
 	  %(complex_mp_format)s AMP(NBORNAMPS)
 	  common/%(proc_prefix)sMP_AMPS/AMP
 ## }	  
-	  %(complex_mp_format)s W(20,NWAVEFUNCS)
+	  type(mp_aloha) W(NWAVEFUNCS)
 	  common/%(proc_prefix)sMP_W/W
 
 	  %(complex_mp_format)s WL(MAXLWFSIZE,0:LOOPMAXCOEFS-1,MAXLWFSIZE,-1:NLOOPWAVEFUNCS)

@@ -227,6 +227,7 @@ c for the point with external lines W(0:6,NEXTERNAL)
 C  
 %(process_lines)s
 C  
+      USE ALOHA_OBJECT
       IMPLICIT NONE
 C  
 C CONSTANTS
@@ -253,6 +254,8 @@ C
 C LOCAL VARIABLES 
 C  
       INTEGER I,J,M,N
+      INTEGER FLAVOR(NEXTERNAL)
+      DATA FLAVOR /NEXTERNAL*1/
       COMPLEX*16 ZTEMP
       INTEGER DENOM
       INTEGER CF(NCOLOR*(NCOLOR+1)/2)
@@ -260,7 +263,7 @@ C
       INTEGER CF_INDEX
 	  COMPLEX*16 JAMP(NCOLOR,NAMPSO)
 	  COMPLEX*16 TMP_JAMP(%(nb_temp_jamp)i)
-      COMPLEX*16 W(20,NWAVEFUNCS)
+      type(aloha) W(NWAVEFUNCS)
       COMPLEX*16 DUM0,DUM1
       DATA DUM0, DUM1/(0d0, 0d0), (1d0, 0d0)/
 C

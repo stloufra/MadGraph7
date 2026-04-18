@@ -261,7 +261,7 @@ C
       common/%(proc_prefix)sLOOP/WE,ID,SYMFACT,MULTIPLIER,AMPLNUM
 
 	  %(mp_born_amps_decl)s	  
-	  %(complex_mp_format)s W(20,NWAVEFUNCS%(ncomb_helas_objs)s)
+	  type(mp_aloha) W(NWAVEFUNCS%(ncomb_helas_objs)s)
 	  common/%(proc_prefix)sMP_WFS/W
 C ----------
 C BEGIN CODE
