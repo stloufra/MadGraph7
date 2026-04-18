@@ -434,8 +434,13 @@ def import_full_model(model_path, decay=False, prefix='', options={}):
                     bypass_pkl = True                        
             else:
                 if all(not 'FFV' in name for name in all_coup_name):
-                    logger.info('reload from .py file')
-                    bypass_pkl = True
+                    # Only bypass for non-loop (non-NLO) models; loop models
+                    # are not compatible with FFV optimization so they should
+                    # use the pickle directly (which has properly restricted
+                    # wavefunction counterterms).
+                    if not model.get('perturbation_couplings'):
+                        logger.info('reload from .py file')
+                        bypass_pkl = True
 
             # We don't care about the restrict_card for this comparison
             if 'version_tag' in model and not model.get('version_tag') is None and \
