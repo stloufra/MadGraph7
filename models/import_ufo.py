@@ -483,6 +483,12 @@ def import_full_model(model_path, decay=False, prefix='', options={}):
     if model_path[-1] == '/': model_path = model_path[:-1] #avoid empty name
     model.set('name', os.path.split(model_path)[-1])
 
+    # Store the WF CT coupling expression strings in the model so that they
+    # can be evaluated during model restriction (e.g. to remove counterterms
+    # for massless particles like b when MB=0).
+    if ufo2mg5_converter.wf_ct_coupling_exprs:
+        model['wf_ct_coupling_exprs'] = ufo2mg5_converter.wf_ct_coupling_exprs
+
     # Load the Parameter/Coupling in a convenient format.
     parameters, couplings = OrganizeModelExpression(ufo_model).main(\
              additional_couplings = ufo2mg5_converter.additional_couplings)
@@ -565,6 +571,7 @@ class UFOMG5Converter(object):
                                     # This is not supported by madevent/systematics
         self.wavefunction_CT_couplings = []
         self.additional_couplings = []
+        self.wf_ct_coupling_exprs = {}
  
         # Check here if we can extract the couplings perturbed in this model
         # which indicate a loop model or if this model is only meant for 
@@ -1672,6 +1679,12 @@ class UFOMG5Converter(object):
                 particle_counterterms[tuple(newParticleCountertermKey)]=\
                   dict([(key,newCouplingName+('' if key==0 else '_'+str(-key)+'eps'))\
                         for key in counterterm])
+                # Store the expression strings so they can be evaluated later during
+                # model restriction (to zero out WF CT couplings for massless particles)
+                for laurentOrder, expr in counterterm.items():
+                    coupName = newCouplingName + \
+                               ('' if laurentOrder==0 else '_'+str(-laurentOrder)+'eps')
+                    self.wf_ct_coupling_exprs[coupName] = expr
                 # We want to create the new coupling for this wavefunction
                 # renormalization.
                 self.ufomodel.object_library.Coupling(\

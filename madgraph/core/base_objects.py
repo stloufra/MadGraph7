@@ -2150,6 +2150,13 @@ class Model(PhysicsObject):
                 for coup in self['couplings'][key]:
                     coup.expr = rep_pattern.sub(replace, coup.expr)
 
+            # change WF CT coupling expressions if present (loop models)
+            if dict.get(self, 'wf_ct_coupling_exprs'):
+                self['wf_ct_coupling_exprs'] = {
+                    name: rep_pattern.sub(replace, expr)
+                    for name, expr in self['wf_ct_coupling_exprs'].items()
+                }
+
             # change form-factor
             ff = [l.formfactors for l in self['lorentz'] if hasattr(l, 'formfactors')]
             ff = set(sum(ff,[])) # here we have the list of ff used in the model
