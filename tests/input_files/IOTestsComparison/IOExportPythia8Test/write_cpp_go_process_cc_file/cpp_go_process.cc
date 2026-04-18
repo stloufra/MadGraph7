@@ -37,7 +37,7 @@ void CPPProcess::initProc(string param_card_name)
 //--------------------------------------------------------------------------
 // Evaluate |M|^2, part independent of incoming flavour.
 
-void CPPProcess::sigmaKin() 
+void CPPProcess::sigmaKin(int * flavor) 
 {
   // Set the parameters which change event by event
   pars->setDependentParameters(); 
@@ -92,16 +92,21 @@ void CPPProcess::sigmaKin()
     {
       if (goodhel[ihel] || ntry < 2)
       {
-        calculate_wavefunctions(perm, helicities[ihel]); 
+        calculate_wavefunctions(perm, helicities[ihel], flavor); 
         t[0] = matrix_uux_gogo(); 
         // Mirror initial state momenta for mirror process
         perm[0] = 1; 
         perm[1] = 0; 
+        int flv_tmp = flavor[0]; 
+        flavor[0] = flavor[1]; 
+        flavor[1] = flv_tmp; 
         // Calculate wavefunctions
-        calculate_wavefunctions(perm, helicities[ihel]); 
+        calculate_wavefunctions(perm, helicities[ihel], flavor); 
         // Mirror back
         perm[0] = 0; 
         perm[1] = 1; 
+        flavor[0] = flavor[1]; 
+        flavor[1] = flv_tmp; 
         // Calculate matrix elements
         t[1] = matrix_uux_gogo(); 
         double tsum = 0; 
@@ -132,16 +137,21 @@ void CPPProcess::sigmaKin()
         jhel = 0; 
       double hwgt = double(ngood)/double(sum_hel); 
       int ihel = igood[jhel]; 
-      calculate_wavefunctions(perm, helicities[ihel]); 
+      calculate_wavefunctions(perm, helicities[ihel], flavor); 
       t[0] = matrix_uux_gogo(); 
       // Mirror initial state momenta for mirror process
       perm[0] = 1; 
       perm[1] = 0; 
+      int flv_tmp = flavor[0]; 
+      flavor[0] = flavor[1]; 
+      flavor[1] = flv_tmp; 
       // Calculate wavefunctions
-      calculate_wavefunctions(perm, helicities[ihel]); 
+      calculate_wavefunctions(perm, helicities[ihel], flavor); 
       // Mirror back
       perm[0] = 0; 
       perm[1] = 1; 
+      flavor[0] = flavor[1]; 
+      flavor[1] = flv_tmp; 
       // Calculate matrix elements
       t[1] = matrix_uux_gogo(); 
       for(int iproc = 0; iproc < nprocesses; iproc++ )
@@ -152,7 +162,7 @@ void CPPProcess::sigmaKin()
   }
 
   for (int i = 0; i < nprocesses; i++ )
-    matrix_element[i] /= denominators[i]; 
+    matrix_element[i] = matrix_element[i] * broken_sym(flavor)/denominators[i]; 
 
 
 
@@ -187,16 +197,17 @@ double CPPProcess::sigmaHat()
 //--------------------------------------------------------------------------
 // Evaluate |M|^2 for each subprocess
 
-void CPPProcess::calculate_wavefunctions(const int perm[], const int hel[])
+void CPPProcess::calculate_wavefunctions(const int perm[], const int hel[],
+    const int flavor[])
 {
   // Calculate wavefunctions for all processes
   int i, j; 
 
   // Calculate all wavefunctions
-  ixxxxx(p[perm[0]], mME[0], hel[0], +1, w[0]); 
-  oxxxxx(p[perm[1]], mME[1], hel[1], -1, w[1]); 
-  ixxxxx(p[perm[2]], mME[2], hel[2], -1, w[2]); 
-  oxxxxx(p[perm[3]], mME[3], hel[3], +1, w[3]); 
+  ixxxxx(p[perm[0]], mME[0], hel[0], +1, flavor[0], w[0]); 
+  oxxxxx(p[perm[1]], mME[1], hel[1], -1, flavor[1], w[1]); 
+  ixxxxx(p[perm[2]], mME[2], hel[2], -1, flavor[2], w[2]); 
+  oxxxxx(p[perm[3]], mME[3], hel[3], +1, flavor[3], w[3]); 
   FFV1_3(w[0], w[1], pars->GC_10, pars->ZERO, pars->ZERO, w[4]); 
 
   // Calculate all amplitudes
@@ -241,5 +252,31 @@ double CPPProcess::matrix_uux_gogo()
   return matrix; 
 }
 
+
+//--------------------------------------------------------------------------
+// Evaluate |M|^2 for each subprocess
+
+int CPPProcess::broken_sym(int * flavor)
+{
+  int old_factor = 2; 
+  int pid[] = {1000021, 1000021}; 
+  int nincoming = 2; 
+  for (int i = 0; i < (nexternal - nincoming); i++ )
+  {
+    if(pid[i] == 0)
+      continue; 
+    int n_tot = 1; 
+    for (int j = i + 1; j < (nexternal - nincoming); j++ )
+    {
+      if((pid[i] == pid[j]) && (flavor[nincoming + i] == flavor[nincoming + j]))
+      {
+        pid[j] = 0; 
+        n_tot = n_tot + 1; 
+        old_factor = old_factor/n_tot; 
+      }
+    }
+  }
+  return old_factor; 
+}
 
 
