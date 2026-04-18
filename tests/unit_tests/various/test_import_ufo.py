@@ -1071,7 +1071,7 @@ class TestRestrictModel_Merged(unittest.TestCase):
     def setUp(self):
         """Set up fully restricted SM model"""
         sm_path = import_ufo.find_ufo_path('sm')
-        self.base_model = import_ufo.import_full_model(sm_path, options={'apply_flavor_grouping': False})
+        self.base_model = import_ufo.import_full_model(sm_path, options={'apply_flavor_grouping': True})
 
         model = copy.deepcopy(self.base_model)
         self.model = import_ufo.RestrictModel(model)
@@ -1338,7 +1338,9 @@ class TestRestrictModel_Merged(unittest.TestCase):
 
     def test_remove_interactions(self):
         """check that the detection of irrelevant interactions works (merged model).
-        Uses GC_65 (zzhh) and GC_12 (4g); ddz/eez partial removal still applies."""
+        Uses GC_65 (zzhh) and GC_12 (4g); with apply_flavor_grouping=True, ddz
+        uses GC_FFV_0/GC_FFV_1 while eez uses GC_FFV_2/GC_FFV_3 (different), so
+        removing ddz couplings does not affect eez."""
 
         for candidate in self.model['interactions']:
             if [p['pdg_code'] for p in candidate['particles']] == [23, 23, 25, 25]:
@@ -1370,19 +1372,23 @@ class TestRestrictModel_Merged(unittest.TestCase):
         self.assertNotIn(input_zzhh, self.model['interactions'])
         self.assertNotIn(input_4g, self.model['interactions'])
 
-        # Now test partial coupling removal on ddz/eez
-        if coupling_ddz_1 != coupling_eez_1:
-            coupling_eez_1, coupling_eez_2 = coupling_eez_2, coupling_eez_1
-        assert coupling_ddz_1 == coupling_eez_1
+        # With apply_flavor_grouping=True, ddz and eez have different couplings
+        # (GC_FFV_0/1 vs GC_FFV_2/3), so removing ddz couplings leaves eez intact
+        assert coupling_ddz_1 != coupling_eez_1, \
+            'With flavor grouping, ddz and eez should have different couplings'
 
         result = self.model.remove_interactions([coupling_ddz_1, coupling_ddz_2])
+        # eez is entirely unaffected
+        self.assertIn(coupling_eez_1, list(input_eez['couplings'].values()))
         self.assertIn(coupling_eez_2, list(input_eez['couplings'].values()))
-        self.assertNotIn(coupling_eez_1, list(input_eez['couplings'].values()))
+        # ddz lost both its couplings
         self.assertNotIn(coupling_ddz_1, list(input_ddz['couplings'].values()))
         self.assertNotIn(coupling_ddz_2, list(input_ddz['couplings'].values()))
 
     def test_remove_interactions2(self):
-        """check that the detection of irrelevant interactions works (merged model)"""
+        """check that the detection of irrelevant interactions works (merged model).
+        With apply_flavor_grouping=True, ddz uses GC_FFV_0/GC_FFV_1 and eez uses
+        GC_FFV_2/GC_FFV_3; removing coupling_ddz_1 does not affect eez."""
 
         for candidate in self.model['interactions']:
             if [p['pdg_code'] for p in candidate['particles']] == [21, 21, 21, 21]:
@@ -1404,13 +1410,15 @@ class TestRestrictModel_Merged(unittest.TestCase):
 
         self.model.locate_coupling()
 
-        if coupling_ddz_1 != coupling_eez_1:
-            coupling_eez_1, coupling_eez_2 = coupling_eez_2, coupling_eez_1
-        assert coupling_ddz_1 == coupling_eez_1
+        # With flavor grouping, ddz and eez have independent couplings
+        assert coupling_ddz_1 != coupling_eez_1, \
+            'With flavor grouping, ddz and eez should have different couplings'
 
         result = self.model.remove_interactions([coupling_ddz_1])
+        # eez fully unaffected
+        self.assertIn(coupling_eez_1, list(input_eez['couplings'].values()))
         self.assertIn(coupling_eez_2, list(input_eez['couplings'].values()))
-        self.assertNotIn(coupling_eez_1, list(input_eez['couplings'].values()))
+        # ddz: lost coupling_ddz_1, kept coupling_ddz_2
         self.assertNotIn(coupling_ddz_1, list(input_ddz['couplings'].values()))
         self.assertIn(coupling_ddz_2, list(input_ddz['couplings'].values()))
 
@@ -1419,7 +1427,9 @@ class TestRestrictModel_Merged(unittest.TestCase):
         self.assertEqual(list(input_ddz['couplings'].keys())[0], (0,0))
 
     def test_remove_interactions3(self):
-        """check that the detection of irrelevant interactions works (merged model)"""
+        """check that the detection of irrelevant interactions works (merged model).
+        With apply_flavor_grouping=True, ddz uses GC_FFV_0/GC_FFV_1 and eez uses
+        GC_FFV_2/GC_FFV_3; removing coupling_ddz_2 does not affect eez."""
 
         for candidate in self.model['interactions']:
             if [p['pdg_code'] for p in candidate['particles']] == [21, 21, 21, 21]:
@@ -1441,13 +1451,15 @@ class TestRestrictModel_Merged(unittest.TestCase):
 
         self.model.locate_coupling()
 
-        if coupling_ddz_1 != coupling_eez_1:
-            coupling_eez_1, coupling_eez_2 = coupling_eez_2, coupling_eez_1
-        assert coupling_ddz_1 == coupling_eez_1
+        # With flavor grouping, ddz and eez have independent couplings
+        assert coupling_ddz_1 != coupling_eez_1, \
+            'With flavor grouping, ddz and eez should have different couplings'
 
         result = self.model.remove_interactions([coupling_ddz_2])
-        self.assertIn(coupling_eez_2, list(input_eez['couplings'].values()))
+        # eez fully unaffected
         self.assertIn(coupling_eez_1, list(input_eez['couplings'].values()))
+        self.assertIn(coupling_eez_2, list(input_eez['couplings'].values()))
+        # ddz: lost coupling_ddz_2, kept coupling_ddz_1
         self.assertIn(coupling_ddz_1, list(input_ddz['couplings'].values()))
         self.assertNotIn(coupling_ddz_2, list(input_ddz['couplings'].values()))
 
