@@ -3,7 +3,7 @@ c      written by the UFO converter
 ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
       SUBROUTINE COUP3( )
-
+      USE MODEL_OBJECT
       IMPLICIT NONE
 
       INCLUDE 'model_functions.inc'
@@ -46,12 +46,6 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       UV_GQQB_1EPS = MDL_COMPLEXI*MDL_G_UVB_1EPS_*G
       UV_BMASS_1EPS = MDL_BMASS_UV_1EPS_
       UV_TMASS_1EPS = MDL_TMASS_UV_1EPS_
-      UVWFCT_B_0_1EPS = COND(DCMPLX(MDL_MB),DCMPLX(0.000000D+00)
-     $ ,DCMPLX(-((MDL_G__EXP__2)/(2.000000D+00*1.600000D+01*PI**2))
-     $ *3.000000D+00*MDL_CF))
-      UVWFCT_G_1_1EPS = COND(DCMPLX(MDL_MB),DCMPLX(0.000000D+00)
-     $ ,DCMPLX(-((MDL_G__EXP__2)/(2.000000D+00*4.800000D+01*PI**2))
-     $ *4.000000D+00*MDL_TF))
       R2_BXTW = ((MDL_CKM33*MDL_EE*MDL_COMPLEXI)/(MDL_SW*MDL_SQRT__2))
      $ *MDL_R2MIXEDFACTOR_FIN_
       UV_3GB = -MDL_G_UVB_FIN_*G
@@ -60,20 +54,4 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       UV_GQQT = MDL_COMPLEXI*MDL_G_UVT_FIN_*G
       UV_BMASS = MDL_BMASS_UV_FIN_
       UV_TMASS = MDL_TMASS_UV_FIN_
-      UVWFCT_B_0 = COND(DCMPLX(MDL_MB),DCMPLX(0.000000D+00),DCMPLX(
-     $ -((MDL_G__EXP__2)/(2.000000D+00*1.600000D+01*PI**2))*MDL_CF
-     $ *(4.000000D+00-3.000000D+00*REGLOG(DCMPLX(MDL_MB__EXP__2
-     $ /MDL_MU_R__EXP__2)))))
-      UVWFCT_T_0 = COND(DCMPLX(MDL_MT),DCMPLX(0.000000D+00),DCMPLX(
-     $ -((MDL_G__EXP__2)/(2.000000D+00*1.600000D+01*PI**2))*MDL_CF
-     $ *(4.000000D+00-3.000000D+00*REGLOG(DCMPLX(MDL_MT__EXP__2
-     $ /MDL_MU_R__EXP__2)))))
-      UVWFCT_G_1 = COND(DCMPLX(MDL_MB),DCMPLX(0.000000D+00)
-     $ ,DCMPLX(((MDL_G__EXP__2)/(2.000000D+00*4.800000D+01*PI**2))
-     $ *4.000000D+00*MDL_TF*REGLOG(DCMPLX(MDL_MB__EXP__2
-     $ /MDL_MU_R__EXP__2))))
-      UVWFCT_G_2 = COND(DCMPLX(MDL_MT),DCMPLX(0.000000D+00)
-     $ ,DCMPLX(((MDL_G__EXP__2)/(2.000000D+00*4.800000D+01*PI**2))
-     $ *4.000000D+00*MDL_TF*REGLOG(DCMPLX(MDL_MT__EXP__2
-     $ /MDL_MU_R__EXP__2))))
       END

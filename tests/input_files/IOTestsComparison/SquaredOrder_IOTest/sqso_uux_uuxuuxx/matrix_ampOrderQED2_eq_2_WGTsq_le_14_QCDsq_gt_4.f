@@ -365,123 +365,123 @@ C     1 T(2,6) T(3,4) T(5,1)
 C     ----------
 C     BEGIN CODE
 C     ----------
-      CALL IXXXXX(P(0,1),ZERO,NHEL(1),+1*IC(1),W(1,1))
-      CALL OXXXXX(P(0,2),ZERO,NHEL(2),-1*IC(2),W(1,2))
-      CALL OXXXXX(P(0,3),ZERO,NHEL(3),+1*IC(3),W(1,3))
-      CALL IXXXXX(P(0,4),ZERO,NHEL(4),-1*IC(4),W(1,4))
-      CALL OXXXXX(P(0,5),ZERO,NHEL(5),+1*IC(5),W(1,5))
-      CALL IXXXXX(P(0,6),ZERO,NHEL(6),-1*IC(6),W(1,6))
-      CALL JIOXXX(W(1,1),W(1,2),GG,ZERO,ZERO,W(1,7))
-      CALL JIOXXX(W(1,4),W(1,3),GG,ZERO,ZERO,W(1,8))
-      CALL FVOXXX(W(1,5),W(1,7),GG,ZERO,ZERO,W(1,9))
+      CALL IXXXXX(P(0,1),ZERO,NHEL(1),+1, FLAVOR(1),W(1))
+      CALL OXXXXX(P(0,2),ZERO,NHEL(2),-1, FLAVOR(2),W(2))
+      CALL OXXXXX(P(0,3),ZERO,NHEL(3),+1, FLAVOR(3),W(3))
+      CALL IXXXXX(P(0,4),ZERO,NHEL(4),-1, FLAVOR(4),W(4))
+      CALL OXXXXX(P(0,5),ZERO,NHEL(5),+1, FLAVOR(5),W(5))
+      CALL IXXXXX(P(0,6),ZERO,NHEL(6),-1, FLAVOR(6),W(6))
+      CALL JIOXXX(W(1),W(2),GG,ZERO,ZERO,W(7))
+      CALL JIOXXX(W(4),W(3),GG,ZERO,ZERO,W(8))
+      CALL FVOXXX(W(5),W(7),GG,ZERO,ZERO,W(9))
 C     Amplitude(s) for diagram number 1
-      CALL IOVXXX(W(1,6),W(1,9),W(1,8),GG,AMP(1))
-      CALL FVIXXX(W(1,6),W(1,7),GG,ZERO,ZERO,W(1,10))
+      CALL IOVXXX(W(6),W(9),W(8),GG,AMP(1))
+      CALL FVIXXX(W(6),W(7),GG,ZERO,ZERO,W(10))
 C     Amplitude(s) for diagram number 2
-      CALL IOVXXX(W(1,10),W(1,5),W(1,8),GG,AMP(2))
-      CALL JIOXXX(W(1,6),W(1,5),GG,ZERO,ZERO,W(1,11))
+      CALL IOVXXX(W(10),W(5),W(8),GG,AMP(2))
+      CALL JIOXXX(W(6),W(5),GG,ZERO,ZERO,W(11))
 C     Amplitude(s) for diagram number 3
-      CALL VVVXXX(W(1,7),W(1,8),W(1,11),GG,AMP(3))
-      CALL JIOXXX(W(1,6),W(1,3),GG,ZERO,ZERO,W(1,12))
-      CALL FVIXXX(W(1,4),W(1,7),GG,ZERO,ZERO,W(1,13))
+      CALL VVVXXX(W(7),W(8),W(11),GG,AMP(3))
+      CALL JIOXXX(W(6),W(3),GG,ZERO,ZERO,W(12))
+      CALL FVIXXX(W(4),W(7),GG,ZERO,ZERO,W(13))
 C     Amplitude(s) for diagram number 4
-      CALL IOVXXX(W(1,13),W(1,5),W(1,12),GG,AMP(4))
+      CALL IOVXXX(W(13),W(5),W(12),GG,AMP(4))
 C     Amplitude(s) for diagram number 5
-      CALL IOVXXX(W(1,4),W(1,9),W(1,12),GG,AMP(5))
-      CALL JIOXXX(W(1,4),W(1,5),GG,ZERO,ZERO,W(1,9))
+      CALL IOVXXX(W(4),W(9),W(12),GG,AMP(5))
+      CALL JIOXXX(W(4),W(5),GG,ZERO,ZERO,W(9))
 C     Amplitude(s) for diagram number 6
-      CALL VVVXXX(W(1,7),W(1,12),W(1,9),GG,AMP(6))
-      CALL FVOXXX(W(1,3),W(1,7),GG,ZERO,ZERO,W(1,14))
+      CALL VVVXXX(W(7),W(12),W(9),GG,AMP(6))
+      CALL FVOXXX(W(3),W(7),GG,ZERO,ZERO,W(14))
 C     Amplitude(s) for diagram number 7
-      CALL IOVXXX(W(1,6),W(1,14),W(1,9),GG,AMP(7))
+      CALL IOVXXX(W(6),W(14),W(9),GG,AMP(7))
 C     Amplitude(s) for diagram number 8
-      CALL IOVXXX(W(1,10),W(1,3),W(1,9),GG,AMP(8))
+      CALL IOVXXX(W(10),W(3),W(9),GG,AMP(8))
 C     Amplitude(s) for diagram number 9
-      CALL IOVXXX(W(1,4),W(1,14),W(1,11),GG,AMP(9))
+      CALL IOVXXX(W(4),W(14),W(11),GG,AMP(9))
 C     Amplitude(s) for diagram number 10
-      CALL IOVXXX(W(1,13),W(1,3),W(1,11),GG,AMP(10))
-      CALL JIOXXX(W(1,1),W(1,3),GG,ZERO,ZERO,W(1,13))
-      CALL JIOXXX(W(1,4),W(1,2),GG,ZERO,ZERO,W(1,14))
-      CALL FVOXXX(W(1,5),W(1,13),GG,ZERO,ZERO,W(1,10))
+      CALL IOVXXX(W(13),W(3),W(11),GG,AMP(10))
+      CALL JIOXXX(W(1),W(3),GG,ZERO,ZERO,W(13))
+      CALL JIOXXX(W(4),W(2),GG,ZERO,ZERO,W(14))
+      CALL FVOXXX(W(5),W(13),GG,ZERO,ZERO,W(10))
 C     Amplitude(s) for diagram number 11
-      CALL IOVXXX(W(1,6),W(1,10),W(1,14),GG,AMP(11))
-      CALL FVIXXX(W(1,6),W(1,13),GG,ZERO,ZERO,W(1,7))
+      CALL IOVXXX(W(6),W(10),W(14),GG,AMP(11))
+      CALL FVIXXX(W(6),W(13),GG,ZERO,ZERO,W(7))
 C     Amplitude(s) for diagram number 12
-      CALL IOVXXX(W(1,7),W(1,5),W(1,14),GG,AMP(12))
+      CALL IOVXXX(W(7),W(5),W(14),GG,AMP(12))
 C     Amplitude(s) for diagram number 13
-      CALL VVVXXX(W(1,13),W(1,14),W(1,11),GG,AMP(13))
-      CALL JIOXXX(W(1,6),W(1,2),GG,ZERO,ZERO,W(1,15))
-      CALL FVIXXX(W(1,4),W(1,13),GG,ZERO,ZERO,W(1,16))
+      CALL VVVXXX(W(13),W(14),W(11),GG,AMP(13))
+      CALL JIOXXX(W(6),W(2),GG,ZERO,ZERO,W(15))
+      CALL FVIXXX(W(4),W(13),GG,ZERO,ZERO,W(16))
 C     Amplitude(s) for diagram number 14
-      CALL IOVXXX(W(1,16),W(1,5),W(1,15),GG,AMP(14))
+      CALL IOVXXX(W(16),W(5),W(15),GG,AMP(14))
 C     Amplitude(s) for diagram number 15
-      CALL IOVXXX(W(1,4),W(1,10),W(1,15),GG,AMP(15))
+      CALL IOVXXX(W(4),W(10),W(15),GG,AMP(15))
 C     Amplitude(s) for diagram number 16
-      CALL VVVXXX(W(1,13),W(1,15),W(1,9),GG,AMP(16))
-      CALL FVOXXX(W(1,2),W(1,13),GG,ZERO,ZERO,W(1,10))
+      CALL VVVXXX(W(13),W(15),W(9),GG,AMP(16))
+      CALL FVOXXX(W(2),W(13),GG,ZERO,ZERO,W(10))
 C     Amplitude(s) for diagram number 17
-      CALL IOVXXX(W(1,6),W(1,10),W(1,9),GG,AMP(17))
+      CALL IOVXXX(W(6),W(10),W(9),GG,AMP(17))
 C     Amplitude(s) for diagram number 18
-      CALL IOVXXX(W(1,7),W(1,2),W(1,9),GG,AMP(18))
+      CALL IOVXXX(W(7),W(2),W(9),GG,AMP(18))
 C     Amplitude(s) for diagram number 19
-      CALL IOVXXX(W(1,4),W(1,10),W(1,11),GG,AMP(19))
+      CALL IOVXXX(W(4),W(10),W(11),GG,AMP(19))
 C     Amplitude(s) for diagram number 20
-      CALL IOVXXX(W(1,16),W(1,2),W(1,11),GG,AMP(20))
-      CALL JIOXXX(W(1,1),W(1,5),GG,ZERO,ZERO,W(1,16))
-      CALL FVOXXX(W(1,3),W(1,16),GG,ZERO,ZERO,W(1,10))
+      CALL IOVXXX(W(16),W(2),W(11),GG,AMP(20))
+      CALL JIOXXX(W(1),W(5),GG,ZERO,ZERO,W(16))
+      CALL FVOXXX(W(3),W(16),GG,ZERO,ZERO,W(10))
 C     Amplitude(s) for diagram number 21
-      CALL IOVXXX(W(1,6),W(1,10),W(1,14),GG,AMP(21))
-      CALL FVIXXX(W(1,6),W(1,16),GG,ZERO,ZERO,W(1,7))
+      CALL IOVXXX(W(6),W(10),W(14),GG,AMP(21))
+      CALL FVIXXX(W(6),W(16),GG,ZERO,ZERO,W(7))
 C     Amplitude(s) for diagram number 22
-      CALL IOVXXX(W(1,7),W(1,3),W(1,14),GG,AMP(22))
+      CALL IOVXXX(W(7),W(3),W(14),GG,AMP(22))
 C     Amplitude(s) for diagram number 23
-      CALL VVVXXX(W(1,16),W(1,14),W(1,12),GG,AMP(23))
+      CALL VVVXXX(W(16),W(14),W(12),GG,AMP(23))
 C     Amplitude(s) for diagram number 24
-      CALL IOVXXX(W(1,4),W(1,10),W(1,15),GG,AMP(24))
-      CALL FVIXXX(W(1,4),W(1,16),GG,ZERO,ZERO,W(1,10))
+      CALL IOVXXX(W(4),W(10),W(15),GG,AMP(24))
+      CALL FVIXXX(W(4),W(16),GG,ZERO,ZERO,W(10))
 C     Amplitude(s) for diagram number 25
-      CALL IOVXXX(W(1,10),W(1,3),W(1,15),GG,AMP(25))
+      CALL IOVXXX(W(10),W(3),W(15),GG,AMP(25))
 C     Amplitude(s) for diagram number 26
-      CALL VVVXXX(W(1,16),W(1,15),W(1,8),GG,AMP(26))
-      CALL FVOXXX(W(1,2),W(1,16),GG,ZERO,ZERO,W(1,13))
+      CALL VVVXXX(W(16),W(15),W(8),GG,AMP(26))
+      CALL FVOXXX(W(2),W(16),GG,ZERO,ZERO,W(13))
 C     Amplitude(s) for diagram number 27
-      CALL IOVXXX(W(1,6),W(1,13),W(1,8),GG,AMP(27))
+      CALL IOVXXX(W(6),W(13),W(8),GG,AMP(27))
 C     Amplitude(s) for diagram number 28
-      CALL IOVXXX(W(1,7),W(1,2),W(1,8),GG,AMP(28))
+      CALL IOVXXX(W(7),W(2),W(8),GG,AMP(28))
 C     Amplitude(s) for diagram number 29
-      CALL IOVXXX(W(1,4),W(1,13),W(1,12),GG,AMP(29))
+      CALL IOVXXX(W(4),W(13),W(12),GG,AMP(29))
 C     Amplitude(s) for diagram number 30
-      CALL IOVXXX(W(1,10),W(1,2),W(1,12),GG,AMP(30))
-      CALL FVIXXX(W(1,1),W(1,14),GG,ZERO,ZERO,W(1,10))
+      CALL IOVXXX(W(10),W(2),W(12),GG,AMP(30))
+      CALL FVIXXX(W(1),W(14),GG,ZERO,ZERO,W(10))
 C     Amplitude(s) for diagram number 31
-      CALL IOVXXX(W(1,10),W(1,5),W(1,12),GG,AMP(31))
-      CALL FVIXXX(W(1,1),W(1,12),GG,ZERO,ZERO,W(1,13))
+      CALL IOVXXX(W(10),W(5),W(12),GG,AMP(31))
+      CALL FVIXXX(W(1),W(12),GG,ZERO,ZERO,W(13))
 C     Amplitude(s) for diagram number 32
-      CALL IOVXXX(W(1,13),W(1,5),W(1,14),GG,AMP(32))
+      CALL IOVXXX(W(13),W(5),W(14),GG,AMP(32))
 C     Amplitude(s) for diagram number 33
-      CALL IOVXXX(W(1,10),W(1,3),W(1,11),GG,AMP(33))
-      CALL FVIXXX(W(1,1),W(1,11),GG,ZERO,ZERO,W(1,10))
+      CALL IOVXXX(W(10),W(3),W(11),GG,AMP(33))
+      CALL FVIXXX(W(1),W(11),GG,ZERO,ZERO,W(10))
 C     Amplitude(s) for diagram number 34
-      CALL IOVXXX(W(1,10),W(1,3),W(1,14),GG,AMP(34))
-      CALL FVIXXX(W(1,1),W(1,15),GG,ZERO,ZERO,W(1,14))
+      CALL IOVXXX(W(10),W(3),W(14),GG,AMP(34))
+      CALL FVIXXX(W(1),W(15),GG,ZERO,ZERO,W(14))
 C     Amplitude(s) for diagram number 35
-      CALL IOVXXX(W(1,14),W(1,5),W(1,8),GG,AMP(35))
-      CALL FVIXXX(W(1,1),W(1,8),GG,ZERO,ZERO,W(1,4))
+      CALL IOVXXX(W(14),W(5),W(8),GG,AMP(35))
+      CALL FVIXXX(W(1),W(8),GG,ZERO,ZERO,W(4))
 C     Amplitude(s) for diagram number 36
-      CALL IOVXXX(W(1,4),W(1,5),W(1,15),GG,AMP(36))
+      CALL IOVXXX(W(4),W(5),W(15),GG,AMP(36))
 C     Amplitude(s) for diagram number 37
-      CALL IOVXXX(W(1,14),W(1,3),W(1,9),GG,AMP(37))
-      CALL FVIXXX(W(1,1),W(1,9),GG,ZERO,ZERO,W(1,14))
+      CALL IOVXXX(W(14),W(3),W(9),GG,AMP(37))
+      CALL FVIXXX(W(1),W(9),GG,ZERO,ZERO,W(14))
 C     Amplitude(s) for diagram number 38
-      CALL IOVXXX(W(1,14),W(1,3),W(1,15),GG,AMP(38))
+      CALL IOVXXX(W(14),W(3),W(15),GG,AMP(38))
 C     Amplitude(s) for diagram number 39
-      CALL IOVXXX(W(1,4),W(1,2),W(1,11),GG,AMP(39))
+      CALL IOVXXX(W(4),W(2),W(11),GG,AMP(39))
 C     Amplitude(s) for diagram number 40
-      CALL IOVXXX(W(1,10),W(1,2),W(1,8),GG,AMP(40))
+      CALL IOVXXX(W(10),W(2),W(8),GG,AMP(40))
 C     Amplitude(s) for diagram number 41
-      CALL IOVXXX(W(1,13),W(1,2),W(1,9),GG,AMP(41))
+      CALL IOVXXX(W(13),W(2),W(9),GG,AMP(41))
 C     Amplitude(s) for diagram number 42
-      CALL IOVXXX(W(1,14),W(1,2),W(1,12),GG,AMP(42))
+      CALL IOVXXX(W(14),W(2),W(12),GG,AMP(42))
 C     JAMPs contributing to orders WEIGHTED=4 QCD=4
       TMP_JAMP(39) = AMP(39) +  AMP(40)  ! used 3 times
       TMP_JAMP(38) = AMP(37) +  AMP(38)  ! used 3 times
