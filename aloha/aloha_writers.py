@@ -547,7 +547,8 @@ class ALOHAWriterForFortran(WriteALOHA):
         out = StringIO()
         #to_end = []
         out.write('use aloha_object\n')
-        out.write('use model_object\n')
+        if 'M' in self.tag:
+            out.write('use model_object\n')
         out.write('implicit none\n')
         # Check if we are in formfactor mode
         if self.has_model_parameter:
