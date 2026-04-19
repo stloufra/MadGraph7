@@ -12,11 +12,13 @@ C
 C###############################################################################
       module ALOHA_OBJECT
          TYPE ALOHA 
+            SEQUENCE
             double complex::W(4)
             double precision :: P(0:3)
             integer :: flv_index 
          END TYPE ALOHA
          TYPE ALOHA2D 
+            SEQUENCE
             double complex::W(16)
             double precision :: P(0:3)
             integer :: flv_index 
