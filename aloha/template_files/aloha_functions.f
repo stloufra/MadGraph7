@@ -20,7 +20,7 @@ C###############################################################################
             double complex::W(16)
             double precision :: P(0:3)
             integer :: flv_index 
-         END TYPE ALOHA
+         END TYPE ALOHA2D
       end module ALOHA_OBJECT
 
 
