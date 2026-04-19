@@ -34,6 +34,7 @@ $(LIBDIR)librunning.$(libext): RUNNING
 $(LIBDIR)libdhelas.a: DHELAS
 	rm -f $(LIBDIR)libdhelas.a
 	cd DHELAS; make
+	cp -f DHELAS/aloha_object.mod $(LIBDIR)
 
 $(LIBDIR)libgeneric.a: $(GENERIC)
 	rm -f $(LIBDIR)libgeneric.a
