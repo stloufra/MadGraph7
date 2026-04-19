@@ -1016,6 +1016,7 @@ C
     def test_complex_mass_SA(self):
         """ Test that the complex_mass compile in fortran """
 
+        self.do('set apply_flavor_grouping False')
         self.do('import model sm --noprefix')
         self.do('set complex_mass_scheme')
         self.do('generate e+ e- > e+ e-')
