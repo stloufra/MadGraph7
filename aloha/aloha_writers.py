@@ -734,6 +734,10 @@ class ALOHAWriterForFortran(WriteALOHA):
         """Define the coupling constant"""
         
         out = StringIO()
+        # In loop mode, fermion wave functions are plain COMPLEX*16 arrays (no struct),
+        # so flavor checking via %flv_index is not applicable.
+        if aloha.loop_mode:
+            return ''
         if 'M' not in self.tag:
             if self.particles[0] != 'F':
                 return ''
@@ -808,12 +812,10 @@ class ALOHAWriterForFortran(WriteALOHA):
             if not aloha.loop_mode:
                 nb = j + 1
                 if j == 0: 
-                    assert not aloha.mp_precision 
                     operator = 'dble' # not suppose to pass here in mp
                 elif j == 1: 
                     nb2 += 1
                 elif j == 2:
-                    assert not aloha.mp_precision 
                     operator = 'dimag' # not suppose to pass here in mp
                 elif j ==3:
                     nb2 -= 1
@@ -853,6 +855,10 @@ class ALOHAWriterForFortran(WriteALOHA):
         if '_' in name:
             vtype = name.type
             decla = name.split('_',1)[0]
+            # P-momentum variables may be cached as complex from a previous loop
+            # computation; override with the type appropriate for the current mode.
+            if decla.startswith('P'):
+                vtype = 'complex' if aloha.loop_mode else 'double'
             self.declaration.add(('list_%s' % vtype, decla))
         else:
             self.declaration.add((name.type, name))

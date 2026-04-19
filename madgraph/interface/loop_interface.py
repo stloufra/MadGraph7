@@ -592,7 +592,7 @@ This installation can take some time but only needs to be performed once.""" %{'
                         self.do_install(key,paths={'HEPToolsInstaller':
                                 pjoin(MG5DIR,'vendor','OfflineHEPToolsInstaller.tar.gz')},
                         additional_options=additional_options)
-                    except self.InvalidCmd:
+                    except (self.InvalidCmd, FileNotFoundError):
                             logger.warning(
 """The offline installation of %(p)s was unsuccessful, and MG5aMC disabled it.
 In the future, if you want to reactivate Ninja, you can do so by re-attempting
@@ -954,11 +954,12 @@ class AskLoopInstaller(cmd.OneLinePathCompletion):
     
     def __init__(self, question, *args, **opts):
 
-        import six.moves.urllib.request, six.moves.urllib.error, six.moves.urllib.parse
+        import urllib.request
+        import urllib.error
         try:
-            response=six.moves.urllib.request.urlopen('http://madgraph.phys.ucl.ac.be/F1.html', timeout=3)
+            response=urllib.request.urlopen('http://madgraph.phys.ucl.ac.be/F1.html', timeout=3)
             self.online=True
-        except six.moves.urllib.error.URLError as err: 
+        except urllib.error.URLError as err: 
             self.online=False        
         
         self.code = {'ninja': 'install',
