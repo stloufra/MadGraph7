@@ -96,7 +96,7 @@ jobs:
            echo "PYTHONPATH=$PYTHONPATH:$HOME/.cache/UFOMODEL" >> $GITHUB_ENV
            echo "import model 2HDM" > cmd
            echo "import model loop_qcd_qed_sm" >> cmd
-           echo "import model loop_qcd_qed_smCMS" >> cmd
+           #echo "import model loop_qcd_qed_smCMS" >> cmd
            ./bin/mg5_aMC cmd
 
        - name: move UFO model to cache
@@ -104,7 +104,7 @@ jobs:
          run: |
            cp -r models/2HDM /home/runner/.cache/UFOMODEL
            cp -r models/loop_qcd_qed_sm /home/runner/.cache/UFOMODEL
-           cp -r models/loop_qcd_qed_smCMS /home/runner/.cache/UFOMODEL
+           #cp -r models/loop_qcd_qed_smCMS /home/runner/.cache/UFOMODEL
            
   lhapdf_cache:
      needs: delete-cache
