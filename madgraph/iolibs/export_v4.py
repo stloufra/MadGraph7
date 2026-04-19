@@ -2094,7 +2094,8 @@ param_card.inc: ../Cards/param_card.dat\n\t../bin/madevent treatcards param\n'''
                                 if abs(initial_state) in model.get('merged_particles'):
                                     flv = proc.get_initial_flavor(ibeam)
                                     if len(flv) == 0:
-                                        initial_state = one_flv[ibeam-1]
+                                        sign = 1 if initial_state > 0 else -1
+                                        initial_state = sign * one_flv[ibeam-1]
                                     elif len(flv) ==1:
                                         initial_state = flv[0]
                                     else:
@@ -2140,7 +2141,8 @@ param_card.inc: ../Cards/param_card.dat\n\t../bin/madevent treatcards param\n'''
                             if abs(initial_state) in model.get('merged_particles'):
                                 flv = proc.get_initial_flavor(ibeam)
                                 if len(flv) == 0:
-                                    init_states = matrix_element.get_external_flavors()[nb_flavor][ibeam-1] 
+                                    sign = 1 if initial_state > 0 else -1
+                                    initial_state = sign * matrix_element.get_external_flavors()[nb_flavor][ibeam-1]
                                 elif len(flv) ==1:
                                     initial_state = flv[0]
                                 else:
