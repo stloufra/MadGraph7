@@ -1631,6 +1631,10 @@ class HelasWavefunction(base_objects.PhysicsObject):
     def get_coupling_for_flavor(self, model, tag_name='flavortag'):
         """Return the coupling for the given flavor"""
 
+        # interaction_id==0 means external particle (no vertex); no coupling to return.
+        if self.get('interaction_id') in [0, -1]:
+            return None
+
         vertex = model.get('interaction_dict')[self.get('interaction_id')]
         coup = next(iter(vertex.get('couplings').values()))
         if isinstance(coup, str):
@@ -2998,6 +3002,12 @@ class HelasAmplitude(base_objects.PhysicsObject):
 
     def propagate_flavor_tag(self, model, debug=False, fct=None, tag_name='flavortag'):
 
+        # interaction_id==0 means "no interaction" (e.g. loop-induced contact
+        # amplitudes); no vertex look-up needed — treat as valid.
+        if self.get('interaction_id') in [0, -1]:
+            self[tag_name] = 1
+            return True
+
         # pdg and flavor from previous wfct
         pdg_in = [w.get_pdg_code() for w in self.get('mothers')]
         flav = [w[tag_name] if hasattr(w,tag_name) else None for w in self.get('mothers') ]
@@ -3217,6 +3227,10 @@ class HelasAmplitude(base_objects.PhysicsObject):
         
     def get_coupling_for_flavor(self, model, tag_name='flavortag'):
         """Return the coupling for the given flavor"""
+
+        # interaction_id==0 or -1 means no real interaction vertex; no coupling to return.
+        if self.get('interaction_id') in [0, -1]:
+            return None
 
         valid = self.propagate_flavor_tag(model, tag_name=tag_name)
         if not valid:
