@@ -612,9 +612,6 @@ class UFOMG5Converter(object):
         if auto:
             self.load_model()
 
-        self.additional_couplings += self.wavefunction_CT_couplings \
-                           if self.perturbation_couplings else []
-
     def load_model(self):
         """load the different of the model first particles then interactions"""
 
@@ -769,6 +766,9 @@ class UFOMG5Converter(object):
         del self.checked_lor
 
         self.check_model_all()
+
+        self.additional_couplings += self.wavefunction_CT_couplings \
+                           if self.perturbation_couplings else []
 
         return self.model
     
