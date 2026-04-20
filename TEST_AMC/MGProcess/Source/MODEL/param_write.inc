@@ -90,6 +90,11 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       WRITE(*,*) 'mdl_sqrt__aS = ', MDL_SQRT__AS
       WRITE(*,*) 'mdl_G__exp__4 = ', MDL_G__EXP__4
       WRITE(*,*) 'mdl_G__exp__2 = ', MDL_G__EXP__2
-      WRITE(*,*) 'mdl_R2MixedFactor_FIN_ = ', MDL_R2MIXEDFACTOR_FIN_
+      WRITE(*,*) 'mdl_G_UVg_1EPS_ = ', MDL_G_UVG_1EPS_
+      WRITE(*,*) 'mdl_G_UVb_1EPS_ = ', MDL_G_UVB_1EPS_
+      WRITE(*,*) 'mdl_tMass_UV_1EPS_ = ', MDL_TMASS_UV_1EPS_
       WRITE(*,*) 'mdl_G__exp__3 = ', MDL_G__EXP__3
       WRITE(*,*) 'mdl_MU_R__exp__2 = ', MDL_MU_R__EXP__2
+      WRITE(*,*) 'mdl_G_UVb_FIN_ = ', MDL_G_UVB_FIN_
+      WRITE(*,*) 'mdl_G_UVt_FIN_ = ', MDL_G_UVT_FIN_
+      WRITE(*,*) 'mdl_tMass_UV_FIN_ = ', MDL_TMASS_UV_FIN_

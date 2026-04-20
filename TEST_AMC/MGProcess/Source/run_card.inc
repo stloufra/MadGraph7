@@ -1,4 +1,4 @@
-      NEVENTS = 100
+      NEVENTS = 20
 
       EVENT_NORM = 'average'
 

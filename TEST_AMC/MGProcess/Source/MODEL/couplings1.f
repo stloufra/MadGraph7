@@ -13,5 +13,4 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       PARAMETER  (ZERO=0D0)
       INCLUDE 'input.inc'
       INCLUDE 'coupl.inc'
-      GC_11 = (MDL_EE*MDL_COMPLEXI)/(MDL_SW*MDL_SQRT__2)
       END

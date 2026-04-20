@@ -19,6 +19,6 @@
  limitations = [] 
  ew_sudakov = False 
  hel_recycling = False 
- single_color = True 
+ single_color = False 
  nlo_mixed_expansion = True 
  gauge = U 

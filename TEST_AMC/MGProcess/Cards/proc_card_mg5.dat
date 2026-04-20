@@ -9,7 +9,7 @@
 #*                                                          *
 #*                                                          *
 #*         VERSION 3.7.0                 2026-01-05         *
-#*         GIT        copilot/fix-failing-unittests         *
+#*         GIT r991-157-g1824be2414  copilot/fix-failing-unittests         *
 #*                                                          *
 #*    The MadGraph5_aMC@NLO Development Team - Find us at   *
 #*    https://server06.fynu.ucl.ac.be/projects/madgraph     *
@@ -34,12 +34,15 @@ set default_unset_couplings 99
 set max_t_for_channel 99
 set zerowidth_tchannel True
 set nlo_mixed_expansion True
-set apply_flavor_grouping True
-import model loop_sm
+set crash_on_error True --no_save
 define p = g u c d s u~ c~ d~ s~
 define j = g u c d s u~ c~ d~ s~
 define l+ = e+ mu+
 define l- = e- mu-
 define vl = ve vm vt
 define vl~ = ve~ vm~ vt~
-add process p p > e+ ve QED^2=4 QCD^2=0 [QCD]
+set apply_flavor_grouping False
+import model sm
+import model loop_sm
+import model sm
+output /home/runner/work/mg5amcnlo/mg5amcnlo/TEST_AMC/MGProcess

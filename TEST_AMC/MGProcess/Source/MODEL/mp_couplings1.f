@@ -13,6 +13,4 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       INCLUDE 'mp_input.inc'
       INCLUDE 'mp_coupl.inc'
 
-      MP__GC_11 = (MP__MDL_EE*MP__MDL_COMPLEXI)/(MP__MDL_SW
-     $ *MP__MDL_SQRT__2)
       END

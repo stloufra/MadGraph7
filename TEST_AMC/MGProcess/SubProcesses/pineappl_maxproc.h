@@ -1,1 +1,1 @@
-#define  __max_nproc__ 6
+#define  __max_nproc__ 7
