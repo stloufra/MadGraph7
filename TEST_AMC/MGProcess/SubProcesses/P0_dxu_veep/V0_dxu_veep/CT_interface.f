@@ -419,9 +419,9 @@ C     Determine it uses qp or not
               MP_PL(I,J)=0.0E+0_16
             ENDIF
             DO K=TEMP,(TEMP+PAIRING(J)-1)
-              PL(I,J)=PL(I,J)-DBLE(W(WE(K))%W(1+I))
+              PL(I,J)=PL(I,J)-W(WE(K))%P(I)
               IF (DOING_QP) THEN
-                MP_PL(I,J)=MP_PL(I,J)-REAL(MP_W(WE(K))%W(1+I),KIND=16)
+                MP_PL(I,J)=MP_PL(I,J)-MP_W(WE(K))%P(I)
               ENDIF
             ENDDO
             TEMP=TEMP+PAIRING(J)
