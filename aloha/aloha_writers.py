@@ -800,46 +800,25 @@ class ALOHAWriterForFortran(WriteALOHA):
         
         type = self.particles[i-1]
         
-        if aloha.loop_mode:
-            template ='P%(i)d(%(j)d) = %(sign)s%(type)s%(i)d(%(nb)d)\n'
-            nb_print = 4
-        else:
-            #template ='P%(i)d(%(j)d) = %(sign)s%(operator)s(%(type)s%(i)d(%(nb2)d))\n'
-            template = 'P%(i)d(:) = %(sign)s%(type)s%(i)d %% P (:)\n'
-            nb_print = 1
+        # Always use the type(aloha) %P field to extract the tree wavefunction
+        # momentum, regardless of loop_mode. In loop mode the input wavefunctions
+        # are now declared as type(aloha) so we access their momentum via %P.
+        template = 'P%(i)d(:) = %(sign)s%(type)s%(i)d %% P (:)\n'
+        strfile.write(template % {'type': type, 'i': i,
+                                  'sign': self.get_P_sign(i)})
 
-        nb2 = 1
-        for j in range(nb_print):
-            if not aloha.loop_mode:
-                nb = j + 1
-                if j == 0: 
-                    operator = 'dble' # not suppose to pass here in mp
-                elif j == 1: 
-                    nb2 += 1
-                elif j == 2:
-                    operator = 'dimag' # not suppose to pass here in mp
-                elif j ==3:
-                    nb2 -= 1
-            else:
-                operator =''
-                nb = 1+ j
-                nb2 = 1 + j
-            strfile.write(template % {'j':j,'type': type, 'i': i, 
-                        'nb': nb, 'nb2': nb2, 'operator':operator,
-                        'sign': self.get_P_sign(i)})  
-    
     def shift_indices(self, match):
         """shift the indices for non impulsion object"""
         if match.group('var').startswith('P'):
             shift = 0
             return '%s(%s)' % (match.group('var'), int(match.group('num')) + shift)
-        elif not aloha.loop_mode:
-            return '%s %% W(%s)' % (match.group('var'), int(match.group('num')))        
         else:
-            shift =  self.momentum_size 
-            if aloha.unitary_gauge ==3 and match.group('var').startswith('S'):
-                shift += 4
-            return '%s(%s)' % (match.group('var'), int(match.group('num')) + shift)
+            # Always use the type(aloha) %W field for spin/polarisation
+            # components, regardless of loop_mode.  Previously loop_mode used
+            # a flat integer offset (+momentum_size) into a plain COMPLEX*16
+            # array; now all wavefunctions (including those inside loop ALOHA
+            # routines) are passed as type(aloha) objects.
+            return '%s %% W(%s)' % (match.group('var'), int(match.group('num')))
               
     def change_var_format(self, name): 
         """Formatting the variable name to Fortran format"""
@@ -1267,6 +1246,9 @@ class ALOHAWriterForFortranLoop(ALOHAWriterForFortran):
         """ Prototype for how to write the declaration of variable"""
         
         out = StringIO()
+        # type(aloha) / type(mp_aloha) must be accessible for the tree-level
+        # wavefunction arguments that are now passed as structured types.
+        out.write('use ALOHA_OBJECT\n')
         out.write('implicit none\n')
         # define the complex number CI = 0+1j
         if 'MP' in self.tag:
@@ -1282,23 +1264,23 @@ class ALOHAWriterForFortranLoop(ALOHAWriterForFortran):
                 #determine the size of the list
                 if name.startswith('P'):
                     size='0:3'
+                elif name in argument_var and name[0] in ['F', 'V', 'S']:
+                    # Tree-level wavefunction arguments are now type(aloha) /
+                    # type(mp_aloha) structured objects; they are no longer
+                    # plain COMPLEX arrays and therefore have no size dimension.
+                    if 'MP' in self.tag:
+                        out.write(' type(mp_aloha) %s\n' % name)
+                    else:
+                        out.write(' type(aloha) %s\n' % name)
+                    continue
                 elif name in argument_var:
                     size ='*'
                 elif name[0] in ['F','V']:
-                    if aloha.loop_mode:
-                        size = 8
-                    else:
-                        size = 6
+                    size = 6
                 elif name[0] == 'S':
-                    if aloha.loop_mode:
-                        size = 5
-                    else:
-                        size = 3
+                    size = 3
                 elif name[0] in ['R','T']: 
-                    if aloha.loop_mode:
-                        size = 20
-                    else:
-                        size = 18
+                    size = 18
                 elif name == 'coeff':
                     out.write("include 'coef_specs.inc'\n")
                     size = 'MAXLWFSIZE,0:VERTEXMAXCOEFS-1,MAXLWFSIZE'
@@ -1387,8 +1369,11 @@ class ALOHAWriterForFortranLoop(ALOHAWriterForFortran):
                 size.append(0)
                 continue
             elif self.offshell:
-                p.append('%s%s%s({%s})' % (signs[i],type,i+1,len(size)))
-                size.append(1)
+                # Tree-level wavefunction: extract its 4-momentum via the
+                # %P field (type(aloha) accessor).  '%%P' in Python %
+                # formatting produces the literal '%P' needed for Fortran.
+                p.append('%s%s%s%%P({%s})' % (signs[i],type,i+1,len(size)))
+                size.append(0)
                 
             if self.declaration.is_used('P%s' % (i+1)):
                     self.get_one_momenta_def(i+1, out)

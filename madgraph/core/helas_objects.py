@@ -1727,7 +1727,7 @@ class HelasWavefunction(base_objects.PhysicsObject):
                 if mother.get('is_loop'):
                     output['WF%d'%i] = 'L(1,%d)'%nb
                 else:
-                    output['WF%d'%i] = '(1,WE(%d)'%nb
+                    output['WF%d'%i] = '(WE(%d)'%nb
             else:
                 if mother.get('is_loop'):
                     output['loop_mother_number']=nb
@@ -1737,7 +1737,7 @@ class HelasWavefunction(base_objects.PhysicsObject):
                     output['WF%d'%i] = 'PL(0,%d)'%nb
                     loop_mother_found=True
                 else:
-                    output['WF%d'%i] = 'W(1,%d'%nb
+                    output['WF%d'%i] = 'W(%d'%nb
             if not mother.get('is_loop'):
                 if specifyHel:
                     output['WF%d'%i]=output['WF%d'%i]+',H)'
@@ -3454,9 +3454,9 @@ class HelasAmplitude(base_objects.PhysicsObject):
                 output['WF%d' % i ] = 'L(1,%d)'%nb
             else:
                 if specifyHel:
-                    output['WF%d' % i ] = '(1,WE(%d),H)'%nb
+                    output['WF%d' % i ] = '(WE(%d),H)'%nb
                 else:
-                    output['WF%d' % i ] = '(1,WE(%d))'%nb                    
+                    output['WF%d' % i ] = '(WE(%d))'%nb                    
                 
         #fixed argument
         output['tags'] = list()

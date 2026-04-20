@@ -193,13 +193,13 @@ C     ----------
 C     BEGIN CODE
 C     ----------
 C     Helas calls and color basis for the base amplitude
-      CALL OXXXXX(P(0,1),ZERO,NHEL(1),-1*IC(1),W(1,1))
-      CALL IXXXXX(P(0,2),ZERO,NHEL(2),+1*IC(2),W(1,2))
-      CALL OXXXXX(P(0,3),MDL_MT,NHEL(3),+1*IC(3),W(1,3))
-      CALL IXXXXX(P(0,4),MDL_MT,NHEL(4),-1*IC(4),W(1,4))
-      CALL FFV1P0_3(W(1,2),W(1,1),GC_11,ZERO,ZERO,W(1,5))
+      CALL OXXXXX(P(0,1),ZERO,NHEL(1),-1*IC(1),W(1))
+      CALL IXXXXX(P(0,2),ZERO,NHEL(2),+1*IC(2),W(2))
+      CALL OXXXXX(P(0,3),MDL_MT,NHEL(3),+1*IC(3),W(3))
+      CALL IXXXXX(P(0,4),MDL_MT,NHEL(4),-1*IC(4),W(4))
+      CALL FFV1P0_3(W(2),W(1),GC_11,ZERO,ZERO,W(5))
 C     Amplitude(s) for diagram number 1
-      CALL FFV1_0(W(1,4),W(1,3),W(1,5),GC_11,AMP1(1))
+      CALL FFV1_0(W(4),W(3),W(5),GC_11,AMP1(1))
 C     JAMPs contributing to orders QCD=2 QED=0
       JAMP1(1,1) = (-1.666666666666667D-01)*AMP1(1)
       JAMP1(2,1) = (5.000000000000000D-01)*AMP1(1)
@@ -221,13 +221,13 @@ C       restore the momenta and just quit the function
       ENDIF
 
 C     Helas calls and color basis for the Sudakov amplitude
-      CALL OXXXXX(P(0,1),MDL_MT,NHEL(1),-1*IC(1),W(1,1))
-      CALL IXXXXX(P(0,2),ZERO,NHEL(2),+1*IC(2),W(1,2))
-      CALL OXXXXX(P(0,3),ZERO,NHEL(3),+1*IC(3),W(1,3))
-      CALL IXXXXX(P(0,4),MDL_MT,NHEL(4),-1*IC(4),W(1,4))
-      CALL FFV1P0_3(W(1,4),W(1,1),GC_11,ZERO,ZERO,W(1,5))
+      CALL OXXXXX(P(0,1),MDL_MT,NHEL(1),-1*IC(1),W(1))
+      CALL IXXXXX(P(0,2),ZERO,NHEL(2),+1*IC(2),W(2))
+      CALL OXXXXX(P(0,3),ZERO,NHEL(3),+1*IC(3),W(3))
+      CALL IXXXXX(P(0,4),MDL_MT,NHEL(4),-1*IC(4),W(4))
+      CALL FFV1P0_3(W(4),W(1),GC_11,ZERO,ZERO,W(5))
 C     Amplitude(s) for diagram number 1
-      CALL FFV1_0(W(1,2),W(1,3),W(1,5),GC_11,AMP2(1))
+      CALL FFV1_0(W(2),W(3),W(5),GC_11,AMP2(1))
 C     JAMPs contributing to orders QCD=2 QED=0
       JAMP2(1,1) = (-5.000000000000000D-01)*AMP2(1)
       JAMP2(2,1) = (1.666666666666667D-01)*AMP2(1)

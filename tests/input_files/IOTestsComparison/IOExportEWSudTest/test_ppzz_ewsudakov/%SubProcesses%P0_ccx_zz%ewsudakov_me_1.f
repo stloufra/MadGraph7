@@ -192,16 +192,16 @@ C     ----------
 C     BEGIN CODE
 C     ----------
 C     Helas calls and color basis for the base amplitude
-      CALL IXXXXX(P(0,1),ZERO,NHEL(1),+1*IC(1),W(1,1))
-      CALL OXXXXX(P(0,2),ZERO,NHEL(2),-1*IC(2),W(1,2))
-      CALL VXXXXX(P(0,3),MDL_MZ,NHEL(3),+1*IC(3),W(1,3))
-      CALL VXXXXX(P(0,4),MDL_MZ,NHEL(4),+1*IC(4),W(1,4))
-      CALL FFV2_5_2(W(1,1),W(1,3),-GC_68,GC_76,ZERO,ZERO,W(1,5))
+      CALL IXXXXX(P(0,1),ZERO,NHEL(1),+1*IC(1),W(1))
+      CALL OXXXXX(P(0,2),ZERO,NHEL(2),-1*IC(2),W(2))
+      CALL VXXXXX(P(0,3),MDL_MZ,NHEL(3),+1*IC(3),W(3))
+      CALL VXXXXX(P(0,4),MDL_MZ,NHEL(4),+1*IC(4),W(4))
+      CALL FFV2_5_2(W(1),W(3),-GC_68,GC_76,ZERO,ZERO,W(5))
 C     Amplitude(s) for diagram number 1
-      CALL FFV2_5_0(W(1,5),W(1,2),W(1,4),-GC_68,GC_76,AMP1(1))
-      CALL FFV2_5_2(W(1,1),W(1,4),-GC_68,GC_76,ZERO,ZERO,W(1,5))
+      CALL FFV2_5_0(W(5),W(2),W(4),-GC_68,GC_76,AMP1(1))
+      CALL FFV2_5_2(W(1),W(4),-GC_68,GC_76,ZERO,ZERO,W(5))
 C     Amplitude(s) for diagram number 2
-      CALL FFV2_5_0(W(1,5),W(1,2),W(1,3),-GC_68,GC_76,AMP1(2))
+      CALL FFV2_5_0(W(5),W(2),W(3),-GC_68,GC_76,AMP1(2))
 C     JAMPs contributing to orders QCD=0 QED=2
       JAMP1(1,1) = AMP1(1)+AMP1(2)
 
@@ -222,16 +222,16 @@ C       restore the momenta and just quit the function
       ENDIF
 
 C     Helas calls and color basis for the Sudakov amplitude
-      CALL IXXXXX(P(0,1),ZERO,NHEL(1),+1*IC(1),W(1,1))
-      CALL OXXXXX(P(0,2),ZERO,NHEL(2),-1*IC(2),W(1,2))
-      CALL VXXXXX(P(0,3),ZERO,NHEL(3),+1*IC(3),W(1,3))
-      CALL VXXXXX(P(0,4),MDL_MZ,NHEL(4),+1*IC(4),W(1,4))
-      CALL FFV1_2(W(1,1),W(1,3),GC_2,ZERO,ZERO,W(1,5))
+      CALL IXXXXX(P(0,1),ZERO,NHEL(1),+1*IC(1),W(1))
+      CALL OXXXXX(P(0,2),ZERO,NHEL(2),-1*IC(2),W(2))
+      CALL VXXXXX(P(0,3),ZERO,NHEL(3),+1*IC(3),W(3))
+      CALL VXXXXX(P(0,4),MDL_MZ,NHEL(4),+1*IC(4),W(4))
+      CALL FFV1_2(W(1),W(3),GC_2,ZERO,ZERO,W(5))
 C     Amplitude(s) for diagram number 1
-      CALL FFV2_5_0(W(1,5),W(1,2),W(1,4),-GC_68,GC_76,AMP2(1))
-      CALL FFV2_5_2(W(1,1),W(1,4),-GC_68,GC_76,ZERO,ZERO,W(1,5))
+      CALL FFV2_5_0(W(5),W(2),W(4),-GC_68,GC_76,AMP2(1))
+      CALL FFV2_5_2(W(1),W(4),-GC_68,GC_76,ZERO,ZERO,W(5))
 C     Amplitude(s) for diagram number 2
-      CALL FFV1_0(W(1,5),W(1,2),W(1,3),GC_2,AMP2(2))
+      CALL FFV1_0(W(5),W(2),W(3),GC_2,AMP2(2))
 C     JAMPs contributing to orders QCD=0 QED=2
       JAMP2(1,1) = AMP2(1)+AMP2(2)
 

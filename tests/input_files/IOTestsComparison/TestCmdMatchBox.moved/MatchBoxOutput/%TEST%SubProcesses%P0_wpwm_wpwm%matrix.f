@@ -192,30 +192,30 @@ C     1 ColorOne()
 C     ----------
 C     BEGIN CODE
 C     ----------
-      CALL VXXXXX(P(0,1),MDL_MW,NHEL(1),-1*IC(1),W(1,1))
-      CALL VXXXXX(P(0,2),MDL_MW,NHEL(2),-1*IC(2),W(1,2))
-      CALL VXXXXX(P(0,3),MDL_MW,NHEL(3),+1*IC(3),W(1,3))
-      CALL VXXXXX(P(0,4),MDL_MW,NHEL(4),+1*IC(4),W(1,4))
+      CALL VXXXXX(P(0,1),MDL_MW,NHEL(1),-1*IC(1),W(1))
+      CALL VXXXXX(P(0,2),MDL_MW,NHEL(2),-1*IC(2),W(2))
+      CALL VXXXXX(P(0,3),MDL_MW,NHEL(3),+1*IC(3),W(3))
+      CALL VXXXXX(P(0,4),MDL_MW,NHEL(4),+1*IC(4),W(4))
 C     Amplitude(s) for diagram number 1
-      CALL VVVV2_0(W(1,1),W(1,4),W(1,2),W(1,3),GC_35,AMP(1))
-      CALL VVV1P0_1(W(1,1),W(1,2),GC_4,ZERO,ZERO,W(1,5))
+      CALL VVVV2_0(W(1),W(4),W(2),W(3),GC_35,AMP(1))
+      CALL VVV1P0_1(W(1),W(2),GC_4,ZERO,ZERO,W(5))
 C     Amplitude(s) for diagram number 2
-      CALL VVV1_0(W(1,5),W(1,4),W(1,3),GC_4,AMP(2))
-      CALL VVS1_3(W(1,1),W(1,2),GC_72,MDL_MH,MDL_WH,W(1,5))
+      CALL VVV1_0(W(5),W(4),W(3),GC_4,AMP(2))
+      CALL VVS1_3(W(1),W(2),GC_72,MDL_MH,MDL_WH,W(5))
 C     Amplitude(s) for diagram number 3
-      CALL VVS1_0(W(1,4),W(1,3),W(1,5),GC_72,AMP(3))
-      CALL VVV1_3(W(1,1),W(1,2),GC_53,MDL_MZ,MDL_WZ,W(1,5))
+      CALL VVS1_0(W(4),W(3),W(5),GC_72,AMP(3))
+      CALL VVV1_3(W(1),W(2),GC_53,MDL_MZ,MDL_WZ,W(5))
 C     Amplitude(s) for diagram number 4
-      CALL VVV1_0(W(1,4),W(1,3),W(1,5),GC_53,AMP(4))
-      CALL VVV1P0_1(W(1,1),W(1,3),GC_4,ZERO,ZERO,W(1,5))
+      CALL VVV1_0(W(4),W(3),W(5),GC_53,AMP(4))
+      CALL VVV1P0_1(W(1),W(3),GC_4,ZERO,ZERO,W(5))
 C     Amplitude(s) for diagram number 5
-      CALL VVV1_0(W(1,5),W(1,4),W(1,2),GC_4,AMP(5))
-      CALL VVS1_3(W(1,1),W(1,3),GC_72,MDL_MH,MDL_WH,W(1,5))
+      CALL VVV1_0(W(5),W(4),W(2),GC_4,AMP(5))
+      CALL VVS1_3(W(1),W(3),GC_72,MDL_MH,MDL_WH,W(5))
 C     Amplitude(s) for diagram number 6
-      CALL VVS1_0(W(1,4),W(1,2),W(1,5),GC_72,AMP(6))
-      CALL VVV1_3(W(1,1),W(1,3),GC_53,MDL_MZ,MDL_WZ,W(1,5))
+      CALL VVS1_0(W(4),W(2),W(5),GC_72,AMP(6))
+      CALL VVV1_3(W(1),W(3),GC_53,MDL_MZ,MDL_WZ,W(5))
 C     Amplitude(s) for diagram number 7
-      CALL VVV1_0(W(1,4),W(1,2),W(1,5),GC_53,AMP(7))
+      CALL VVV1_0(W(4),W(2),W(5),GC_53,AMP(7))
       JAMP(1)=+AMP(1)+AMP(2)+AMP(3)+AMP(4)+AMP(5)+AMP(6)+AMP(7)
       LNJAMP(1)=+AMP(1)+AMP(2)+AMP(3)+AMP(4)+AMP(5)+AMP(6)+AMP(7)
 
@@ -299,30 +299,30 @@ C     ----------
         IC(I) = 1
       ENDDO
 
-      CALL VXXXXX(P(0,1),MDL_MW,NHEL(1),-1*IC(1),W(1,1))
-      CALL VXXXXX(P(0,2),MDL_MW,NHEL(2),-1*IC(2),W(1,2))
-      CALL VXXXXX(P(0,3),MDL_MW,NHEL(3),+1*IC(3),W(1,3))
-      CALL VXXXXX(P(0,4),MDL_MW,NHEL(4),+1*IC(4),W(1,4))
+      CALL VXXXXX(P(0,1),MDL_MW,NHEL(1),-1*IC(1),W(1))
+      CALL VXXXXX(P(0,2),MDL_MW,NHEL(2),-1*IC(2),W(2))
+      CALL VXXXXX(P(0,3),MDL_MW,NHEL(3),+1*IC(3),W(3))
+      CALL VXXXXX(P(0,4),MDL_MW,NHEL(4),+1*IC(4),W(4))
 C     Amplitude(s) for diagram number 1
-      CALL VVVV2_0(W(1,1),W(1,4),W(1,2),W(1,3),GC_35,AMP(1))
-      CALL VVV1P0_1(W(1,1),W(1,2),GC_4,ZERO,ZERO,W(1,5))
+      CALL VVVV2_0(W(1),W(4),W(2),W(3),GC_35,AMP(1))
+      CALL VVV1P0_1(W(1),W(2),GC_4,ZERO,ZERO,W(5))
 C     Amplitude(s) for diagram number 2
-      CALL VVV1_0(W(1,5),W(1,4),W(1,3),GC_4,AMP(2))
-      CALL VVS1_3(W(1,1),W(1,2),GC_72,MDL_MH,MDL_WH,W(1,5))
+      CALL VVV1_0(W(5),W(4),W(3),GC_4,AMP(2))
+      CALL VVS1_3(W(1),W(2),GC_72,MDL_MH,MDL_WH,W(5))
 C     Amplitude(s) for diagram number 3
-      CALL VVS1_0(W(1,4),W(1,3),W(1,5),GC_72,AMP(3))
-      CALL VVV1_3(W(1,1),W(1,2),GC_53,MDL_MZ,MDL_WZ,W(1,5))
+      CALL VVS1_0(W(4),W(3),W(5),GC_72,AMP(3))
+      CALL VVV1_3(W(1),W(2),GC_53,MDL_MZ,MDL_WZ,W(5))
 C     Amplitude(s) for diagram number 4
-      CALL VVV1_0(W(1,4),W(1,3),W(1,5),GC_53,AMP(4))
-      CALL VVV1P0_1(W(1,1),W(1,3),GC_4,ZERO,ZERO,W(1,5))
+      CALL VVV1_0(W(4),W(3),W(5),GC_53,AMP(4))
+      CALL VVV1P0_1(W(1),W(3),GC_4,ZERO,ZERO,W(5))
 C     Amplitude(s) for diagram number 5
-      CALL VVV1_0(W(1,5),W(1,4),W(1,2),GC_4,AMP(5))
-      CALL VVS1_3(W(1,1),W(1,3),GC_72,MDL_MH,MDL_WH,W(1,5))
+      CALL VVV1_0(W(5),W(4),W(2),GC_4,AMP(5))
+      CALL VVS1_3(W(1),W(3),GC_72,MDL_MH,MDL_WH,W(5))
 C     Amplitude(s) for diagram number 6
-      CALL VVS1_0(W(1,4),W(1,2),W(1,5),GC_72,AMP(6))
-      CALL VVV1_3(W(1,1),W(1,3),GC_53,MDL_MZ,MDL_WZ,W(1,5))
+      CALL VVS1_0(W(4),W(2),W(5),GC_72,AMP(6))
+      CALL VVV1_3(W(1),W(3),GC_53,MDL_MZ,MDL_WZ,W(5))
 C     Amplitude(s) for diagram number 7
-      CALL VVV1_0(W(1,4),W(1,2),W(1,5),GC_53,AMP(7))
+      CALL VVV1_0(W(4),W(2),W(5),GC_53,AMP(7))
       JAMP(1)=+AMP(1)+AMP(2)+AMP(3)+AMP(4)+AMP(5)+AMP(6)+AMP(7)
       LNJAMP(1)=+AMP(1)+AMP(2)+AMP(3)+AMP(4)+AMP(5)+AMP(6)+AMP(7)
 
