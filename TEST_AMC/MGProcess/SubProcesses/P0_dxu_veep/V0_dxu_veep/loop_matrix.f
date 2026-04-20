@@ -712,7 +712,7 @@ C     the split_order summed value I=0 is used in ML5 code.
       DO I=0,NSQSO_BORN
         BORNBUFF(I)=0.0D0
       ENDDO
-      CALL SMATRIXHEL_SPLITORDERS(P_USER,USERHEL,BORNBUFF(0))
+      CALL SMATRIXHEL_SPLITORDERS(P_USER,USERHEL,IC,BORNBUFF(0))
       DO I=0,NSQSO_BORN
         ANS(0,I)=BORNBUFF(I)
       ENDDO
