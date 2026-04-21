@@ -1,0 +1,2 @@
+../ajob1: line 102: ../madevent_mintFO: No such file or directory
+Time in seconds: 0

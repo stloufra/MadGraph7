@@ -177,6 +177,7 @@ C      only three external particles.
      $       -1.AND.(.NOT.IS_BORN_HEL_SELECTED(IHEL))) THEN
               CYCLE
             ENDIF
+            WRITE(*,*) 'DEBUG-BEFORE-MATRIX,IHEL=',IHEL
             CALL MATRIX(P ,NHEL(1,IHEL),FLAVOR(1), T)
             BUFF=0D0
             DO I=1,NSQAMPSO
@@ -317,8 +318,10 @@ C     1 T(1,4) T(3,2)
 C     ----------
 C     BEGIN CODE
 C     ----------
+      WRITE(*,*) 'DEBUG-IN-MATRIX-START'
       CALL OXXXXX(P(0,1),ZERO,NHEL(1),-1, FLAVOR(1),W(1))
       CALL IXXXXX(P(0,2),ZERO,NHEL(2),+1, FLAVOR(2),W(2))
+      WRITE(*,*) 'DEBUG-AFTER-OXXXXX-1'
       CALL OXXXXX(P(0,3),MDL_MT,NHEL(3),+1, FLAVOR(3),W(3))
       CALL IXXXXX(P(0,4),MDL_MT,NHEL(4),-1, FLAVOR(4),W(4))
       CALL FFV1P0_3(W(2),W(1),GC_5,ZERO,ZERO,W(5))

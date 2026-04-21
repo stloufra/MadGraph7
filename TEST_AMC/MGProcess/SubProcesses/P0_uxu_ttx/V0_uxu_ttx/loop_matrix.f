@@ -458,6 +458,7 @@ C     ----------
         CALL SETMADLOOPPATH(TMP)
         CALL JOINPATH(MLPATH,PARAMFNAME,PARAMFN)
         CALL MADLOOPPARAMREADER(PARAMFN,.TRUE.)
+        WRITE(*,*) 'DEBUG-AFTER-PARAMREADER'
         IF (FORCED_CHOICE_OF_COLLIER_UV_POLE_COMPUTATION) THEN
           COLLIERCOMPUTEUVPOLES = COLLIER_UV_POLE_COMPUTATION_CHOICE
         ENDIF
@@ -611,6 +612,7 @@ C        flipped fermion flow.
           STOP
         ENDIF
       ENDIF
+      WRITE(*,*) 'DEBUG-AFTER-LOCAL-INIT'
 
 C     This is the chare conjugate version of the unit 4-currents in
 C      the canonical cartesian basis.
@@ -714,6 +716,7 @@ C     the split_order summed value I=0 is used in ML5 code.
       DO I=0,NSQSO_BORN
         BORNBUFF(I)=0.0D0
       ENDDO
+      WRITE(*,*) 'DEBUG-BEFORE-SMATRIXHEL'
       CALL SMATRIXHEL_SPLITORDERS(P_USER,USERHEL,IC,BORNBUFF(0))
       DO I=0,NSQSO_BORN
         ANS(0,I)=BORNBUFF(I)

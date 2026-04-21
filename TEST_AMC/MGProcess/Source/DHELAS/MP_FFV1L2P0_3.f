@@ -7,14 +7,14 @@ C
       IMPLICIT NONE
       COMPLEX*32 CI
       PARAMETER (CI=(0Q0,1Q0))
-      REAL*16 M3
-      REAL*16 W3
-      COMPLEX*32 P2(0:3)
       TYPE(MP_ALOHA) F1
-      COMPLEX*32 P3(0:3)
+      REAL*16 M3
+      COMPLEX*32 P2(0:3)
       COMPLEX*32 COUP
+      COMPLEX*32 P3(0:3)
       INCLUDE 'coef_specs.inc'
       COMPLEX*32 COEFF(MAXLWFSIZE,0:VERTEXMAXCOEFS-1,MAXLWFSIZE)
+      REAL*16 W3
       P3(0) = +F1%P(0)+P2(0)
       P3(1) = +F1%P(1)+P2(1)
       P3(2) = +F1%P(2)+P2(2)
