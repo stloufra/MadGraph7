@@ -1,6 +1,5 @@
 #pragma once
 
-#include <format>
 #include <vector>
 
 #include "madspace/phasespace/base.h"

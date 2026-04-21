@@ -10,8 +10,26 @@ MadnisLoss::MadnisLoss(
         "MadnisLoss",
         [&] {
             NamedVector<Type> arg_types;
-            for (auto& func : functions) {
-                arg_types.insert_back(func->arg_types());
+            for (std::size_t index = 0; auto& func : functions) {
+                arg_types.push_back(
+                    std::format("chan{}_integrand", index), batch_float
+                );
+                arg_types.push_back(
+                    std::format("chan{}_sample_prob", index), batch_float
+                );
+                if (cwnet) {
+                    arg_types.push_back(
+                        std::format("chan{}_cwnet_inputs", index), batch_float
+                    );
+                    arg_types.push_back(
+                        std::format("chan{}_channel_indices", index), batch_int
+                    );
+                }
+                auto& func_arg_types = func->arg_types();
+                for (auto [key, type] : zip(func_arg_types.keys(), func_arg_types)) {
+                    arg_types.push_back(std::format("chan{}_{}", index, key), type);
+                }
+                ++index;
             }
             return arg_types;
         }(),
@@ -25,22 +43,71 @@ MadnisLoss::MadnisLoss(
 NamedVector<Value> MadnisLoss::build_function_impl(
     FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
-    std::vector<ValueVec> split_outputs(return_types().size());
+    ValueVec integrands, flow_probs, sample_probs, cwnet_inputs, chan_indices;
+    std::size_t extra_args = _cwnet ? 4 : 2;
     for (std::size_t index = 0, arg_index = 0; auto& func : _functions) {
-        std::size_t arg_index_end = arg_index + func->arg_types().size();
-        ValueVec func_args(args.begin() + arg_index, args.begin() + arg_index_end);
+        std::size_t arg_index_end = arg_index + func->arg_types().size() + extra_args;
+        integrands.push_back(args.at(arg_index));
+        sample_probs.push_back(args.at(arg_index + 1));
+        if (_cwnet) {
+            cwnet_inputs.push_back(args.at(arg_index + 2));
+            chan_indices.push_back(args.at(arg_index + 3));
+        }
+        ValueVec func_args(
+            args.begin() + arg_index + extra_args, args.begin() + arg_index_end
+        );
         fb.set_current_stream(index + 1);
         auto output = func->build_function(fb, func_args);
-        for (std::size_t split_out_index = 0; auto& out : output) {
-            split_outputs.at(split_out_index).push_back(out);
-            ++split_out_index;
-        }
-        // compute mean
-        // compute variance
-        // compute loss
+        flow_probs.push_back(output.at(0));
         ++index;
         arg_index = arg_index_end;
     }
     fb.set_current_stream(0);
-    return {};
+
+    ValueVec chan_weights;
+    if (_cwnet) {
+        auto [cwnet_in_all, counts] = fb.batch_cat(cwnet_inputs);
+        auto [chan_indices_all, counts_idx] = fb.batch_cat(chan_indices);
+        auto cwnet_out_all = _cwnet->build_function(fb, {cwnet_in_all});
+        auto chan_weight_all = fb.gather(cwnet_out_all.at(0), chan_indices_all);
+        chan_weights = fb.batch_split(chan_weight_all, counts);
+    } else {
+        chan_weights = ValueVec(_functions.size());
+    }
+
+    ValueVec chan_losses, chan_means, chan_abs_means, chan_variances;
+    for (std::size_t index = 0;
+         auto [integrand, g, q, cw] :
+         zip(integrands, flow_probs, sample_probs, chan_weights)) {
+        fb.set_current_stream(index + 1);
+        Value f = _cwnet ? fb.mul(cw, integrand) : integrand;
+        Value mean = fb.batch_reduce_mean(fb.div(f, q));
+        Value abs_mean = fb.batch_reduce_mean(fb.madnis_abs_weight(f, q));
+        Value variance = fb.batch_reduce_mean(fb.madnis_variance(f, g, q, mean));
+        chan_means.push_back(mean);
+        chan_abs_means.push_back(abs_mean);
+        chan_variances.push_back(variance);
+        ++index;
+    }
+    fb.set_current_stream(0);
+
+    if (_functions.size() == 1) {
+        return {
+            {"loss",
+             fb.madnis_single_channel_variance(
+                 chan_variances.at(0), chan_abs_means.at(0)
+             )},
+            {"means", fb.unsqueeze(chan_means.at(0))},
+            {"variances", fb.unsqueeze(chan_variances.at(0))},
+        };
+    } else {
+        Value loss = fb.madnis_multi_channel_variance(
+            fb.stack(chan_variances), fb.stack(chan_abs_means)
+        );
+        return {
+            {"loss", loss},
+            {"means", fb.stack(chan_means)},
+            {"variances", fb.stack(chan_variances)},
+        };
+    }
 }

@@ -1228,6 +1228,15 @@ PYBIND11_MODULE(_madspace_py, m) {
     py::classh<IntegrandProbability, FunctionGenerator>(m, "IntegrandProbability")
         .def(py::init<const Integrand&>(), py::arg("integrand"));
 
+    py::classh<MadnisLoss, FunctionGenerator>(m, "MadnisLoss")
+        .def(
+            py::init<
+                const std::vector<std::shared_ptr<FunctionGenerator>>&,
+                const std::optional<ChannelWeightNetwork>&>(),
+            py::arg("functions"),
+            py::arg("cwnet")
+        );
+
     add_enum<GeneratorConfig::Verbosity>(
         m,
         "GeneratorVerbosity",
