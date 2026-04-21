@@ -134,7 +134,7 @@ namespace mgOnGpu /* clang-format off */
     __host__ __device__ constexpr cxsmpl& operator-=( const cxsmpl& c ) { m_real -= c.real(); m_imag -= c.imag(); return *this; }
     __host__ __device__ constexpr const FP& real() const { return m_real; }
     __host__ __device__ constexpr const FP& imag() const { return m_imag; }
-    template<typename FP2> __host__ __device__ constexpr operator cxsmpl<FP2>() const { return cxsmpl<FP2>( m_real, m_imag ); }
+    template<typename FP2> explicit __host__ __device__ constexpr operator cxsmpl<FP2>() const { return cxsmpl<FP2>( m_real, m_imag ); }
 #ifdef __CUDACC__ // this must be __CUDACC__ (not MGONGPUCPP_GPUIMPL)
 #ifdef MGONGPU_CUCXTYPE_THRUST
     template<typename FP2> __host__ __device__ constexpr operator thrust::complex<FP2>() const { return thrust::complex<FP2>( m_real, m_imag ); }
@@ -290,6 +290,102 @@ namespace mg5amcCpu
   {
     return a / cxsmpl<FP>( b, 0 );
   }
+
+  //CADNA operator overload
+  template <typename T>
+  constexpr bool is_special_fp_v =
+      std::is_same_v<T, double_st> || std::is_same_v<T, float_st>;
+  
+  template <typename FP, typename FP2,
+            std::enable_if_t<is_special_fp_v<FP> || is_special_fp_v<FP2>, int> = 0>
+  inline constexpr auto
+  operator+(const cxsmpl<FP>& a, const cxsmpl<FP2>& b)
+  {
+      if constexpr (is_special_fp_v<FP>)
+      {
+          cxsmpl<FP> b_temp = b;
+          return cxsmpl<FP>(a.real() + b_temp.real(), a.imag() + b_temp.imag());
+      }
+      else
+      {
+          cxsmpl<FP2> a_temp = a;
+          return cxsmpl<FP2>(a_temp.real() + b.real(), a_temp.imag() + b.imag());
+      }
+  }
+  
+  template <typename FP, typename FP2,
+            std::enable_if_t<is_special_fp_v<FP> || is_special_fp_v<FP2>, int> = 0>
+  inline constexpr auto
+  operator-(const cxsmpl<FP>& a, const cxsmpl<FP2>& b)
+  {
+      if constexpr (is_special_fp_v<FP>)
+      {
+          cxsmpl<FP> b_temp = b;
+          return cxsmpl<FP>(a.real() - b_temp.real(), a.imag() - b_temp.imag());
+      }
+      else
+      {
+          cxsmpl<FP2> a_temp = a;
+          return cxsmpl<FP2>(a_temp.real() - b.real(), a_temp.imag() - b.imag());
+      }
+  }
+  
+  template <typename FP, typename FP2,
+            std::enable_if_t<is_special_fp_v<FP> || is_special_fp_v<FP2>, int> = 0>
+  inline constexpr auto
+  operator*(const cxsmpl<FP>& a, const cxsmpl<FP2>& b)
+  {
+      if constexpr (is_special_fp_v<FP>)
+      {
+          cxsmpl<FP> b_temp = b;
+          return cxsmpl<FP>(a.real() * b_temp.real() - a.imag() * b_temp.imag(),
+                            a.imag() * b_temp.real() + a.real() * b_temp.imag());
+      }
+      else
+      {
+          cxsmpl<FP2> a_temp = a;
+          return cxsmpl<FP2>(a_temp.real() * b.real() - a_temp.imag() * b.imag(),
+                             a_temp.imag() * b.real() + a_temp.real() * b.imag());
+      }
+  }
+  
+  template <typename FP, typename FP2,
+            std::enable_if_t<is_special_fp_v<FP> || is_special_fp_v<FP2>, int> = 0>
+  inline constexpr auto
+  operator/(const cxsmpl<FP>& a, const cxsmpl<FP2>& b)
+  {
+      if constexpr (is_special_fp_v<FP>)
+      {
+          cxsmpl<FP> b_temp = b;
+          FP bnorm = b_temp.real() * b_temp.real() + b_temp.imag() * b_temp.imag();
+          return cxsmpl<FP>((a.real() * b_temp.real() + a.imag() * b_temp.imag()) / bnorm,
+                            (a.imag() * b_temp.real() - a.real() * b_temp.imag()) / bnorm);
+      }
+      else
+      {
+          cxsmpl<FP2> a_temp = a;
+          FP2 bnorm = b.real() * b.real() + b.imag() * b.imag();
+          return cxsmpl<FP2>((a_temp.real() * b.real() + a_temp.imag() * b.imag()) / bnorm,
+                             (a_temp.imag() * b.real() - a_temp.real() * b.imag()) / bnorm);
+      }
+  }
+
+template < typename FP2,
+            std::enable_if_t< is_special_fp_v<FP2>, int> = 0>
+  inline constexpr auto
+  operator*(const double& a, const cxsmpl<FP2>& b)
+  {
+      return cxsmpl<FP2>(a,0. )*b;
+  }
+
+  template < typename FP2,
+            std::enable_if_t< is_special_fp_v<FP2>, int> = 0>
+  inline constexpr auto
+  operator*( const cxsmpl<FP2>& a, const double& b)
+  {
+    return a*cxsmpl<FP2>(b,0.);
+  }
+
 }
 
 //==========================================================================
