@@ -1117,7 +1117,7 @@ c
 	double precision xtarget
 
     if (ickkw.gt.0) then
-        if (ivec.eq.0) then
+        if (VECSIZE_MEMMAX.eq.1.and.igraphs(1).ne.0) then
             iconfig = igraphs(1)
         else
             iconfig = vec_igraph(ivec)
