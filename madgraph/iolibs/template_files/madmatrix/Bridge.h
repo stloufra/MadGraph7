@@ -15,6 +15,11 @@
 #include "MemoryAccessMomenta.h"  // for MemoryAccessMomenta::neppM
 #include "MemoryBuffers.h"        // for HostBufferMomenta, DeviceBufferMomenta etc
 
+#ifdef __CADNA_ANALYSIS__
+#include <cadna.h>
+#include <iomanip>
+#endif
+
 //#ifdef __HIPCC__
 //#include <experimental/filesystem> // see
 //https://rocm.docs.amd.com/en/docs-5.4.3/CHANGELOG.html#id79 #else #include
@@ -409,6 +414,34 @@ paramCard; #endif
     copyHostFromDevice( m_hstMEs, m_devMEs );
 #ifdef MGONGPUCPP_VERBOSE
     flagAbnormalMEs( m_hstMEs.data(), m_nevt );
+#ifdef __CADNA_ANALYSIS__
+    for(unsigned int ievt = 0 ; ievt< m_nevt; ievt++)
+    { 
+      // Display momenta
+        std::cout << "Momenta:" << std::endl;
+        for( int ipar = 0; ipar < CPPProcess::npar; ipar++ )
+        {
+          // NB: 'setw' affects only the next field (of any type)
+          std::cout << std::scientific // fixed format: affects all floats (default precision: 6)
+          << std::setw( 4 ) << ipar + 1
+          << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( m_hstMomentaC.data(), ievt, 0, ipar )
+          << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( m_hstMomentaC.data(), ievt, 1, ipar )
+          << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( m_hstMomentaC.data(), ievt, 2, ipar )
+          << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( m_hstMomentaC.data(), ievt, 3, ipar )
+          << std::endl
+          << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( m_hstMomentaC.data(), ievt, 0, ipar ).nb_significant_digit()
+          << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( m_hstMomentaC.data(), ievt, 1, ipar ).nb_significant_digit()
+          << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( m_hstMomentaC.data(), ievt, 2, ipar ).nb_significant_digit()
+          << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( m_hstMomentaC.data(), ievt, 3, ipar ).nb_significant_digit()
+          << std::endl
+          << std::defaultfloat; // default format: affects all floats
+        }
+      std::cout << std::string( 79, '-' ) << std::endl;
+      std::cout << " Matrix element = " <<  m_hstMEs.data()[ievt] << " GeV^"  << std::endl;
+      std::cout << " Matrix element number of sig dig = " <<  m_hstMEs.data()[ievt].nb_significant_digit() << std::endl;
+      std::cout << std::string( 79, '-' ) << std::endl;
+    }
+#endif
 #endif
     copyHostFromDevice( m_hstSelHel, m_devSelHel );
     copyHostFromDevice( m_hstSelCol, m_devSelCol );
@@ -471,6 +504,34 @@ paramCard; #endif
     m_pmek->computeMatrixElements( useChannelIds );
 #ifdef MGONGPUCPP_VERBOSE
     flagAbnormalMEs( m_hstMEs.data(), m_nevt );
+#ifdef __CADNA_ANALYSIS__
+    for(unsigned int ievt = 0 ; ievt< m_nevt; ievt++)
+    { 
+      // Display momenta
+        std::cout << "Momenta:" << std::endl;
+        for( int ipar = 0; ipar < CPPProcess::npar; ipar++ )
+        {
+          // NB: 'setw' affects only the next field (of any type)
+          std::cout << std::scientific // fixed format: affects all floats (default precision: 6)
+          << std::setw( 4 ) << ipar + 1
+          << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( m_hstMomentaC.data(), ievt, 0, ipar )
+          << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( m_hstMomentaC.data(), ievt, 1, ipar )
+          << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( m_hstMomentaC.data(), ievt, 2, ipar )
+          << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( m_hstMomentaC.data(), ievt, 3, ipar )
+          << std::endl
+          << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( m_hstMomentaC.data(), ievt, 0, ipar ).nb_significant_digit()
+          << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( m_hstMomentaC.data(), ievt, 1, ipar ).nb_significant_digit()
+          << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( m_hstMomentaC.data(), ievt, 2, ipar ).nb_significant_digit()
+          << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( m_hstMomentaC.data(), ievt, 3, ipar ).nb_significant_digit()
+          << std::endl
+          << std::defaultfloat; // default format: affects all floats
+        }
+      std::cout << std::string( 79, '-' ) << std::endl;
+      std::cout << " Matrix element = " <<  m_hstMEs.data()[ievt] << " GeV^"  << std::endl;
+      std::cout << " Matrix element number of sig dig = " <<  m_hstMEs.data()[ievt].nb_significant_digit() << std::endl;
+      std::cout << std::string( 79, '-' ) << std::endl;
+    }
+#endif
 #endif
     if constexpr( std::is_same_v<FORTRANFPTYPE, fptype> )
     {

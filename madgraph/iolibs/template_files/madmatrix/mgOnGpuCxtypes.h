@@ -235,6 +235,7 @@ namespace mg5amcCpu
     return cxsmpl<FP>( a, 0 ) * b;
   }
 
+#ifndef __CADNA_ANALYSIS__
   inline __host__ __device__ constexpr cxsmpl<float>
   operator*( const double& a, const cxsmpl<float>& b )
   {
@@ -246,6 +247,7 @@ namespace mg5amcCpu
   {
     return a * cxsmpl<float>( b, 0 );
   }
+#endif
 
   template<typename FP>
   inline __host__ __device__ constexpr cxsmpl<FP>
@@ -291,6 +293,7 @@ namespace mg5amcCpu
     return a / cxsmpl<FP>( b, 0 );
   }
 
+#ifdef __CADNA_ANALYSIS__
   //CADNA operator overload
   template <typename T>
   constexpr bool is_special_fp_v =
@@ -370,7 +373,7 @@ namespace mg5amcCpu
       }
   }
 
-template < typename FP2,
+  template < typename FP2,
             std::enable_if_t< is_special_fp_v<FP2>, int> = 0>
   inline constexpr auto
   operator*(const double& a, const cxsmpl<FP2>& b)
@@ -385,6 +388,7 @@ template < typename FP2,
   {
     return a*cxsmpl<FP2>(b,0.);
   }
+#endif
 
 }
 
