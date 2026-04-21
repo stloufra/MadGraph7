@@ -1,1 +1,0 @@
-../pineappl_interface.cc
