@@ -328,7 +328,6 @@ C            component
 
       SUBROUTINE ML5_0_LOOP_2(W1, W2, M1, M2,  RANK, SQUAREDSOINDEX,
      $  LOOPNUM)
-      USE ALOHA_OBJECT
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=5)
       INTEGER    NLOOPLINE
@@ -379,9 +378,9 @@ C
       COMMON/ML5_0_LOOPRES/LOOPRES,S
 
 
-      type(aloha) W(NWAVEFUNCS)
+      COMPLEX*16 W(20,NWAVEFUNCS)
       COMMON/ML5_0_W/W
-      type(mp_aloha) MP_W(NWAVEFUNCS)
+      COMPLEX*32 MP_W(20,NWAVEFUNCS)
       COMMON/ML5_0_MP_W/MP_W
 
       REAL*8 LSCALE
@@ -418,9 +417,9 @@ C     Determine it uses qp or not
               MP_PL(I,J)=0.0E+0_16
             ENDIF
             DO K=TEMP,(TEMP+PAIRING(J)-1)
-              PL(I,J)=PL(I,J)-DBLE(W(WE(K))%W(1+I))
+              PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K)))
               IF (DOING_QP) THEN
-                MP_PL(I,J)=MP_PL(I,J)-REAL(MP_W(WE(K))%W(1+I),KIND=16)
+                MP_PL(I,J)=MP_PL(I,J)-REAL(MP_W(1+I,WE(K)),KIND=16)
               ENDIF
             ENDDO
             TEMP=TEMP+PAIRING(J)
@@ -461,7 +460,6 @@ C         Tensor Integral Reduction is used
 
       SUBROUTINE ML5_0_LOOP_3(W1, W2, W3, M1, M2, M3,  RANK,
      $  SQUAREDSOINDEX, LOOPNUM)
-      USE ALOHA_OBJECT
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=5)
       INTEGER    NLOOPLINE
@@ -512,9 +510,9 @@ C
       COMMON/ML5_0_LOOPRES/LOOPRES,S
 
 
-      type(aloha) W(NWAVEFUNCS)
+      COMPLEX*16 W(20,NWAVEFUNCS)
       COMMON/ML5_0_W/W
-      type(mp_aloha) MP_W(NWAVEFUNCS)
+      COMPLEX*32 MP_W(20,NWAVEFUNCS)
       COMMON/ML5_0_MP_W/MP_W
 
       REAL*8 LSCALE
@@ -553,9 +551,9 @@ C     Determine it uses qp or not
               MP_PL(I,J)=0.0E+0_16
             ENDIF
             DO K=TEMP,(TEMP+PAIRING(J)-1)
-              PL(I,J)=PL(I,J)-DBLE(W(WE(K))%W(1+I))
+              PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K)))
               IF (DOING_QP) THEN
-                MP_PL(I,J)=MP_PL(I,J)-REAL(MP_W(WE(K))%W(1+I),KIND=16)
+                MP_PL(I,J)=MP_PL(I,J)-REAL(MP_W(1+I,WE(K)),KIND=16)
               ENDIF
             ENDDO
             TEMP=TEMP+PAIRING(J)
@@ -596,7 +594,6 @@ C         Tensor Integral Reduction is used
 
       SUBROUTINE ML5_0_LOOP_4(W1, W2, W3, W4, M1, M2, M3, M4,  RANK,
      $  SQUAREDSOINDEX, LOOPNUM)
-      USE ALOHA_OBJECT
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=5)
       INTEGER    NLOOPLINE
@@ -647,9 +644,9 @@ C
       COMMON/ML5_0_LOOPRES/LOOPRES,S
 
 
-      type(aloha) W(NWAVEFUNCS)
+      COMPLEX*16 W(20,NWAVEFUNCS)
       COMMON/ML5_0_W/W
-      type(mp_aloha) MP_W(NWAVEFUNCS)
+      COMPLEX*32 MP_W(20,NWAVEFUNCS)
       COMMON/ML5_0_MP_W/MP_W
 
       REAL*8 LSCALE
@@ -690,9 +687,9 @@ C     Determine it uses qp or not
               MP_PL(I,J)=0.0E+0_16
             ENDIF
             DO K=TEMP,(TEMP+PAIRING(J)-1)
-              PL(I,J)=PL(I,J)-DBLE(W(WE(K))%W(1+I))
+              PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K)))
               IF (DOING_QP) THEN
-                MP_PL(I,J)=MP_PL(I,J)-REAL(MP_W(WE(K))%W(1+I),KIND=16)
+                MP_PL(I,J)=MP_PL(I,J)-REAL(MP_W(1+I,WE(K)),KIND=16)
               ENDIF
             ENDDO
             TEMP=TEMP+PAIRING(J)
@@ -733,7 +730,6 @@ C         Tensor Integral Reduction is used
 
       SUBROUTINE ML5_0_LOOP_5(W1, W2, W3, W4, W5, M1, M2, M3, M4, M5, 
      $  RANK, SQUAREDSOINDEX, LOOPNUM)
-      USE ALOHA_OBJECT
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=5)
       INTEGER    NLOOPLINE
@@ -784,9 +780,9 @@ C
       COMMON/ML5_0_LOOPRES/LOOPRES,S
 
 
-      type(aloha) W(NWAVEFUNCS)
+      COMPLEX*16 W(20,NWAVEFUNCS)
       COMMON/ML5_0_W/W
-      type(mp_aloha) MP_W(NWAVEFUNCS)
+      COMPLEX*32 MP_W(20,NWAVEFUNCS)
       COMMON/ML5_0_MP_W/MP_W
 
       REAL*8 LSCALE
@@ -829,9 +825,9 @@ C     Determine it uses qp or not
               MP_PL(I,J)=0.0E+0_16
             ENDIF
             DO K=TEMP,(TEMP+PAIRING(J)-1)
-              PL(I,J)=PL(I,J)-DBLE(W(WE(K))%W(1+I))
+              PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K)))
               IF (DOING_QP) THEN
-                MP_PL(I,J)=MP_PL(I,J)-REAL(MP_W(WE(K))%W(1+I),KIND=16)
+                MP_PL(I,J)=MP_PL(I,J)-REAL(MP_W(1+I,WE(K)),KIND=16)
               ENDIF
             ENDDO
             TEMP=TEMP+PAIRING(J)
@@ -872,7 +868,6 @@ C         Tensor Integral Reduction is used
 
       SUBROUTINE ML5_0_LOOP_2_3(P1, P2, W1, W2, W3, M1, M2,  RANK,
      $  SQUAREDSOINDEX, LOOPNUM)
-      USE ALOHA_OBJECT
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=5)
       INTEGER    NLOOPLINE
@@ -923,9 +918,9 @@ C
       COMMON/ML5_0_LOOPRES/LOOPRES,S
 
 
-      type(aloha) W(NWAVEFUNCS)
+      COMPLEX*16 W(20,NWAVEFUNCS)
       COMMON/ML5_0_W/W
-      type(mp_aloha) MP_W(NWAVEFUNCS)
+      COMPLEX*32 MP_W(20,NWAVEFUNCS)
       COMMON/ML5_0_MP_W/MP_W
 
       REAL*8 LSCALE
@@ -961,9 +956,9 @@ C     Determine it uses qp or not
               MP_PL(I,J)=0.0E+0_16
             ENDIF
             DO K=TEMP,(TEMP+PAIRING(J)-1)
-              PL(I,J)=PL(I,J)-DBLE(W(WE(K))%W(1+I))
+              PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K)))
               IF (DOING_QP) THEN
-                MP_PL(I,J)=MP_PL(I,J)-REAL(MP_W(WE(K))%W(1+I),KIND=16)
+                MP_PL(I,J)=MP_PL(I,J)-REAL(MP_W(1+I,WE(K)),KIND=16)
               ENDIF
             ENDDO
             TEMP=TEMP+PAIRING(J)
@@ -1004,7 +999,6 @@ C         Tensor Integral Reduction is used
 
       SUBROUTINE ML5_0_LOOP_3_4(P1, P2, P3, W1, W2, W3, W4, M1, M2, M3
      $ ,  RANK, SQUAREDSOINDEX, LOOPNUM)
-      USE ALOHA_OBJECT
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=5)
       INTEGER    NLOOPLINE
@@ -1055,9 +1049,9 @@ C
       COMMON/ML5_0_LOOPRES/LOOPRES,S
 
 
-      type(aloha) W(NWAVEFUNCS)
+      COMPLEX*16 W(20,NWAVEFUNCS)
       COMMON/ML5_0_W/W
-      type(mp_aloha) MP_W(NWAVEFUNCS)
+      COMPLEX*32 MP_W(20,NWAVEFUNCS)
       COMMON/ML5_0_MP_W/MP_W
 
       REAL*8 LSCALE
@@ -1096,9 +1090,9 @@ C     Determine it uses qp or not
               MP_PL(I,J)=0.0E+0_16
             ENDIF
             DO K=TEMP,(TEMP+PAIRING(J)-1)
-              PL(I,J)=PL(I,J)-DBLE(W(WE(K))%W(1+I))
+              PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K)))
               IF (DOING_QP) THEN
-                MP_PL(I,J)=MP_PL(I,J)-REAL(MP_W(WE(K))%W(1+I),KIND=16)
+                MP_PL(I,J)=MP_PL(I,J)-REAL(MP_W(1+I,WE(K)),KIND=16)
               ENDIF
             ENDDO
             TEMP=TEMP+PAIRING(J)
@@ -1139,7 +1133,6 @@ C         Tensor Integral Reduction is used
 
       SUBROUTINE ML5_0_LOOP_4_5(P1, P2, P3, P4, W1, W2, W3, W4, W5, M1
      $ , M2, M3, M4,  RANK, SQUAREDSOINDEX, LOOPNUM)
-      USE ALOHA_OBJECT
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=5)
       INTEGER    NLOOPLINE
@@ -1190,9 +1183,9 @@ C
       COMMON/ML5_0_LOOPRES/LOOPRES,S
 
 
-      type(aloha) W(NWAVEFUNCS)
+      COMPLEX*16 W(20,NWAVEFUNCS)
       COMMON/ML5_0_W/W
-      type(mp_aloha) MP_W(NWAVEFUNCS)
+      COMPLEX*32 MP_W(20,NWAVEFUNCS)
       COMMON/ML5_0_MP_W/MP_W
 
       REAL*8 LSCALE
@@ -1234,9 +1227,9 @@ C     Determine it uses qp or not
               MP_PL(I,J)=0.0E+0_16
             ENDIF
             DO K=TEMP,(TEMP+PAIRING(J)-1)
-              PL(I,J)=PL(I,J)-DBLE(W(WE(K))%W(1+I))
+              PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K)))
               IF (DOING_QP) THEN
-                MP_PL(I,J)=MP_PL(I,J)-REAL(MP_W(WE(K))%W(1+I),KIND=16)
+                MP_PL(I,J)=MP_PL(I,J)-REAL(MP_W(1+I,WE(K)),KIND=16)
               ENDIF
             ENDDO
             TEMP=TEMP+PAIRING(J)

@@ -622,13 +622,13 @@ C     ----------
             IF (NHEL(GLU_IJ).NE.0) NHEL(GLU_IJ) = IHEL
           ENDIF
           IF (.NOT. CALCULATEDBORN) THEN
-            CALL IXXXXX(P(0,1),MDL_MT,NHEL(1),+1, FLAVOR(1),W(1))
-            CALL OXXXXX(P(0,2),MDL_MB,NHEL(2),+1, FLAVOR(2),W(2))
-            CALL OXXXXX(P(0,3),ZERO,NHEL(3),+1, FLAVOR(3),W(3))
-            CALL IXXXXX(P(0,4),ZERO,NHEL(4),-1, FLAVOR(4),W(4))
-            CALL FFV2_3(W(4),W(3),GC_100,MDL_MW,MDL_WW,W(5))
+            CALL IXXXXX(P(0,1),MDL_MT,NHEL(1),+1*IC(1),W(1,1))
+            CALL OXXXXX(P(0,2),MDL_MB,NHEL(2),+1*IC(2),W(1,2))
+            CALL OXXXXX(P(0,3),ZERO,NHEL(3),+1*IC(3),W(1,3))
+            CALL IXXXXX(P(0,4),ZERO,NHEL(4),-1*IC(4),W(1,4))
+            CALL FFV2_3(W(1,4),W(1,3),GC_100,MDL_MW,MDL_WW,W(1,5))
 C           Amplitude(s) for diagram number 1
-            CALL FFV2_0(W(1),W(2),W(5),GC_100,AMP(1))
+            CALL FFV2_0(W(1,1),W(1,2),W(1,5),GC_100,AMP(1))
             DO I=1,NGRAPHS
               IF(IHEL.EQ.BACK_HEL)THEN
                 SAVEAMP(I,HELL)=AMP(I)

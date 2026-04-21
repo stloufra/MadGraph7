@@ -11,7 +11,6 @@ c**                                                                    **
 c************************************************************************
 
       subroutine printout
-      use model_object
       implicit none
 
       

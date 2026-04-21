@@ -284,24 +284,24 @@ C     ----------
 C     BEGIN CODE
 C     ----------
       JAMP(:,:) = (0D0,0D0)
-      CALL OXXXXX(P(0,1),ZERO,NHEL(1),-1*IC(1),W(1))
-      CALL IXXXXX(P(0,2),ZERO,NHEL(2),+1*IC(2),W(2))
-      CALL OXXXXX(P(0,3),ZERO,NHEL(3),+1*IC(3),W(3))
-      CALL IXXXXX(P(0,4),ZERO,NHEL(4),-1*IC(4),W(4))
-      CALL VXXXXX(P(0,5),ZERO,NHEL(5),+1*IC(5),W(5))
-      CALL FFV2P0_3(W(2),W(1),GC_124,DCMPLX(CMASS_MDL_MW),W(6))
-      CALL FFV2P0_3(W(4),W(3),GC_124,DCMPLX(CMASS_MDL_MW),W(7))
+      CALL OXXXXX(P(0,1),ZERO,NHEL(1),-1*IC(1),W(1,1))
+      CALL IXXXXX(P(0,2),ZERO,NHEL(2),+1*IC(2),W(1,2))
+      CALL OXXXXX(P(0,3),ZERO,NHEL(3),+1*IC(3),W(1,3))
+      CALL IXXXXX(P(0,4),ZERO,NHEL(4),-1*IC(4),W(1,4))
+      CALL VXXXXX(P(0,5),ZERO,NHEL(5),+1*IC(5),W(1,5))
+      CALL FFV2P0_3(W(1,2),W(1,1),GC_124,DCMPLX(CMASS_MDL_MW),W(1,6))
+      CALL FFV2P0_3(W(1,4),W(1,3),GC_124,DCMPLX(CMASS_MDL_MW),W(1,7))
 C     Amplitude(s) for diagram number 1
-      CALL VVV1_0(W(5),W(6),W(7),-GC_3,AMP(1))
-      CALL FFV1_2(W(4),W(5),GC_3,DCMPLX(ZERO),W(8))
+      CALL VVV1_0(W(1,5),W(1,6),W(1,7),-GC_3,AMP(1))
+      CALL FFV1_2(W(1,4),W(1,5),GC_3,DCMPLX(ZERO),W(1,8))
 C     Amplitude(s) for diagram number 2
-      CALL FFV2_0(W(8),W(3),W(6),GC_124,AMP(2))
-      CALL FFV1_1(W(1),W(5),GC_1,DCMPLX(ZERO),W(8))
+      CALL FFV2_0(W(1,8),W(1,3),W(1,6),GC_124,AMP(2))
+      CALL FFV1_1(W(1,1),W(1,5),GC_1,DCMPLX(ZERO),W(1,8))
 C     Amplitude(s) for diagram number 3
-      CALL FFV2_0(W(2),W(8),W(7),GC_124,AMP(3))
-      CALL FFV1_2(W(2),W(5),GC_2,DCMPLX(ZERO),W(8))
+      CALL FFV2_0(W(1,2),W(1,8),W(1,7),GC_124,AMP(3))
+      CALL FFV1_2(W(1,2),W(1,5),GC_2,DCMPLX(ZERO),W(1,8))
 C     Amplitude(s) for diagram number 4
-      CALL FFV2_0(W(8),W(1),W(7),GC_124,AMP(4))
+      CALL FFV2_0(W(1,8),W(1,1),W(1,7),GC_124,AMP(4))
 C     JAMPs contributing to orders QCD=0 QED=3
       JAMP(1,1) = AMP(1)+AMP(2)+AMP(3)+AMP(4)
 

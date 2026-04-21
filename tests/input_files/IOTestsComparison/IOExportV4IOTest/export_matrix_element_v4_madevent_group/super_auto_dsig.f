@@ -30,10 +30,9 @@ C     ****************************************************
       LOGICAL INIT
 
 
-      DOUBLE PRECISION SELPROC(2, MAXFLAVPERPROC, MAXSPROC,
-     $  LMAXCONFIGS)
+      DOUBLE PRECISION SELPROC(2, MAXSPROC, LMAXCONFIGS)
       INTEGER LARGEDIM
-      PARAMETER (LARGEDIM=2*MAXSPROC*MAXFLAVPERPROC*LMAXCONFIGS)
+      PARAMETER (LARGEDIM=2*MAXSPROC*LMAXCONFIGS)
       DATA SELPROC/LARGEDIM*0D0/
       DOUBLE PRECISION SUMPROB
       DATA SUMPROB/0D0/
@@ -44,10 +43,8 @@ C     TODO: MOVE THIS AS A COMMON BLOCK?
       INCLUDE 'config_subproc_map.inc'
       INTEGER PERMS(NEXTERNAL,LMAXCONFIGS)
       INCLUDE 'symperms.inc'
-      LOGICAL MIRRORPROCS(MAXSPROC,MAXFLAVPERPROC)
-      INTEGER NB_FLAV(MAXSPROC)
-      COMMON /FLAVOR_INFORMATION/NB_FLAV
-      INCLUDE 'mirrorprocs.inc'  ! fill MIRRORPROCS and      
+      LOGICAL MIRRORPROCS(MAXSPROC)
+      INCLUDE 'mirrorprocs.inc'
 
       INTEGER SYMCONF(0:LMAXCONFIGS)
       COMMON /TO_SYMCONF/ SYMCONF
@@ -76,42 +73,38 @@ C      track correctly
       DOUBLE PRECISION CM_RAP
       LOGICAL SET_CM_RAP
       COMMON/TO_CM_RAP/SET_CM_RAP,CM_RAP
-      INTEGER IFLAV
 
 C     Select among the subprocesses based on PDF weight
       IF(INIT)THEN
         SUMPROB=0D0
-        SELPROC(:,:,:,:) = 0D0
+        SELPROC(:,:,:) = 0D0
       ENDIF
 C     Turn caching on in dsigproc to avoid too many calls to switchmom
       LAST_ICONF=0
       DO J=1,SYMCONF(0)
         DO IPROC=1,MAXSPROC
           IF(INIT_MODE.OR.CONFSUB(IPROC,SYMCONF(J)).NE.0) THEN
-            DO IFLAV=1, NB_FLAV(IPROC)
-              DO IMIRROR=1,2
-                IF(IMIRROR.EQ.1.OR.MIRRORPROCS(IPROC, IFLAV))THEN
-C                 Calculate PDF weight for all subprocesses
-                  XSDUM =  DSIGPROC(PP,J,IPROC,IFLAV, IMIRROR,SYMCONF
-     $             ,CONFSUB,DUM,4)
-                  SELPROC(IMIRROR,IFLAV,IPROC,J)= SELPROC(IMIRROR
-     $             ,IFLAV,IPROC,J) + XSDUM
-                  IF(MC_GROUPED_SUBPROC) THEN
-                    CALL MAP_4_TO_1(J,IPROC,IFLAV,IMIRROR,MAXSPROC
-     $               ,MAXFLAVPERPROC,2,LMAPPED)
-                    CALL DS_ADD_ENTRY('PDF_convolution',LMAPPED
+            DO IMIRROR=1,2
+              IF(IMIRROR.EQ.1.OR.MIRRORPROCS(IPROC))THEN
+C               Calculate PDF weight for all subprocesses
+                XSDUM =  DSIGPROC(PP,J,IPROC,IMIRROR,SYMCONF,CONFSUB
+     $           ,DUM,4)
+                SELPROC(IMIRROR,IPROC,J)= SELPROC(IMIRROR,IPROC,J) +
+     $            XSDUM
+                IF(MC_GROUPED_SUBPROC) THEN
+                  CALL MAP_3_TO_1(J,IPROC,IMIRROR,MAXSPROC,2,LMAPPED)
+                  CALL DS_ADD_ENTRY('PDF_convolution',LMAPPED
      $             , XSDUM,.TRUE.)
-                  ENDIF
-                  SUMPROB=SUMPROB+XSDUM
-                  IF(IMIRROR.EQ.2)THEN
-C                   Need to flip back x values
-                    XDUM=XBK(1)
-                    XBK(1)=XBK(2)
-                    XBK(2)=XDUM
-                    CM_RAP=-CM_RAP
-                  ENDIF
                 ENDIF
-              ENDDO
+                SUMPROB=SUMPROB+XSDUM
+                IF(IMIRROR.EQ.2)THEN
+C                 Need to flip back x values
+                  XDUM=XBK(1)
+                  XBK(1)=XBK(2)
+                  XBK(2)=XDUM
+                  CM_RAP=-CM_RAP
+                ENDIF
+              ENDIF
             ENDDO
           ENDIF
         ENDDO
@@ -125,12 +118,11 @@ C     Cannot make a selection with all PDFs to zero, so we return now
       ENDIF
       END
 
-      SUBROUTINE SELECT_GROUPING(IMIRROR, IFLAV, IPROC, ICONF, WGT,
-     $  IWARP)
+      SUBROUTINE SELECT_GROUPING(IMIRROR, IPROC, ICONF, WGT, IWARP)
       USE DISCRETESAMPLER
       IMPLICIT NONE
 C     
-C     INPUT (VIA COMMON BLOCK)
+C     INPUT (VIA COMMAND BLOCK)
 C     SELPROC 
 C     SUMPROB
 C     INPUT
@@ -145,7 +137,7 @@ C
       INTEGER  IWARP
       INTEGER IVEC
       DOUBLE PRECISION WGT(*)
-      INTEGER IMIRROR, IFLAV, IPROC, ICONF
+      INTEGER IMIRROR, IPROC, ICONF
 
 C     
 C     CONSTANTS
@@ -157,20 +149,18 @@ C
 C     
       DOUBLE PRECISION R
 C     
-      DOUBLE PRECISION SELPROC(2,MAXFLAVPERPROC, MAXSPROC, LMAXCONFIGS)
+      DOUBLE PRECISION SELPROC(2, MAXSPROC, LMAXCONFIGS)
       INTEGER LARGEDIM
-      PARAMETER (LARGEDIM=2*MAXSPROC*LMAXCONFIGS*MAXFLAVPERPROC)
+      PARAMETER (LARGEDIM=2*MAXSPROC*LMAXCONFIGS)
       DOUBLE PRECISION SUMPROB
       COMMON /TO_GROUPING_SELECTION/SUMPROB,SELPROC
 
       INTEGER SYMCONF(0:LMAXCONFIGS)
       COMMON /TO_SYMCONF/ SYMCONF
-      INTEGER NB_FLAV(MAXSPROC)
-      COMMON /FLAVOR_INFORMATION/NB_FLAV
 C     
 C     LOCAL
 C     
-      INTEGER I,J,K,L
+      INTEGER I,J,K
       DOUBLE PRECISION TOTWGT
       INTEGER CONFSUB(MAXSPROC,LMAXCONFIGS)
       INCLUDE 'config_subproc_map.inc'
@@ -200,23 +190,19 @@ C     all, then we pick a point based on PDF only.
       IF (.NOT.MC_GROUPED_SUBPROC.OR.GROUPED_MC_GRID_STATUS.EQ.0) THEN
         R=R*SUMPROB
         ICONF=0
-        IFLAV=0
         IPROC=0
         TOTWGT=0D0
         DO J=1,SYMCONF(0)
           DO I=1,MAXSPROC
             IF(INIT_MODE.OR.CONFSUB(I,SYMCONF(J)).NE.0) THEN
-              DO K=1,NB_FLAV(IPROC)
-                DO L=1,2
-                  TOTWGT=TOTWGT+SELPROC(L,K,I,J)
-                  IF(R.LT.TOTWGT)THEN
-                    IPROC = I
-                    ICONF = J
-                    IFLAV = K
-                    IMIRROR = L
-                    GOTO 50
-                  ENDIF
-                ENDDO
+              DO K=1,2
+                TOTWGT=TOTWGT+SELPROC(K,I,J)
+                IF(R.LT.TOTWGT)THEN
+                  IPROC=I
+                  ICONF=J
+                  IMIRROR=K
+                  GOTO 50
+                ENDIF
               ENDDO
             ENDIF
           ENDDO
@@ -226,8 +212,7 @@ C       Update weigth w.r.t SELPROC normalized to selection probability
 
         DO I=1, WARP_SIZE
           IVEC = (IWARP -1) *WARP_SIZE + I
-          WGT(IVEC)=WGT(IVEC)*(SUMPROB/SELPROC(IMIRROR,IFLAV,IPROC
-     $     ,ICONF))
+          WGT(IVEC)=WGT(IVEC)*(SUMPROB/SELPROC(IMIRROR,IPROC,ICONF))
         ENDDO
 
       ELSE
@@ -238,14 +223,13 @@ C       We are using the grouped_processes grid and it is initialized.
           IVEC = (IWARP -1) *WARP_SIZE + I
           WGT(IVEC)=WGT(IVEC)*MC_GROUPED_PROC_JACOBIAN
         ENDDO
-        CALL MAP_1_TO_4(LMAPPED,MAXSPROC,MAXFLAVPERPROC,2,ICONF,IPROC
-     $   ,IFLAV,IMIRROR)
+        CALL MAP_1_TO_3(LMAPPED,MAXSPROC,2,ICONF,IPROC,IMIRROR)
       ENDIF
       RETURN
       END
 
       SUBROUTINE DSIG_VEC(ALL_P,ALL_WGT,ALL_XBK,ALL_Q2FACT,ALL_CM_RAP
-     $ ,ICONF_VEC,IPROC,IFLAV_VEC,IMIRROR_VEC,ALL_OUT,VECSIZE_USED)
+     $ ,ICONF_VEC,IPROC,IMIRROR_VEC,ALL_OUT,VECSIZE_USED)
 C     ******************************************************
 C     
 C     INPUT: ALL_PP(0:3, NEXTERNAL, VECSIZE_USED)
@@ -265,15 +249,13 @@ C     ******************************************************
       DOUBLE PRECISION ALL_XBK(2,*)
       DOUBLE PRECISION ALL_Q2FACT(2,*)
       DOUBLE PRECISION ALL_CM_RAP(*)
-      INTEGER ICONF_VEC(NB_WARP), IPROC, IFLAV(NB_WARP),
-     $  IMIRROR_VEC(NB_WARP)
-      INTEGER IFLAV_VEC(NB_WARP)
+      INTEGER ICONF_VEC(NB_WARP), IPROC, IMIRROR_VEC(NB_WARP)
       DOUBLE PRECISION ALL_OUT(*)
       INCLUDE 'maxconfigs.inc'
       INCLUDE 'maxamps.inc'
 
       INTEGER LARGEDIM
-      PARAMETER (LARGEDIM=2*MAXSPROC*LMAXCONFIGS*MAXFLAVPERPROC)
+      PARAMETER (LARGEDIM=2*MAXSPROC*LMAXCONFIGS)
 
       INTEGER CONFSUB(MAXSPROC,LMAXCONFIGS)
       INCLUDE 'config_subproc_map.inc'
@@ -286,8 +268,8 @@ C     IB gives which beam is which (for mirror processes)
       INTEGER MAPCONFIG(0:LMAXCONFIGS), ICONFIG
       COMMON/TO_MCONFIGS/MAPCONFIG, ICONFIG
 
-      DOUBLE PRECISION SUMWGT(2, MAXFLAVPERPROC,MAXSPROC,LMAXCONFIGS)
-      INTEGER NUMEVTS(2, MAXFLAVPERPROC,MAXSPROC,LMAXCONFIGS)
+      DOUBLE PRECISION SUMWGT(2, MAXSPROC,LMAXCONFIGS)
+      INTEGER NUMEVTS(2, MAXSPROC,LMAXCONFIGS)
       COMMON /DSIG_SUMPROC/SUMWGT,NUMEVTS
 
       DOUBLE PRECISION DSIGPROC
@@ -298,8 +280,7 @@ C     IB gives which beam is which (for mirror processes)
       INTEGER IMIRROR_GLOBAL, IPROC_GLOBAL
       COMMON/TO_MIRROR/ IMIRROR_GLOBAL, IPROC_GLOBAL
 
-      DOUBLE PRECISION SELPROC(2, MAXFLAVPERPROC, MAXSPROC,
-     $  LMAXCONFIGS)
+      DOUBLE PRECISION SELPROC(2, MAXSPROC, LMAXCONFIGS)
       DOUBLE PRECISION SUMPROB
       COMMON /TO_GROUPING_SELECTION/SUMPROB,SELPROC
 
@@ -346,7 +327,7 @@ C        the call DSIGPROC just below.
       ENDIF
 
       CALL DSIGPROC_VEC(ALL_P,ALL_XBK,ALL_Q2FACT,ALL_CM_RAP,ICONF_VEC
-     $ ,IPROC,IFLAV_VEC,IMIRROR_VEC,SYMCONF,CONFSUB,ALL_WGT,0,ALL_OUT
+     $ ,IPROC,IMIRROR_VEC,SYMCONF,CONFSUB,ALL_WGT,0,ALL_OUT
      $ ,VECSIZE_USED)
 
 
@@ -361,8 +342,7 @@ C       //' because in that case all grouped ME's
 C       were computed with the same kinematics. For this reason, the
 C        code below remains commented.
 C       IF(grouped_MC_grid_status.ge.1) then
-C       call map_4_to_1(ICONF,IPROC,IFLAV,IMIRROR,MAXSPROC,MAXFLAVPERPR
-C       OC,2,Lmapped)
+C       call map_3_to_1(ICONF,IPROC,IMIRROR,MAXSPROC,2,Lmapped)
 C       call DS_add_entry('grouped_processes',Lmapped,(ALL_OUT(i)/SELPR
 C       OC(IMIRROR,IPROC,ICONF)))
 C       ENDIF
@@ -380,13 +360,12 @@ C       ENDIF
         DO I=(CURR_WARP-1)*WARP_SIZE+1,CURR_WARP*WARP_SIZE
           IF(ALL_OUT(I).GT.0D0)THEN
 C           Update summed weight and number of events
-            SUMWGT(IMIRROR_VEC(CURR_WARP),IPROC,IFLAV_VEC(CURR_WARP)
-     $       ,ICONF_VEC(CURR_WARP))=SUMWGT(IMIRROR_VEC(CURR_WARP)
-     $       ,IFLAV_VEC(CURR_WARP),IPROC,ICONF_VEC(CURR_WARP))
+            SUMWGT(IMIRROR_VEC(CURR_WARP),IPROC,ICONF_VEC(CURR_WARP))
+     $       =SUMWGT(IMIRROR_VEC(CURR_WARP),IPROC,ICONF_VEC(CURR_WARP))
      $       +DABS(ALL_OUT(I)*ALL_WGT(I))
-            NUMEVTS(IMIRROR_VEC(CURR_WARP),IFLAV_VEC(CURR_WARP),IPROC
-     $       ,ICONF_VEC(CURR_WARP))=NUMEVTS(IMIRROR_VEC(CURR_WARP)
-     $       ,IFLAV_VEC(CURR_WARP),IPROC,ICONF_VEC(CURR_WARP))+1
+            NUMEVTS(IMIRROR_VEC(CURR_WARP),IPROC,ICONF_VEC(CURR_WARP))
+     $       =NUMEVTS(IMIRROR_VEC(CURR_WARP),IPROC,ICONF_VEC(CURR_WARP)
+     $       )+1
           ENDIF
         ENDDO
       ENDDO
@@ -415,7 +394,6 @@ C     Output:
 C     Amplitude squared and summed
 C     ****************************************************
       USE DISCRETESAMPLER
-      USE MODEL_OBJECT
       IMPLICIT NONE
 C     
 C     CONSTANTS
@@ -435,7 +413,7 @@ C
 C     LOCAL VARIABLES 
 C     
       INTEGER LMAPPED
-      INTEGER I,J,K,L,LUN,ICONF,IMIRROR,IFLAV,NPROC
+      INTEGER I,J,K,LUN,ICONF,IMIRROR,NPROC
       SAVE NPROC
       INTEGER SYMCONF(0:LMAXCONFIGS)
       COMMON /TO_SYMCONF/ SYMCONF
@@ -444,18 +422,16 @@ C
       INCLUDE 'config_subproc_map.inc'
       INTEGER PERMS(NEXTERNAL,LMAXCONFIGS)
       INCLUDE 'symperms.inc'
-      LOGICAL MIRRORPROCS(MAXSPROC,MAXFLAVPERPROC)
-      INTEGER NB_FLAV(MAXSPROC)
-      COMMON /FLAVOR_INFORMATION/NB_FLAV
+      LOGICAL MIRRORPROCS(MAXSPROC)
       INCLUDE 'mirrorprocs.inc'
 C     SELPROC is vector of selection weights for the subprocesses
 C     SUMWGT is vector of total weight for the subprocesses
 C     NUMEVTS is vector of event calls for the subprocesses
-      DOUBLE PRECISION SELPROC(2,MAXFLAVPERPROC, MAXSPROC,LMAXCONFIGS)
-      DOUBLE PRECISION SUMWGT(2, MAXFLAVPERPROC,MAXSPROC,LMAXCONFIGS)
-      INTEGER NUMEVTS(2, MAXFLAVPERPROC,MAXSPROC,LMAXCONFIGS)
+      DOUBLE PRECISION SELPROC(2, MAXSPROC,LMAXCONFIGS)
+      DOUBLE PRECISION SUMWGT(2, MAXSPROC,LMAXCONFIGS)
+      INTEGER NUMEVTS(2, MAXSPROC,LMAXCONFIGS)
       INTEGER LARGEDIM
-      PARAMETER (LARGEDIM=2*MAXSPROC*LMAXCONFIGS*MAXFLAVPERPROC)
+      PARAMETER (LARGEDIM=2*MAXSPROC*LMAXCONFIGS)
       DATA SELPROC/LARGEDIM*0D0/
       DATA SUMWGT/LARGEDIM*0D0/
       DATA NUMEVTS/LARGEDIM*0/
@@ -513,7 +489,6 @@ C      and to 0 to reset the cache.
       DATA LAST_ICONF/-1/
       COMMON/TO_LAST_ICONF/LAST_ICONF
 
-
       DOUBLE PRECISION DUM
       LOGICAL INIT_MODE
       COMMON /TO_DETERMINE_ZERO_HEL/INIT_MODE
@@ -562,55 +537,46 @@ C       Output weights and number of events
         SUMPROB=0D0
         DO J=1,SYMCONF(0)
           DO I=1,MAXSPROC
-            DO K=1,NB_FLAV(I)
-              DO L=1,2
-                SUMPROB=SUMPROB+SUMWGT(L,K,I,J)
-              ENDDO
+            DO K=1,2
+              SUMPROB=SUMPROB+SUMWGT(K,I,J)
             ENDDO
           ENDDO
         ENDDO
         WRITE(*,*)'Relative summed weights:'
         IF (SUMPROB.NE.0D0)THEN
           DO J=1,SYMCONF(0)
-            WRITE(*,'(4E12.4)')(((SUMWGT(L,K,I,J)/SUMPROB,L=1,2),K=1
-     $       ,MAXFLAVPERPROC),I=1,MAXSPROC)
+            WRITE(*,'(4E12.4)')((SUMWGT(K,I,J)/SUMPROB,K=1,2),I=1
+     $       ,MAXSPROC)
           ENDDO
         ENDIF
         SUMPROB=0D0
         DO J=1,SYMCONF(0)
           DO I=1,MAXSPROC
-            DO K=1, NB_FLAV(I)
-              DO L=1,2
-                SUMPROB=SUMPROB+NUMEVTS(L,K,I,J)
-              ENDDO
+            DO K=1,2
+              SUMPROB=SUMPROB+NUMEVTS(K,I,J)
             ENDDO
           ENDDO
         ENDDO
         WRITE(*,*)'Relative number of events:'
         IF (SUMPROB.NE.0D0)THEN
           DO J=1,SYMCONF(0)
-            WRITE(*,'(4E12.4)')(((NUMEVTS(L,K,I,J)/SUMPROB,L=1,2),K=1
-     $       ,MAXFLAVPERPROC),I=1,MAXSPROC)
+            WRITE(*,'(4E12.4)')((NUMEVTS(K,I,J)/SUMPROB,K=1,2),I=1
+     $       ,MAXSPROC)
           ENDDO
         ENDIF
         WRITE(*,*)'Events:'
         DO J=1,SYMCONF(0)
-          WRITE(*,'(4I12)')(((NUMEVTS(L,K,I,J),L=1,2),K=1
-     $     ,MAXFLAVPERPROC),I=1,MAXSPROC)
+          WRITE(*,'(4I12)')((NUMEVTS(K,I,J),K=1,2),I=1,MAXSPROC)
         ENDDO
 C       Reset weights and number of events
         DO J=1,SYMCONF(0)
           DO I=1,MAXSPROC
-            DO K=1,NB_FLAV(I)
-              DO L=1,2
-                NUMEVTS(L,K,I,J)=0
-                SUMWGT(L,K,I,J)=0D0
-
-              ENDDO
+            DO K=1,2
+              NUMEVTS(K,I,J)=0
+              SUMWGT(K,I,J)=0D0
             ENDDO
           ENDDO
         ENDDO
-
         RETURN
       ELSE IF(IMODE.EQ.3)THEN
 C       No finalize needed
@@ -625,14 +591,11 @@ C     IMODE.EQ.0, regular run mode
         DO J=1,SYMCONF(0)
           DO IPROC=1,MAXSPROC
             IF(INIT_MODE.OR.CONFSUB(IPROC,SYMCONF(J)).NE.0) THEN
-              DO IFLAV=1,NB_FLAV(IPROC)
-                DO IMIRROR=1,2
-                  IF(IMIRROR.EQ.1.OR.MIRRORPROCS(IPROC,IFLAV))THEN
-                    CALL MAP_4_TO_1(J,IPROC,IFLAV,IMIRROR,MAXSPROC
-     $               ,MAXFLAVPERPROC,2,LMAPPED)
-                    CALL DS_ADD_BIN('grouped_processes',LMAPPED)
-                  ENDIF
-                ENDDO
+              DO IMIRROR=1,2
+                IF(IMIRROR.EQ.1.OR.MIRRORPROCS(IPROC))THEN
+                  CALL MAP_3_TO_1(J,IPROC,IMIRROR,MAXSPROC,2,LMAPPED)
+                  CALL DS_ADD_BIN('grouped_processes',LMAPPED)
+                ENDIF
               ENDDO
             ENDIF
           ENDDO
@@ -652,29 +615,26 @@ C     Turn caching on in dsigproc to avoid too many calls to switchmom
       DO J=1,SYMCONF(0)
         DO IPROC=1,MAXSPROC
           IF(INIT_MODE.OR.CONFSUB(IPROC,SYMCONF(J)).NE.0) THEN
-            DO IFLAV=1, NB_FLAV(IPROC)
-              DO IMIRROR=1,2
-                IF(IMIRROR.EQ.1.OR.MIRRORPROCS(IPROC,IFLAV))THEN
-C                 Calculate PDF weight for all subprocesses
-                  SELPROC(IMIRROR,IFLAV,IPROC,J)=DSIGPROC(PP,J,IPROC
-     $             ,IFLAV, IMIRROR,SYMCONF,CONFSUB,DUM,4)
-                  IF(MC_GROUPED_SUBPROC) THEN
-                    CALL MAP_4_TO_1(J,IPROC,IFLAV,IMIRROR,MAXSPROC
-     $               ,MAXFLAVPERPROC,2,LMAPPED)
-                    CALL DS_ADD_ENTRY('PDF_convolution',LMAPPED
-     $               ,SELPROC(IMIRROR,IFLAV,IPROC,J),.TRUE.)
-                  ENDIF
-                  SUMPROB=SUMPROB+SELPROC(IMIRROR,IFLAV,IPROC,J)
-                  IF(IMIRROR.EQ.2)THEN
-C                   Need to flip back x values
-                    XDUM=XBK(1)
-                    XBK(1)=XBK(2)
-                    XBK(2)=XDUM
-                    CM_RAP=-CM_RAP
-                  ENDIF
+            DO IMIRROR=1,2
+              IF(IMIRROR.EQ.1.OR.MIRRORPROCS(IPROC))THEN
+C               Calculate PDF weight for all subprocesses
+                SELPROC(IMIRROR,IPROC,J)=DSIGPROC(PP,J,IPROC,IMIRROR
+     $           ,SYMCONF,CONFSUB,DUM,4)
+                IF(MC_GROUPED_SUBPROC) THEN
+                  CALL MAP_3_TO_1(J,IPROC,IMIRROR,MAXSPROC,2,LMAPPED)
+                  CALL DS_ADD_ENTRY('PDF_convolution',LMAPPED
+     $             ,SELPROC(IMIRROR,IPROC,J),.TRUE.)
                 ENDIF
-              ENDDO  ! end loop on imirror
-            ENDDO  ! end loop on IFLAV
+                SUMPROB=SUMPROB+SELPROC(IMIRROR,IPROC,J)
+                IF(IMIRROR.EQ.2)THEN
+C                 Need to flip back x values
+                  XDUM=XBK(1)
+                  XBK(1)=XBK(2)
+                  XBK(2)=XDUM
+                  CM_RAP=-CM_RAP
+                ENDIF
+              ENDIF
+            ENDDO
           ENDIF
         ENDDO
       ENDDO
@@ -704,38 +664,33 @@ C        switchmom
         DO J=1,SYMCONF(0)
           DO I=1,MAXSPROC
             IF(INIT_MODE.OR.CONFSUB(I,SYMCONF(J)).NE.0) THEN
-              DO K = 1, NB_FLAV(I)
-                DO L=1,2
-                  IF(L.EQ.1.OR.MIRRORPROCS(I,K))THEN
-                    IPROC=I
-                    ICONF=J
-                    IFLAV=K
-                    IMIRROR=L
-C                   The IMODE=5 computes the matrix_element only,
-C                    without PDF convolution 
-                    DSIG=DSIGPROC(PP,ICONF,IPROC,IFLAV,IMIRROR,SYMCONF
-     $               ,CONFSUB,WGT,5)
-                    CALL MAP_4_TO_1(J,I,K,L,MAXSPROC,MAXFLAVPERPROC,2
-     $               ,LMAPPED)
-                    IF (SELPROC(L,K,I,J).NE.0.0D0) THEN
-                      CALL DS_ADD_ENTRY('grouped_processes',LMAPPED
-     $                 ,DSIG)
-                    ENDIF
-                    IF(L.EQ.2)THEN
-C                     Need to flip back x values
-                      XDUM=XBK(1)
-                      XBK(1)=XBK(2)
-                      XBK(2)=XDUM
-                      CM_RAP=-CM_RAP
-                    ENDIF
-                    IF(INIT_MODE) THEN
-                      SELPROC(L,K,I,J) = 1D0
-                    ELSE
-                      SELPROC(L,K,I,J) = DABS(DSIG*SELPROC(L,K,I,J))
-                    ENDIF
-                    SUMPROB = SUMPROB + SELPROC(L,K,I,J)
+              DO K=1,2
+                IF(K.EQ.1.OR.MIRRORPROCS(I))THEN
+                  IPROC=I
+                  ICONF=J
+                  IMIRROR=K
+C                 The IMODE=5 computes the matrix_element only,
+C                  without PDF convolution 
+                  DSIG=DSIGPROC(PP,ICONF,IPROC,IMIRROR,SYMCONF,CONFSUB
+     $             ,WGT,5)
+                  CALL MAP_3_TO_1(J,I,K,MAXSPROC,2,LMAPPED)
+                  IF (SELPROC(K,I,J).NE.0.0D0) THEN
+                    CALL DS_ADD_ENTRY('grouped_processes',LMAPPED,DSIG)
                   ENDIF
-                ENDDO
+                  IF(K.EQ.2)THEN
+C                   Need to flip back x values
+                    XDUM=XBK(1)
+                    XBK(1)=XBK(2)
+                    XBK(2)=XDUM
+                    CM_RAP=-CM_RAP
+                  ENDIF
+                  IF(INIT_MODE) THEN
+                    SELPROC(K,I,J) = 1D0
+                  ELSE
+                    SELPROC(K,I,J) = DABS(DSIG*SELPROC(K,I,J))
+                  ENDIF
+                  SUMPROB = SUMPROB + SELPROC(K,I,J)
+                ENDIF
               ENDDO
             ENDIF
           ENDDO
@@ -762,18 +717,15 @@ C      all, then we pick a point based on PDF only.
         DO J=1,SYMCONF(0)
           DO I=1,MAXSPROC
             IF(INIT_MODE.OR.CONFSUB(I,SYMCONF(J)).NE.0) THEN
-              DO K = 1, NB_FLAV(I)
-                DO L=1,2
-                  TOTWGT=TOTWGT+SELPROC(L,K,I,J)
-                  IF(R.LT.TOTWGT)THEN
-                    IPROC=I
-                    ICONF=J
-                    IFLAV=K
-                    IMIRROR=L
-                    GOTO 50
-                  ENDIF
-                ENDDO  ! on the loop on mirror
-              ENDDO  ! loop over flavor
+              DO K=1,2
+                TOTWGT=TOTWGT+SELPROC(K,I,J)
+                IF(R.LT.TOTWGT)THEN
+                  IPROC=I
+                  ICONF=J
+                  IMIRROR=K
+                  GOTO 50
+                ENDIF
+              ENDDO
             ENDIF
           ENDDO
         ENDDO
@@ -784,15 +736,14 @@ C      all, then we pick a point based on PDF only.
 
 C       Update weigth w.r.t SELPROC normalized to selection probability
 
-        WGT=WGT*(SUMPROB/SELPROC(IMIRROR,IFLAV,IPROC,ICONF))
+        WGT=WGT*(SUMPROB/SELPROC(IMIRROR,IPROC,ICONF))
 
       ELSE
 C       We are using the grouped_processes grid and it is initialized.
         CALL DS_GET_POINT('grouped_processes',R,LMAPPED
      $   ,MC_GROUPED_PROC_JACOBIAN,'norm',(/'PDF_convolution'/))
         WGT=WGT*MC_GROUPED_PROC_JACOBIAN
-        CALL MAP_1_TO_4(LMAPPED,MAXSPROC,MAXFLAVPERPROC,2,ICONF,IPROC
-     $   ,IFLAV,IMIRROR)
+        CALL MAP_1_TO_3(LMAPPED,MAXSPROC,2,ICONF,IPROC,IMIRROR)
       ENDIF
 
 C     Redo clustering to ensure consistent with final IPROC
@@ -807,8 +758,7 @@ C        the call DSIGPROC just below.
       ENDIF
 
 C     Call DSIGPROC to calculate sigma for process
-      DSIG=DSIGPROC(PP,ICONF,IPROC,IFLAV,IMIRROR,SYMCONF,CONFSUB,WGT
-     $ ,IMODE)
+      DSIG=DSIGPROC(PP,ICONF,IPROC,IMIRROR,SYMCONF,CONFSUB,WGT,IMODE)
 C     Reset ALLOW_HELICITY_GRID_ENTRIES
       ALLOW_HELICITY_GRID_ENTRIES = .TRUE.
 
@@ -826,17 +776,16 @@ C     ENDIF
 
       IF(DSIG.GT.0D0)THEN
 C       Update summed weight and number of events
-        SUMWGT(IMIRROR,IFLAV,IPROC,ICONF)=SUMWGT(IMIRROR,IFLAV,IPROC
-     $   ,ICONF)+DABS(DSIG*WGT)
-        NUMEVTS(IMIRROR,IFLAV,IPROC,ICONF)=NUMEVTS(IMIRROR,IFLAV,IPROC
-     $   ,ICONF)+1
+        SUMWGT(IMIRROR,IPROC,ICONF)=SUMWGT(IMIRROR,IPROC,ICONF)
+     $   +DABS(DSIG*WGT)
+        NUMEVTS(IMIRROR,IPROC,ICONF)=NUMEVTS(IMIRROR,IPROC,ICONF)+1
       ENDIF
 
       RETURN
       END
 
-      FUNCTION DSIGPROC(PP,ICONF,IPROC,IFLAV,IMIRROR,SYMCONF,CONFSUB
-     $ ,WGT,IMODE)
+      FUNCTION DSIGPROC(PP,ICONF,IPROC,IMIRROR,SYMCONF,CONFSUB,WGT
+     $ ,IMODE)
 C     ****************************************************
 C     RETURNS DIFFERENTIAL CROSS SECTION 
 C     FOR A PROCESS
@@ -848,7 +797,6 @@ C     Output:
 C     Amplitude squared and summed
 C     ****************************************************
 
-      USE MODEL_OBJECT
       IMPLICIT NONE
 
       INCLUDE 'genps.inc'
@@ -863,7 +811,7 @@ C     ARGUMENTS
 C     
       DOUBLE PRECISION DSIGPROC
       DOUBLE PRECISION PP(0:3,NEXTERNAL), WGT
-      INTEGER ICONF,IPROC,IMIRROR,IMODE,IFLAV
+      INTEGER ICONF,IPROC,IMIRROR,IMODE
       INTEGER SYMCONF(0:LMAXCONFIGS)
       INTEGER CONFSUB(MAXSPROC,LMAXCONFIGS)
 C     
@@ -896,7 +844,7 @@ C
 C     LOCAL VARIABLES 
 C     
       DOUBLE PRECISION P1(0:3,NEXTERNAL),XDUM
-      INTEGER I,J,K,L,JC(NEXTERNAL)
+      INTEGER I,J,K,JC(NEXTERNAL)
       INTEGER PERMS(NEXTERNAL,LMAXCONFIGS)
       INCLUDE 'symperms.inc'
       SAVE P1,JC
@@ -956,8 +904,8 @@ C     and update the couplings accordingly
       IF (IMODE.EQ.0D0.AND.NB_PASS_CUTS.LT.2**12)THEN
         NB_PASS_CUTS = NB_PASS_CUTS + 1
       ENDIF
-      IF(IPROC.EQ.1) DSIGPROC=DSIG1(P1,IFLAV,WGT,IMODE)  ! u u~ > u u~
-      IF(IPROC.EQ.2) DSIGPROC=DSIG2(P1,IFLAV,WGT,IMODE)  ! u u~ > d d~
+      IF(IPROC.EQ.1) DSIGPROC=DSIG1(P1,WGT,IMODE)  ! u u~ > u u~
+      IF(IPROC.EQ.2) DSIGPROC=DSIG2(P1,WGT,IMODE)  ! u u~ > d d~
 C     ENDIF
 
       IF (LAST_ICONF.NE.-1.AND.IMIRROR.EQ.2) THEN
@@ -977,8 +925,8 @@ C     vectorize version
 C     ccccccccccccccccccccccccc
 
       SUBROUTINE DSIGPROC_VEC(ALL_P,ALL_XBK,ALL_Q2FACT,ALL_CM_RAP
-     $ ,ICONF_VEC,IPROC,IFLAV_VEC,IMIRROR_VEC,SYMCONF,CONFSUB,ALL_WGT
-     $ ,IMODE,ALL_OUT,VECSIZE_USED)
+     $ ,ICONF_VEC,IPROC,IMIRROR_VEC,SYMCONF,CONFSUB,ALL_WGT,IMODE
+     $ ,ALL_OUT,VECSIZE_USED)
 C     ****************************************************
 C     RETURNS DIFFERENTIAL CROSS SECTION 
 C     FOR A PROCESS
@@ -990,7 +938,6 @@ C     Output:
 C     Amplitude squared and summed
 C     ****************************************************
 
-      USE MODEL_OBJECT
       IMPLICIT NONE
 
       INCLUDE 'genps.inc'
@@ -1010,9 +957,8 @@ C
       DOUBLE PRECISION ALL_WGT(VECSIZE_MEMMAX)
       DOUBLE PRECISION ALL_OUT(VECSIZE_MEMMAX)
       DOUBLE PRECISION DSIGPROC
-      INTEGER ICONF,IPROC,IMIRROR,IMODE,IFLAV
-      INTEGER ICONF_VEC(NB_WARP), IMIRROR_VEC(NB_WARP),
-     $  IFLAV_VEC(NB_WARP)
+      INTEGER ICONF,IPROC,IMIRROR,IMODE
+      INTEGER ICONF_VEC(NB_WARP), IMIRROR_VEC(NB_WARP)
       INTEGER CURR_WARP, IWARP, NB_WARP_USED
       INTEGER SYMCONF(0:LMAXCONFIGS)
       INTEGER CONFSUB(MAXSPROC,LMAXCONFIGS)
@@ -1048,7 +994,7 @@ C
 C     LOCAL VARIABLES 
 C     
       DOUBLE PRECISION ALL_P1(0:3,NEXTERNAL,VECSIZE_MEMMAX),XDUM
-      INTEGER I,J,K,L,JC(NEXTERNAL)
+      INTEGER I,J,K,JC(NEXTERNAL)
       INTEGER PERMS(NEXTERNAL,LMAXCONFIGS)
       INCLUDE 'symperms.inc'
       SAVE ALL_P1,JC
@@ -1094,7 +1040,6 @@ C       Set momenta according to this permutation
         IB(1)=0  ! This is set in auto_dsigX. set it to zero to create segfault if used at wrong time
         IB(2)=0  ! Same
         IMIRROR = IMIRROR_VEC(CURR_WARP)
-        IFLAV = IFLAV_VEC(CURR_WARP)
         IF(IMIRROR.EQ.2)THEN
 C         Flip momenta (rotate around x axis)
           DO IVEC = (CURR_WARP-1)*WARP_SIZE+1,CURR_WARP*WARP_SIZE
@@ -1127,10 +1072,10 @@ C            the warp)
 
       IF(IPROC.EQ.1) CALL DSIG1_VEC(ALL_P1,ALL_XBK,ALL_Q2FACT
      $ ,ALL_CM_RAP,ALL_WGT,IMODE,ALL_OUT,SYMCONF, CONFSUB,ICONF_VEC
-     $ ,IMIRROR_VEC,IFLAV_VEC,VECSIZE_USED)  ! u u~ > u u~
+     $ ,IMIRROR_VEC,VECSIZE_USED)  ! u u~ > u u~
       IF(IPROC.EQ.2) CALL DSIG2_VEC(ALL_P1,ALL_XBK,ALL_Q2FACT
      $ ,ALL_CM_RAP,ALL_WGT,IMODE,ALL_OUT,SYMCONF, CONFSUB,ICONF_VEC
-     $ ,IMIRROR_VEC,IFLAV_VEC,VECSIZE_USED)  ! u u~ > d d~
+     $ ,IMIRROR_VEC,VECSIZE_USED)  ! u u~ > d d~
 
 C     FLIPPING BACK IF NEEDED
       DO CURR_WARP=1,NB_WARP_USED
@@ -1162,47 +1107,15 @@ C     -----------------------------------------
       INTEGER, INTENT(OUT) :: L
 
       L = I*(J_BOUND*(K_BOUND+1)+K_BOUND+1)+J*(K_BOUND+1)+K
-      STOP 1  ! this should not be used anymore.... due to map_4_to_1
 
       END SUBROUTINE MAP_3_TO_1
 
-
-C     -----------------------------------------
-C     Subroutine to map four positive integers
-C     I, J, K, L with upper bounds J_bound,
-C     K_bound and L_bound to a one_dimensional
-C     index M
-C     -----------------------------------------
-
-      SUBROUTINE MAP_4_TO_1(I,J,K,L,J_BOUND,K_BOUND, L_BOUND,M)
-      IMPLICIT NONE
-      INTEGER, INTENT(IN)  :: I,J,K,L,J_BOUND,K_BOUND,L_BOUND
-      INTEGER, INTENT(OUT) :: M
 C     -----------------------------------------
 C     Subroutine to map back the positive 
-C     M = I*(J_bound+1)*(K_bound+1)*(L_bound+1)+J*(K_bound+1)*(L_bound+
-C     1)+K*(L_bound+1)+L          
-C     integer M to the four integers
-      M = L + (L_BOUND+1) * (K + (K_BOUND+1)*(J + (J_BOUND+1)*I))
-
-      END SUBROUTINE MAP_4_TO_1
-
-
-      SUBROUTINE MAP_1_TO_4(M,J_BOUND, K_BOUND, L_BOUND, I, J, K, L)
-      IMPLICIT NONE
-      INTEGER, INTENT(OUT) :: I, J, K, L
-      INTEGER, INTENT(IN) :: M, J_BOUND, K_BOUND, L_BOUND
-      INTEGER M_RUN
-
-      M_RUN = M
-      I = M_RUN/((J_BOUND+1)*(K_BOUND+1)*(L_BOUND+1))
-      M_RUN = M_RUN - I * ((J_BOUND+1)*(K_BOUND+1)*(L_BOUND+1))
-      J = M_RUN/((K_BOUND+1)*(L_BOUND+1))
-      M_RUN = M_RUN - J * (K_BOUND+1)*(L_BOUND+1)
-      K = M_RUN /(L_BOUND+1)
-      L = M_RUN - K * (L_BOUND+1)
-
-      END SUBROUTINE MAP_1_TO_4
+C     integer L to the three integers 
+C     I, J and K with upper bounds
+C     J_bound and K_bound.
+C     -----------------------------------------
 
       SUBROUTINE MAP_1_TO_3(L,J_BOUND,K_BOUND,I,J,K)
       IMPLICIT NONE
@@ -1216,8 +1129,6 @@ C     integer M to the four integers
       J = L_RUN/(K_BOUND+1)
       L_RUN = L_RUN - J*(K_BOUND+1)
       K  = L_RUN
-      WRITE(*,*) 'should not be used'
-      STOP 1
 
       END SUBROUTINE MAP_1_TO_3
 

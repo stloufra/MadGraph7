@@ -239,6 +239,9 @@ class WriteALOHA:
                 self.declaration.add(('double','M%s' % self.outgoing))                
                 call_arg.append(('double','W%s' % self.outgoing))              
                 self.declaration.add(('double','W%s' % self.outgoing))
+                if 'P1D' in self.tag:
+                    call_arg.append(('double','BWCUTOFF'))              
+                    self.declaration.add(('double','BWCUTOFF'))
         
         assert len(call_arg) == len(set([a[1] for a in call_arg]))
         assert len(self.declaration) == len(set([a[1] for a in self.declaration])), self.declaration
@@ -826,7 +829,7 @@ class ALOHAWriterForFortran(WriteALOHA):
         if isinstance(name, aloha_lib.ExtVariable):
             # external parameter nothing to do but handling model prefix
             self.has_model_parameter = True
-            if name.lower() in ['pi', 'as', 'mu_r', 'aewm1','g']:
+            if name.lower() in ['pi', 'as', 'mu_r', 'aewm1','g','bwcutoff']:
                 return name
             if name.startswith(aloha.aloha_prefix):
                 return name
@@ -1613,6 +1616,9 @@ class ALOHAWriterForCPP(WriteALOHA):
             return '%s[%s]' % (match.group('var'), int(match.group('num')) + shift) 
         else:
             shift =  -1
+            if aloha.unitary_gauge == 3 and match.group('var').startswith('S'):
+                shift += 4 # In FD gauge Scalar indices goes to 4 (not 0)
+                           # to complement the vector 0-3
             return '%s.W[%s]' % (match.group('var'), int(match.group('num')) + shift)
               
     
@@ -2860,6 +2866,10 @@ class Declaration_list(set):
         return var in self.var_name
     
     def add(self,obj):
+        type, name = obj
+        if name == 'BWCUTOFF':
+            type = 'double'
+            obj = (type, name)
         if __debug__:
             type, name = obj
             samename = [t for t,n in self if n ==name]

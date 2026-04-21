@@ -977,7 +977,7 @@ class AskLoopInstaller(cmd.OneLinePathCompletion):
         #check if some partial installation is already done.  
         if 'mother_interface' in opts:
             mother = opts['mother_interface']
-            if  'heptools_install_dir' in mother.options:
+            if mother.options['heptools_install_dir']:
                 install_dir1 = mother.options['heptools_install_dir'] 
                 install_dir2 = mother.options['heptools_install_dir']
                 if os.path.exists(pjoin(install_dir1, 'CutTools')):

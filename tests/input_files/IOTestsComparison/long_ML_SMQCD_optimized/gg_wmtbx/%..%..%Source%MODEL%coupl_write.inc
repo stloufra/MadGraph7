@@ -25,6 +25,8 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       WRITE(*,2) 'UV_GQQb_1eps = ', UV_GQQB_1EPS
       WRITE(*,2) 'UV_bMass_1eps = ', UV_BMASS_1EPS
       WRITE(*,2) 'UV_tMass_1eps = ', UV_TMASS_1EPS
+      WRITE(*,2) 'UVWfct_b_0_1eps = ', UVWFCT_B_0_1EPS
+      WRITE(*,2) 'UVWfct_G_1_1eps = ', UVWFCT_G_1_1EPS
       WRITE(*,2) 'R2_bxtW = ', R2_BXTW
       WRITE(*,2) 'UV_3Gb = ', UV_3GB
       WRITE(*,2) 'UV_3Gt = ', UV_3GT
@@ -32,4 +34,8 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
       WRITE(*,2) 'UV_GQQt = ', UV_GQQT
       WRITE(*,2) 'UV_bMass = ', UV_BMASS
       WRITE(*,2) 'UV_tMass = ', UV_TMASS
+      WRITE(*,2) 'UVWfct_b_0 = ', UVWFCT_B_0
+      WRITE(*,2) 'UVWfct_t_0 = ', UVWFCT_T_0
+      WRITE(*,2) 'UVWfct_G_1 = ', UVWFCT_G_1
+      WRITE(*,2) 'UVWfct_G_2 = ', UVWFCT_G_2
       WRITE(*,2) 'GC_11 = ', GC_11

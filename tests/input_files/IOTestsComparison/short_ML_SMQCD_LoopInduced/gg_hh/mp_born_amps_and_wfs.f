@@ -111,19 +111,21 @@ C         Handle the possible requirement of specific polarizations
           DO I=1,NEXTERNAL
             NHEL(I)=HELC(I,H)
           ENDDO
-          CALL MP_VXXXXX(P(0,1),ZERO,NHEL(1),-1,W(1))
-          CALL MP_VXXXXX(P(0,2),ZERO,NHEL(2),-1,W(2))
-          CALL MP_SXXXXX(P(0,3),+1,W(3))
-          CALL MP_SXXXXX(P(0,4),+1,W(4))
+          CALL MP_VXXXXX(P(0,1),ZERO,NHEL(1),-1*IC(1),W(1,1))
+          CALL MP_VXXXXX(P(0,2),ZERO,NHEL(2),-1*IC(2),W(1,2))
+          CALL MP_SXXXXX(P(0,3),+1*IC(3),W(1,3))
+          CALL MP_SXXXXX(P(0,4),+1*IC(4),W(1,4))
 C         Counter-term amplitude(s) for loop diagram number 1
-          CALL MP_R2_GGHH_0(W(1),W(2),W(4),W(3),R2_GGHHB,AMPL(1,1))
-          CALL MP_SSS1_1(W(3),W(4),GC_30,MDL_MH,MDL_WH,W(5))
+          CALL MP_R2_GGHH_0(W(1,1),W(1,2),W(1,4),W(1,3),R2_GGHHB
+     $     ,AMPL(1,1))
+          CALL MP_SSS1_1(W(1,3),W(1,4),GC_30,MDL_MH,MDL_WH,W(1,5))
 C         Counter-term amplitude(s) for loop diagram number 3
-          CALL MP_VVS1_0(W(1),W(2),W(5),R2_GGHB,AMPL(1,2))
+          CALL MP_VVS1_0(W(1,1),W(1,2),W(1,5),R2_GGHB,AMPL(1,2))
 C         Counter-term amplitude(s) for loop diagram number 9
-          CALL MP_R2_GGHH_0(W(1),W(2),W(4),W(3),R2_GGHHT,AMPL(1,3))
+          CALL MP_R2_GGHH_0(W(1,1),W(1,2),W(1,4),W(1,3),R2_GGHHT
+     $     ,AMPL(1,3))
 C         Counter-term amplitude(s) for loop diagram number 11
-          CALL MP_VVS1_0(W(1),W(2),W(5),R2_GGHT,AMPL(1,4))
+          CALL MP_VVS1_0(W(1,1),W(1,2),W(1,5),R2_GGHT,AMPL(1,4))
 C         Copy the qp wfs to the dp ones as they are used to setup the
 C          CT calls.
           DO I=1,NWAVEFUNCS

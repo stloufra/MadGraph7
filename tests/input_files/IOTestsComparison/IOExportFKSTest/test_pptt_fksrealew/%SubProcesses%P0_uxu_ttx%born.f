@@ -624,19 +624,20 @@ C     ----------
             IF (NHEL(GLU_IJ).NE.0) NHEL(GLU_IJ) = IHEL
           ENDIF
           IF (.NOT. CALCULATEDBORN) THEN
-            CALL OXXXXX(P(0,1),ZERO,NHEL(1),-1, FLAVOR(1),W(1))
-            CALL IXXXXX(P(0,2),ZERO,NHEL(2),+1, FLAVOR(2),W(2))
-            CALL OXXXXX(P(0,3),MDL_MT,NHEL(3),+1, FLAVOR(3),W(3))
-            CALL IXXXXX(P(0,4),MDL_MT,NHEL(4),-1, FLAVOR(4),W(4))
-            CALL FFV1P0_3(W(2),W(1),GC_2,ZERO,ZERO,W(5))
+            CALL OXXXXX(P(0,1),ZERO,NHEL(1),-1*IC(1),W(1,1))
+            CALL IXXXXX(P(0,2),ZERO,NHEL(2),+1*IC(2),W(1,2))
+            CALL OXXXXX(P(0,3),MDL_MT,NHEL(3),+1*IC(3),W(1,3))
+            CALL IXXXXX(P(0,4),MDL_MT,NHEL(4),-1*IC(4),W(1,4))
+            CALL FFV1P0_3(W(1,2),W(1,1),GC_2,ZERO,ZERO,W(1,5))
 C           Amplitude(s) for diagram number 1
-            CALL FFV1_0(W(4),W(3),W(5),GC_2,AMP(1))
-            CALL FFV1P0_3(W(2),W(1),GC_11,ZERO,ZERO,W(5))
+            CALL FFV1_0(W(1,4),W(1,3),W(1,5),GC_2,AMP(1))
+            CALL FFV1P0_3(W(1,2),W(1,1),GC_11,ZERO,ZERO,W(1,5))
 C           Amplitude(s) for diagram number 2
-            CALL FFV1_0(W(4),W(3),W(5),GC_11,AMP(2))
-            CALL FFV2_5_3(W(2),W(1),GC_51,GC_58,MDL_MZ,MDL_WZ,W(5))
+            CALL FFV1_0(W(1,4),W(1,3),W(1,5),GC_11,AMP(2))
+            CALL FFV2_5_3(W(1,2),W(1,1),-GC_50,GC_58,MDL_MZ,MDL_WZ,W(1
+     $       ,5))
 C           Amplitude(s) for diagram number 3
-            CALL FFV2_5_0(W(4),W(3),W(5),GC_51,GC_58,AMP(3))
+            CALL FFV2_5_0(W(1,4),W(1,3),W(1,5),-GC_50,GC_58,AMP(3))
             DO I=1,NGRAPHS
               IF(IHEL.EQ.BACK_HEL)THEN
                 SAVEAMP(I,HELL)=AMP(I)

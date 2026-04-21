@@ -498,14 +498,14 @@ class HelasModelTest(HelasModelTestSetup):
 
         wavefunctions = {}
         # IXXXXXX.Key: (spin, state, polarization, flavor)
-        key1 = ((-2, 0, tuple(), tuple()), ('',))
+        key1 = ((-2, 0, tuple(), tuple(), None), ('',))
         wavefunctions[key1] = \
                           lambda wf: 'CALL IXXXXX(P(0,%d),%s,NHEL(%d),%d*IC(%d),W(1,%d))' % \
                           (wf.get('number_external'), wf.get('mass'),
                            wf.get('number_external'), -(-1) ** wf.get_with_flow('is_part'),
                            wf.get('number_external'), wf.get('number'))
         # OXXXXXX.Key: (spin, state, polarization, flavor)
-        key2 = ((2, 0, tuple(), tuple()), ('',))
+        key2 = ((2, 0, tuple(), tuple(), None), ('',))
         wavefunctions[key2] = \
                           lambda wf: 'CALL OXXXXX(P(0,%d),%s,NHEL(%d),%d*IC(%d),W(1,%d))' % \
                           (wf.get('number_external'), wf.get('mass'),

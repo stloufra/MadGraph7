@@ -201,7 +201,7 @@ C
       COMPLEX*32 MP_ML(NEXTERNAL+2)
       COMMON/MP_LOOP/MP_LC,MP_ML
 
-      type(aloha) W(NWAVEFUNCS,NCOMB)
+      COMPLEX*16 W(20,NWAVEFUNCS,NCOMB)
       INTEGER VALIDH
       COMMON/WFCTS/W
       COMMON/VALIDH/VALIDH
@@ -244,7 +244,7 @@ C     ----------
         DO J=1,NLOOPLINE
           PL(I,J)=0.D0
           DO K=TEMP,(TEMP+PAIRING(J)-1)
-            PL(I,J)=PL(I,J)-DBLE(W(WE(K),VALIDH)%W(1+I))
+            PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K),VALIDH))
           ENDDO
           TEMP=TEMP+PAIRING(J)
         ENDDO
@@ -301,7 +301,7 @@ C
       COMPLEX*32 MP_ML(NEXTERNAL+2)
       COMMON/MP_LOOP/MP_LC,MP_ML
 
-      type(aloha) W(NWAVEFUNCS,NCOMB)
+      COMPLEX*16 W(20,NWAVEFUNCS,NCOMB)
       INTEGER VALIDH
       COMMON/WFCTS/W
       COMMON/VALIDH/VALIDH
@@ -338,7 +338,7 @@ C     ----------
         DO J=1,NLOOPLINE
           PL(I,J)=0.D0
           DO K=TEMP,(TEMP+PAIRING(J)-1)
-            PL(I,J)=PL(I,J)-DBLE(W(WE(K),VALIDH)%W(1+I))
+            PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K),VALIDH))
           ENDDO
           TEMP=TEMP+PAIRING(J)
         ENDDO
@@ -396,7 +396,7 @@ C
       COMPLEX*32 MP_ML(NEXTERNAL+2)
       COMMON/MP_LOOP/MP_LC,MP_ML
 
-      type(aloha) W(NWAVEFUNCS,NCOMB)
+      COMPLEX*16 W(20,NWAVEFUNCS,NCOMB)
       INTEGER VALIDH
       COMMON/WFCTS/W
       COMMON/VALIDH/VALIDH
@@ -439,7 +439,7 @@ C     ----------
         DO J=1,NLOOPLINE
           PL(I,J)=0.D0
           DO K=TEMP,(TEMP+PAIRING(J)-1)
-            PL(I,J)=PL(I,J)-DBLE(W(WE(K),VALIDH)%W(1+I))
+            PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K),VALIDH))
           ENDDO
           TEMP=TEMP+PAIRING(J)
         ENDDO
@@ -496,7 +496,7 @@ C
       COMPLEX*32 MP_ML(NEXTERNAL+2)
       COMMON/MP_LOOP/MP_LC,MP_ML
 
-      type(aloha) W(NWAVEFUNCS,NCOMB)
+      COMPLEX*16 W(20,NWAVEFUNCS,NCOMB)
       INTEGER VALIDH
       COMMON/WFCTS/W
       COMMON/VALIDH/VALIDH
@@ -532,7 +532,7 @@ C     ----------
         DO J=1,NLOOPLINE
           PL(I,J)=0.D0
           DO K=TEMP,(TEMP+PAIRING(J)-1)
-            PL(I,J)=PL(I,J)-DBLE(W(WE(K),VALIDH)%W(1+I))
+            PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K),VALIDH))
           ENDDO
           TEMP=TEMP+PAIRING(J)
         ENDDO
@@ -590,7 +590,7 @@ C
       COMPLEX*32 MP_ML(NEXTERNAL+2)
       COMMON/MP_LOOP/MP_LC,MP_ML
 
-      type(aloha) W(NWAVEFUNCS,NCOMB)
+      COMPLEX*16 W(20,NWAVEFUNCS,NCOMB)
       INTEGER VALIDH
       COMMON/WFCTS/W
       COMMON/VALIDH/VALIDH
@@ -640,7 +640,7 @@ C     ----------
         DO J=1,NLOOPLINE
           PL(I,J)=0.D0
           DO K=TEMP,(TEMP+PAIRING(J)-1)
-            PL(I,J)=PL(I,J)-DBLE(W(WE(K),VALIDH)%W(1+I))
+            PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K),VALIDH))
           ENDDO
           TEMP=TEMP+PAIRING(J)
         ENDDO
@@ -698,7 +698,7 @@ C
       COMPLEX*32 MP_ML(NEXTERNAL+2)
       COMMON/MP_LOOP/MP_LC,MP_ML
 
-      type(aloha) W(NWAVEFUNCS,NCOMB)
+      COMPLEX*16 W(20,NWAVEFUNCS,NCOMB)
       INTEGER VALIDH
       COMMON/WFCTS/W
       COMMON/VALIDH/VALIDH
@@ -747,7 +747,7 @@ C     ----------
         DO J=1,NLOOPLINE
           PL(I,J)=0.D0
           DO K=TEMP,(TEMP+PAIRING(J)-1)
-            PL(I,J)=PL(I,J)-DBLE(W(WE(K),VALIDH)%W(1+I))
+            PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K),VALIDH))
           ENDDO
           TEMP=TEMP+PAIRING(J)
         ENDDO
@@ -805,7 +805,7 @@ C
       COMPLEX*32 MP_ML(NEXTERNAL+2)
       COMMON/MP_LOOP/MP_LC,MP_ML
 
-      type(aloha) W(NWAVEFUNCS,NCOMB)
+      COMPLEX*16 W(20,NWAVEFUNCS,NCOMB)
       INTEGER VALIDH
       COMMON/WFCTS/W
       COMMON/VALIDH/VALIDH
@@ -860,7 +860,7 @@ C     ----------
         DO J=1,NLOOPLINE
           PL(I,J)=0.D0
           DO K=TEMP,(TEMP+PAIRING(J)-1)
-            PL(I,J)=PL(I,J)-DBLE(W(WE(K),VALIDH)%W(1+I))
+            PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K),VALIDH))
           ENDDO
           TEMP=TEMP+PAIRING(J)
         ENDDO

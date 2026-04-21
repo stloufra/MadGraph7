@@ -1,1 +1,0 @@
-#define  __max_nproc__ 6

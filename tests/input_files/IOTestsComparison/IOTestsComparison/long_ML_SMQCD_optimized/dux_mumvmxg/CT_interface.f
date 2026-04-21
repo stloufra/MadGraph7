@@ -196,7 +196,7 @@ C
       LOGICAL GOODAMP(NLOOPGROUPS)
       COMMON/FILTERS/GOODAMP,GOODHEL,HELOFFSET
 
-      type(aloha) W(NWAVEFUNCS)
+      COMPLEX*16 W(20,NWAVEFUNCS)
       COMMON/W/W
 
 C     ----------
@@ -224,7 +224,7 @@ C     ----------
           DO J=1,NLOOPLINE
             PL(I,J)=0.D0
             DO K=TEMP,(TEMP+PAIRING(J)-1)
-              PL(I,J)=PL(I,J)-DBLE(W(WE(K))%W(1+I))
+              PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K)))
             ENDDO
             TEMP=TEMP+PAIRING(J)
           ENDDO
@@ -282,7 +282,7 @@ C
       LOGICAL GOODAMP(NLOOPGROUPS)
       COMMON/FILTERS/GOODAMP,GOODHEL,HELOFFSET
 
-      type(aloha) W(NWAVEFUNCS)
+      COMPLEX*16 W(20,NWAVEFUNCS)
       COMMON/W/W
 
 C     ----------
@@ -308,7 +308,7 @@ C     ----------
           DO J=1,NLOOPLINE
             PL(I,J)=0.D0
             DO K=TEMP,(TEMP+PAIRING(J)-1)
-              PL(I,J)=PL(I,J)-DBLE(W(WE(K))%W(1+I))
+              PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K)))
             ENDDO
             TEMP=TEMP+PAIRING(J)
           ENDDO
@@ -366,7 +366,7 @@ C
       LOGICAL GOODAMP(NLOOPGROUPS)
       COMMON/FILTERS/GOODAMP,GOODHEL,HELOFFSET
 
-      type(aloha) W(NWAVEFUNCS)
+      COMPLEX*16 W(20,NWAVEFUNCS)
       COMMON/W/W
 
 C     ----------
@@ -390,7 +390,7 @@ C     ----------
           DO J=1,NLOOPLINE
             PL(I,J)=0.D0
             DO K=TEMP,(TEMP+PAIRING(J)-1)
-              PL(I,J)=PL(I,J)-DBLE(W(WE(K))%W(1+I))
+              PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K)))
             ENDDO
             TEMP=TEMP+PAIRING(J)
           ENDDO

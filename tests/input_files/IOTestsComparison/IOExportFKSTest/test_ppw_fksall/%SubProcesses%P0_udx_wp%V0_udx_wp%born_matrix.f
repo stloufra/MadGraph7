@@ -305,11 +305,11 @@ C     1 T(2,1)
 C     ----------
 C     BEGIN CODE
 C     ----------
-      CALL IXXXXX(P(0,1),ZERO,NHEL(1),+1, FLAVOR(1),W(1))
-      CALL OXXXXX(P(0,2),ZERO,NHEL(2),-1, FLAVOR(2),W(2))
-      CALL VXXXXX(P(0,3),MDL_MW,NHEL(3),+1,W(3))
+      CALL IXXXXX(P(0,1),ZERO,NHEL(1),+1*IC(1),W(1,1))
+      CALL OXXXXX(P(0,2),ZERO,NHEL(2),-1*IC(2),W(1,2))
+      CALL VXXXXX(P(0,3),MDL_MW,NHEL(3),+1*IC(3),W(1,3))
 C     Amplitude(s) for diagram number 1
-      CALL FFV2_0(W(1),W(2),W(3),GC_11,AMP(1))
+      CALL FFV2_0(W(1,1),W(1,2),W(1,3),GC_11,AMP(1))
 C     JAMPs contributing to orders QCD=0 QED=1
       JAMP(1,1) = AMP(1)
 

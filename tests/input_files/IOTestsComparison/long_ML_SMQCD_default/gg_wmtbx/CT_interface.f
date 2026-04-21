@@ -155,7 +155,6 @@ C     CALL CTSINIT(THRS,LOOPLIB)
       SUBROUTINE ML5_0_LOOP_2_2( LID, W1, W2, M1,MP_M1, M2,MP_M2, C1
      $ ,MP_C1, C2,MP_C2,  RANK, LSYMFACT, LMULTIPLIER, AMPLN, RES,
      $  STABLE)
-      USE ALOHA_OBJECT
 
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=5)
@@ -202,7 +201,7 @@ C
       COMPLEX*32 MP_ML(NEXTERNAL+2)
       COMMON/ML5_0_MP_LOOP/MP_LC,MP_ML
 
-      type(aloha) W(NWAVEFUNCS,NCOMB)
+      COMPLEX*16 W(20,NWAVEFUNCS,NCOMB)
       INTEGER VALIDH
       COMMON/ML5_0_WFCTS/W
       COMMON/ML5_0_VALIDH/VALIDH
@@ -240,7 +239,7 @@ C     ----------
         DO J=1,NLOOPLINE
           PL(I,J)=0.D0
           DO K=TEMP,(TEMP+PAIRING(J)-1)
-            PL(I,J)=PL(I,J)-DBLE(W(WE(K),VALIDH)%W(1+I))
+            PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K),VALIDH))
           ENDDO
           TEMP=TEMP+PAIRING(J)
         ENDDO
@@ -252,7 +251,6 @@ C     ----------
       SUBROUTINE ML5_0_LOOP_3_3( LID, W1, W2, W3, M1,MP_M1, M2,MP_M2,
      $  M3,MP_M3, C1,MP_C1, C2,MP_C2, C3,MP_C3,  RANK, LSYMFACT,
      $  LMULTIPLIER, AMPLN, RES, STABLE)
-      USE ALOHA_OBJECT
 
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=5)
@@ -299,7 +297,7 @@ C
       COMPLEX*32 MP_ML(NEXTERNAL+2)
       COMMON/ML5_0_MP_LOOP/MP_LC,MP_ML
 
-      type(aloha) W(NWAVEFUNCS,NCOMB)
+      COMPLEX*16 W(20,NWAVEFUNCS,NCOMB)
       INTEGER VALIDH
       COMMON/ML5_0_WFCTS/W
       COMMON/ML5_0_VALIDH/VALIDH
@@ -343,7 +341,7 @@ C     ----------
         DO J=1,NLOOPLINE
           PL(I,J)=0.D0
           DO K=TEMP,(TEMP+PAIRING(J)-1)
-            PL(I,J)=PL(I,J)-DBLE(W(WE(K),VALIDH)%W(1+I))
+            PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K),VALIDH))
           ENDDO
           TEMP=TEMP+PAIRING(J)
         ENDDO
@@ -355,7 +353,6 @@ C     ----------
       SUBROUTINE ML5_0_LOOP_4_4( LID, W1, W2, W3, W4, M1,MP_M1, M2
      $ ,MP_M2, M3,MP_M3, M4,MP_M4, C1,MP_C1, C2,MP_C2, C3,MP_C3, C4
      $ ,MP_C4,  RANK, LSYMFACT, LMULTIPLIER, AMPLN, RES, STABLE)
-      USE ALOHA_OBJECT
 
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=5)
@@ -402,7 +399,7 @@ C
       COMPLEX*32 MP_ML(NEXTERNAL+2)
       COMMON/ML5_0_MP_LOOP/MP_LC,MP_ML
 
-      type(aloha) W(NWAVEFUNCS,NCOMB)
+      COMPLEX*16 W(20,NWAVEFUNCS,NCOMB)
       INTEGER VALIDH
       COMMON/ML5_0_WFCTS/W
       COMMON/ML5_0_VALIDH/VALIDH
@@ -452,7 +449,7 @@ C     ----------
         DO J=1,NLOOPLINE
           PL(I,J)=0.D0
           DO K=TEMP,(TEMP+PAIRING(J)-1)
-            PL(I,J)=PL(I,J)-DBLE(W(WE(K),VALIDH)%W(1+I))
+            PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K),VALIDH))
           ENDDO
           TEMP=TEMP+PAIRING(J)
         ENDDO
@@ -465,7 +462,6 @@ C     ----------
      $ ,MP_M2, M3,MP_M3, M4,MP_M4, M5,MP_M5, C1,MP_C1, C2,MP_C2, C3
      $ ,MP_C3, C4,MP_C4, C5,MP_C5,  RANK, LSYMFACT, LMULTIPLIER, AMPLN
      $ , RES, STABLE)
-      USE ALOHA_OBJECT
 
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=5)
@@ -512,7 +508,7 @@ C
       COMPLEX*32 MP_ML(NEXTERNAL+2)
       COMMON/ML5_0_MP_LOOP/MP_LC,MP_ML
 
-      type(aloha) W(NWAVEFUNCS,NCOMB)
+      COMPLEX*16 W(20,NWAVEFUNCS,NCOMB)
       INTEGER VALIDH
       COMMON/ML5_0_WFCTS/W
       COMMON/ML5_0_VALIDH/VALIDH
@@ -568,7 +564,7 @@ C     ----------
         DO J=1,NLOOPLINE
           PL(I,J)=0.D0
           DO K=TEMP,(TEMP+PAIRING(J)-1)
-            PL(I,J)=PL(I,J)-DBLE(W(WE(K),VALIDH)%W(1+I))
+            PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K),VALIDH))
           ENDDO
           TEMP=TEMP+PAIRING(J)
         ENDDO
@@ -580,7 +576,6 @@ C     ----------
       SUBROUTINE ML5_0_LOOP_2_3_2( LID, P1, P2, W1, W2, W3, M1,MP_M1,
      $  M2,MP_M2, C1,MP_C1, C2,MP_C2,  RANK, LSYMFACT, LMULTIPLIER,
      $  AMPLN, RES, STABLE)
-      USE ALOHA_OBJECT
 
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=5)
@@ -627,7 +622,7 @@ C
       COMPLEX*32 MP_ML(NEXTERNAL+2)
       COMMON/ML5_0_MP_LOOP/MP_LC,MP_ML
 
-      type(aloha) W(NWAVEFUNCS,NCOMB)
+      COMPLEX*16 W(20,NWAVEFUNCS,NCOMB)
       INTEGER VALIDH
       COMMON/ML5_0_WFCTS/W
       COMMON/ML5_0_VALIDH/VALIDH
@@ -664,7 +659,7 @@ C     ----------
         DO J=1,NLOOPLINE
           PL(I,J)=0.D0
           DO K=TEMP,(TEMP+PAIRING(J)-1)
-            PL(I,J)=PL(I,J)-DBLE(W(WE(K),VALIDH)%W(1+I))
+            PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K),VALIDH))
           ENDDO
           TEMP=TEMP+PAIRING(J)
         ENDDO
@@ -676,7 +671,6 @@ C     ----------
       SUBROUTINE ML5_0_LOOP_3_4_3( LID, P1, P2, P3, W1, W2, W3, W4, M1
      $ ,MP_M1, M2,MP_M2, M3,MP_M3, C1,MP_C1, C2,MP_C2, C3,MP_C3,  RANK
      $ , LSYMFACT, LMULTIPLIER, AMPLN, RES, STABLE)
-      USE ALOHA_OBJECT
 
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=5)
@@ -723,7 +717,7 @@ C
       COMPLEX*32 MP_ML(NEXTERNAL+2)
       COMMON/ML5_0_MP_LOOP/MP_LC,MP_ML
 
-      type(aloha) W(NWAVEFUNCS,NCOMB)
+      COMPLEX*16 W(20,NWAVEFUNCS,NCOMB)
       INTEGER VALIDH
       COMMON/ML5_0_WFCTS/W
       COMMON/ML5_0_VALIDH/VALIDH
@@ -767,7 +761,7 @@ C     ----------
         DO J=1,NLOOPLINE
           PL(I,J)=0.D0
           DO K=TEMP,(TEMP+PAIRING(J)-1)
-            PL(I,J)=PL(I,J)-DBLE(W(WE(K),VALIDH)%W(1+I))
+            PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K),VALIDH))
           ENDDO
           TEMP=TEMP+PAIRING(J)
         ENDDO
@@ -780,7 +774,6 @@ C     ----------
      $ , W5, M1,MP_M1, M2,MP_M2, M3,MP_M3, M4,MP_M4, C1,MP_C1, C2
      $ ,MP_C2, C3,MP_C3, C4,MP_C4,  RANK, LSYMFACT, LMULTIPLIER, AMPLN
      $ , RES, STABLE)
-      USE ALOHA_OBJECT
 
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=5)
@@ -827,7 +820,7 @@ C
       COMPLEX*32 MP_ML(NEXTERNAL+2)
       COMMON/ML5_0_MP_LOOP/MP_LC,MP_ML
 
-      type(aloha) W(NWAVEFUNCS,NCOMB)
+      COMPLEX*16 W(20,NWAVEFUNCS,NCOMB)
       INTEGER VALIDH
       COMMON/ML5_0_WFCTS/W
       COMMON/ML5_0_VALIDH/VALIDH
@@ -878,7 +871,7 @@ C     ----------
         DO J=1,NLOOPLINE
           PL(I,J)=0.D0
           DO K=TEMP,(TEMP+PAIRING(J)-1)
-            PL(I,J)=PL(I,J)-DBLE(W(WE(K),VALIDH)%W(1+I))
+            PL(I,J)=PL(I,J)-DBLE(W(1+I,WE(K),VALIDH))
           ENDDO
           TEMP=TEMP+PAIRING(J)
         ENDDO

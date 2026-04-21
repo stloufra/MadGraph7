@@ -1034,31 +1034,6 @@ class TestBenchmarkModel(unittest.TestCase):
         model = import_ufo.import_model('sm-no_b_mass') 
         self.assertEqual(model["name"], "sm-no_b_mass")        
 
-#===============================================================================
-# TestRestrictModel
-#===============================================================================
-class TestRestrictModel_Flavor(unittest.TestCase):
-    """Test class for the RestrictModel object"""
-
-    def setUp(self):
-        """Set up decay model"""
-        #Read the full SM
-        sm_path = import_ufo.find_ufo_path('sm', )
-        self.base_model = import_ufo.import_full_model(sm_path,  options={'apply_flavor_grouping':True})
-
-        model = copy.deepcopy(self.base_model)
-        self.model = import_ufo.RestrictModel(model)
-        self.restrict_file = os.path.join(_file_path, os.path.pardir,
-                                     'input_files', 'restrict_sm.dat')
-        self.model.set_parameters_and_couplings(self.restrict_file)
-
-    def test_to_implement(self):
-        """ check that the flavor grouping is correctly implemented in the model
-            and that the restriction works as expected in this case
-        """
-        
-        raise Exception('test not implemented yet')
-         
 
 #===============================================================================
 # TestRestrictModel_Merged
