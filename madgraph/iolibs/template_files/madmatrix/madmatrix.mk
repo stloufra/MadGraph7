@@ -113,7 +113,6 @@ override SRC := ../../src
 # NB: LIBDIR is resolved to an absolute path so it can be passed unchanged to sub-makes via export.
 LIBDIR ?= ../../lib
 override LIBDIR := $(abspath $(LIBDIR))
-export LIBDIR
 
 $(info Building objects in BUILDDIR=$(BUILDDIR), libraries in LIBDIR=$(LIBDIR))
 
@@ -767,7 +766,7 @@ endif
 commonlib : $(LIBDIR)/lib$(MADMATRIX_COMMONLIB).so
 
 $(LIBDIR)/lib$(MADMATRIX_COMMONLIB).so: $(SRC)/*.h $(SRC)/*.cc $(BUILDDIR)/.build.$(TAG)
-	$(MAKE) -C $(SRC) BACKEND=$(BACKEND)
+	$(MAKE) -C $(SRC) BACKEND=$(BACKEND) LIBDIR=$(LIBDIR)
 
 #-------------------------------------------------------------------------------
 
@@ -851,14 +850,15 @@ else
 	rm -f $(BUILDDIR)/.build.* $(BUILDDIR)/*.o
 	rm -f $(LIBDIR)/lib$(MADMATRIX_LIB).so
 	rm -f $(BACKEND_LOG)
-	$(MAKE) -C $(SRC) clean BACKEND=$(BACKEND)
+	$(MAKE) -C $(SRC) clean BACKEND=$(BACKEND) LIBDIR=$(LIBDIR)
+endif
  
 # cleanall: remove objects and libraries for ALL backends.
 cleanall:
 	rm -rf build.*
 	rm -f ./.build.* ./*.o
 	rm -f $(LIBDIR)/libmadmatrix_$(processid_short)_*.so
-	$(MAKE) -C $(SRC) cleanall
+	$(MAKE) -C $(SRC) cleanall LIBDIR=$(LIBDIR)
 
 #-------------------------------------------------------------------------------
 
