@@ -70,7 +70,7 @@ endif
 #=== Configure MADMATRIX_BUILDDIR
 
 # Build directory "full" tag (used for build lockfiles to prevent mixing builds with different options)
-override DIRTAG := $(patsubst cpp%,%,$(BACKEND))_$(FPTYPE)_inl$(HELINL)_hrd$(HRDCOD)
+override DIRTAG := $(patsubst cpp%%,%%,$(BACKEND))_$(FPTYPE)_inl$(HELINL)_hrd$(HRDCOD)
 
 # Build directory: current directory by default, or build.<BACKEND> if USEBUILDDIR==1
 # NB: using '=' (not ':=') ensures BACKEND is evaluated lazily after potential cppauto resolution
@@ -667,10 +667,10 @@ endif
 #=== Configure build directories and build lockfiles ===
 
 # Build lockfile "full" tag (defines full specification of object-file builds that cannot be intermixed)
-override TAG = $(patsubst cpp%,%,$(BACKEND))_$(FPTYPE)_inl$(HELINL)_hrd$(HRDCOD)
+override TAG = $(patsubst cpp%%,%%,$(BACKEND))_$(FPTYPE)_inl$(HELINL)_hrd$(HRDCOD)
 
 # Export TAG (so that there is no need to check/define it again in src/Makefile)
-xport TAG
+export TAG
 
 # Build directory for object files: current directory by default, or build.<BACKEND> if USEBUILDDIR==1
 override BUILDDIR = $(MADMATRIX_BUILDDIR)
@@ -752,11 +752,11 @@ endif
 # incompatible backends (different BACKEND, FPTYPE, etc.) in the same directory.
 # Use USEBUILDDIR=1 to build for multiple backends simultaneously without cleaning.
 ifeq ($(GPUCC),)
-$(BUILDDIR)/%.o : %.cc *.h $(SRC)/*.h $(BUILDDIR)/.build.$(TAG)
+$(BUILDDIR)/%%.o : %%.cc *.h $(SRC)/*.h $(BUILDDIR)/.build.$(TAG)
 	@if [ ! -d $(BUILDDIR) ]; then echo "mkdir -p $(BUILDDIR)"; mkdir -p $(BUILDDIR); fi
 	$(CXX) $(CPPFLAGS) $(INCFLAGS) $(CXXFLAGS) -c $< -o $@
 else
-$(BUILDDIR)/%.o : %.cc *.h $(SRC)/*.h $(BUILDDIR)/.build.$(TAG)
+$(BUILDDIR)/%%.o : %%.cc *.h $(SRC)/*.h $(BUILDDIR)/.build.$(TAG)
 	@if [ ! -d $(BUILDDIR) ]; then echo "mkdir -p $(BUILDDIR)"; mkdir -p $(BUILDDIR); fi
 	$(GPUCC) $(CPPFLAGS) $(INCFLAGS) $(GPUFLAGS) -c -x $(GPULANGUAGE) $< -o $@
 endif
