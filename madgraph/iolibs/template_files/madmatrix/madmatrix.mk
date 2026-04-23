@@ -700,7 +700,7 @@ override RUNTIME =
 #=== Makefile TARGETS and build rules below
 #===============================================================================
 
-processid_short=$(shell basename $(CURDIR) | awk -F_ '{print $$(NF-1)"_"$$NF}')
+processid_short=$(shell basename $(CURDIR))
 ###$(info processid_short=$(processid_short))
 
 MADMATRIX_LIB = madmatrix_$(processid_short)_$(BACKEND)

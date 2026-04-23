@@ -2801,7 +2801,7 @@ class ProcessExporterMG7(ProcessExporterCPP):
                 ln('../%s' % file) 
 
         me_lib_path = self.me_lib_format.format(process_id = process_exporter_mg7.name)
-        self.process_info.append(process_exporter_mg7.get_subprocess_info(proc_dir_name, me_lib_path))
+        self.process_info.append(process_exporter_mg7.get_subprocess_info(dirpath, me_lib_path))
 
     def copy_template(self, model):
         super().copy_template(model)
