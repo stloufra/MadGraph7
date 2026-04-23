@@ -112,6 +112,7 @@ c     ...unless the diagram is passed in igraphs(1); then use that diagram
             write(*,*)'unwgt.f: write out diagram ',igraphs(1)
          endif
          lconfig = vec_igraph(ivec)
+         if (lconfig.eq.0.and.igraphs(1).ne.i.and.ivec.eq.1) lconfig = igraphs(1)
       endif
       is_LC=.true.
       maxcolor=0

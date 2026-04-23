@@ -1111,23 +1111,24 @@ c    local
 c
 	integer nc ! number of assigned color in jamp2
 	logical is_LC
+    integer cconfig 
 	integer maxcolor
 	double precision targetamp(0:maxflow)
 	integer i,j
 	double precision xtarget
 
+    cconfig = iconfig
     if (ickkw.gt.0) then
         if (VECSIZE_MEMMAX.eq.1.and.igraphs(1).ne.0) then
-            iconfig = igraphs(1)
+            cconfig = igraphs(1)
         else
-            iconfig = vec_igraph(ivec)
-            if(iconfig.eq.0)then
+            cconfig = vec_igraph(ivec)
+            if(cconfig.eq.0)then
               icol =0 
               return
             endif
         endif
     endif   
-
 
       nc = int(jamp2(0))
       is_LC = .true.
@@ -1138,7 +1139,7 @@ c
       return
       endif
       do i=1,nc
-      	  if(icolamp(i,iconfig,iproc))then
+      	  if(icolamp(i,cconfig,iproc))then
         	  targetamp(i) = targetamp(i-1) + jamp2(i)
           else	       
         	  targetamp(i) = targetamp(i-1)
