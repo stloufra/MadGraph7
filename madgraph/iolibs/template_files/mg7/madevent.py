@@ -263,7 +263,7 @@ class MadgraphProcess:
 
     def init_context(self) -> None:
         device_name = self.run_card["run"]["device"]
-        if device_name == "cpu":
+        if device_name in ["cppauto", "cppsse4", "cppavx2", "cpp512y", "cpp512z"]:
             device = ms.cpu_device()
         elif device_name == "cuda":
             device = ms.cuda_device()
@@ -592,14 +592,21 @@ class MadgraphSubprocess:
 
         api_path_format = self.meta["me_path"]
         subproc_path = self.meta["path"]
-        if not os.path.isfile(api_path_format):
-            cwd = os.getcwd()
-            subproc_dir = os.path.dirname(subproc_path)
-            logger.info(f"Compiling subprocess {subproc_dir}")
-            os.chdir(subproc_path)
-            backend = self.process.run_card["run"]["device"]
-            subprocess.run(["make", "-j", f"BACKEND={backend}"])
-            os.chdir(cwd)
+        devices = self.process.run_card["run"]["device"]
+        api_paths = []
+        if not isinstance(devices, list):
+            devices = [ devices ]
+        for device in devices:
+            api_paths.append(api_path_format.format(device=device))
+            if not os.path.isfile(api_paths[-1]):
+                cwd = os.getcwd()
+                subproc_dir = os.path.dirname(subproc_path)
+                logger.info(f"Compiling subprocess {subproc_dir}")
+                os.chdir(subproc_path)
+                subprocess.run(["make", "-j", f"BACKEND={device}", "USEBUILDDIR=1"])
+                os.chdir(cwd)
+        # temporary fix before we will have multiple devices (will change in the future)
+        api_path = api_paths[0]
 
         self.incoming_masses = [
             self.process.get_mass(pid) for pid in clean_pids(self.meta["incoming"])
