@@ -93,6 +93,7 @@ C     local
 C     
       DOUBLE PRECISION P1(0:3, NEXTERNAL)
       INTEGER CHANNEL
+      DOUBLE PRECISION RWGT_VALUE
 C     
 C     DATA
 C     
@@ -166,18 +167,6 @@ C       LP=SIGN(1,LPP(IB(2)))
       CHANNEL = SUBDIAG(1)
       CALL RANMAR(RHEL)
       CALL RANMAR(RCOL)
-      CALL SMATRIX1(P1,RHEL, RCOL,CHANNEL,1, DSIGUU, SELECTED_HEL(1),
-     $  SELECTED_COL(1))
-
-
-      IF (IMODE.EQ.5) THEN
-        IF (DSIGUU.LT.1D199) THEN
-          DSIG1 = DSIGUU*CONV
-        ELSE
-          DSIG1 = 0.0D0
-        ENDIF
-        RETURN
-      ENDIF
 C     Select a flavor combination (need to do here for right sign)
       CALL RANMAR(R)
       IPSEL=0
@@ -186,7 +175,20 @@ C     Select a flavor combination (need to do here for right sign)
         R=R-DABS(PD(IPSEL))/PD(0)
       ENDDO
 
-      DSIGUU=DSIGUU*REWGT(PP,1)
+      RWGT_VALUE=REWGT(PP,1)
+C     1 argument is for IVEC=1
+      CALL SMATRIX1(P1,RHEL, RCOL,CHANNEL,1, DSIGUU, SELECTED_HEL(1),
+     $  SELECTED_COL(1))
+
+      DSIGUU = DSIGUU* RWGT_VALUE
+      IF (IMODE.EQ.5) THEN
+        IF (DSIGUU.LT.1D199) THEN
+          DSIG1 = DSIGUU*CONV
+        ELSE
+          DSIG1 = 0.0D0
+        ENDIF
+        RETURN
+      ENDIF
 
 C     Apply the bias weight specified in the run card (default is 1.0)
       DSIGUU=DSIGUU*CUSTOM_BIAS(PP,DSIGUU,1,1)
@@ -350,7 +352,6 @@ C     BEGIN CODE
 C     ----------
       SELECTED_HEL(:) = 0
       SELECTED_COL(:) = 0
-      IGRAPH(:) = 0
 
       IF(IMODE.EQ.1)THEN
         NFACT = DSIG1(ALL_PP(0,1,1), ALL_WGT(1), IMODE)

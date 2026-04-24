@@ -91,6 +91,7 @@ C     local
 C     
       DOUBLE PRECISION P1(0:3, NEXTERNAL)
       INTEGER CHANNEL
+      DOUBLE PRECISION RWGT_VALUE
 C     
 C     DATA
 C     
@@ -155,18 +156,6 @@ C       LP=SIGN(1,LPP(2))
       CHANNEL = MAPCONFIG(ICONFIG)
       CALL RANMAR(RHEL)
       CALL RANMAR(RCOL)
-      CALL SMATRIX(P1,RHEL, RCOL,CHANNEL,1, DSIGUU, SELECTED_HEL(1),
-     $  SELECTED_COL(1))
-
-
-      IF (IMODE.EQ.5) THEN
-        IF (DSIGUU.LT.1D199) THEN
-          DSIG = DSIGUU*CONV
-        ELSE
-          DSIG = 0.0D0
-        ENDIF
-        RETURN
-      ENDIF
 C     Select a flavor combination (need to do here for right sign)
       CALL RANMAR(R)
       IPSEL=0
@@ -175,7 +164,20 @@ C     Select a flavor combination (need to do here for right sign)
         R=R-DABS(PD(IPSEL))/PD(0)
       ENDDO
 
-      DSIGUU=DSIGUU*REWGT(PP,1)
+      RWGT_VALUE=REWGT(PP,1)
+C     1 argument is for IVEC=1
+      CALL SMATRIX(P1,RHEL, RCOL,CHANNEL,1, DSIGUU, SELECTED_HEL(1),
+     $  SELECTED_COL(1))
+
+      DSIGUU = DSIGUU* RWGT_VALUE
+      IF (IMODE.EQ.5) THEN
+        IF (DSIGUU.LT.1D199) THEN
+          DSIG = DSIGUU*CONV
+        ELSE
+          DSIG = 0.0D0
+        ENDIF
+        RETURN
+      ENDIF
 
 C     Apply the bias weight specified in the run card (default is 1.0)
       DSIGUU=DSIGUU*CUSTOM_BIAS(PP,DSIGUU,1,1)
@@ -385,7 +387,6 @@ C     BEGIN CODE
 C     ----------
       SELECTED_HEL(:) = 0
       SELECTED_COL(:) = 0
-      IGRAPH(:) = 0
       CUTSDONE=.FALSE.
       CUTSPASSED=.FALSE.
       IF(IMODE.EQ.1)THEN
@@ -678,23 +679,24 @@ C     local
 C     
       INTEGER NC  ! number of assigned color in jamp2
       LOGICAL IS_LC
+      INTEGER CCONFIG
       INTEGER MAXCOLOR
       DOUBLE PRECISION TARGETAMP(0:MAXFLOW)
       INTEGER I,J
       DOUBLE PRECISION XTARGET
 
+      CCONFIG = ICONFIG
       IF (ICKKW.GT.0) THEN
-        IF (IVEC.EQ.0) THEN
-          ICONFIG = IGRAPHS(1)
+        IF (VECSIZE_MEMMAX.EQ.1.AND.IGRAPHS(1).NE.0) THEN
+          CCONFIG = IGRAPHS(1)
         ELSE
-          ICONFIG = VEC_IGRAPH(IVEC)
-          IF(ICONFIG.EQ.0)THEN
+          CCONFIG = VEC_IGRAPH(IVEC)
+          IF(CCONFIG.EQ.0)THEN
             ICOL =0
             RETURN
           ENDIF
         ENDIF
       ENDIF
-
 
       NC = INT(JAMP2(0))
       IS_LC = .TRUE.
@@ -705,7 +707,7 @@ C
         RETURN
       ENDIF
       DO I=1,NC
-        IF(ICOLAMP(I,ICONFIG,IPROC))THEN
+        IF(ICOLAMP(I,CCONFIG,IPROC))THEN
           TARGETAMP(I) = TARGETAMP(I-1) + JAMP2(I)
         ELSE
           TARGETAMP(I) = TARGETAMP(I-1)
