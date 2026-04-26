@@ -676,7 +676,7 @@ template <typename T>
 KERNELSPEC void kernel_madnis_variance(
     FIn<T, 0> f, FIn<T, 0> g, FIn<T, 0> q, FIn<T, 0> mean, FOut<T, 0> var
 ) {
-    auto diff = f / q - mean;
+    auto diff = f / g - mean;
     var = g * diff * diff / q;
 }
 
@@ -692,13 +692,13 @@ KERNELSPEC void backward_kernel_madnis_variance(
     FOut<T, 0> q_grad,
     FOut<T, 0> mean_grad
 ) {
-    auto diff = f / q - mean;
+    auto diff = f / g - mean;
     auto diff2 = diff * diff;
-    g_grad += var_grad * diff2 / q;
     auto diff_grad = 2. * var_grad * g / q * diff;
+    g_grad += var_grad * diff2 / q - diff_grad * f / (g * g);
     mean_grad += -diff_grad;
-    f_grad += diff_grad / q;
-    q_grad += -(var_grad * g * diff2 + diff_grad * f) / (q * q);
+    f_grad += diff_grad / g;
+    q_grad += -var_grad * g * diff2 / (q * q);
 }
 
 template <typename T>

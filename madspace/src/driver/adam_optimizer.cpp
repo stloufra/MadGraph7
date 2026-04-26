@@ -24,13 +24,12 @@ AdamOptimizer::AdamOptimizer(
     _eps(eps),
     _one(1.0, context->device()) {
     DevicePtr device = context->device();
-    std::vector<std::string> param_names;
     for (auto& [name, value] : function.globals()) {
         if (context->global_requires_grad(name)) {
-            param_names.push_back(name);
+            _param_names.push_back(name);
         }
     }
-    _parameter = context->reallocate_globals_contiguously(param_names);
+    _parameter = context->reallocate_globals_contiguously(_param_names);
     _runtime = build_runtime(function, context);
     _exp_avg = Tensor(_parameter.dtype(), _parameter.shape(), _parameter.device());
     _exp_avg.zero();
@@ -51,6 +50,12 @@ TensorVec AdamOptimizer::step(const TensorVec& inputs) {
     double bias_corr2_sqrt = std::sqrt(bias_corr2);
     auto [outputs, stored_locals, eval_grad] =
         _runtime->run_with_grad(inputs, std::vector<bool>(inputs.size(), false));
+    Tensor loss_cpu = outputs.at(0).cpu();
+    double loss = loss_cpu.view<double, 1>()[0];
+    // TODO: return loss as double
+    if (std::isnan(loss)) {
+        return outputs;
+    }
     TensorVec output_grads(outputs.size());
     DevicePtr device = _context->device();
     output_grads.at(0) = _one;
@@ -70,11 +75,15 @@ TensorVec AdamOptimizer::step(const TensorVec& inputs) {
     return outputs;
 }
 
+void AdamOptimizer::replace_function(const Function& function) {
+    std::logic_error("TODO");
+}
+
 double AdamOptimizer::learning_rate() const {
     switch (_schedule) {
     case none:
         return _learning_rate;
-    case cosine_annealing:
+    case cosine:
         return 0.5 * _learning_rate * (1 + std::cos(_step * PI / _step_count));
     default:
         throw std::runtime_error("Invalid LR schedule");

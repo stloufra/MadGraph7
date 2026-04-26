@@ -110,6 +110,16 @@ void named_vector_instance(py::module_& m, const char* name) {
             py::init<const std::vector<std::pair<std::string, T>>&>(), py::arg("items")
         )
         .def("__len__", &NamedVector<T>::size)
+        .def(
+            "__getitem__",
+            py::overload_cast<std::size_t>(&NamedVector<T>::at, py::const_),
+            py::arg("key")
+        )
+        .def(
+            "__getitem__",
+            py::overload_cast<const std::string&>(&NamedVector<T>::at, py::const_),
+            py::arg("key")
+        )
         .def("values", &NamedVector<T>::values)
         .def("index_map", &NamedVector<T>::index_map)
         .def("keys", &NamedVector<T>::keys)
@@ -965,7 +975,7 @@ PYBIND11_MODULE(_madspace_py, m) {
         "LRSchedule",
         {
             {"none", AdamOptimizer::none},
-            {"cosine_annealing", AdamOptimizer::cosine_annealing},
+            {"cosine", AdamOptimizer::cosine},
         }
     );
     adam.def(
@@ -1246,6 +1256,64 @@ PYBIND11_MODULE(_madspace_py, m) {
             {"pretty", GeneratorConfig::pretty},
         }
     );
+
+    py::classh<MadnisTraining::Config>(m, "MadnisConfig")
+        .def(py::init<>())
+        .def_readwrite("learning_rate", &MadnisTraining::Config::learning_rate)
+        .def_readwrite("batches", &MadnisTraining::Config::batches)
+        .def_readwrite("log_interval", &MadnisTraining::Config::log_interval)
+        .def_readwrite(
+            "integration_history_length",
+            &MadnisTraining::Config::integration_history_length
+        )
+        .def_readwrite(
+            "channel_dropping_interval",
+            &MadnisTraining::Config::channel_dropping_interval
+        )
+        .def_readwrite(
+            "channel_dropping_threshold",
+            &MadnisTraining::Config::channel_dropping_threshold
+        )
+        .def_readwrite(
+            "cpu_generator_batch_size",
+            &MadnisTraining::Config::cpu_generator_batch_size
+        )
+        .def_readwrite(
+            "gpu_generator_batch_size",
+            &MadnisTraining::Config::gpu_generator_batch_size
+        )
+        .def_readwrite(
+            "generator_target_size_factor",
+            &MadnisTraining::Config::generator_target_size_factor
+        )
+        .def_readwrite("batch_size_offset", &MadnisTraining::Config::batch_size_offset)
+        .def_readwrite(
+            "batch_size_per_channel", &MadnisTraining::Config::batch_size_per_channel
+        )
+        .def_readwrite(
+            "uniform_channel_ratio", &MadnisTraining::Config::uniform_channel_ratio
+        )
+        .def_readwrite("lr_schedule", &MadnisTraining::Config::lr_schedule)
+        .def_readwrite("adam_beta1", &MadnisTraining::Config::adam_beta1)
+        .def_readwrite("adam_beta2", &MadnisTraining::Config::adam_beta2)
+        .def_readwrite("adam_eps", &MadnisTraining::Config::adam_eps);
+
+    py::classh<MadnisTraining>(m, "MadnisTraining")
+        .def(
+            py::init<
+                ContextPtr,
+                ContextPtr,
+                const MadnisTraining::Config&,
+                const std::vector<std::shared_ptr<Integrand>>&,
+                const std::optional<ChannelWeightNetwork>&>(),
+            py::arg("generator_context"),
+            py::arg("optimizer_context"),
+            py::arg("config"),
+            py::arg("integrands"),
+            py::arg("cwnet")
+        )
+        .def("train", &MadnisTraining::train);
+
     py::classh<GeneratorConfig>(m, "GeneratorConfig")
         .def(py::init<>())
         .def_readwrite("target_count", &GeneratorConfig::target_count)
@@ -1618,9 +1686,11 @@ PYBIND11_MODULE(_madspace_py, m) {
     m.def("set_lib_path", &set_lib_path, py::arg("lib_path"));
     m.def("set_simd_vector_size", &set_simd_vector_size, py::arg("vector_size"));
 
-    EventGenerator::set_abort_check_function([] {
+    auto abort_check_function = [] {
         if (PyErr_CheckSignals() != 0) {
             throw py::error_already_set();
         }
-    });
+    };
+    EventGenerator::set_abort_check_function(abort_check_function);
+    MadnisTraining::set_abort_check_function(abort_check_function);
 }

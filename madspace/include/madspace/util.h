@@ -194,12 +194,14 @@ public:
 
     decltype(auto) at(std::size_t index) { return _values.at(index); }
     decltype(auto) at(std::size_t index) const { return _values.at(index); }
-    decltype(auto) at(std::string key) { return _values.at(_index_map.at(key)); }
-    decltype(auto) at(std::string key) const { return _values.at(_index_map.at(key)); }
+    decltype(auto) at(const std::string& key) { return _values.at(_index_map.at(key)); }
+    decltype(auto) at(const std::string& key) const {
+        return _values.at(_index_map.at(key));
+    }
     decltype(auto) operator[](std::size_t index) { return at(index); }
     decltype(auto) operator[](std::size_t index) const { return at(index); }
-    decltype(auto) operator[](std::string key) { return at(key); }
-    decltype(auto) operator[](std::string key) const { return at(key); }
+    decltype(auto) operator[](const std::string& key) { return at(key); }
+    decltype(auto) operator[](const std::string& key) const { return at(key); }
 
     bool empty() const { return _values.empty(); }
     std::size_t size() const { return _values.size(); }

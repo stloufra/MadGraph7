@@ -135,7 +135,9 @@ class MadgraphProcess:
         device_names = self.run_card["run"]["devices"]
         self.contexts = []
         self.device_types = []
-        for device_name in device_names:
+        self.devices = []
+        self.pool_sizes = []
+        for i, device_name in enumerate(device_names):
             if ":" in device_name:
                 device_type, device_index_str = device_name.split(":")
                 device_index = int(device_index_str)
@@ -152,6 +154,8 @@ class MadgraphProcess:
             else:
                 device = ms.cpu_device()
                 pool_size = self.run_card["run"]["cpu_thread_pool_size"]
+            self.devices.append(device)
+            self.pool_sizes.append(pool_size)
             self.contexts.append(ms.Context(device=device, thread_count=pool_size))
 
     def parse_observable(self, name: str, order_observable: str) -> dict:
@@ -388,6 +392,61 @@ class MadgraphProcess:
             raise ValueError("Unknown phasespace mode")
 
     def train_madnis(self) -> None:
+        madnis_args = self.run_card["madnis"]
+        gen_args = self.run_card["generation"]
+        if madnis_args.get("old", False):
+            self.train_madnis_old()
+            return
+
+        madnis_phasespaces = []
+        for subproc, phasespace in zip(self.subprocesses, self.phasespaces):
+            phasespace = subproc.build_madnis(phasespace)
+            gen_context = self.contexts[0]
+            opt_context = ms.Context(
+                device=self.devices[0], thread_count=self.pool_sizes[0]
+            )
+            opt_context.copy_globals_from(gen_context)
+            config = ms.MadnisConfig()
+            config.learning_rate = madnis_args["lr"]
+            config.batches = madnis_args["train_batches"]
+            config.log_interval = madnis_args["log_interval"]
+            config.integration_history_length = madnis_args["integration_history_length"]
+            config.channel_dropping_interval = madnis_args["channel_dropping_interval"]
+            config.channel_dropping_threshold = madnis_args["channel_dropping_threshold"]
+            config.cpu_generator_batch_size = gen_args["cpu_batch_size"]
+            config.gpu_generator_batch_size = gen_args["gpu_batch_size"]
+            config.generator_target_size_factor = madnis_args["generator_target_size_factor"]
+            config.batch_size_offset = madnis_args["batch_size_offset"]
+            config.batch_size_per_channel = madnis_args["batch_size_per_channel"]
+            config.uniform_channel_ratio = madnis_args["uniform_channel_ratio"]
+            config.lr_schedule = madnis_args["lr_scheduler"]
+            config.adam_beta1 = madnis_args["adam_beta1"]
+            config.adam_beta2 = madnis_args["adam_beta2"]
+            config.adam_eps = madnis_args["adam_eps"]
+            MADNIS_INTEGRAND_FLAGS = (
+                ms.Integrand.sample
+                | ms.Integrand.return_latent
+                | ms.Integrand.return_channel
+                | ms.Integrand.return_chan_weights
+                | ms.Integrand.return_cwnet_input
+                | ms.Integrand.return_discrete_latent
+                | ms.Integrand.exclude_adaptive_and_chan_weight
+            )
+            madnis_training = ms.MadnisTraining(
+                generator_context=gen_context,
+                optimizer_context=opt_context,
+                config=config,
+                integrands=subproc.build_integrands(phasespace, MADNIS_INTEGRAND_FLAGS),
+                cwnet=phasespace.cwnet
+            )
+            madnis_training.train()
+            madnis_phasespaces.append(phasespace)
+        self.phasespaces = madnis_phasespaces
+        for context in self.contexts[1:]:
+            context.copy_globals_from(self.contexts[0])
+        self.event_generator = self.build_event_generator(madnis_phasespaces)
+
+    def train_madnis_old(self) -> None:
         madnis_args = self.run_card["madnis"]
         if not madnis_args["enable"]:
             return

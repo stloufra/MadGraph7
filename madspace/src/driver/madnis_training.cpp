@@ -1,0 +1,384 @@
+#include "madspace/driver/madnis_training.h"
+
+#include "madspace/driver/logger.h"
+
+using namespace madspace;
+
+MadnisTraining::MadnisTraining(
+    ContextPtr generator_context,
+    ContextPtr optimizer_context,
+    const Config& config,
+    const std::vector<std::shared_ptr<Integrand>>& integrands,
+    const std::optional<ChannelWeightNetwork>& cwnet
+) :
+    _generator_context(generator_context),
+    _optimizer_context(optimizer_context),
+    _config(config),
+    _channels(integrands.size()),
+    _cwnet(cwnet) {
+    for (auto [integrand, channel] : zip(integrands, _channels)) {
+        channel.integrand = integrand;
+        channel.integrand_prob = std::make_shared<IntegrandProbability>(*integrand);
+        if (_arg_permutation.size() == 0) {
+            auto& integ_args = channel.integrand->return_types().index_map();
+            _arg_permutation.push_back(integ_args.at("weight"));
+            _arg_permutation.push_back(integ_args.at("adaptive_prob"));
+            if (cwnet) {
+                _arg_permutation.push_back(integ_args.at("cwnet_input"));
+                _arg_permutation.push_back(integ_args.at("channel_index"));
+            }
+            for (auto key : channel.integrand_prob->arg_types().keys()) {
+                _arg_permutation.push_back(integ_args.at(key));
+            }
+        }
+    }
+    build_runtimes_and_optimizer();
+}
+
+void MadnisTraining::train() {
+    auto& gen_thread_pool = _generator_context->thread_pool();
+    print_progress_init();
+    _start_time = std::chrono::steady_clock::now();
+    for (std::size_t batch_index = 0; batch_index < _config.batches; ++batch_index) {
+        _abort_check_function();
+        std::vector<std::size_t> channel_sizes = compute_channel_sizes();
+        while (true) {
+            start_generator_jobs(channel_sizes);
+            if (check_training_batch(channel_sizes)) {
+                break;
+            }
+            process_job_results(gen_thread_pool.wait_multiple());
+        }
+        TensorVec results = _optimizer->step(build_training_batch(channel_sizes));
+        update_history(results, channel_sizes);
+        if ((batch_index + 1) % _config.channel_dropping_interval == 0) {
+            drop_channels();
+        }
+        print_progress_update(batch_index);
+    }
+}
+
+void MadnisTraining::build_runtimes_and_optimizer() {
+    std::vector<std::shared_ptr<FunctionGenerator>> functions;
+    functions.reserve(_channels.size());
+    _multi_channel_generator.reset();
+    for (auto& channel : _channels) {
+        functions.push_back(channel.integrand_prob);
+        channel.generator_runtime.reset();
+    }
+    Function madnis_func = MadnisLoss(functions, _cwnet).function();
+    if (_optimizer) {
+        _optimizer->replace_function(madnis_func);
+    } else {
+        _optimizer.emplace(
+            madnis_func,
+            _optimizer_context,
+            _config.learning_rate,
+            _config.lr_schedule,
+            _config.batches,
+            _config.adam_beta1,
+            _config.adam_beta2,
+            _config.adam_eps
+        );
+    }
+    _generator_params =
+        _generator_context->reallocate_globals_contiguously(_optimizer->param_names());
+    for (auto& channel : _channels) {
+        channel.generator_runtime =
+            build_runtime(channel.integrand->function(), _generator_context, false);
+    }
+}
+
+std::vector<std::size_t> MadnisTraining::compute_channel_sizes() {
+    std::size_t chan_count = _channels.size();
+    std::size_t batch_size =
+        _config.batch_size_per_channel * chan_count + _config.batch_size_offset;
+    std::vector<std::size_t> sizes;
+    sizes.reserve(chan_count);
+    if (_channels.at(0).integration_history.size() <
+        _config.integration_history_length) {
+        sizes.assign(
+            chan_count, std::ceil(static_cast<double>(batch_size) / chan_count)
+        );
+        return sizes;
+    }
+
+    std::vector<double> fractions;
+    fractions.reserve(chan_count);
+    double stddev_sum = 0.;
+    for (auto& channel : _channels) {
+        std::size_t total_count = 0;
+        double total_var = 0.0;
+        for (auto [count, mean, var] : channel.integration_history) {
+            if (!std::isnan(var)) {
+                total_count += count;
+                total_var += count * var;
+            }
+        }
+        double stddev = std::sqrt(total_var / total_count);
+        stddev_sum += stddev;
+        fractions.push_back(stddev);
+    }
+
+    double frac_sum = 0.0;
+    double uniform_per_chan = _config.uniform_channel_ratio / chan_count;
+    for (double& fraction : fractions) {
+        fraction = std::max(fraction / stddev_sum - uniform_per_chan, 0.0);
+        frac_sum += fraction;
+    }
+
+    double weighted_part = 1.0 - _config.uniform_channel_ratio;
+    for (double& fraction : fractions) {
+        sizes.push_back(
+            std::ceil(
+                batch_size * (uniform_per_chan + weighted_part * fraction / frac_sum)
+            )
+        );
+    }
+    return sizes;
+}
+
+void MadnisTraining::start_generator_jobs(const std::vector<std::size_t>& counts) {
+    if (_running_jobs.size() > 0) {
+        return;
+    }
+    _generator_params.copy_from(_optimizer->parameters());
+    std::vector<std::size_t> missing_counts(counts.size());
+    //, chan_indices(counts.size());
+    // std::iota(chan_indices.begin(), chan_indices.end(), 0);
+    for (auto [channel, count, missing_count] :
+         zip(_channels, counts, missing_counts)) {
+        missing_count = count > channel.sample_count ? count - channel.sample_count : 0;
+    }
+    // std::sort(chan_indices.begin(), chan_indices.end(), [&](auto i, auto j) {
+    //     return missing_counts.at(i) > missing_counts.at(j);
+    // });
+    std::size_t available_jobs = _generator_context->thread_pool().thread_count();
+    std::size_t started_jobs = 0;
+    std::size_t batch_size =
+        _generator_context->device()->device_type() == DeviceType::cpu
+        ? _config.cpu_generator_batch_size
+        : _config.gpu_generator_batch_size;
+    if (_multi_channel_generator) {
+        throw std::logic_error("not implemented");
+    } else {
+        for (std::size_t chan_index = 0; auto& missing_count : missing_counts) {
+            while (missing_count > 0 && available_jobs > 0) {
+                // println("start chan {}:{}", chan_index, batch_size);
+                start_single_job(chan_index, batch_size);
+                --available_jobs;
+                missing_count =
+                    missing_count > batch_size ? missing_count - batch_size : 0;
+            }
+            ++chan_index;
+            if (available_jobs == 0) {
+                break;
+            }
+        }
+    }
+}
+
+TensorVec MadnisTraining::permute_tensors(const TensorVec& tensors) const {
+    TensorVec ret;
+    ret.reserve(tensors.size());
+    for (std::size_t index : _arg_permutation) {
+        ret.push_back(tensors.at(index));
+    }
+    return ret;
+}
+
+void MadnisTraining::start_single_job(
+    std::size_t channel_index, std::size_t batch_size
+) {
+    std::size_t job_id = _job_id;
+    ++_job_id;
+    auto& job =
+        std::get<0>(_running_jobs.emplace(job_id, std::make_unique<SampleBatch>()))
+            ->second;
+    _generator_context->thread_pool().submit(
+        [this, channel_index, batch_size, job_id, &job]() {
+            job->tensors = permute_tensors(
+                _channels.at(channel_index)
+                    .generator_runtime->run({Tensor({batch_size})})
+            );
+            job->size = job->tensors.at(0).size(0);
+            job->channel_index = channel_index;
+            return job_id;
+        }
+    );
+}
+
+void MadnisTraining::start_multi_job(const std::vector<std::size_t> batch_sizes) {
+    throw std::logic_error("not implemented");
+}
+
+bool MadnisTraining::check_training_batch(
+    const std::vector<std::size_t>& channel_sizes
+) {
+    for (auto [channel, count] : zip(_channels, channel_sizes)) {
+        if (count > channel.sample_count) {
+            return false;
+        }
+    }
+    return true;
+}
+
+TensorVec MadnisTraining::build_training_batch(const std::vector<size_t>& counts) {
+    TensorVec training_batch;
+    for (auto [channel, count] : zip(_channels, counts)) {
+        auto& first_batch = channel.sample_batches.at(0);
+        std::size_t consumed_batches = 0;
+        if (first_batch->size - first_batch->consumed_count >= count) {
+            // println("fits in one batch {} {}/{}", count, first_batch->consumed_count,
+            // first_batch->size);
+            for (auto& tensor : first_batch->tensors) {
+                training_batch.push_back(tensor.slice(
+                    0, first_batch->consumed_count, first_batch->consumed_count + count
+                ));
+            }
+            if (first_batch->size - first_batch->consumed_count == count) {
+                consumed_batches = 1;
+            } else {
+                first_batch->consumed_count += count;
+            }
+            channel.sample_count -= count;
+        } else {
+            // println("overlaps {} {}/{}", count, first_batch->consumed_count,
+            // first_batch->size);
+            for (auto& tensor : first_batch->tensors) {
+                Sizes shape = tensor.shape();
+                shape[0] = count;
+                training_batch.emplace_back(tensor.dtype(), shape, tensor.device());
+            }
+            std::size_t remaining_count = count;
+            for (auto& batch : channel.sample_batches) {
+                std::size_t batch_size = batch->size - batch->consumed_count;
+                std::size_t offset = count - remaining_count;
+                if (batch_size >= remaining_count) {
+                    batch->consumed_count += remaining_count;
+                    for (auto [tensor_out, tensor_in] :
+                         zip(std::span(
+                                 training_batch.end() - batch->tensors.size(),
+                                 training_batch.end()
+                             ),
+                             batch->tensors)) {
+                        tensor_out.slice(0, offset, offset + remaining_count)
+                            .copy_from(tensor_in.slice(
+                                0,
+                                batch->consumed_count,
+                                batch->consumed_count + remaining_count
+                            ));
+                    }
+                    channel.sample_count -= remaining_count;
+                    break;
+                } else {
+                    for (auto [tensor_out, tensor_in] :
+                         zip(std::span(
+                                 training_batch.end() - batch->tensors.size(),
+                                 training_batch.end()
+                             ),
+                             batch->tensors)) {
+                        tensor_out.slice(0, offset, offset + batch_size)
+                            .copy_from(
+                                tensor_in.slice(0, batch->consumed_count, batch->size)
+                            );
+                    }
+                    remaining_count -= batch_size;
+                    channel.sample_count -= batch_size;
+                    ++consumed_batches;
+                }
+            }
+        }
+        channel.sample_batches.erase(
+            channel.sample_batches.begin(),
+            channel.sample_batches.begin() + consumed_batches
+        );
+    }
+    return training_batch;
+}
+
+void MadnisTraining::process_job_results(const std::vector<std::size_t>& job_ids) {
+    for (auto job_id : job_ids) {
+        auto job = std::move(_running_jobs.extract(job_id).mapped());
+        if (job->channel_sizes == 0) {
+            // println("process chan {}:{}", job->channel_index, job->size);
+            auto& channel = _channels.at(job->channel_index);
+            channel.sample_count += job->size;
+            channel.sample_batches.push_back(std::move(job));
+        } else {
+            throw std::logic_error("not implemented");
+        }
+    }
+}
+
+void MadnisTraining::update_history(
+    const TensorVec& results, const std::vector<std::size_t>& counts
+) {
+    Tensor loss_cpu = results.at(0).cpu();
+    Tensor means_cpu = results.at(1).cpu();
+    Tensor variances_cpu = results.at(2).cpu();
+    double loss = loss_cpu.view<double, 1>()[0];
+    if (_loss_history.size() < _config.log_interval) {
+        _loss_history.push_back(loss);
+    } else {
+        _loss_history.at(_loss_history_index) = loss;
+    }
+    if (++_loss_history_index == _config.log_interval) {
+        _loss_history_index = 0;
+    }
+
+    auto means = means_cpu.view<double, 2>()[0];
+    auto variances = variances_cpu.view<double, 2>()[0];
+    if (means.size() != _channels.size() || variances.size() != _channels.size()) {
+        throw std::logic_error("wrong channel count returned");
+    }
+    for (std::size_t i = 0; auto [channel, count] : zip(_channels, counts)) {
+        if (channel.integration_history.size() < _config.integration_history_length) {
+            channel.integration_history.push_back({count, means[i], variances[i]});
+        } else {
+            channel.integration_history.at(channel.history_index) = {
+                count, means[i], variances[i]
+            };
+        }
+        if (++channel.history_index == _config.log_interval) {
+            channel.history_index = 0;
+        }
+        ++i;
+    }
+}
+
+void MadnisTraining::drop_channels() {}
+
+void MadnisTraining::print_progress_init() { Logger::info("training started"); }
+
+void MadnisTraining::print_progress_update(std::size_t batch_index) {
+    if ((batch_index + 1) % _config.log_interval != 0) {
+        return;
+    }
+    double loss_sum = 0;
+    std::size_t loss_count = 0, nan_count = 0;
+    ;
+    for (double loss : _loss_history) {
+        if (!std::isnan(loss)) {
+            loss_sum += loss;
+            ++loss_count;
+        } else {
+            ++nan_count;
+        }
+    }
+    double loss = loss_sum / loss_count;
+    auto now = std::chrono::steady_clock::now();
+    Logger::info(
+        std::format(
+            "training, batch: {} / {}, loss: {:.4f}, time: {:%H:%M:%S}",
+            batch_index + 1,
+            _config.batches,
+            loss,
+            std::chrono::round<std::chrono::seconds>(now - _start_time)
+        )
+    );
+
+    if (batch_index == _config.batches) {
+        Logger::info("training done");
+    }
+}

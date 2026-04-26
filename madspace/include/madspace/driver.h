@@ -9,6 +9,7 @@
 #include "driver/io.h"
 #include "driver/lhe_output.h"
 #include "driver/logger.h"
+#include "driver/madnis_training.h"
 #include "driver/tensor.h"
 #include "driver/thread_pool.h"
 #include "driver/vegas_optimizer.h"

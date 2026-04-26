@@ -1,5 +1,4 @@
 #include "madspace/driver/event_generator.h"
-#include "madspace/driver/logger.h"
 
 #include <cmath>
 #include <filesystem>
@@ -7,6 +6,7 @@
 #include <ranges>
 #include <sys/resource.h>
 
+#include "madspace/driver/logger.h"
 #include "madspace/util.h"
 
 using namespace madspace;

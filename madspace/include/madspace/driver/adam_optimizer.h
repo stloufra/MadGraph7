@@ -9,7 +9,7 @@ class AdamOptimizer {
 public:
     enum LRSchedule {
         none,
-        cosine_annealing,
+        cosine,
     };
 
     AdamOptimizer(
@@ -23,9 +23,12 @@ public:
         double eps = 1e-8
     );
     TensorVec step(const TensorVec& inputs);
+    void replace_function(const Function& function);
     double learning_rate() const;
     const TypeVec& input_types() const { return _input_types; }
     ContextPtr context() const { return _context; }
+    Tensor parameters() const { return _parameter; }
+    const std::vector<std::string>& param_names() const { return _param_names; }
 
 private:
     ContextPtr _context;
@@ -42,6 +45,7 @@ private:
     Tensor _exp_avg;
     Tensor _exp_avg_sq;
     TypeVec _input_types;
+    std::vector<std::string> _param_names;
 };
 
 } // namespace madspace

@@ -19,7 +19,8 @@ MadnisLoss::MadnisLoss(
                 );
                 if (cwnet) {
                     arg_types.push_back(
-                        std::format("chan{}_cwnet_inputs", index), batch_float
+                        std::format("chan{}_cwnet_inputs", index),
+                        batch_float_array(cwnet->preprocessing().output_dim())
                     );
                     arg_types.push_back(
                         std::format("chan{}_channel_indices", index), batch_int
@@ -56,7 +57,9 @@ NamedVector<Value> MadnisLoss::build_function_impl(
         ValueVec func_args(
             args.begin() + arg_index + extra_args, args.begin() + arg_index_end
         );
-        fb.set_current_stream(index + 1);
+        if (_functions.size() > 1) {
+            fb.set_current_stream(index + 1);
+        }
         auto output = func->build_function(fb, func_args);
         flow_probs.push_back(output.at(0));
         ++index;
@@ -68,8 +71,8 @@ NamedVector<Value> MadnisLoss::build_function_impl(
     if (_cwnet) {
         auto [cwnet_in_all, counts] = fb.batch_cat(cwnet_inputs);
         auto [chan_indices_all, counts_idx] = fb.batch_cat(chan_indices);
-        auto cwnet_out_all = _cwnet->build_function(fb, {cwnet_in_all});
-        auto chan_weight_all = fb.gather(cwnet_out_all.at(0), chan_indices_all);
+        auto cwnet_out_all = _cwnet->mlp().build_function(fb, {cwnet_in_all});
+        auto chan_weight_all = fb.gather(chan_indices_all, cwnet_out_all.at(0));
         chan_weights = fb.batch_split(chan_weight_all, counts);
     } else {
         chan_weights = ValueVec(_functions.size());
@@ -79,8 +82,10 @@ NamedVector<Value> MadnisLoss::build_function_impl(
     for (std::size_t index = 0;
          auto [integrand, g, q, cw] :
          zip(integrands, flow_probs, sample_probs, chan_weights)) {
-        fb.set_current_stream(index + 1);
-        Value f = _cwnet ? fb.mul(cw, integrand) : integrand;
+        if (_functions.size() > 1) {
+            fb.set_current_stream(index + 1);
+        }
+        Value f = integrand; //_cwnet ? fb.mul(cw, integrand) : integrand;
         Value mean = fb.batch_reduce_mean(fb.div(f, q));
         Value abs_mean = fb.batch_reduce_mean(fb.madnis_abs_weight(f, q));
         Value variance = fb.batch_reduce_mean(fb.madnis_variance(f, g, q, mean));

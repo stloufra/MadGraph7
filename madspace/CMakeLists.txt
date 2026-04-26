@@ -123,6 +123,7 @@ add_library(
     src/driver/discrete_optimizer.cpp
     src/driver/backend.cpp
     src/driver/lhe_output.cpp
+    src/driver/madnis_training.cpp
     src/compgraphs/type.cpp
     src/compgraphs/function.cpp
     src/compgraphs/instruction.cpp
@@ -171,6 +172,7 @@ add_library(
     include/madspace/driver/backend.h
     include/madspace/driver/lhe_output.h
     include/madspace/driver/logger.h
+    include/madspace/driver/madnis_training.h
     include/madspace/compgraphs.h
     include/madspace/compgraphs/type.h
     include/madspace/compgraphs/function.h
