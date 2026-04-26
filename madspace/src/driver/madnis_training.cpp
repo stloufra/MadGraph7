@@ -143,36 +143,63 @@ void MadnisTraining::start_generator_jobs(const std::vector<std::size_t>& counts
         return;
     }
     _generator_params.copy_from(_optimizer->parameters());
-    std::vector<std::size_t> missing_counts(counts.size());
-    //, chan_indices(counts.size());
-    // std::iota(chan_indices.begin(), chan_indices.end(), 0);
-    for (auto [channel, count, missing_count] :
-         zip(_channels, counts, missing_counts)) {
-        missing_count = count > channel.sample_count ? count - channel.sample_count : 0;
-    }
-    // std::sort(chan_indices.begin(), chan_indices.end(), [&](auto i, auto j) {
-    //     return missing_counts.at(i) > missing_counts.at(j);
-    // });
-    std::size_t available_jobs = _generator_context->thread_pool().thread_count();
-    std::size_t started_jobs = 0;
+    std::size_t chan_count = counts.size();
     std::size_t batch_size =
         _generator_context->device()->device_type() == DeviceType::cpu
         ? _config.cpu_generator_batch_size
         : _config.gpu_generator_batch_size;
+    std::vector<std::size_t> missing_counts(chan_count);
+    std::vector<std::size_t> target_batch_counts(chan_count);
+    for (auto [channel, count, missing_count, target_batch_count] :
+         zip(_channels, counts, missing_counts, target_batch_counts)) {
+        std::size_t target_count = count * _config.generator_target_size_factor;
+        missing_count = count > channel.sample_count ? count - channel.sample_count : 0;
+        target_batch_count = target_count > channel.sample_count
+            ? (target_count - channel.sample_count + batch_size - 1) / batch_size
+            : 0;
+    }
+    std::size_t available_jobs = _generator_context->thread_pool().thread_count();
+    std::size_t started_jobs = 0;
     if (_multi_channel_generator) {
         throw std::logic_error("not implemented");
     } else {
-        for (std::size_t chan_index = 0; auto& missing_count : missing_counts) {
+        for (std::size_t chan_index = 0;
+             auto [missing_count, target_batch_count] :
+             zip(missing_counts, target_batch_counts)) {
             while (missing_count > 0 && available_jobs > 0) {
-                // println("start chan {}:{}", chan_index, batch_size);
                 start_single_job(chan_index, batch_size);
                 --available_jobs;
                 missing_count =
                     missing_count > batch_size ? missing_count - batch_size : 0;
+                --target_batch_count;
             }
             ++chan_index;
             if (available_jobs == 0) {
                 break;
+            }
+        }
+        std::vector<std::size_t> chan_indices(counts.size());
+        std::iota(chan_indices.begin(), chan_indices.end(), 0);
+        std::sort(chan_indices.begin(), chan_indices.end(), [&](auto i, auto j) {
+            return target_batch_counts.at(i) > target_batch_counts.at(j);
+        });
+        for (std::size_t index = 0; available_jobs > 0;) {
+            std::size_t chan_index = chan_indices.at(index);
+            std::size_t& count = target_batch_counts.at(chan_index);
+            if (count == 0) {
+                break;
+            }
+            start_single_job(chan_index, batch_size);
+            --available_jobs;
+            --count;
+            if (chan_index == chan_count - 1) {
+                index = 0;
+            } else {
+                std::size_t next_count =
+                    target_batch_counts.at(chan_indices.at(index + 1));
+                if (count < next_count) {
+                    ++index;
+                }
             }
         }
     }
@@ -245,6 +272,7 @@ TensorVec MadnisTraining::build_training_batch(const std::vector<size_t>& counts
         } else {
             // println("overlaps {} {}/{}", count, first_batch->consumed_count,
             // first_batch->size);
+            // println("----");
             for (auto& tensor : first_batch->tensors) {
                 Sizes shape = tensor.shape();
                 shape[0] = count;
@@ -255,7 +283,6 @@ TensorVec MadnisTraining::build_training_batch(const std::vector<size_t>& counts
                 std::size_t batch_size = batch->size - batch->consumed_count;
                 std::size_t offset = count - remaining_count;
                 if (batch_size >= remaining_count) {
-                    batch->consumed_count += remaining_count;
                     for (auto [tensor_out, tensor_in] :
                          zip(std::span(
                                  training_batch.end() - batch->tensors.size(),
@@ -269,6 +296,10 @@ TensorVec MadnisTraining::build_training_batch(const std::vector<size_t>& counts
                                 batch->consumed_count + remaining_count
                             ));
                     }
+                    // println("{} .. {} = {} .. {}", offset, offset+remaining_count,
+                    //         batch->consumed_count, batch->consumed_count +
+                    //         remaining_count);
+                    batch->consumed_count += remaining_count;
                     channel.sample_count -= remaining_count;
                     break;
                 } else {
@@ -283,6 +314,8 @@ TensorVec MadnisTraining::build_training_batch(const std::vector<size_t>& counts
                                 tensor_in.slice(0, batch->consumed_count, batch->size)
                             );
                     }
+                    // println("{} .. {} = {} .. {}", offset, offset+batch_size,
+                    //         batch->consumed_count, batch->size);
                     remaining_count -= batch_size;
                     channel.sample_count -= batch_size;
                     ++consumed_batches;
