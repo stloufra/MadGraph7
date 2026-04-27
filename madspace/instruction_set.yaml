@@ -246,6 +246,18 @@ batch_reduce_mean:
   differentiable: True
   custom_op: True
 
+batch_reduce_mean_keepdim:
+  inputs:
+    - name: in
+      type: [float]
+      desc:
+  outputs:
+    - name: out
+      type: [float]
+      desc:
+  differentiable: True
+  custom_op: True
+
 reduce_product:
   inputs:
     - name: in1
@@ -2185,6 +2197,7 @@ gather:
     - name: index
       type: [int]
       desc:
+      backward_arg: True
     - name: choices
       type: [float, n]
       desc:
@@ -2192,6 +2205,7 @@ gather:
     - name: output
       type: [float]
       desc:
+  differentiable: True
 
 gather_int:
   inputs:

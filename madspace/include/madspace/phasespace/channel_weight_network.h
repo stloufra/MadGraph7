@@ -26,7 +26,8 @@ public:
         std::size_t hidden_dim = 32,
         std::size_t layers = 3,
         MLP::Activation activation = MLP::leaky_relu,
-        const std::string& prefix = ""
+        const std::string& prefix = "",
+        bool include_preprocessing = true
     );
 
     const MLP& mlp() const { return _mlp; }

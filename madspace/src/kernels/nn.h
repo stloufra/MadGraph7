@@ -639,14 +639,7 @@ KERNELSPEC void backward_kernel_softmax_prior(
     FOut<T, 1> prior_grad
 ) {
     // TODO: also gradient for prior?
-    std::size_t dim = output.size();
-    for (std::size_t i = 0; i < dim; ++i) {
-        FVal<T> grad = output_grad[i];
-        for (std::size_t j = 0; j < dim; ++j) {
-            grad = grad - output[j] * output_grad[j];
-        }
-        input_grad[i] += output[i] * grad;
-    }
+    backward_kernel_softmax<T>(output, output_grad, input_grad);
 }
 
 template <typename T>
@@ -724,8 +717,8 @@ KERNELSPEC void kernel_madnis_multi_channel_variance(
 ) {
     FVal<T> std_sum(0.), abs_mean_sum(0.);
     for (std::size_t i = 0; i < vars.size(); ++i) {
-        std_sum = std_sum + sqrt(vars[i]);
-        abs_mean_sum = abs_mean_sum + abs_means[0];
+        std_sum = std_sum + sqrt(vars[i] + 1e-15);
+        abs_mean_sum = abs_mean_sum + abs_means[i];
     }
     auto std_sum_norm = std_sum / abs_mean_sum;
     loss = std_sum_norm * std_sum_norm;
@@ -741,13 +734,13 @@ KERNELSPEC void backward_kernel_madnis_multi_channel_variance(
 ) {
     FVal<T> std_sum(0.), abs_mean_sum(0.);
     for (std::size_t i = 0; i < vars.size(); ++i) {
-        std_sum = std_sum + sqrt(vars[i]);
-        abs_mean_sum = abs_mean_sum + abs_means[0];
+        std_sum = std_sum + sqrt(vars[i] + 1e-15);
+        abs_mean_sum = abs_mean_sum + abs_means[i];
     }
     auto std_sum_norm = std_sum / abs_mean_sum;
     auto std_sum_grad = 2. * loss_grad * std_sum_norm / abs_mean_sum;
     for (std::size_t i = 0; i < vars.size(); ++i) {
-        vars_grad[i] += -0.5 * std_sum_grad / sqrt(vars[i]);
+        vars_grad[i] += 0.5 * std_sum_grad / sqrt(vars[i] + 1e-15);
     }
 }
 

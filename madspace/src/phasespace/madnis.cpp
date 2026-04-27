@@ -23,6 +23,10 @@ MadnisLoss::MadnisLoss(
                         batch_float_array(cwnet->preprocessing().output_dim())
                     );
                     arg_types.push_back(
+                        std::format("chan{}_channel_weights", index),
+                        batch_float_array(cwnet->mlp().output_dim())
+                    );
+                    arg_types.push_back(
                         std::format("chan{}_channel_indices", index), batch_int
                     );
                 }
@@ -44,15 +48,17 @@ MadnisLoss::MadnisLoss(
 NamedVector<Value> MadnisLoss::build_function_impl(
     FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
-    ValueVec integrands, flow_probs, sample_probs, cwnet_inputs, chan_indices;
-    std::size_t extra_args = _cwnet ? 4 : 2;
+    ValueVec integrands, flow_probs, sample_probs, cwnet_inputs, cwnet_priors,
+        chan_indices;
+    std::size_t extra_args = _cwnet ? 5 : 2;
     for (std::size_t index = 0, arg_index = 0; auto& func : _functions) {
         std::size_t arg_index_end = arg_index + func->arg_types().size() + extra_args;
         integrands.push_back(args.at(arg_index));
         sample_probs.push_back(args.at(arg_index + 1));
         if (_cwnet) {
             cwnet_inputs.push_back(args.at(arg_index + 2));
-            chan_indices.push_back(args.at(arg_index + 3));
+            cwnet_priors.push_back(args.at(arg_index + 3));
+            chan_indices.push_back(args.at(arg_index + 4));
         }
         ValueVec func_args(
             args.begin() + arg_index + extra_args, args.begin() + arg_index_end
@@ -70,8 +76,10 @@ NamedVector<Value> MadnisLoss::build_function_impl(
     ValueVec chan_weights;
     if (_cwnet) {
         auto [cwnet_in_all, counts] = fb.batch_cat(cwnet_inputs);
+        auto [cwnet_priors_all, counts_prior] = fb.batch_cat(cwnet_priors);
         auto [chan_indices_all, counts_idx] = fb.batch_cat(chan_indices);
-        auto cwnet_out_all = _cwnet->mlp().build_function(fb, {cwnet_in_all});
+        auto cwnet_out_all =
+            _cwnet->build_function(fb, {cwnet_in_all, cwnet_priors_all});
         auto chan_weight_all = fb.gather(chan_indices_all, cwnet_out_all.at(0));
         chan_weights = fb.batch_split(chan_weight_all, counts);
     } else {
@@ -85,10 +93,13 @@ NamedVector<Value> MadnisLoss::build_function_impl(
         if (_functions.size() > 1) {
             fb.set_current_stream(index + 1);
         }
-        Value f = integrand; //_cwnet ? fb.mul(cw, integrand) : integrand;
+        Value f = _cwnet ? fb.mul(cw, integrand) : integrand;
+        // TODO: avoid computing mean twice
+        Value mean_keepdim = fb.batch_reduce_mean_keepdim(fb.div(f, q));
         Value mean = fb.batch_reduce_mean(fb.div(f, q));
         Value abs_mean = fb.batch_reduce_mean(fb.madnis_abs_weight(f, q));
-        Value variance = fb.batch_reduce_mean(fb.madnis_variance(f, g, q, mean));
+        Value variance =
+            fb.batch_reduce_mean(fb.madnis_variance(f, g, q, mean_keepdim));
         chan_means.push_back(mean);
         chan_abs_means.push_back(abs_mean);
         chan_variances.push_back(variance);

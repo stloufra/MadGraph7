@@ -34,6 +34,16 @@ KERNELSPEC void kernel_gather(IIn<T, 0> index, FIn<T, 1> choices, FOut<T, 0> out
 }
 
 template <typename T>
+KERNELSPEC void backward_kernel_gather(
+    IIn<T, 0> index,
+    FIn<T, 0> output_grad,
+    FOut<T, 0> index_grad,
+    FOut<T, 1> choices_grad
+) {
+    choices_grad.scatter_add(index, output_grad);
+}
+
+template <typename T>
 KERNELSPEC void
 kernel_gather_int(IIn<T, 0> index, IIn<T, 1> choices, IOut<T, 0> output) {
     output = choices.gather(index);

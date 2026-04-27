@@ -2,13 +2,21 @@
 
 using namespace madspace;
 
+namespace {
+
+std::size_t preproc_dim(std::size_t particle_count) {
+    return 3 * (particle_count - 2) + 2;
+}
+
+} // namespace
+
 MomentumPreprocessing::MomentumPreprocessing(std::size_t particle_count) :
     FunctionGenerator(
         "MomentumPreprocessing",
         {{"momenta", batch_four_vec_array(particle_count)},
          {"x1", batch_float},
          {"x2", batch_float}},
-        {{"result", batch_float_array(3 * (particle_count - 2) + 2)}}
+        {{"result", batch_float_array(preproc_dim(particle_count))}}
     ),
     _output_dim(3 * (particle_count - 2) + 2) {}
 
@@ -24,13 +32,12 @@ ChannelWeightNetwork::ChannelWeightNetwork(
     std::size_t hidden_dim,
     std::size_t layers,
     MLP::Activation activation,
-    const std::string& prefix
+    const std::string& prefix,
+    bool include_preprocessing
 ) :
     FunctionGenerator(
         "ChannelWeightNetwork",
-        {{"momenta", batch_four_vec_array(particle_count)},
-         {"x1", batch_float},
-         {"x2", batch_float},
+        {{"input", batch_float_array(preproc_dim(particle_count))},
          {"prior", batch_float_array(channel_count)}},
         {{"channel_weights", batch_float_array(channel_count)}}
     ),
@@ -51,9 +58,10 @@ NamedVector<Value> ChannelWeightNetwork::build_function_impl(
 ) const {
     auto mask =
         fb.global(_mask_name, DataType::dt_float, {static_cast<int>(_channel_count)});
-    auto net_input =
-        _preprocessing.build_function(fb, {args["momenta"], args["x1"], args["x2"]});
-    auto net_output = _mlp.build_function(fb, net_input.values()).at(0);
+    // auto net_input =
+    //     _preprocessing.build_function(fb, {args["momenta"], args["x1"], args["x2"]});
+    // auto net_output = _mlp.build_function(fb, net_input.values()).at(0);
+    auto net_output = _mlp.build_function(fb, {args["input"]}).at(0);
     return {
         {"channel_weights", fb.softmax_prior(net_output, fb.mul(args["prior"], mask))}
     };

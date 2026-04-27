@@ -25,6 +25,7 @@ MadnisTraining::MadnisTraining(
             _arg_permutation.push_back(integ_args.at("adaptive_prob"));
             if (cwnet) {
                 _arg_permutation.push_back(integ_args.at("cwnet_input"));
+                _arg_permutation.push_back(integ_args.at("channel_weights"));
                 _arg_permutation.push_back(integ_args.at("channel_index"));
             }
             for (auto key : channel.integrand_prob->arg_types().keys()) {

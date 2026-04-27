@@ -83,6 +83,10 @@ Value batch_reduce_mean(Value in) {
     return instruction("batch_reduce_mean", {in})[0];
 }
 
+Value batch_reduce_mean_keepdim(Value in) {
+    return instruction("batch_reduce_mean_keepdim", {in})[0];
+}
+
 Value reduce_product(Value in1) {
     return instruction("reduce_product", {in1})[0];
 }

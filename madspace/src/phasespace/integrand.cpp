@@ -492,15 +492,16 @@ NamedVector<Value> Integrand::build_common_part(
     // if given, apply channel weight network
     auto prior_chan_weights_acc = chan_weights_acc;
     if (_chan_weight_net) {
+        auto& preproc = _chan_weight_net.value().preprocessing();
+        auto cw_preproc_acc =
+            preproc
+                .build_function(
+                    fb, {result.momenta_acc(), result.x_acc(0), result.x_acc(1)}
+                )
+                .at(0);
         chan_weights_acc =
             _chan_weight_net.value()
-                .build_function(
-                    fb,
-                    {result.momenta_acc(),
-                     result.x_acc(0),
-                     result.x_acc(1),
-                     chan_weights_acc}
-                )
+                .build_function(fb, {cw_preproc_acc, chan_weights_acc})
                 .at(0);
     }
 
