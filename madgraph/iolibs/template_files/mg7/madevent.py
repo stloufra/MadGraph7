@@ -263,7 +263,7 @@ class MadgraphProcess:
 
     def init_context(self) -> None:
         device_name = self.run_card["run"]["device"]
-        if device_name in ["cppauto", "cppsse4", "cppavx2", "cpp512y", "cpp512z"]:
+        if device_name in ["cppauto", "cppnone", "cppsse4", "cppavx2", "cpp512y", "cpp512z"]:
             device = ms.cpu_device()
         elif device_name == "cuda":
             device = ms.cuda_device()
