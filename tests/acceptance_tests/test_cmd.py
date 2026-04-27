@@ -256,7 +256,7 @@ class TestCmdShell2(unittest.TestCase,
                     test_file_writers.CheckFileCreate):
     """Test all command line related to MG_ME"""
 
-    debugging = False
+    debugging = unittest.debug #set to True to keep the output directory after the test for debugging purpose
     def setUp(self):
         
         self.cmd = Cmd.MasterCmd()
@@ -542,7 +542,62 @@ class TestCmdShell2(unittest.TestCase,
         self.assertTrue(me_groups)
         self.assertAlmostEqual(float(me_groups.group('value')), 0.592626100)
         
-    
+    def test_ufo_aloha_merged(self):
+        """Test the import of models and the export of Helas Routine """
+
+        if os.path.isdir(self.out_dir):
+            shutil.rmtree(self.out_dir)
+
+        self.do('import model sm')
+        self.do('generate e+ e- > e+ e-')
+        self.do('output standalone %s ' % self.out_dir)
+        # Check that the needed ALOHA subroutines are generated
+        files = ['FFV6_3.f', 'aloha_object.mod', 'FFV2_3.f', 'aloha_file.inc', 'makefile', 'FFV6_0.f', 'FFV1P0_3.f', 'FFV2_0.f', 'FFV1_0.f', 'aloha_functions.f']
+        for f in files:
+            self.assertTrue(os.path.isfile(os.path.join(self.out_dir,
+                                                        'Source', 'DHELAS',
+                                                        f)), 
+                            '%s file is not in aloha directory' % f)
+        # Check that unwanted ALOHA subroutines are not generated
+        notfiles = ['FFV1_1.f', 'FFV1_2.f', 'FFV2_1.f', 'FFV2_2.f',
+                    'FFV1_3.f','FFV2P0_3.f','FFV4P0_3.f'
+                    'FFV4_1.f', 'FFV4_2.f', 
+                    'VVV1_0.f', 'VVV1_1.f', 'VVV1_2.f', 'VVV1_3.f']
+        for f in notfiles:
+            self.assertFalse(os.path.isfile(os.path.join(self.out_dir,
+                                                        'Source', 'DHELAS',
+                                                        f)))
+        devnull = open(os.devnull,'w')
+        # Check that the Model and Aloha output compile
+        subprocess.call(['make'],
+                        stdout=devnull, stderr=devnull, 
+                        cwd=os.path.join(self.out_dir, 'Source'))
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                               'lib', 'libdhelas.a')))
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                               'lib', 'libmodel.a')))
+        # Check that check_sa.f compiles
+        subprocess.call(['make', 'check'],
+                        stdout=devnull, stderr=devnull, 
+                        cwd=os.path.join(self.out_dir, 'SubProcesses',
+                                         'P0__anti_lepton_lepton__anti_lepton_lepton'))
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                                    'SubProcesses', 'P0__anti_lepton_lepton__anti_lepton_lepton',
+                                                    'check')))
+        # Check that the output of check is correct 
+        logfile = os.path.join(self.out_dir,'SubProcesses', 'P0__anti_lepton_lepton__anti_lepton_lepton',
+                               'check.log')
+        p = subprocess.Popen('./check', 
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                        cwd=os.path.join(self.out_dir, 'SubProcesses',
+                                         'P0__anti_lepton_lepton__anti_lepton_lepton'), shell=True)
+        (log_output, err) = p.communicate()
+        log_output = log_output.decode()
+        me_re = re.compile(r'Matrix element\s*=\s*(?P<value>[\d\.eE\+-]+)\s*GeV',
+                           re.IGNORECASE)
+        me_groups = me_re.search(log_output)
+        self.assertTrue(me_groups)
+        self.assertAlmostEqual(float(me_groups.group('value')), 1.953735e-2)    
     
     def test_ufo_aloha(self):
         """Test the import of models and the export of Helas Routine """
@@ -550,6 +605,7 @@ class TestCmdShell2(unittest.TestCase,
         if os.path.isdir(self.out_dir):
             shutil.rmtree(self.out_dir)
 
+        self.do('set apply_flavor_grouping False')
         self.do('import model sm')
         self.do('generate e+ e- > e+ e-')
         self.do('output standalone %s ' % self.out_dir)

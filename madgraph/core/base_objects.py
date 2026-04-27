@@ -3940,7 +3940,20 @@ class Process(PhysicsObject):
                    and leg['state'] == True:
                 # Separate initial and final legs by ">"
                 mystr = mystr + '> '
-            mystr = mystr + mypart.get_name() 
+            if abs(leg.get('id')) in self['model'].get('merged_particles'):
+                if len(leg['flavor']) == 1:
+                    pdg = abs(leg['flavor'][0]) * leg.get('id')/abs(leg.get('id'))
+                    onepart = self['model'].get_particle(pdg)
+                    mystr += onepart.get_name()
+                elif leg.get('id') in [81,82,83, -81, -82, -83]:
+                    mystr += {81:'Q', -81:'Qx', 82:'L', -82:'Lx', 83:'N', -83:'Nx'}[leg.get('id')]    
+                elif leg.get('id')>0:
+                    mystr += 'm%s'% leg.get('id')
+                else:
+                    mystr += 'm%sx'% abs(leg.get('id'))
+            else:
+                mystr = mystr + mypart.get_name() 
+                
             if leg.get('polarization'):
                 if leg.get('polarization') in [[-1,1],[1,-1]]:
                     mystr = mystr + '{T} '
@@ -3991,7 +4004,19 @@ class Process(PhysicsObject):
                                                 for req_id in id_list]) \
                                     for id_list in self['required_s_channels']])
                     mystr = mystr + '_'
-            if mypart['is_part']:
+
+            if abs(leg.get('id')) in self['model'].get('merged_particles'):
+                if len(leg['flavor']) == 1:
+                    single_pdg = abs(leg['flavor'][0]) * leg.get('id')/abs(leg.get('id'))
+                    onepart = self['model'].get_particle(single_pdg)
+                    mystr += onepart.get_name()
+                elif leg.get('id') in [81,82,83, -81, -82, -83]:
+                    mystr += {81:'Q', -81:'Qx', 82:'L', -82:'Lx', 83:'N', -83:'Nx'}[leg.get('id')]    
+                elif leg.get('id')>0:
+                    mystr += 'm%s'% leg.get('id')
+                else:
+                    mystr += 'm%sx'% abs(leg.get('id'))
+            elif mypart['is_part']:
                 mystr = mystr + mypart['name']
             else:
                 mystr = mystr + mypart['antiname']
@@ -4142,7 +4167,10 @@ class Process(PhysicsObject):
         if not legs:
             return None
         else:
-            return legs[0].get('flavor')
+            if legs[0].get('id')>0:
+                return [abs(f) for f in legs[0].get('flavor')]
+            else:
+                return [-1*abs(f) for f in legs[0].get('flavor')]
         
     def get_initial_final_ids(self):
         """return a tuple of two tuple containing the id of the initial/final
