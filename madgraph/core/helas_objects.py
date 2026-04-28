@@ -3693,6 +3693,28 @@ class HelasDiagram(base_objects.PhysicsObject):
             except:
                 pass
 
+        # In decay-chain diagrams, a wavefunction may have external mothers
+        # (wavefunctions with no mothers) that do not appear in
+        # self['wavefunctions'].  Those mothers are never reached by the main
+        # loop below, so they remain un-tagged when propagate_flavor_tag tries
+        # to access them — triggering an AssertionError.
+        # Fix: before the main loop, walk the full ancestor tree of every
+        # wavefunction and tag any external ancestor not already in the list.
+        def _tag_external_ancestors(wf):
+            """Recursively tag external (no-mothers) wavefunctions."""
+            if len(wf.get('mothers')) == 0:
+                wf.tag_external_flavor(flavor_id, model)
+            else:
+                for m in wf.get('mothers'):
+                    _tag_external_ancestors(m)
+
+        wf_in_list = set(id(wfct) for wfct in self['wavefunctions'])
+        for wfct in self['wavefunctions']:
+            if len(wfct.get('mothers')) > 0:
+                for m in wfct.get('mothers'):
+                    if id(m) not in wf_in_list:
+                        _tag_external_ancestors(m)
+
         if debug:misc.sprint(len(self['wavefunctions']), len(self['amplitudes']), [id(w) for w in self['wavefunctions']], [id(w) for w in self['amplitudes']])
         for wfct in self['wavefunctions']:
             if debug: misc.sprint(wfct.nice_string('flavortag'))

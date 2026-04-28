@@ -2657,7 +2657,10 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
 
         
         all_flavors  = matrix_element.get_external_flavors(all_perm=False)
-        all_pdgs = [l.get('id') for l in matrix_element.get('processes')[0].get('legs')]
+        # Use legs_with_decays so that the PDG list covers all external particles
+        # of the combined process (including decay products), matching the length
+        # of each flavor tuple returned by get_external_flavors.
+        all_pdgs = [l.get('id') for l in matrix_element.get('processes')[0].get('legs_with_decays')]
         map_all_flv = {}
         for i, flv1 in  enumerate(all_flavors):
             coup = matrix_element.get_coupling_for_flv(flv1, self.model)
