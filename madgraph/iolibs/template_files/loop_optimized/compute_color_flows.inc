@@ -488,120 +488,6 @@ c
     ENDDO
 END 
 
-## if(LoopInduced and not MadEventOutput){
-SUBROUTINE %(proc_prefix)sCOMPUTE_INTER_FROM_JAMP(RES,HEL_MULT, JAMPL1, JAMPL2)
-      implicit none
-C  
-C CONSTANTS 
-C 
-      %(complex_dp_format)s IMAG1
-      PARAMETER (IMAG1=(0.0d0,1.0d0))
-
-      INTEGER    NSQUAREDSO, NLOOPAMPSO, NSO
-      PARAMETER (NSQUAREDSO=%(nSquaredSO)d, NLOOPAMPSO=%(nAmpSO)d, NSO=%(nSO)d)
-      INTEGER NLOOPFLOWS
-      PARAMETER (NLOOPFLOWS=%(nLoopFlows)d)
-C  
-C ARGUMENT 
-C
-      %(real_dp_format)s RES(0:3,0:NSQUAREDSO)
-C HEL_MULT is the helicity multiplier which can be more than one if several helicity configuration are mapped onto the one being currently computed.
-      integer HEL_MULT
-      %(complex_dp_format)s JAMPL1(3,NLOOPFLOWS,NLOOPAMPSO),JAMPL2(3,NLOOPFLOWS,NLOOPAMPSO)
-C  
-C LOCAL VARIABLES 
-C
-      INTEGER I, J, M, N, K, ISQSO, DOUBLEFACT
-      INTEGER LOWERBOUND
-      INTEGER ORDERS_A(NSO), ORDERS_B(NSO)
-      %(complex_dp_format)s COLOR_COEF
-      %(real_dp_format)s TEMP(3)
-C  
-C FUNCTIONS
-C
-C This function belongs to the loop ME computation (loop_matrix.f) and is prefixed with ML5 
-      INTEGER %(proc_prefix)sML5SQSOINDEX
-C This function belongs to the Born ME computation (born_matrix.f) and is not prefixed at all
-      INTEGER %(proc_prefix)sSQSOINDEX, %(proc_prefix)sSOINDEX_FOR_AMPORDERS
-C
-C GLOBAL VARIABLES
-C
-      character(512) MLPath
-      common/MLPATH/MLPath
-      INTEGER SQSO_TARGET
-      common/%(proc_prefix)sSOCHOICE/SQSO_TARGET
-
-
-      LOGICAL UVCT_REQ_SO_DONE,MP_UVCT_REQ_SO_DONE,CT_REQ_SO_DONE,MP_CT_REQ_SO_DONE,LOOP_REQ_SO_DONE,MP_LOOP_REQ_SO_DONE,CTCALL_REQ_SO_DONE,FILTER_SO
-      common/%(proc_prefix)sSO_REQS/UVCT_REQ_SO_DONE,MP_UVCT_REQ_SO_DONE,CT_REQ_SO_DONE,MP_CT_REQ_SO_DONE,LOOP_REQ_SO_DONE,MP_LOOP_REQ_SO_DONE,CTCALL_REQ_SO_DONE,FILTER_SO
-
-C Now a more advanced data structure for storing the projection coefficient
-C This is of course not F77 standard but widely supported by now.
-      TYPE ColorCoeff
-        sequence
-        integer :: Num
-        integer :: Denom          
-      ENDTYPE ColorCoeff
-      TYPE(ColorCoeff), dimension(NLOOPFLOWS,NLOOPFLOWS) :: LoopColorFlowMatrix
-      LOGICAL CMInitialized
-      COMMON/%(proc_prefix)sFLOW_COLOR_MATRIX/LoopColorFlowMatrix, CMInitialized
-
-C ----------
-C BEGIN CODE
-C ----------
-
-C Initialization
-if(.NOT.CMInitialized) then
-  CALL %(proc_prefix)sINITIALIZE_FLOW_COLORMATRIX()
-ENDIF
-
-DO I=0,NSQUAREDSO
-  DO K=0,3
-    RES(K,I)=0.0d0
-  ENDDO
-ENDDO
-
-
-C Compute the Loop ME from the loop color flow amplitudes (JAMPL)
-DO I=1,NLOOPFLOWS
-  DO J=I,NLOOPFLOWS
-    COLOR_COEF=DCMPLX(LoopColorFlowMatrix(I,J)%%Num/DBLE(ABS(LoopColorFlowMatrix(I,J)%%Denom)),0.0d0)
-    IF (LoopColorFlowMatrix(I,J)%%Denom.LT.0) COLOR_COEF=COLOR_COEF*IMAG1
-    DO M=1,NLOOPAMPSO
-      IF (I.eq.J) THEN
-        LOWERBOUND = M
-      ELSE
-        LOWERBOUND = 1
-      ENDIF
-      DO N=LOWERBOUND,NLOOPAMPSO
-        ISQSO = %(proc_prefix)sML5SQSOINDEX(M,N)
-        IF(J.ne.I) THEN
-          DOUBLEFACT=2 
-        ELSEIF (M.ne.N) THEN
-          DOUBLEFACT=2
-        ELSE
-          DOUBLEFACT=1
-        ENDIF
-        TEMP(1) = DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL1(1,I,M)*DCONJG(JAMPL2(1,J,N))))
-C Computing the quantities below is not strictly necessary since the result should be finite
-C It is however a good cross-check.
-        TEMP(2) = DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL1(2,I,M)*DCONJG(JAMPL2(1,J,N)) + JAMPL1(1,I,M)*DCONJG(JAMPL2(2,J,N))))
-        TEMP(3) = DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL1(3,I,M)*DCONJG(JAMPL2(1,J,N)) + JAMPL1(1,I,M)*DCONJG(JAMPL2(3,J,N))+JAMPL1(2,I,M)*DCONJG(JAMPL2(2,J,N))))
-        DO K=1,3
-          RES(K,ISQSO) = RES(K,ISQSO) + TEMP(K)
-        ENDDO
-        IF((.NOT.FILTER_SO).OR.SQSO_TARGET.eq.-1.or.SQSO_TARGET.eq.ISQSO) THEN
-          DO K=1,3
-            RES(K,0) = RES(K,0) + TEMP(K)
-          ENDDO
-        ENDIF
-      ENDDO
-    ENDDO
-  ENDDO
-ENDDO
-
-      END SUBROUTINE
-## }
 
 ## if(LoopInduced and MadEventOutput){
       SUBROUTINE %(proc_prefix)sCOMPUTE_AMPL2(HEL_MULT)
@@ -703,9 +589,9 @@ C
 ## }
       INTEGER ORDERS_A(NSO), ORDERS_B(NSO)
       %(complex_dp_format)s COLOR_COEF
-      %(real_dp_format)s TEMP(3)
+      %(complex_dp_format)s TEMP(3)
 ## if(LoopInduced and MadEventOutput){
-      %(real_dp_format)s TEMP_AMP2(3,NCONFIGS)
+      %(complex_dp_format)s TEMP_AMP2(3,NCONFIGS)
 ## }
 C  
 C FUNCTIONS
@@ -846,11 +732,12 @@ C Same for contributions of split order index N by the Born amps
         ELSE
           DOUBLEFACT=1
         ENDIF
-        TEMP(1) = DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL1(1,I,M)*DCONJG(JAMPL2(1,J,N))))
+C I have removed the conversion to real because JAMPL1 and JAMPL2 are now different. The conversion to dble is done later in COMPUTE_RES_FROM_JAMP if we only want the matrix element
+        TEMP(1) = DOUBLEFACT*HEL_MULT*(COLOR_COEF*(JAMPL1(1,I,M)*DCONJG(JAMPL2(1,J,N))))
 C Computing the quantities below is not strictly necessary since the result should be finite
 C It is however a good cross-check.
-        TEMP(2) = DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL1(2,I,M)*DCONJG(JAMPL2(1,J,N)) + JAMPL1(1,I,M)*DCONJG(JAMPL2(2,J,N))))
-        TEMP(3) = DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL1(3,I,M)*DCONJG(JAMPL2(1,J,N)) + JAMPL1(1,I,M)*DCONJG(JAMPL2(3,J,N))+JAMPL1(2,I,M)*DCONJG(JAMPL2(2,J,N))))
+        TEMP(2) = DOUBLEFACT*HEL_MULT*(COLOR_COEF*(JAMPL1(2,I,M)*DCONJG(JAMPL2(1,J,N)) + JAMPL1(1,I,M)*DCONJG(JAMPL2(2,J,N))))
+        TEMP(3) = DOUBLEFACT*HEL_MULT*(COLOR_COEF*(JAMPL1(3,I,M)*DCONJG(JAMPL2(1,J,N)) + JAMPL1(1,I,M)*DCONJG(JAMPL2(3,J,N))+JAMPL1(2,I,M)*DCONJG(JAMPL2(2,J,N))))
 ## if(MadEventOutput) {
         DO config_i=1,nconfigs
           DO K=1,3
@@ -860,9 +747,9 @@ C For the multi-channeling, to choose to square against only among a given confi
           DO config_j=config_i,config_i
 c For the multi-channeling, to choose to square against all other configuration, use the do loop below
 c          DO config_j=1,nconfigs
-            TEMP_AMP2(1,config_i) = TEMP_AMP2(1,config_i) + DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL_FOR_AMP2(1,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(1,J,N,config_j))))
-            TEMP_AMP2(2,config_i) = TEMP_AMP2(2,config_i) + DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL_FOR_AMP2(2,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(1,J,N,config_j)) + JAMPL_FOR_AMP2(1,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(2,J,N,config_j))))
-            TEMP_AMP2(3,config_i) = TEMP_AMP2(3,config_i) + DOUBLEFACT*HEL_MULT*DBLE(COLOR_COEF*(JAMPL_FOR_AMP2(3,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(1,J,N,config_j)) + JAMPL_FOR_AMP2(1,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(3,J,N,config_j))+JAMPL_FOR_AMP2(2,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(2,J,N,config_j))))
+            TEMP_AMP2(1,config_i) = TEMP_AMP2(1,config_i) + DOUBLEFACT*HEL_MULT*(COLOR_COEF*(JAMPL_FOR_AMP2(1,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(1,J,N,config_j))))
+            TEMP_AMP2(2,config_i) = TEMP_AMP2(2,config_i) + DOUBLEFACT*HEL_MULT*(COLOR_COEF*(JAMPL_FOR_AMP2(2,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(1,J,N,config_j)) + JAMPL_FOR_AMP2(1,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(2,J,N,config_j))))
+            TEMP_AMP2(3,config_i) = TEMP_AMP2(3,config_i) + DOUBLEFACT*HEL_MULT*(COLOR_COEF*(JAMPL_FOR_AMP2(3,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(1,J,N,config_j)) + JAMPL_FOR_AMP2(1,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(3,J,N,config_j))+JAMPL_FOR_AMP2(2,I,M,config_i)*DCONJG(JAMPL_FOR_AMP2(2,J,N,config_j))))
 
           ENDDO
         ENDDO

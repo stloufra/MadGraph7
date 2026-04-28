@@ -2134,3 +2134,52 @@ jobs:
             which f2py
             echo "f2py_compiler = $(which f2py)" >> input/mg5_configuration.txt
             ./tests/test_manager.py test_density_mode_doublettbar -pA -t0 -l INFO
+
+
+  acceptancetest_density_LI_standalone1:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-22.04
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+
+      # Runs a set of commands using the runners shell
+      - name: test the loop induced standalone mode of the density matrix code
+        run: |
+            cd $GITHUB_WORKSPACE
+            cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
+            ./tests/test_manager.py test_density_mode_loop_induced_standalone1 -pA -t0 -l INFO
+
+  acceptancetest_density_LI_standalone2:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-22.04
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+
+      # Runs a set of commands using the runners shell
+      - name: test the loop induced standalone mode of the density matrix code
+        run: |
+            cd $GITHUB_WORKSPACE
+            cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
+            ./tests/test_manager.py test_density_mode_loop_induced_standalone2 -pA -t0 -l INFO
+
+  acceptancetest_density_LI_standalone3:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-22.04
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v2
+
+      # Runs a set of commands using the runners shell
+      - name: test the loop induced standalone mode of the density matrix code
+        run: |
+            cd $GITHUB_WORKSPACE
+            cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
+            ./tests/test_manager.py test_density_mode_loop_induced_standalone3 -pA -t0 -l INFO
