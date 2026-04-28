@@ -1545,7 +1545,7 @@ P1_qq_wp_wp_lvl
         self.do('add process w+ > j j')
         self.do('output %s ' % self.out_dir)
         # Check that all subprocesses have separate directories
-        directories = ['P0_wp_epve','P0_wp_udx']
+        directories = ['P0_wp_LxN','P0_wp_QQx']
         for d in directories:
             self.assertTrue(os.path.isdir(os.path.join(self.out_dir,
                                                        'SubProcesses',
@@ -1560,6 +1560,27 @@ P1_qq_wp_wp_lvl
             self.assertTrue(os.path.isdir(os.path.join(self.out_dir,
                                                        'SubProcesses',
                                                        d)))
+            
+        self.do('generate w+ > l+ vl')
+        self.do('generate e+ e- > j j')
+        self.do('output %s -f' % self.out_dir)
+        # Check that all subprocesses are combined
+        directories = ['P0_wp_lvl','P0_wp_qq']
+        for d in directories:
+            self.assertFalse(os.path.isdir(os.path.join(self.out_dir,
+                                                       'SubProcesses',
+                                                       d)))
+        # Check that all subprocesses are combined
+        directories = ['P0_ll_qq']
+        for d in directories:
+            self.assertFalse(os.path.isdir(os.path.join(self.out_dir,
+                                                       'SubProcesses',
+                                                       d)))
+
+                                                
+            
+
+
     
     @test_manager.bypass_for_py3
     def test_madevent_triplet_diquarks(self):
