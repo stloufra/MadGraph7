@@ -781,10 +781,10 @@ C
         SOURCE directory. It is different for loop_induced processes and 
         also depends on the value of the 'output_dependencies' option"""
         
-        return ['$(LIBDIR)libdhelas.$(libext)',
+        return ['$(LIBDIR)libmodel.$(libext)',
+                '$(LIBDIR)libdhelas.$(libext)',
                 '$(LIBDIR)libpdf.$(libext)',
                 '$(LIBDIR)libgammaUPC.$(libext)',
-                '$(LIBDIR)libmodel.$(libext)',
                 '$(LIBDIR)libcernlib.$(libext)',
                 '$(LIBDIR)libbias.$(libext)']
 
@@ -4669,12 +4669,24 @@ class ProcessExporterFortranME(ProcessExporterFortran):
                              matrix_element)
 
         filename = pjoin(Ppath, 'maxamps.inc')
-        nb_flavor_per_proc = matrix_element.get_nb_flavors() 
+        nb_flavor_per_proc = matrix_element.get_nb_flavors()
+        # Compute actual MAXPROC: for merged processes each flavor combination
+        # generates a separate IDUP row, so MAXPROC must cover all of them.
+        nb_idup_rows = 0
+        for proc in matrix_element.get('processes'):
+            legs = proc.get_legs_with_decays()
+            ids = [l.get('id') for l in legs]
+            if self.model and 'merged_particles' in self.model and \
+                    any(abs(id) in self.model['merged_particles'] for id in ids):
+                nb_idup_rows += len(list(sum(
+                    matrix_element.get_external_flavors_with_iden(), [])))
+            else:
+                nb_idup_rows += 1
         self.write_maxamps_file(writers.FortranWriter(filename),
                            len(matrix_element.get('diagrams')),
                            ncolor,
                            nb_flavor_per_proc,
-                           len(matrix_element.get('processes')),
+                           max(1, nb_idup_rows),
                            1)
 
         filename = pjoin(Ppath, 'mg.sym')

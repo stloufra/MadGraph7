@@ -1112,12 +1112,13 @@ C
         self.do('output madevent %s ' % self.out_dir)
         devnull = open(os.devnull,'w')
         # Check that all subprocess directories have been created
+        # (directory names use merged-particle naming convention: Q/Qx for quarks, L/Lx/N for leptons)
         self.assertTrue(os.path.exists(os.path.join(self.out_dir,
                                                     'SubProcesses',
-                                                    'P1_dxu_wp_wp_epve')))
+                                                    'P1_QxQ_wp_wp_LxN')))
         self.assertTrue(os.path.exists(os.path.join(self.out_dir,
                                                     'SubProcesses',
-                                                    'P1_udx_wp_wp_epve')))
+                                                    'P1_QQx_wp_wp_LxN')))
         # Check that the Source directory compiles
         status = subprocess.call(['make'],
                                  stdout=devnull, 
@@ -1144,18 +1145,18 @@ C
         status = subprocess.call(['make', 'gensym'],
                                  stdout=devnull, 
                                  cwd=os.path.join(self.out_dir, 'SubProcesses',
-                                                  'P1_udx_wp_wp_epve'))
+                                                  'P1_QQx_wp_wp_LxN'))
         self.assertEqual(status, 0)
         self.assertTrue(os.path.exists(os.path.join(self.out_dir,
                                                     'SubProcesses',
-                                                    'P1_udx_wp_wp_epve',
+                                                    'P1_QQx_wp_wp_LxN',
                                                     'gensym')))
         # Check that gensym runs
         proc = subprocess.Popen('./gensym',
                                   stdin=subprocess.PIPE, 
                                  stdout=devnull,
                                  cwd=os.path.join(self.out_dir, 'SubProcesses',
-                                                  'P1_udx_wp_wp_epve'),
+                                                  'P1_QQx_wp_wp_LxN'),
                                  shell=True)
         proc.communicate('100 4 0.1 .false.\n'.encode())
         
@@ -1164,11 +1165,11 @@ C
         status = subprocess.call(['make', 'madevent'],
                                  stdout=devnull, 
                                  cwd=os.path.join(self.out_dir, 'SubProcesses',
-                                                  'P1_udx_wp_wp_epve'))
+                                                  'P1_QQx_wp_wp_LxN'))
         self.assertEqual(status, 0)
         self.assertTrue(os.path.exists(os.path.join(self.out_dir,
                                                     'SubProcesses',
-                                                    'P1_udx_wp_wp_epve',
+                                                    'P1_QQx_wp_wp_LxN',
                                                     'madevent')))
         
     def test_complex_mass_SA(self):
