@@ -1777,10 +1777,10 @@ class MultiProcess(base_objects.PhysicsObject):
                         fks_tag.TagLeg({'id':id, 'state': False, 'polarization': isleg['polarization'], 'is_tagged': tag}) \
                         for id, isleg, tag in zip(prod, islegs_orig, istags)]
             else:
-                def get_flavor(id):
+                def get_flavor(beamid,id):
                     flavor = []
                     if abs(id) in model.get('merged_particles'):
-                        for f in islegs_orig[i]['flavor']:
+                        for f in islegs_orig[beamid]['flavor']:
                             # multi-particle store the flavor for many id -> need to filter the one we are looking at
                             if abs(f) in model.get('merged_particles')[abs(id)]:
                                 flavor.append(-1*f)
@@ -1788,7 +1788,7 @@ class MultiProcess(base_objects.PhysicsObject):
 
                 islegs = [\
                         base_objects.Leg({'id':id, 'state': False, 'polarization': islegs_orig[i]['polarization'],
-                                          'flavor': get_flavor(id)}) \
+                                          'flavor': get_flavor(i,id)}) \
                     for i,id in enumerate(prod)]
 
             # check for longitudinal photon

@@ -134,7 +134,7 @@ class TestCmdShell1(unittest.TestCase):
         """ command 'draw' works """
 
         self.do('set group_subprocesses False')
-        self.do('import model_v4 sm')
+        self.do('import model sm')
         self.do('generate e+ e- > e+ e-')
         self.do('display diagrams .')
         self.assertTrue(os.path.exists('./diagrams_0_epem_epem.eps'))
