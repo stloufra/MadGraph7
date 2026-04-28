@@ -791,6 +791,7 @@ class TestCmdShell2(unittest.TestCase,
         if os.path.isdir(self.out_dir):
             shutil.rmtree(self.out_dir)
 
+        self.do('set apply_flavor_grouping False')
         self.do('import model sm')
         self.do('set group_subprocesses False')
         self.do('generate e+ e- > e+ e-')
@@ -865,120 +866,220 @@ class TestCmdShell2(unittest.TestCase,
                                                     'madevent')))
         
         
+     
+    def test_madevent_ufo_aloha_merged(self):
+        """Test MadEvent output with UFO/ALOHA"""
+
+        if os.path.isdir(self.out_dir):
+            shutil.rmtree(self.out_dir)
+
+        self.do('set apply_flavor_grouping True')
+        self.do('import model sm')
+        self.do('set group_subprocesses False')
+        self.do('generate e+ e- > e+ e-')
+        self.do('output %s ' % self.out_dir)
+        # Check that the needed ALOHA subroutines are generated
+        files = ['FFV6_3.f', 'FFV2_3.f', 'FFV1P1N_2.f', 'FFV6P1N_3.f', 'aloha_file.inc', 'FFV6_0.f', 'FFV2P1N_3.f', 'FFV1P0_3.f', 
+                  'FFV2_0.f', 'FFV1P1N_1.f', 'FFV1_0.f', 'aloha_functions.f', 'FFV2P1N_2.f', 'FFV6P1N_1.f', 'FFV2P1N_1.f', 
+                  'FFV6P1N_2.f', 'FFV1P1N_3.f']
+        for f in files:
+            self.assertTrue(os.path.isfile(os.path.join(self.out_dir,
+                                                        'Source', 'DHELAS',
+                                                        f)), 
+                            '%s file is not in aloha directory' % f)
+        
+        #check the content of FFV1P0_0.f
+        #self.check_aloha_file()
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                                    'Cards',
+                                                    'ident_card.dat')))
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                                 'Cards', 'run_card_default.dat')))
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                                 'Cards', 'plot_card_default.dat')))
+        devnull = open(os.devnull,'w')
+        # Check that the Source directory compiles
+        status = subprocess.call(['make'],
+                                 stdout=devnull, 
+                                 cwd=os.path.join(self.out_dir, 'Source'))
+        self.assertEqual(status, 0)
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                               'lib', 'libdhelas.a')))
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                               'lib', 'libmodel.a')))
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                               'lib', 'libgeneric.a')))
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                               'lib', 'libcernlib.a')))
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                               'lib', 'libdsample.a')))
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                               'lib', 'libpdf.a')))
+        # Check that gensym compiles
+        status = subprocess.call(['make', 'gensym'],
+                                 stdout=devnull, 
+                                 cwd=os.path.join(self.out_dir, 'SubProcesses',
+                                                  'P0_epem_epem'))
+        self.assertEqual(status, 0)
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                                    'SubProcesses',
+                                                    'P0_epem_epem',
+                                                    'gensym')))
+        # Check that gensym runs
+        proc = subprocess.Popen('./gensym', 
+                                 stdout=devnull, stdin=subprocess.PIPE,
+                                 cwd=os.path.join(self.out_dir, 'SubProcesses',
+                                                  'P0_epem_epem'), shell=True)
+        proc.communicate('100 2 0.1 .false.\n'.encode())
+        
+        self.assertEqual(proc.returncode, 0)
+        # Check that madevent compiles
+        status = subprocess.call(['make', 'madevent'],
+                                 stdout=devnull, 
+                                 cwd=os.path.join(self.out_dir, 'SubProcesses',
+                                                  'P0_epem_epem'))
+        self.assertEqual(status, 0)
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                                    'SubProcesses',
+                                                    'P0_epem_epem',
+                                                    'madevent')))
+        
+        
+
+
     def check_aloha_file(self):
         """check the content of aloha file FFV1P0_3.f and FFV2_3.f"""
         
-        ffv1p0 = """C     This File is Automatically generated by ALOHA 
-C     The process calculated in this file is: 
+        ffv1p0 = """C     This File is Automatically generated by ALOHA
+C     The process calculated in this file is:
 C     Gamma(3,2,1)
-C    
+C
       SUBROUTINE FFV1P0_3(F1, F2, COUP, M3, W3,V3)
+      USE ALOHA_OBJECT
       IMPLICIT NONE
       COMPLEX*16 CI
       PARAMETER (CI=(0D0,1D0))
       COMPLEX*16 COUP
-      COMPLEX*16 F1(*)
-      COMPLEX*16 F2(*)
+      TYPE(ALOHA) F1
+      INTEGER FLV_INDEX1
+      TYPE(ALOHA) F2
+      INTEGER FLV_INDEX2
       REAL*8 M3
       REAL*8 P3(0:3)
-      COMPLEX*16 V3(6)
+      TYPE(ALOHA) V3
       REAL*8 W3
       COMPLEX*16 DENOM
-      V3(1) = +F1(1)+F2(1)
-      V3(2) = +F1(2)+F2(2)
-      P3(0) = -DBLE(V3(1))
-      P3(1) = -DBLE(V3(2))
-      P3(2) = -DIMAG(V3(2))
-      P3(3) = -DIMAG(V3(1))
+      V3%P(:) = +F1%P(:)+F2%P(:)
+      P3(:) = -V3 % P (:)
+      FLV_INDEX1 = F1 %FLV_INDEX
+      FLV_INDEX2 = F2 %FLV_INDEX
+      IF(FLV_INDEX1.NE.FLV_INDEX2.OR.FLV_INDEX1.EQ.0D0)THEN
+        V3%W(:) = (0D0,0D0)
+        RETURN
+      ENDIF
       DENOM = COUP/(P3(0)**2-P3(1)**2-P3(2)**2-P3(3)**2 - M3 * (M3 -CI
      $ * W3))
-      V3(3)= DENOM*(-CI)*(F1(3)*F2(5)+F1(4)*F2(6)+F1(5)*F2(3)+F1(6)
-     $ *F2(4))
-      V3(4)= DENOM*(-CI)*(-F1(3)*F2(6)-F1(4)*F2(5)+F1(5)*F2(4)+F1(6)
-     $ *F2(3))
-      V3(5)= DENOM*(-CI)*(-CI*(F1(3)*F2(6)+F1(6)*F2(3))+CI*(F1(4)*F2(5)
-     $ +F1(5)*F2(4)))
-      V3(6)= DENOM*(-CI)*(-F1(3)*F2(5)-F1(6)*F2(4)+F1(4)*F2(6)+F1(5)
-     $ *F2(3))
+      V3%W(1)= DENOM*(-CI)*(F1 % W(1)*F2 % W(3)+F1 % W(2)*F2 % W(4)+F1
+     $  % W(3)*F2 % W(1)+F1 % W(4)*F2 % W(2))
+      V3%W(2)= DENOM*(-CI)*(-F1 % W(1)*F2 % W(4)-F1 % W(2)*F2 % W(3)
+     $ +F1 % W(3)*F2 % W(2)+F1 % W(4)*F2 % W(1))
+      V3%W(3)= DENOM*(-CI)*(-CI*(F1 % W(1)*F2 % W(4)+F1 % W(4)*F2 %
+     $  W(1))+CI*(F1 % W(2)*F2 % W(3)+F1 % W(3)*F2 % W(2)))
+      V3%W(4)= DENOM*(-CI)*(-F1 % W(1)*F2 % W(3)-F1 % W(4)*F2 % W(2)
+     $ +F1 % W(2)*F2 % W(4)+F1 % W(3)*F2 % W(1))
       END
 
 
 """
         text = open(os.path.join(self.out_dir,'Source', 'DHELAS', 'FFV1P0_3.f')).read()
+
         
         self.assertNotIn('OM3', text)
         ffv1p0 = [l.strip() for l in ffv1p0.strip().split('\n')]
         text = [l.strip() for l in text.strip().split('\n')]
         self.assertEqual(ffv1p0, text)
         
-        ffv2 = """C     This File is Automatically generated by ALOHA 
-C     The process calculated in this file is: 
+        ffv2 = """C     This File is Automatically generated by ALOHA
+C     The process calculated in this file is:
 C     Gamma(3,2,-1)*ProjM(-1,1)
-C       
+C
       SUBROUTINE FFV2_3(F1, F2, COUP, M3, W3,V3)
+      USE ALOHA_OBJECT
       IMPLICIT NONE
       COMPLEX*16 CI
       PARAMETER (CI=(0D0,1D0))
       COMPLEX*16 COUP
-      COMPLEX*16 F1(*)
-      COMPLEX*16 F2(*)
+      TYPE(ALOHA) F1
+      INTEGER FLV_INDEX1
+      TYPE(ALOHA) F2
+      INTEGER FLV_INDEX2
       REAL*8 M3
       REAL*8 OM3
       REAL*8 P3(0:3)
       COMPLEX*16 TMP2
-      COMPLEX*16 V3(6)
+      TYPE(ALOHA) V3
       REAL*8 W3
       COMPLEX*16 DENOM
       OM3 = 0D0
       IF (M3.NE.0D0) OM3=1D0/M3**2
-      V3(1) = +F1(1)+F2(1)
-      V3(2) = +F1(2)+F2(2)
-      P3(0) = -DBLE(V3(1))
-      P3(1) = -DBLE(V3(2))
-      P3(2) = -DIMAG(V3(2))
-      P3(3) = -DIMAG(V3(1))
-      TMP2 = (F1(3)*(F2(5)*(P3(0)+P3(3))+F2(6)*(P3(1)+CI*(P3(2))))
-     $ +F1(4)*(F2(5)*(P3(1)-CI*(P3(2)))+F2(6)*(P3(0)-P3(3))))
+      V3%P(:) = +F1%P(:)+F2%P(:)
+      P3(:) = -V3 % P (:)
+      FLV_INDEX1 = F1 %FLV_INDEX
+      FLV_INDEX2 = F2 %FLV_INDEX
+      IF(FLV_INDEX1.NE.FLV_INDEX2.OR.FLV_INDEX1.EQ.0D0)THEN
+        V3%W(:) = (0D0,0D0)
+        RETURN
+      ENDIF
+      TMP2 = (F1 % W(1)*(F2 % W(3)*(P3(0)+P3(3))+F2 % W(4)*(P3(1)+CI
+     $ *(P3(2))))+F1 % W(2)*(F2 % W(3)*(P3(1)-CI*(P3(2)))+F2 % W(4)
+     $ *(P3(0)-P3(3))))
       DENOM = COUP/(P3(0)**2-P3(1)**2-P3(2)**2-P3(3)**2 - M3 * (M3 -CI
      $ * W3))
-      V3(3)= DENOM*(-CI)*(F1(3)*F2(5)+F1(4)*F2(6)-P3(0)*OM3*TMP2)
-      V3(4)= DENOM*(-CI)*(-F1(3)*F2(6)-F1(4)*F2(5)-P3(1)*OM3*TMP2)
-      V3(5)= DENOM*(-CI)*(-CI*(F1(3)*F2(6))+CI*(F1(4)*F2(5))-P3(2)*OM3
-     $ *TMP2)
-      V3(6)= DENOM*(-CI)*(-F1(3)*F2(5)-P3(3)*OM3*TMP2+F1(4)*F2(6))
+      V3%W(1)= DENOM*(-CI)*(F1 % W(1)*F2 % W(3)+F1 % W(2)*F2 % W(4)
+     $ -P3(0)*OM3*TMP2)
+      V3%W(2)= DENOM*(-CI)*(-F1 % W(1)*F2 % W(4)-F1 % W(2)*F2 % W(3)
+     $ -P3(1)*OM3*TMP2)
+      V3%W(3)= DENOM*(-CI)*(-CI*(F1 % W(1)*F2 % W(4))+CI*(F1 % W(2)*F2
+     $  % W(3))-P3(2)*OM3*TMP2)
+      V3%W(4)= DENOM*(-CI)*(-F1 % W(1)*F2 % W(3)-P3(3)*OM3*TMP2+F1 %
+     $  W(2)*F2 % W(4))
       END
 
 
-C     This File is Automatically generated by ALOHA 
+C     This File is Automatically generated by ALOHA
 C     The process calculated in this file is:
 C     Gamma(3,2,-1)*ProjM(-1,1)
 C
       SUBROUTINE FFV2_4_3(F1, F2, COUP1, COUP2, M3, W3,V3)
+      USE ALOHA_OBJECT
       IMPLICIT NONE
       COMPLEX*16 CI
       PARAMETER (CI=(0D0,1D0))
       COMPLEX*16 COUP1
       COMPLEX*16 COUP2
-      COMPLEX*16 F1(*)
-      COMPLEX*16 F2(*)
+      TYPE(ALOHA) F1
+      INTEGER FLV_INDEX1
+      TYPE(ALOHA) F2
+      INTEGER FLV_INDEX2
       REAL*8 M3
       REAL*8 OM3
       REAL*8 P3(0:3)
-      COMPLEX*16 V3(6)
-      COMPLEX*16 VTMP(6)
+      TYPE(ALOHA) V3
+      TYPE(ALOHA) VTMP
       REAL*8 W3
       COMPLEX*16 DENOM
       INTEGER*4 I
       CALL FFV2_3(F1,F2,COUP1,M3,W3,V3)
       CALL FFV4_3(F1,F2,COUP2,M3,W3,VTMP)
-      DO I = 3, 6
-        V3(I) = V3(I) + VTMP(I)
+      DO I = 1, 4
+        V3 %W(I) = V3%W(I) + VTMP%W(I)
       ENDDO
       END
       
 
 """
         text = open(os.path.join(self.out_dir,'Source', 'DHELAS', 'FFV2_3.f')).read()
+        #misc.sprint(text)
         self.assertIn('OM3', text)
         ffv2 = [l.strip() for l in ffv2.strip().split('\n')]
         text = [l.strip() for l in text.strip().split('\n')]
