@@ -2093,8 +2093,11 @@ param_card.inc: ../Cards/param_card.dat\n\t../bin/madevent treatcards param\n'''
                                     elif len(flv) ==1:
                                         initial_state = flv[0]
                                     else:
-                                        raise MadGraph5Error("Cannot determine the correct flavor for merged particle %s in process %s" % \
-                                                              (initial_state, process_line))
+                                        # Grouped process: multiple specific quarks are
+                                        # possible; use the one specified by this flavor
+                                        # combination.
+                                        sign = 1 if initial_state > 0 else -1
+                                        initial_state = sign * one_flv[ibeam-1]
                                 
                                 if initial_state in list(pdf_codes.keys()):
                                     pdf_lines = pdf_lines + "%s%d*" % \
@@ -2140,8 +2143,11 @@ param_card.inc: ../Cards/param_card.dat\n\t../bin/madevent treatcards param\n'''
                                 elif len(flv) ==1:
                                     initial_state = flv[0]
                                 else:
-                                    raise MadGraph5Error("Cannot determine the correct flavor for merged particle %s in process %s" % \
-                                                          (initial_state, process_line))
+                                    # Grouped process: multiple specific quarks are
+                                    # possible; use the one specified by this flavor
+                                    # combination.
+                                    sign = 1 if initial_state > 0 else -1
+                                    initial_state = sign * matrix_element.get_external_flavors()[nb_flavor][ibeam-1]
 
                             if initial_state in list(pdf_codes.keys()):
                                 pdf_lines = pdf_lines + "%s%d(IVEC)*" % \

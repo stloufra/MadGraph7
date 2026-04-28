@@ -4339,6 +4339,12 @@ class HelasMatrixElement(base_objects.PhysicsObject):
         # First need to reset all legs_with_decays
         for proc in self.get('processes'):
             proc.set('legs_with_decays', base_objects.LegList())
+
+        # The flavor caches were computed for the core process (before decay
+        # insertion).  After inserting decay chains the external-particle
+        # content changes, so the caches are no longer valid.
+        self['allowed_flavors'] = []
+        self['allowed_flavors_with_iden'] = []
             
         # We need to keep track of how the
         # wavefunction numbers change
@@ -4972,9 +4978,12 @@ class HelasMatrixElement(base_objects.PhysicsObject):
         """Insert decay chain by simply modifying wavefunction. This
         is possible only if there is only one diagram in the decay."""
 
-
+        new_wf_keys = set(dict.keys(new_wf))
         for key in old_wf.keys():
-            old_wf.set(key, new_wf[key])
+            # Skip dynamic attributes (e.g. 'flavortag') that may have been
+            # temporarily added to old_wf but are absent from new_wf.
+            if key in new_wf_keys:
+                old_wf.set(key, new_wf[key])
 
     def identical_decay_chain_factor(self, decay_chains):
         """Calculate the denominator factor from identical decay chains"""
@@ -5311,6 +5320,18 @@ class HelasMatrixElement(base_objects.PhysicsObject):
                 raise self.NoFlavorError("No diagram left after trimming for flavor!")
              
         self['allowed_flavors'] = flavor_list
+
+        # Clean up temporary 'flavortag' attributes left on wavefunctions by
+        # the last check_flavor call.  These dynamic dict keys are only valid
+        # during flavor checking; leaving them on the wavefunction objects
+        # breaks replace_single_wavefunction (which iterates old_wf.keys() and
+        # looks up the same key on new_wf).
+        for wfct in self.get_all_wavefunctions() + self.get_all_amplitudes():
+            try:
+                del wfct['flavortag']
+            except Exception:
+                pass
+
         return flavor_list
     
     def get_external_flavors_with_iden(self):
