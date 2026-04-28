@@ -349,6 +349,21 @@ public:
         }
     }
 
+    template <ScalarType T, typename D>
+    Tensor(T value, const D& device, AllocHint hint = AllocHint::normal) :
+        impl(new TensorImpl{
+            std::is_same_v<T, me_int_t> ? DataType::dt_int : DataType::dt_float,
+            {1},
+            device.device_ptr()
+        }) {
+        auto size = init_stride();
+        allocate(size, device, hint);
+        device.memcpy(impl->data, &value, sizeof(value));
+        if (std::is_same_v<T, me_int_t> && value >= 0) {
+            impl->batch_sizes.push_back(value);
+        }
+    }
+
     Tensor(TensorValue value, DevicePtr device, AllocHint hint = AllocHint::normal) :
         impl(new TensorImpl{
             std::visit(

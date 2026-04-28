@@ -84,9 +84,22 @@ void MadnisTraining::build_runtimes_and_optimizer() {
     }
     _generator_params =
         _generator_context->reallocate_globals_contiguously(_optimizer->param_names());
-    for (auto& channel : _channels) {
-        channel.generator_runtime =
-            build_runtime(channel.integrand->function(), _generator_context, false);
+    if (_generator_context->device()->device_type() == DeviceType::cpu) {
+        for (auto& channel : _channels) {
+            channel.generator_runtime =
+                build_runtime(channel.integrand->function(), _generator_context, false);
+        }
+    } else {
+        std::vector<std::shared_ptr<Integrand>> integrands;
+        integrands.reserve(_channels.size());
+        for (auto& channel : _channels) {
+            integrands.push_back(channel.integrand);
+        }
+        _multi_channel_generator = build_runtime(
+            MultiChannelIntegrand(integrands, true).function(),
+            _generator_context,
+            false
+        );
     }
 }
 
@@ -145,64 +158,88 @@ void MadnisTraining::start_generator_jobs(const std::vector<std::size_t>& counts
     }
     _generator_params.copy_from(_optimizer->parameters());
     std::size_t chan_count = counts.size();
-    std::size_t batch_size =
-        _generator_context->device()->device_type() == DeviceType::cpu
-        ? _config.cpu_generator_batch_size
-        : _config.gpu_generator_batch_size;
-    std::vector<std::size_t> missing_counts(chan_count);
+    bool is_gpu = _generator_context->device()->device_type() != DeviceType::cpu;
+    std::size_t batch_size = is_gpu
+        ? _config.gpu_generator_batch_granularity
+        : _config.cpu_generator_batch_size;
+    std::vector<std::size_t> missing_batch_counts(chan_count);
     std::vector<std::size_t> target_batch_counts(chan_count);
-    for (auto [channel, count, missing_count, target_batch_count] :
-         zip(_channels, counts, missing_counts, target_batch_counts)) {
+    for (auto [channel, count, missing_batch_count, target_batch_count] :
+         zip(_channels, counts, missing_batch_counts, target_batch_counts)) {
         std::size_t target_count = count * _config.generator_target_size_factor;
-        missing_count = count > channel.sample_count ? count - channel.sample_count : 0;
+        missing_batch_count = count > channel.sample_count
+            ? (count - channel.sample_count + batch_size - 1) / batch_size
+            : 0;
         target_batch_count = target_count > channel.sample_count
             ? (target_count - channel.sample_count + batch_size - 1) / batch_size
             : 0;
     }
     std::size_t available_jobs = _generator_context->thread_pool().thread_count();
-    std::size_t started_jobs = 0;
-    if (_multi_channel_generator) {
-        throw std::logic_error("not implemented");
-    } else {
-        for (std::size_t chan_index = 0;
-             auto [missing_count, target_batch_count] :
-             zip(missing_counts, target_batch_counts)) {
-            while (missing_count > 0 && available_jobs > 0) {
-                start_single_job(chan_index, batch_size);
-                --available_jobs;
-                missing_count =
-                    missing_count > batch_size ? missing_count - batch_size : 0;
-                --target_batch_count;
-            }
-            ++chan_index;
-            if (available_jobs == 0) {
-                break;
-            }
-        }
-        std::vector<std::size_t> chan_indices(counts.size());
-        std::iota(chan_indices.begin(), chan_indices.end(), 0);
-        std::sort(chan_indices.begin(), chan_indices.end(), [&](auto i, auto j) {
-            return target_batch_counts.at(i) > target_batch_counts.at(j);
-        });
-        for (std::size_t index = 0; available_jobs > 0;) {
-            std::size_t chan_index = chan_indices.at(index);
-            std::size_t& count = target_batch_counts.at(chan_index);
-            if (count == 0) {
-                break;
-            }
-            start_single_job(chan_index, batch_size);
+    std::vector<std::size_t> channel_sizes;
+    std::size_t gpu_subbatches =
+        (_config.gpu_generator_batch_size + _config.gpu_generator_batch_granularity -
+         1) /
+        _config.gpu_generator_batch_granularity;
+    if (is_gpu) {
+        available_jobs *= gpu_subbatches;
+        channel_sizes.resize(chan_count, 0);
+    }
+
+    for (std::size_t chan_index = 0;
+         auto [missing_batch_count, target_batch_count] :
+         zip(missing_batch_counts, target_batch_counts)) {
+        while (missing_batch_count > 0 && available_jobs > 0) {
             --available_jobs;
-            --count;
-            if (chan_index == chan_count - 1) {
-                index = 0;
-            } else {
-                std::size_t next_count =
-                    target_batch_counts.at(chan_indices.at(index + 1));
-                if (count < next_count) {
-                    ++index;
+            if (is_gpu) {
+                channel_sizes.at(chan_index) += batch_size;
+                if (available_jobs % gpu_subbatches == 0) {
+                    start_multi_job(channel_sizes);
+                    channel_sizes.assign(chan_count, 0);
                 }
+            } else {
+                start_single_job(chan_index, batch_size);
+            }
+            --missing_batch_count;
+            --target_batch_count;
+        }
+        ++chan_index;
+        if (available_jobs == 0) {
+            break;
+        }
+    }
+    std::vector<std::size_t> chan_indices(counts.size());
+    std::iota(chan_indices.begin(), chan_indices.end(), 0);
+    std::sort(chan_indices.begin(), chan_indices.end(), [&](auto i, auto j) {
+        return target_batch_counts.at(i) > target_batch_counts.at(j);
+    });
+    for (std::size_t index = 0; available_jobs > 0;) {
+        std::size_t chan_index = chan_indices.at(index);
+        std::size_t& count = target_batch_counts.at(chan_index);
+        if (count == 0) {
+            break;
+        }
+        --available_jobs;
+        if (is_gpu) {
+            channel_sizes.at(chan_index) += batch_size;
+            if (available_jobs % gpu_subbatches == 0) {
+                start_multi_job(channel_sizes);
+                channel_sizes.assign(chan_count, 0);
+            }
+        } else {
+            start_single_job(chan_index, batch_size);
+        }
+        --count;
+        if (chan_index == chan_count - 1) {
+            index = 0;
+        } else {
+            std::size_t next_count = target_batch_counts.at(chan_indices.at(index + 1));
+            if (count < next_count) {
+                ++index;
             }
         }
+    }
+    if (available_jobs > 0 && is_gpu) {
+        start_multi_job(channel_sizes);
     }
 }
 
@@ -237,7 +274,20 @@ void MadnisTraining::start_single_job(
 }
 
 void MadnisTraining::start_multi_job(const std::vector<std::size_t> batch_sizes) {
-    throw std::logic_error("not implemented");
+    std::size_t job_id = _job_id;
+    // println("start job {}", job_id);
+    // for (auto s : batch_sizes) println("  {}", s);
+    ++_job_id;
+    auto& job =
+        std::get<0>(_running_jobs.emplace(job_id, std::make_unique<SampleBatch>()))
+            ->second;
+    _generator_context->thread_pool().submit([this, batch_sizes, job_id, &job]() {
+        // println("running job {}", job_id);
+        auto result = _multi_channel_generator->run({Tensor(batch_sizes)});
+        job->tensors = permute_tensors(result);
+        job->channel_sizes = result.back().batch_sizes();
+        return job_id;
+    });
 }
 
 bool MadnisTraining::check_training_batch(
@@ -333,14 +383,33 @@ TensorVec MadnisTraining::build_training_batch(const std::vector<size_t>& counts
 
 void MadnisTraining::process_job_results(const std::vector<std::size_t>& job_ids) {
     for (auto job_id : job_ids) {
+        // println("job_id={} rjs={}", job_id, _running_jobs.size());
         auto job = std::move(_running_jobs.extract(job_id).mapped());
-        if (job->channel_sizes == 0) {
+        if (job->channel_sizes.size() == 0) {
             // println("process chan {}:{}", job->channel_index, job->size);
             auto& channel = _channels.at(job->channel_index);
             channel.sample_count += job->size;
             channel.sample_batches.push_back(std::move(job));
         } else {
-            throw std::logic_error("not implemented");
+            std::size_t offset = 0;
+            for (auto [channel, chan_size] : zip(_channels, job->channel_sizes)) {
+                if (chan_size == 0) {
+                    continue;
+                }
+                channel.sample_count += chan_size;
+                channel.sample_batches.push_back(std::make_unique<SampleBatch>());
+                auto& batch = channel.sample_batches.back();
+                batch->tensors.reserve(job->tensors.size());
+                for (auto& tensor : job->tensors) {
+                    // println("  slicing {}..{} / {}", offset, offset + chan_size,
+                    // tensor.size(0));
+                    batch->tensors.push_back(
+                        tensor.slice(0, offset, offset + chan_size)
+                    );
+                }
+                batch->size = chan_size;
+                offset += chan_size;
+            }
         }
     }
 }

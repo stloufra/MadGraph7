@@ -394,6 +394,17 @@ TypeVec UnstackInstruction::signature(const ValueVec& args) const {
     return TypeVec(arg.type.shape[0], {arg.type.dtype, arg.type.batch_size, out_shape});
 }
 
+TypeVec StackSizesInstruction::signature(const ValueVec& args) const {
+    std::vector<BatchSize> sizes;
+    for (auto& arg : args) {
+        if (arg.type.dtype != DataType::batch_sizes) {
+            throw std::invalid_argument("Only batch size list accepted as argument");
+        }
+        sizes.push_back(arg.type.batch_size_list.at(0));
+    }
+    return {sizes};
+}
+
 TypeVec UnstackSizesInstruction::signature(const ValueVec& args) const {
     if (args.size() != 1) {
         throw std::invalid_argument(
@@ -638,6 +649,23 @@ TypeVec UnsqueezeInstruction::signature(const ValueVec& args) const {
     std::vector<int> out_shape{1};
     out_shape.insert(out_shape.end(), arg.type.shape.begin(), arg.type.shape.end());
     return {{arg.type.dtype, arg.type.batch_size, out_shape}};
+}
+
+TypeVec AcceptNormInstruction::signature(const ValueVec& args) const {
+    check_arg_count(args, 2);
+    for (std::size_t i = 0; auto& arg : args) {
+        if (arg.type.dtype == DataType::batch_sizes) {
+            throw std::invalid_argument(
+                std::format(
+                    "accept_norm, argument {}: Batch size list not accepted as "
+                    "argument",
+                    i + 1
+                )
+            );
+        }
+        ++i;
+    }
+    return {{DataType::dt_float, BatchSize::one, {}}};
 }
 
 TypeVec RqsReshapeInstruction::signature(const ValueVec& args) const {

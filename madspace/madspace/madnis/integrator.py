@@ -863,29 +863,34 @@ class Integrator(nn.Module):
                 mask = weight != 0.0
                 batch = batch.map(lambda t: t[mask])
                 if self.multichannel:
-                    batch.zero_counts = torch.bincount(
-                        (
-                            channels[~mask]
-                            if integration_channels is None
-                            else integration_channels[~mask]
-                        ),
-                        minlength=self.integration_channel_count,
-                    )
-                    # c = (
-                    #    channels[mask]
-                    #    if integration_channels is None
-                    #    else integration_channels[mask]
+                    # batch.zero_counts = torch.bincount(
+                    #    (
+                    #        channels[~mask]
+                    #        if integration_channels is None
+                    #        else integration_channels[~mask]
+                    #    ),
+                    #    minlength=self.integration_channel_count,
                     # )
-                    # batch.q_sample /= (torch.bincount(
-                    #    c, minlength=self.integration_channel_count,
-                    # ) / torch.bincount(
-                    #    c, minlength=self.integration_channel_count,
-                    # ))[c]
-                else:
-                    batch.zero_counts = torch.full(
-                        (1,), torch.count_nonzero(~mask), device=x.device
+                    c = (
+                        channels[mask]
+                        if integration_channels is None
+                        else integration_channels[mask]
                     )
-                    # batch.q_sample /= mask.double().mean()
+                    batch.q_sample /= (
+                        torch.bincount(
+                            c,
+                            minlength=self.integration_channel_count,
+                        )
+                        / torch.bincount(
+                            c,
+                            minlength=self.integration_channel_count,
+                        )
+                    )[c]
+                else:
+                    # batch.zero_counts = torch.full(
+                    #    (1,), torch.count_nonzero(~mask), device=x.device
+                    # )
+                    batch.q_sample /= mask.double().mean()
                 current_batch_size += batch.x.shape[0]
             else:
                 current_batch_size += weight.count_nonzero()

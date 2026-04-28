@@ -22,6 +22,14 @@ unstack:
   custom_op: True
   differentiable: True
 
+stack_sizes:
+  inputs: any
+  outputs:
+    - name: sizes
+  desc:
+  class: StackSizesInstruction
+  custom_op: True
+
 unstack_sizes:
   inputs:
     - name: in1
@@ -129,6 +137,17 @@ unsqueeze:
   class: UnsqueezeInstruction
   custom_op: True
   differentiable: True
+
+accept_norm:
+  inputs:
+    - name: accepted_batch
+      desc:
+    - name: full_batch
+      desc:
+  outputs:
+    - name: norm
+  class: AcceptNormInstruction
+  custom_op: True
 
 ---
 title: Math

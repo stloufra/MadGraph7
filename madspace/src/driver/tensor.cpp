@@ -4,6 +4,12 @@ using namespace madspace;
 
 Tensor Tensor::select(std::size_t axis, std::size_t index) const {
     check_impl();
+    if (axis > impl->shape.size()) {
+        throw std::out_of_range("invalid select dimension");
+    }
+    if (index > impl->shape[axis]) {
+        throw std::out_of_range("select: index out of bounds");
+    }
     auto new_dim = impl->shape.size() - 1;
     Sizes new_shape(new_dim), new_stride(new_dim);
     std::copy(impl->shape.begin(), impl->shape.begin() + axis, new_shape.begin());
@@ -30,6 +36,15 @@ Tensor Tensor::select(std::size_t axis, std::size_t index) const {
 
 Tensor Tensor::slice(std::size_t axis, std::size_t start, std::size_t stop) const {
     check_impl();
+    if (axis > impl->shape.size()) {
+        throw std::out_of_range("invalid slice dimension");
+    }
+    if (start > stop) {
+        throw std::out_of_range("slice: start > stop");
+    }
+    if (stop > impl->shape[axis]) {
+        throw std::out_of_range("slice: stop out of bounds");
+    }
     auto new_shape = impl->shape;
     new_shape[axis] = stop - start;
     return Tensor(new Tensor::TensorImpl{

@@ -9,6 +9,10 @@ ValueVec unstack(Value in1) {
     return instruction("unstack", {in1});
 }
 
+Value stack_sizes(ValueVec args) {
+    return instruction("stack_sizes", args)[0];
+}
+
 ValueVec unstack_sizes(Value in1) {
     return instruction("unstack_sizes", {in1});
 }
@@ -49,6 +53,10 @@ Value squeeze(Value input) {
 
 Value unsqueeze(Value input) {
     return instruction("unsqueeze", {input})[0];
+}
+
+Value accept_norm(Value accepted_batch, Value full_batch) {
+    return instruction("accept_norm", {accepted_batch, full_batch})[0];
 }
 
 Value add(Value in1, Value in2) {

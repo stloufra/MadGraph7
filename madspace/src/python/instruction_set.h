@@ -15,6 +15,7 @@ namespace {
 void add_instructions(py::classh<FunctionBuilder>& fb) {
     fb.def("stack", &FunctionBuilder::stack, py::arg("args"));
     fb.def("unstack", &FunctionBuilder::unstack, py::arg("in1"));
+    fb.def("stack_sizes", &FunctionBuilder::stack_sizes, py::arg("args"));
     fb.def("unstack_sizes", &FunctionBuilder::unstack_sizes, py::arg("in1"));
     fb.def("pop", &FunctionBuilder::pop, py::arg("in1"));
     fb.def("batch_cat", &FunctionBuilder::batch_cat, py::arg("args"));
@@ -25,6 +26,7 @@ void add_instructions(py::classh<FunctionBuilder>& fb) {
     fb.def("full", &FunctionBuilder::full, py::arg("args"));
     fb.def("squeeze", &FunctionBuilder::squeeze, py::arg("input"));
     fb.def("unsqueeze", &FunctionBuilder::unsqueeze, py::arg("input"));
+    fb.def("accept_norm", &FunctionBuilder::accept_norm, py::arg("accepted_batch"), py::arg("full_batch"));
     fb.def("add", &FunctionBuilder::add, py::arg("in1"), py::arg("in2"));
     fb.def("add_int", &FunctionBuilder::add_int, py::arg("in1"), py::arg("in2"));
     fb.def("sub", &FunctionBuilder::sub, py::arg("in1"), py::arg("in2"));

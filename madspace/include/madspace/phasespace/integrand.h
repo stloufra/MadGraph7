@@ -42,6 +42,7 @@ public:
     inline static const int return_discrete = 1024;
     inline static const int return_discrete_latent = 2048;
     inline static const int exclude_adaptive_and_chan_weight = 4096;
+    inline static const int drop_cuts_and_rescale = 8192;
 
     inline static const std::vector<MatrixElement::MatrixElementInput>
         matrix_element_inputs = {
@@ -152,6 +153,10 @@ private:
     ) const override;
     ChannelResult
     build_channel_part(FunctionBuilder& fb, const ChannelArgs& args) const;
+    Value scatter_or_drop(
+        FunctionBuilder& fb, ChannelResult& result, Value default_value, Value value
+    ) const;
+    Value optional_cut(FunctionBuilder& fb, ChannelResult& result, Value value) const;
     NamedVector<Value> build_common_part(
         FunctionBuilder& fb, const ChannelArgs& args, ChannelResult& result
     ) const;
@@ -183,7 +188,10 @@ private:
 
 class MultiChannelIntegrand : public FunctionGenerator {
 public:
-    MultiChannelIntegrand(const std::vector<std::shared_ptr<Integrand>>& integrands);
+    MultiChannelIntegrand(
+        const std::vector<std::shared_ptr<Integrand>>& integrands,
+        bool return_sizes = false
+    );
 
 private:
     NamedVector<Value> build_function_impl(
@@ -191,6 +199,7 @@ private:
     ) const override;
 
     std::vector<std::shared_ptr<Integrand>> _integrands;
+    bool _return_sizes;
 };
 
 class IntegrandProbability : public FunctionGenerator {

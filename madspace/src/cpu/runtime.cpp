@@ -995,7 +995,7 @@ CpuRuntime::CpuRuntime(const Function& function, ContextPtr context, bool concur
         std::visit(
             Overloaded{
                 [&](auto val) {
-                    Tensor tensor(val, &CpuDevice::instance());
+                    Tensor tensor(val, cpu_device());
                     _locals_init[local.local_index] = tensor;
                 },
                 [](std::monostate val) {}

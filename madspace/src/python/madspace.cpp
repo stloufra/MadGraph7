@@ -1227,13 +1227,16 @@ PYBIND11_MODULE(_madspace_py, m) {
             "exclude_adaptive_and_chan_weight",
             &Integrand::exclude_adaptive_and_chan_weight
         )
+        .def_readonly_static("drop_cuts_and_rescale", &Integrand::drop_cuts_and_rescale)
         .def_readonly_static("matrix_element_inputs", &Integrand::matrix_element_inputs)
         .def_readonly_static(
             "matrix_element_outputs", &Integrand::matrix_element_outputs
         );
     py::classh<MultiChannelIntegrand, FunctionGenerator>(m, "MultiChannelIntegrand")
         .def(
-            py::init<std::vector<std::shared_ptr<Integrand>>&>(), py::arg("integrands")
+            py::init<const std::vector<std::shared_ptr<Integrand>>&, bool>(),
+            py::arg("integrands"),
+            py::arg("return_sizes") = false
         );
     py::classh<IntegrandProbability, FunctionGenerator>(m, "IntegrandProbability")
         .def(py::init<const Integrand&>(), py::arg("integrand"));
@@ -1281,6 +1284,10 @@ PYBIND11_MODULE(_madspace_py, m) {
         .def_readwrite(
             "gpu_generator_batch_size",
             &MadnisTraining::Config::gpu_generator_batch_size
+        )
+        .def_readwrite(
+            "gpu_generator_batch_granularity",
+            &MadnisTraining::Config::gpu_generator_batch_granularity
         )
         .def_readwrite(
             "generator_target_size_factor",

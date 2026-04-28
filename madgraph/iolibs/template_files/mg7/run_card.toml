@@ -111,6 +111,7 @@ log_interval = 100
 batch_size_offset = 512
 batch_size_per_channel = 128
 generator_target_size_factor = 32
+gpu_generator_batch_granularity = 1000
 lr = 1e-3
 lr_decay = 0.01
 lr_max = 3e-3

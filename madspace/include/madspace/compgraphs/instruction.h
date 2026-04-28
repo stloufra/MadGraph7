@@ -87,6 +87,13 @@ public:
     TypeVec signature(const ValueVec& args) const override;
 };
 
+class StackSizesInstruction : public Instruction {
+public:
+    StackSizesInstruction(int opcode, bool differentiable) :
+        Instruction("stack_sizes", opcode, differentiable) {}
+    TypeVec signature(const ValueVec& args) const override;
+};
+
 class UnstackSizesInstruction : public Instruction {
 public:
     UnstackSizesInstruction(int opcode, bool differentiable) :
@@ -147,6 +154,13 @@ class UnsqueezeInstruction : public Instruction {
 public:
     UnsqueezeInstruction(int opcode, bool differentiable) :
         Instruction("unsqueeze", opcode, differentiable) {}
+    TypeVec signature(const ValueVec& args) const override;
+};
+
+class AcceptNormInstruction : public Instruction {
+public:
+    AcceptNormInstruction(int opcode, bool differentiable) :
+        Instruction("accept_norm", opcode, differentiable) {}
     TypeVec signature(const ValueVec& args) const override;
 };
 

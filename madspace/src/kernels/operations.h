@@ -146,6 +146,15 @@ void op_unstack(const I& instruction, TensorVec& locals, const D& device) {
 }
 
 template <typename I, typename D>
+void op_stack_sizes(const I& instruction, TensorVec& locals, const D& device) {
+    SizeVec sizes;
+    for (std::size_t index : instruction.input_indices) {
+        sizes.push_back(locals[index].batch_sizes().at(0));
+    }
+    locals[instruction.output_indices[0]] = Tensor(sizes);
+}
+
+template <typename I, typename D>
 void op_unstack_sizes(const I& instruction, TensorVec& locals, const D& device) {
     auto sizes = locals[instruction.input_indices[0]].batch_sizes();
     for (auto [size, output_index] : zip(sizes, instruction.output_indices)) {
@@ -416,6 +425,14 @@ void backward_op_unsqueeze(
         );
         input_grad.copy_from(output_grad, device);
     }
+}
+
+template <typename I, typename D>
+void op_accept_norm(const I& instruction, TensorVec& locals, const D& device) {
+    double size_acc = locals[instruction.input_indices[0]].size(0);
+    double size_full = locals[instruction.input_indices[1]].size(0);
+    locals[instruction.output_indices[0]] =
+        Tensor(size_full / size_acc, device, instruction.output_alloc_hints[0]);
 }
 
 template <typename I, typename D>

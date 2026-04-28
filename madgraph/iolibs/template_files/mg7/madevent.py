@@ -415,6 +415,7 @@ class MadgraphProcess:
             config.channel_dropping_threshold = madnis_args["channel_dropping_threshold"]
             config.cpu_generator_batch_size = gen_args["cpu_batch_size"]
             config.gpu_generator_batch_size = gen_args["gpu_batch_size"]
+            config.gpu_generator_batch_granularity = madnis_args["gpu_generator_batch_granularity"]
             config.generator_target_size_factor = madnis_args["generator_target_size_factor"]
             config.batch_size_offset = madnis_args["batch_size_offset"]
             config.batch_size_per_channel = madnis_args["batch_size_per_channel"]
@@ -423,7 +424,7 @@ class MadgraphProcess:
             config.adam_beta1 = madnis_args["adam_beta1"]
             config.adam_beta2 = madnis_args["adam_beta2"]
             config.adam_eps = madnis_args["adam_eps"]
-            MADNIS_INTEGRAND_FLAGS = (
+            madnis_integrand_flags = (
                 ms.Integrand.sample
                 | ms.Integrand.return_latent
                 | ms.Integrand.return_channel
@@ -432,11 +433,13 @@ class MadgraphProcess:
                 | ms.Integrand.return_discrete_latent
                 | ms.Integrand.exclude_adaptive_and_chan_weight
             )
+            if madnis_args["drop_zero_integrands"]:
+                madnis_integrand_flags |= ms.Integrand.drop_cuts_and_rescale
             madnis_training = ms.MadnisTraining(
                 generator_context=gen_context,
                 optimizer_context=opt_context,
                 config=config,
-                integrands=subproc.build_integrands(phasespace, MADNIS_INTEGRAND_FLAGS),
+                integrands=subproc.build_integrands(phasespace, madnis_integrand_flags),
                 cwnet=phasespace.cwnet
             )
             madnis_training.train()

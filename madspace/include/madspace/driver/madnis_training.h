@@ -23,6 +23,7 @@ public:
         double channel_dropping_threshold = 0.01;
         std::size_t cpu_generator_batch_size = 1000;
         std::size_t gpu_generator_batch_size = 64000;
+        std::size_t gpu_generator_batch_granularity = 1000;
         std::size_t generator_target_size_factor = 32;
         std::size_t batch_size_offset = 512;
         std::size_t batch_size_per_channel = 128;
@@ -43,11 +44,11 @@ public:
 
 private:
     struct SampleBatch {
-        std::size_t size = 0;
-        std::size_t channel_index = 0;
         std::vector<std::size_t> channel_sizes;
         TensorVec tensors;
         std::size_t consumed_count = 0;
+        std::size_t size = 0;
+        std::size_t channel_index = 0;
     };
     struct ChannelData {
         std::vector<std::unique_ptr<SampleBatch>> sample_batches;
