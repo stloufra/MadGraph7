@@ -39,12 +39,9 @@ import tempfile
 import traceback
 import time
 import inspect
-import six.moves.urllib.request, six.moves.urllib.parse, six.moves.urllib.error
+import urllib.request, urllib.parse, urllib.error
 import random
-import six
-StringIO = six
-from six.moves import range
-
+import io
 #useful shortcut
 pjoin = os.path.join
 
@@ -1558,6 +1555,8 @@ This will take effect only in a NEW terminal
                         config_dir = legacy_config_dir
                     else:
                         config_dir = os.getenv('XDG_CONFIG_HOME', os.path.join(os.environ['HOME'], '.config'))
+                        if not os.path.exists(config_dir):
+                            os.makedirs(config_dir)
 
                     config_file = os.path.join(config_dir, 'mg5_configuration.txt')
                     args.remove('global')
@@ -3097,6 +3096,7 @@ class MadGraphCmd(HelpToCmd, CheckValidForCmd, CompleteForCmd, CmdExtended):
                        'auto_convert_model': True,
                        'acknowledged_v3.1_syntax': True,
                        'auto_update':7,
+                       'heptools_install_dir': './HEPTools',
                        }
 
     options_madgraph= {'group_subprocesses': 'Auto',
@@ -5594,7 +5594,7 @@ This implies that with decay chains:
         allow multiple required s-channel propagators to be specified
         (e.g. Z/gamma)."""
 
-        if isinstance(args, six.string_types):
+        if isinstance(args, str):
             args.replace("|", " | ")
             args = self.split_arg(args)
         all_ids = []
@@ -5789,7 +5789,7 @@ This implies that with decay chains:
                         options=options)
                 except ufomodels.UFOError as err:
                     model_path, _,_ = import_ufo.get_path_restrict(args[1])
-                    if six.PY3 and self.options['auto_convert_model']:
+                    if self.options['auto_convert_model']:
                         logger.info("fail to load model but auto_convert_model is on True. Trying to convert the model")
                         
                         self.exec_cmd('convert model %s' % model_path, errorhandling=False, printcmd=True, precmd=False, postcmd=False)
@@ -5801,10 +5801,8 @@ This implies that with decay chains:
                                 self.exec_cmd('import %s' % line, errorhandling=False, printcmd=True, precmd=False, postcmd=False)
                             except Exception:
                                 raise err
-                    elif six.PY3:
-                        raise self.InvalidCmd('UFO model not python3 compatible. You can convert it via the command \nconvert model %s\nYou can also type \"set auto_convert_model T\" to automatically convert all python2 module to be python3 compatible in the future.' % model_path)
                     else:
-                        raise
+                        raise self.InvalidCmd('UFO model not python3 compatible. You can convert it via the command \nconvert model %s\nYou can also type \"set auto_convert_model T\" to automatically convert all python2 module to be python3 compatible in the future.' % model_path)
                 if os.path.sep in args[1] and "import" in self.history[-1]:
                     self.history[-1] = 'import model %s' % self._curr_model.get('modelpath+restriction')
 
@@ -6187,7 +6185,7 @@ This implies that with decay chains:
             compiler_options.append('--fortran_compiler=%s'%
                                                self.options['fortran_compiler'])
 
-        if 'heptools_install_dir' in self.options:
+        if  self.options['heptools_install_dir']:
             prefix = self.options['heptools_install_dir']
             legacy_config_dir = os.path.join(os.environ['HOME'], '.mg5')
 
@@ -6195,6 +6193,8 @@ This implies that with decay chains:
                 config_dir = legacy_config_dir
             else:
                 config_dir = os.getenv('XDG_CONFIG_HOME', os.path.join(os.environ['HOME'], '.config'))
+                if not os.path.exists(config_dir):
+                    os.makedirs(config_dir)
 
             config_file = os.path.join(config_dir, 'mg5_configuration.txt')
         else:
@@ -6214,7 +6214,7 @@ This implies that with decay chains:
                 logger.warning("==========")
             if self.options['pythia8_path']:
                 add_options.append(
-                               '--with_pythia8=%s'%self.options['pythia8_path'])
+                               '--with_pythia8=%s'%os.path.abspath(self.options['pythia8_path']))
 
         # Special rules for certain tools
         if tool in ['madanalysis5', 'rivet']:
@@ -6232,7 +6232,7 @@ This implies that with decay chains:
                 add_options.append('--with_delphes3=%s'%\
                    os.path.normpath(pjoin(MG5DIR,self.options['delphes_path'])))
 
-        if tool=='pythia8':
+        if tool in ['pythia8','eMELA']:
             # All what's below is to handle the lhapdf dependency of Pythia8
             lhapdf_config  = misc.which(self.options['lhapdf'])
             lhapdf_version = None
@@ -6265,11 +6265,11 @@ This implies that with decay chains:
                 lhapdf_path = os.path.abspath(pjoin(os.path.dirname(\
                                                  lhapdf_config),os.path.pardir))
             if lhapdf_version is None:
-                logger.warning('You decided not to link the Pythia8 installation'+
+                logger.warning('You decided not to link the '+ tool + ' installation'+
                   ' to LHAPDF. Beware that only built-in PDF sets can be used then.')
             else:
-                logger.info('Pythia8 will be linked to LHAPDF v%d.'%lhapdf_version)
-            logger.info('Now installing Pythia8. Be patient...','$MG:color:GREEN')
+                logger.info(tool + 'will be linked to LHAPDF v%d.'%lhapdf_version)
+            logger.info('Now installing' + tool + '. Be patient...','$MG:color:GREEN')
             lhapdf_option = []
             if lhapdf_version is None:
                 lhapdf_option.append('--with_lhapdf6=OFF')
@@ -6288,7 +6288,7 @@ This implies that with decay chains:
             add_options = [opt for opt in add_options if opt!='--force']+\
                         (['--force'] if '--force' in add_options else [])
             return_code = misc.call([sys.executable, pjoin(MG5DIR,'HEPTools',
-             'HEPToolsInstallers','HEPToolInstaller.py'),'pythia8',
+             'HEPToolsInstallers','HEPToolInstaller.py'), tool,
              '--prefix=%s' % prefix]
                         + lhapdf_option + compiler_options + add_options)
         else:
@@ -6356,16 +6356,11 @@ This implies that with decay chains:
             self.advanced_install('mg5amc_py8_interface',
                               additional_options=add_options+['--force'])          
         elif tool == 'lhapdf6':
-            if six.PY3:
                 self.options['lhapdf_py3'] = pjoin(prefix,'lhapdf6_py3','bin', 'lhapdf-config')
                 self.exec_cmd('save options %s lhapdf_py3' % config_file)
                 self.options['lhapdf'] = self.options['lhapdf_py3']
-            else:
-                self.options['lhapdf_py2'] = pjoin(prefix,'lhapdf6','bin', 'lhapdf-config')
-                self.exec_cmd('save options %s lhapdf_py2' % config_file)
-                self.options['lhapdf'] = self.options['lhapdf_py2']
         elif tool == 'eMELA':
-            self.options['eMELA'] = pjoin(prefix,'EMELA','bin', 'eMELA-config')
+            self.options['eMELA'] = pjoin(prefix,'bin', 'eMELA-config')
             self.exec_cmd('save options %s eMELA' % config_file)
         elif tool == 'lhapdf5':
             self.options['lhapdf'] = pjoin(prefix,'lhapdf5','bin', 'lhapdf-config')
@@ -6514,7 +6509,7 @@ MG5aMC that supports quadruple precision (typically g++ based on gcc 4.6+).""")
                 'ExRootAnalysis': 'ExRootAnalysis','MadAnalysis':'madanalysis5',
                 'MadAnalysis4':'MadAnalysis',
                 'SysCalc':'SysCalc', 'Golem95': 'golem95',
-                    'lhapdf6' : 'lhapdf6' if six.PY2 else 'lhapdf6_py3',
+                    'lhapdf6' : 'lhapdf6_py3',
                 'QCDLoop':'QCDLoop','MadAnalysis5':'madanalysis5',
                 'maddm':'maddm'
                 }
@@ -6563,7 +6558,7 @@ MG5aMC that supports quadruple precision (typically g++ based on gcc 4.6+).""")
 
         source = None
         # Load file with path of the different program:
-        import six.moves.urllib.request, six.moves.urllib.parse, six.moves.urllib.error
+        import urllib.request, urllib.parse, urllib.error
         if paths:
             path = paths
         else:
@@ -6595,7 +6590,7 @@ MG5aMC that supports quadruple precision (typically g++ based on gcc 4.6+).""")
             for index in r:
                 cluster_path = data_path[index]
                 try:
-                    data = six.moves.urllib.request.urlopen(cluster_path)
+                    data = urllib.request.urlopen(cluster_path)
                 except Exception as error:
                     misc.sprint(str(error), cluster_path)
                     continue
@@ -6822,16 +6817,13 @@ MG5aMC that supports quadruple precision (typically g++ based on gcc 4.6+).""")
                 maximal_mg5amcnlo_version = plugin.maximal_mg5amcnlo_version
             except Exception as error:
                 print(error)
-                if six.PY2:
-                    raise Exception('Plugin %s fail to be loaded. Please contact the author of the PLUGIN\n Error %s' % (name, error))
-                elif six.PY3:
-                    logger.warning('Plugin not python3 compatible! It will run with python2')
-                    text = open(os.path.join(MG5DIR, 'PLUGIN', name, '__init__.py')).read()
-                    if re.search(r'^\s*new_interface\s*=\s*(?!None).', text, re.M):
-                        new_interface = True
-                        pyvers = 2
-                    else:
-                        misc.sprint(text)
+                logger.warning('Plugin not python3 compatible! It will run with python2')
+                text = open(os.path.join(MG5DIR, 'PLUGIN', name, '__init__.py')).read()
+                if re.search(r'^\s*new_interface\s*=\s*(?!None).', text, re.M):
+                    new_interface = True
+                    pyvers = 2
+                else:
+                    misc.sprint(text)
                 new_output = []
                 latest_validated_version = ''
                 minimal_mg5amcnlo_version = ''
@@ -7234,7 +7226,7 @@ os.system('%s  -O -W ignore::DeprecationWarning %s %s --mode={0}' %(sys.executab
         signal.alarm(timeout)
         to_update = 0
         try:
-            filetext = six.moves.urllib.request.urlopen('http://madgraph.phys.ucl.ac.be/mg5amc3_build_nb')
+            filetext = urllib.request.urlopen('http://madgraph.phys.ucl.ac.be/mg5amc3_build_nb')
             signal.alarm(0)
             text = filetext.read().decode(errors='ignore').split('\n')
             web_version = int(text[0].strip())
@@ -7303,7 +7295,7 @@ os.system('%s  -O -W ignore::DeprecationWarning %s %s --mode={0}' %(sys.executab
             fail = 0
             for i in range(data['version_nb'], web_version):
                 try:
-                    filetext = six.moves.urllib.request.urlopen('http://madgraph.phys.ucl.ac.be/patch/build%s.patch' %(i+1))
+                    filetext = urllib.request.urlopen('http://madgraph.phys.ucl.ac.be/patch/build%s.patch' %(i+1))
                 except Exception:
                     print('fail to load patch to build #%s' % (i+1))
                     fail = i
@@ -7377,7 +7369,7 @@ os.system('%s  -O -W ignore::DeprecationWarning %s %s --mode={0}' %(sys.executab
                 if os.path.exists(legacy_config_dir):
                     config_dir = legacy_config_dir
                 else:
-                    config_dir = os.getenv('XDG_STATE_HOME', os.path.join(os.environ['HOME'], '.local', 'state'))
+                    config_dir = os.getenv('XDG_STATE_HOME', os.path.join(os.environ['HOME'], '.config'))
 
                 config_path = os.path.join(config_dir, "mg5_configuration.txt")
 
@@ -7411,7 +7403,7 @@ os.system('%s  -O -W ignore::DeprecationWarning %s %s --mode={0}' %(sys.executab
                 value = value.strip()
                 if name not in ['mg5_path', 'f2py_compiler', 'f2py_compiler_py2','f2py_compiler_py3', 'lhapdf']:
                     self.options[name] = value
-                elif hasattr(self, 'set2_%s' % name):
+                elif hasattr(self, 'set2_%s' % name) and value:
                     misc.sprint('set configuration option %s to %s' % (name, value) )
                     func = getattr(self, 'set2_%s' % name)
                     func(value.split())
@@ -7759,7 +7751,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
         self._curr_model = import_ufo.import_model(model_path, restrict=False)
 
         #1) create the full param_card
-        out_path = StringIO.StringIO()
+        out_path = io.StringIO()
         param_writer.ParamCardWriter(self._curr_model, out_path)
         # and load it to a python object
         param_card = check_param_card.ParamCard(out_path.getvalue().split('\n'))
@@ -7810,7 +7802,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
 
         # if some need to put on one
         if put_to_one:
-            out_path = StringIO.StringIO()
+            out_path = io.StringIO()
             param_writer.ParamCardWriter(self._curr_model, out_path)
             # and load it to a python object
             param_card = check_param_card.ParamCard(out_path.getvalue().split('\n'))
@@ -7898,7 +7890,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
                 filepath = pjoin(MG5DIR, 'input', 'mg5_configuration.txt')
             
             basedir = MG5DIR
-            if partial_save:
+            if partial_save and os.path.exists(filepath):
                 basefile = filepath
             else:
                 basefile = pjoin(MG5DIR, 'input', '.mg5_configuration_default.txt')
@@ -8219,10 +8211,10 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
                return 
             
         to_do = True
-        if args[0].endswith('_py2') and six.PY3:
+        if args[0].endswith('_py2'):
             to_do = False
         # not supported anymore
-        #elif args[0].endswith('_py3') and six.PY2:
+        #elif args[0].endswith('_py3') and False:
         #    to_do = False
         if to_do:
             if args[1] != 'None':
@@ -8435,9 +8427,9 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
                return  
 
         to_do = True
-        if args[0].endswith('_py2') and six.PY3:
+        if args[0].endswith('_py2'):
             to_do = False
-        #elif args[0].endswith('_py3') and six.PY2:
+        #elif args[0].endswith('_py3') and False:
         #    to_do = False
         if to_do:
             try:
@@ -8606,7 +8598,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
         """
         args = ['OLP'] + args
         self.check_set(args)
-        if six.PY3 and self.options['low_mem_multicore_nlo_generation'] and args[1] != "MadLoop":
+        if self.options['low_mem_multicore_nlo_generation'] and args[1] != "MadLoop":
             raise self.InvalidCmd('Not possible to set OLP with both \"low_mem_multicore_nlo_generation\" and python3')
         # Reset the amplitudes, MatrixElements and exporter as they might
         # depend on this option
@@ -8761,7 +8753,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
         """
         args = ['low_mem_multicore_nlo_generation'] + args
         self.check_set(args)
-        if six.PY3 and self.options['OLP'] != 'MadLoop':
+        if self.options['OLP'] != 'MadLoop':
             raise self.InvalidCmd('Not possible to set \"low_mem_multicore_nlo_generation\" for an OLP different of MadLoop when running  python3')
         else:
             self.options[args[0]] = args[1]
@@ -9099,6 +9091,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
             if not self.history or self.history[-1].split() != line.split():
                 self.history.append('set %s' % line)
                 self.avoid_history_duplicate('set %s' % args[0], ['define', 'set'])
+
         return stop
 
     def do_open(self, line):

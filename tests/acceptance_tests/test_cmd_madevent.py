@@ -81,12 +81,19 @@ class TestMECmdShell(unittest.TestCase):
             os.mkdir(pjoin(MG5DIR, "tmp_test"))
         else:
             self.path = tempfile.mkdtemp(prefix='acc_test_mg5')
-        self.run_dir = pjoin(self.path, 'MGPROC') 
+        self.run_dir = pjoin(self.path, 'MGPROC')
+
+        if logging.getLogger('madgraph').level >= 20:
+            self.stdout = open(os.devnull, 'w')
+        else:
+            self.stdout = sys.stdout
     
     def tearDown(self):
 
         if self.path != pjoin(MG5DIR, "tmp_test"):
             shutil.rmtree(self.path)
+        if logging.getLogger('madgraph').level <= 20:
+            self.stdout.close() 
     
     def generate(self, process, model):
         """Create a process"""
@@ -147,6 +154,42 @@ class TestMECmdShell(unittest.TestCase):
         """ exec a line in the cmd under test """        
         self.cmd_line.run_cmd(line)
         
+    def test_madevent_dy3j_mlm(self):
+        """ Test that biasing LO event generation works as intended. """
+        self.out_dir = self.run_dir
+
+        if not self.debugging or not os.path.isdir(pjoin(MG5DIR,'BackUp_tmp_test')):
+            self.generate('u g > l+ l- u u u~', 'sm')
+
+            run_card = banner.RunCardLO(pjoin(self.out_dir, 'Cards', 'run_card.dat'))
+            run_card.set('ickkw', 1, user=True)
+            run_card.set('xqcut', 10.0, user=True)
+            run_card.write(pjoin(self.out_dir, 'Cards', 'run_card.dat'))
+            
+            # Compile the code
+            subprocess.Popen(['make'], cwd=pjoin(self.out_dir, 'Source'), stdout=self.stdout, stderr=self.stdout).wait()
+            subprocess.Popen(['make', 'madevent_forhel'],                         
+                             cwd=pjoin(self.out_dir, 'SubProcesses', 'P1_qg_llqqq'),
+                             stdout=self.stdout, stderr=self.stdout).wait()
+            with open(pjoin(self.out_dir, 'SubProcesses', 'P1_qg_llqqq', 'run_config.txt'), 'w') as fsock:  
+                fsock.write('1000 5 3\n')  
+                fsock.write('0.1\n')       # Accuracy
+                fsock.write('2\n')         # Grid Adjustment 0=none, 2=adjust   
+                fsock.write('1\n')         # Suppress Amplitude 1=yes
+                fsock.write('0\n')         # Helicity Sum/event 0=exact
+                fsock.write('      86\n')
+            fsock.close()
+            
+        return_code = subprocess.Popen(
+            ['./madevent_forhel'],
+            cwd=pjoin(self.out_dir, 'SubProcesses', 'P1_qg_llqqq'),
+            stdin=open(pjoin(self.out_dir, 'SubProcesses', 'P1_qg_llqqq', 'run_config.txt')),
+            stdout=self.stdout, stderr=self.stdout
+        ).wait()
+            
+        self.assertEqual(return_code, 0)
+
+
 
     def test_madevent_ptj_bias(self):
         """ Test that biasing LO event generation works as intended. """
@@ -154,6 +197,7 @@ class TestMECmdShell(unittest.TestCase):
 
         if not self.debugging or not os.path.isdir(pjoin(MG5DIR,'BackUp_tmp_test')):
             self.generate('d d~ > u u~', 'sm')
+
             run_card = banner.RunCardLO(pjoin(self.out_dir, 'Cards','run_card.dat'))
             # Some test checking that some cut are absent/present by default
             self.assertIn('ptj', run_card.user_set)
@@ -481,8 +525,8 @@ class TestMECmdShell(unittest.TestCase):
         self.do('generate_events -f')
         val1 = self.cmd_line.results.current['cross']
         err1 = self.cmd_line.results.current['error']
-        
-        target = 3932.0
+        # 100k value is 3933.1 +- 3 
+        target = 3933.1
         self.assertLess(
             abs(val1 - target) / (err1+1.7),
             2.,
@@ -847,14 +891,17 @@ C
         self.assertIn('mue_ref_fixed', run_card.user_set)
         self.assertIn('mue_over_ref', run_card.user_set)
 
+        run_card['nevents'] = 10000
+        run_card.write('%s/Cards/run_card.dat' % self.run_dir)
         
         self.do('generate_events -f')
         val1 = self.cmd_line.results.current['cross']
         err1 = self.cmd_line.results.current['error']
 
         #target = 166.36114 # value used as reference before changing sde_strategy
-        target = 165.7 # computed with sde_strategy #165.8 +- 0.02099 pb
-        self.assertTrue(abs(val1 - target) / err1 < 2., 'large diference between %s and %s +- %s'%
+        # 100k value is 165.84 +- 0.05
+        target = 165.84
+        self.assertTrue(abs(val1 - target) / err1 < 1., 'large diference between %s and %s +- %s'%
                         (target, val1, err1))
 
         
@@ -866,7 +913,8 @@ C
         self.do('generate_events -f')
         val1 = self.cmd_line.results.current['cross']
         err1 = self.cmd_line.results.current['error']
-        target = 165.7 
+        # 100k value is  165.71 +- 0.06
+        target = 165.71
         self.assertTrue(abs(val1 - target) / err1 < 1., 'large diference between %s and %s +- %s'%
                         (target, val1, err1))
 

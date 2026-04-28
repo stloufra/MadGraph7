@@ -39,11 +39,7 @@ import copy
 import datetime
 import tarfile
 import traceback
-import six
-
-StringIO = six
-from six.moves import range
-from six.moves import zip
+import io
 try:
     import cpickle as pickle
 except:
@@ -1909,12 +1905,16 @@ class aMCatNLOCmd(CmdExtended, HelpToCmd, CompleteForCmd, common_run.CommonRunCm
 
     def update_random_seed(self):
         """Update random number seed with the value from the run_card. 
-        If this is 0, update the number according to a fresh one"""
+        If this is 0, update the number according to a fresh one.
+        If a specific seed is set, reset it to 0 in the run_card after use
+        to ensure that subsequent runs will be statistically independent."""
         iseed = self.run_card['iseed']
         if iseed == 0:
             randinit = open(pjoin(self.me_dir, 'SubProcesses', 'randinit'))
             iseed = int(randinit.read()[2:]) + 1
             randinit.close()
+        else:
+            self.reset_iseed_in_run_card()
         randinit = open(pjoin(self.me_dir, 'SubProcesses', 'randinit'), 'w')
         randinit.write('r=%d' % iseed)
         randinit.close()
@@ -3404,7 +3404,7 @@ RESTART = %(mint_mode)s
                self.compile_advanced_stats(log_GV_files, all_log_files, message)
         except Exception as e:
             debug_msg = 'Advanced statistics collection failed with error "%s"\n'%str(e)
-            err_string = StringIO.StringIO()
+            err_string = io.StringIO()
             traceback.print_exc(limit=4, file=err_string)
             debug_msg += 'Please report this backtrace to a MG5_aMC developer:\n%s'\
                                                           %err_string.getvalue()
@@ -4119,6 +4119,8 @@ RESTART = %(mint_mode)s
                 files.ln(pjoin(self.options['pythia8_path'], 'xmldoc'), rundir)
             else: # this is PY8.2xxx
                 files.ln(pjoin(self.options['pythia8_path'], 'share/Pythia8/xmldoc'), rundir)
+                files.ln(pjoin(self.options['pythia8_path'], 'share/Pythia8/tunes'), rundir)
+
         #link the hwpp exe in the rundir
         if shower == 'HERWIGPP':
             try:
@@ -5095,6 +5097,8 @@ RESTART = %(mint_mode)s
                     input_files.append(pjoin(self.options['pythia8_path'], 'xmldoc'))
                 else:
                     input_files.append(pjoin(self.options['pythia8_path'], 'share/Pythia8/xmldoc'))
+                if os.path.exists(pjoin(self.options['pythia8_path'], 'share', 'Pythia8', 'tunes')):
+                    input_files.append(pjoin(self.options['pythia8_path'], 'share', 'Pythia8', 'tunes'))
             else:
                 input_files.append(pjoin(cwd, 'MCATNLO_%s_EXE' % shower))
                 input_files.append(pjoin(cwd, 'MCATNLO_%s_input' % shower))
@@ -5484,7 +5488,7 @@ PYTHIA8LINKLIBS=%(pythia8_prefix)s/lib/libpythia8.a -lz -ldl"""%{'pythia8_prefix
                 logger.warning('https://answers.launchpad.net/mg5amcnlo/+faq/3324')
 
                 # this is if the PDFs from ePDF/eMELA are employed
-                self.make_opts_var['epdf'] = self.options['eMELA']
+                self.make_opts_var['epdf'] = os.path.abspath(self.options['eMELA'])
                 self.update_make_opts()
                 # link the LHAPDF libraries, but unset the corresponding keys in make_opts
                 self.link_lhapdf(libdir)
