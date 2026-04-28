@@ -959,7 +959,7 @@ class UFOMG5Converter(object):
         new_name = ''.join([letter[s] for s in spins])
         labels = [l.get('name')[len(spins):] for l in self.model['lorentz'] if l.get('name').startswith(new_name) and l.get('name')[len(spins):]]
         if labels:
-            flag = max([int(l) for l in labels]) + 1
+            flag = max([int(l) for l in labels if l.isdigit()]) + 1
         else:
             flag = 1
         new_name += str(flag)
@@ -1029,6 +1029,19 @@ class UFOMG5Converter(object):
                 return get_coeff(lor), 0, 0, 0
             elif re.search(r"ProjM\((['\"])[\w\s]*\1,1\)" , lor):
                 return 0, get_coeff(lor), 0, 0
+            elif  'Gamma(3,2,1)' == lor:
+                c = get_coeff(lor)
+                return c, c, 0, 0
+            elif 'Gamma5' in lor:
+                lor = re.sub(
+                        r"Gamma5\(\s*([^)]+)\s*\)\s*(\*\w+)",
+                        r"ProjP(\1)\2 - ProjM(\1)\2",
+                        lor)
+
+                return projection(lor, spin)
+
+
+
             elif spin != [2,2,1]:
                 raise Exception("Not implemented")
             # BELOW IS FOR FD GAUGE SUPPORT (projection on PROJP(2,1) and PROJM(2,1)
