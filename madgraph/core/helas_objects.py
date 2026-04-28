@@ -3813,6 +3813,11 @@ class HelasMatrixElement(base_objects.PhysicsObject):
     basis and color matrix) corresponding to the Amplitude.
     """
 
+    class NoFlavorError(Exception):
+        """Exception to be raised when trying to get a coupling for a
+        flavor which is not compatible with the diagram."""
+        pass
+
     def default_setup(self):
         """Default values for all properties"""
 
@@ -5282,8 +5287,9 @@ class HelasMatrixElement(base_objects.PhysicsObject):
 
         if allow_triming:
             self.remove_diagrams_without_flavor()
+            # this should not happen since that error should be raised in the check_flavor function, but just to be sure
             if len(self.get('diagrams')) == 0:
-                raise self.PhysicsObjectError("No diagram left after trimming for flavor!")
+                raise self.NoFlavorError("No diagram left after trimming for flavor!")
              
         self['allowed_flavors'] = flavor_list
         return flavor_list
@@ -5409,7 +5415,7 @@ class HelasMatrixElement(base_objects.PhysicsObject):
         self['diagrams'] = HelasDiagramList([diag for diag in self.get('diagrams') if diag.has_flavor])
         final_len = len(self.get('diagrams'))
         if final_len < initial_len:
-            logger.info('removed %d diagrams which were incompatible with flavor restriction'% (initial_len - final_len))
+            logger.info('removed %d diagrams which were incompatible with flavor restriction: remain %d'%(initial_len - final_len, final_len))
 
         # reset wfct numbers for those dropped
         for i,wfct in enumerate(self.get_all_wavefunctions()):
@@ -5420,7 +5426,7 @@ class HelasMatrixElement(base_objects.PhysicsObject):
                         
         
         if final_len == 0:
-            raise self.PhysicsObjectError("No diagram left after trimming for flavor!")
+            raise self.NoFlavorError("No diagram left after trimming for flavor!")
         
     
     def check_helicity(self, helicity):

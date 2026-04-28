@@ -5263,10 +5263,17 @@ This implies that with decay chains:
                             pdg_to_merge[mpart] = pdg
                             pdg_to_merge[-mpart] = -pdg
                     for pid in self._multiparticles[part_name]:
-                        if pid in pdg_to_merge and pdg_to_merge[pid] not in mylegids:
-                            mylegids.append(pdg_to_merge[pid])
-                            if not all(pdg in self._multiparticles[part_name] for pdg in self._curr_model.merged_particles[abs(pdg_to_merge[pid])]):
-                                raise self.InvalidCmd("Multiparticle %s contains merged particles but not all their merged components." % part_name)
+                        if pid in pdg_to_merge:
+                            merged_pdg = pdg_to_merge[pid]
+                            if merged_pdg not in mylegids:
+                                mylegids.append(merged_pdg)
+                            # If not all merged components are in this multiparticle,
+                            # record the present ones as a per-leg flavor restriction
+                            # so diagram generation only allows those specific flavors.
+                            if not all(pdg in self._multiparticles[part_name]
+                                       for pdg in self._curr_model.merged_particles[abs(merged_pdg)]):
+                                if pid not in flavor:
+                                    flavor.append(pid)
                         else:
                             mylegids.append(pid)
             elif part_name.isdigit() or part_name.startswith('-') and part_name[1:].isdigit():
@@ -9577,10 +9584,18 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
                     self._curr_matrix_elements = subproc_groups
                     # assign a unique id number to all groups
                     uid = 0
+                    last_error = None
                     for group in subproc_groups:
+                        try:
+                            groupme = group.get('matrix_elements')
+                        except  helas_objects.HelasMatrixElement.NoFlavorError as error:
+                            last_error = error
+                            continue
                         uid += 1 # update the identification number
-                        for me in group.get('matrix_elements'):
+                        for me in groupme:
                             me.get('processes')[0].set('uid', uid)
+                    if uid == 0 and last_error:
+                        raise last_error
                 else: # Not grouped subprocesses
                     mode = {}
                     if self._export_format in [ 'standalone_msP' , 
