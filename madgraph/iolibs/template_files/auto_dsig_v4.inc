@@ -89,6 +89,7 @@ c     local
 c
        double precision P1(0:3, nexternal)
       integer channel
+      double precision rwgt_value
 C  
 C DATA
 C  
@@ -140,11 +141,27 @@ C     Continue only if IMODE is 0, 4 or 5
      %(get_flavor)s
 
      channel = %(get_channel)s
+     
      call ranmar(RHEL)
      call ranmar(RCOL)
-         CALL SMATRIX%(proc_id)s(P1, IFLAV, RHEL, RCOL,channel,1, DSIGUU, selected_hel(1), selected_col(1))
 
+C     Select a flavor combination (need to do here for right sign)
+         CALL RANMAR(R)
+         IPSEL = 0 
+         DO WHILE (R.GT.0D0)
+            IPSEL=IPSEL+1
+            R=R-DABS(PD(IPSEL))/PD(0)
+         ENDDO
 
+      %(start_ipsel_for_IFLAV)s
+      IPSEL = IPSEL + IPSEL_SHIFT
+      DSIGUU=DSIGUU*REWGT(PP,1)
+      rwgt_value=REWGT(PP,1)
+
+     CALL SMATRIX%(proc_id)s(P1, IFLAV, RHEL, RCOL,channel,1, DSIGUU, selected_hel(1), selected_col(1))
+         
+     DSIGUU = DSIGUU* rwgt_value
+     
          IF (IMODE.EQ.5) THEN
             IF (DSIGUU.LT.1D199) THEN        
               DSIG%(proc_id)s = DSIGUU*CONV
@@ -153,17 +170,6 @@ C     Continue only if IMODE is 0, 4 or 5
             endif
             RETURN
          ENDIF
-C     Select a flavor combination (need to do here for right sign)
-         CALL RANMAR(R)
-         IPSEL = 0 
-         DO WHILE (R.GT.0D0)
-            IPSEL=IPSEL+1
-            R=R-DABS(PD(IPSEL))/PD(0)
-         ENDDO
-     
-         %(start_ipsel_for_IFLAV)s
-         IPSEL = IPSEL + IPSEL_SHIFT
-         DSIGUU=DSIGUU*REWGT(PP,1)
 
 C        Apply the bias weight specified in the run card (default is 1.0)
          DSIGUU=DSIGUU*CUSTOM_BIAS(PP,DSIGUU,%(numproc)d,1)
@@ -307,9 +313,12 @@ c      COMMON/TO_PDF/LHAID,PDLABEL,EPA_LABEL
 c
 c     local
 c
-       double precision P1(0:3, nexternal)
-       integer ivec, curr_warp, iwarp, NB_WARP_USED
-       integer channels(VECSIZE_MEMMAX)
+	   double precision P1(0:3, nexternal)
+	   integer ivec, curr_warp, iwarp, NB_WARP_USED
+	   integer channels(VECSIZE_MEMMAX)
+C     Per-event MLM graph: igraphs(1) from REWGT (0 = no MLM)
+	   integer igraph(VECSIZE_MEMMAX)
+	   common/vec_igraph/igraph
 C  
 C DATA
 C  
@@ -370,11 +379,11 @@ C     Select a flavor combination (need to do here for right sign)
          else
            p_multi(:,:,IVEC) = ALL_PP(:,:,IVEC)
          endif
-     CALL RANMAR(hel_rand(IVEC))
-     CALL RANMAR(col_rand(IVEC))
-     ENDDO ! end loop on IWARP/IVEC  
-     ENDDO ! end loop on the CURR_WARP
-         call SMATRIX%(proc_id)s_MULTI(p_multi, iflav_vec, hel_rand, col_rand, channels, ALL_OUT , selected_hel, selected_col, VECSIZE_USED)
+	 CALL RANMAR(hel_rand(IVEC))
+	 CALL RANMAR(col_rand(IVEC))
+	 ENDDO ! end loop on IWARP/IVEC	 
+	 ENDDO ! end loop on the CURR_WARP
+         call SMATRIX%(proc_id)s_MULTI(p_multi, iflav_vec, hel_rand, col_rand, channels, igraph, ALL_OUT , selected_hel, selected_col, VECSIZE_USED)
 
 
 	 DO CURR_WARP=1, NB_WARP_USED
@@ -443,13 +452,13 @@ C       Call UNWGT to unweight and store events
      end
 
 
-     SUBROUTINE SMATRIX%(proc_id)s_MULTI(p_multi, IFLAV_VEC, hel_rand, col_rand, channels, out, selected_hel, selected_col, VECSIZE_USED)
+     SUBROUTINE SMATRIX%(proc_id)s_MULTI(p_multi, IFLAV_VEC, hel_rand, col_rand, channels, igraph, out, selected_hel, selected_col, VECSIZE_USED)
 %(OMP_LIB)s
      implicit none
 
      include 'nexternal.inc'
-     include '../../Source/vector.inc' ! defines VECSIZE_MEMMAX
      include 'maxamps.inc'
+     include 'cluster.inc'  ! for IGRAPHS common block (MLM per-event color selection); also defines VECSIZE_MEMMAX via vector.inc
      INTEGER                 NCOMB
      PARAMETER (             NCOMB=%(ncomb)d)
      double precision p_multi(0:3, nexternal, VECSIZE_MEMMAX)
@@ -457,6 +466,8 @@ C       Call UNWGT to unweight and store events
      double precision col_rand(VECSIZE_MEMMAX)
      integer IFLAV_VEC(VECSIZE_MEMMAX)
      integer channels(VECSIZE_MEMMAX)
+C    Per-event MLM graph: igraphs(1) from REWGT (0 = no MLM)
+     integer igraph(VECSIZE_MEMMAX)
      double precision out(VECSIZE_MEMMAX)
      integer selected_hel(VECSIZE_MEMMAX)
      integer selected_col(VECSIZE_MEMMAX)

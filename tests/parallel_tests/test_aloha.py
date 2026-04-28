@@ -34,10 +34,6 @@ import aloha.aloha_writers as aloha_writers
 import tests.unit_tests as unittest
 import tests.IOTests as IOTests
 import madgraph.various.misc as misc
-from six.moves import range
-from six.moves import zip
-
-
 set_global = misc.set_global
 
 pjoin = os.path.join
