@@ -4633,140 +4633,150 @@ class HelasMatrixElement(base_objects.PhysicsObject):
                                             [wf.get('number') for wf in \
                                             diag.get('wavefunctions')])]
 
-                # Ignore possibility for unoptimizated generation for now
-                if len(my_diagrams) > 1:
-                    raise self.PhysicsObjectError("Decay chains not yet prepared for GPU")
+                # When old_wf is shared across multiple diagrams (e.g., in
+                # GPU/unoptimized mode where optimization=0, or due to
+                # wavefunction-merging optimizations), process all sharing
+                # diagrams but compute decay wavefunctions only once and call
+                # replace_wavefunctions only once at the end.
+                final_decay_wfs = None
+                decay_diag_wfs = None
 
                 for diagram in my_diagrams:
 
-                    if got_majoranas:
-                        # If there are Majorana particles in any of
-                        # the matrix elements, we need to check for
-                        # fermion flow
+                    if final_decay_wfs is None:
+                        # First (or only) diagram: compute decay wavefunctions.
+                        if got_majoranas:
+                            # If there are Majorana particles in any of
+                            # the matrix elements, we need to check for
+                            # fermion flow
 
-                        # Earlier wavefunctions, will be used for fermion flow
-                        index = [d.get('number') for d in diagrams].\
-                                index(diagram.get('number'))
-                        earlier_wavefunctions = \
-                                      sum([d.get('wavefunctions') for d in \
-                                           diagrams[:index]], [])
+                            # Earlier wavefunctions, will be used for fermion flow
+                            index = [d.get('number') for d in diagrams].\
+                                    index(diagram.get('number'))
+                            earlier_wavefunctions = \
+                                          sum([d.get('wavefunctions') for d in \
+                                               diagrams[:index]], [])
 
-                        # Don't want to affect original decay
-                        # wavefunctions, so need to deepcopy
-                        decay_diag_wfs = copy.deepcopy(\
-                                                decay_diag.get('wavefunctions'))
-                        # Need to replace Particle in all
-                        # wavefunctions to avoid deepcopy
-                        for i, wf in enumerate(decay_diag.get('wavefunctions')):
-                            decay_diag_wfs[i].set('particle', \
-                                                  wf.get('particle'))
-                            decay_diag_wfs[i].set('antiparticle', \
-                                                  wf.get('antiparticle'))
+                            # Don't want to affect original decay
+                            # wavefunctions, so need to deepcopy
+                            decay_diag_wfs = copy.deepcopy(\
+                                                    decay_diag.get('wavefunctions'))
+                            # Need to replace Particle in all
+                            # wavefunctions to avoid deepcopy
+                            for i, wf in enumerate(decay_diag.get('wavefunctions')):
+                                decay_diag_wfs[i].set('particle', \
+                                                      wf.get('particle'))
+                                decay_diag_wfs[i].set('antiparticle', \
+                                                      wf.get('antiparticle'))
 
-                        # Complete decay_diag_wfs with the mother wavefunctions
-                        # to allow for independent fermion flow flips
-                        decay_diag_wfs = decay_diag_wfs.insert_own_mothers()
+                            # Complete decay_diag_wfs with the mother wavefunctions
+                            # to allow for independent fermion flow flips
+                            decay_diag_wfs = decay_diag_wfs.insert_own_mothers()
 
-                        # These are the wavefunctions which directly replace old_wf
-                        final_decay_wfs = [amp.get('mothers')[1] for amp in \
-                                              decay_diag.get('amplitudes')]
+                            # These are the wavefunctions which directly replace old_wf
+                            final_decay_wfs = [amp.get('mothers')[1] for amp in \
+                                                  decay_diag.get('amplitudes')]
 
-                        # Since we made deepcopy, need to syncronize
-                        for i, wf in enumerate(final_decay_wfs):
-                            final_decay_wfs[i] = \
-                                               decay_diag_wfs[decay_diag_wfs.index(wf)]
-                            
-                        # Remove final wavefunctions from decay_diag_wfs,
-                        # since these will be replaced separately by
-                        # replace_wavefunctions
-                        for wf in final_decay_wfs:
-                            decay_diag_wfs.remove(wf)
-
-                        # Check fermion flow direction
-                        if old_wf.is_fermion() and \
-                               old_wf.get_with_flow('state') != \
-                                     final_decay_wfs[0].get_with_flow('state'):
-
-                            # Not same flow state - need to flip flow of wf
-
+                            # Since we made deepcopy, need to syncronize
                             for i, wf in enumerate(final_decay_wfs):
+                                final_decay_wfs[i] = \
+                                                   decay_diag_wfs[decay_diag_wfs.index(wf)]
+                                
+                            # Remove final wavefunctions from decay_diag_wfs,
+                            # since these will be replaced separately by
+                            # replace_wavefunctions
+                            for wf in final_decay_wfs:
+                                decay_diag_wfs.remove(wf)
 
-                                # We use the function
-                                # check_majorana_and_flip_flow, as in the
-                                # helas diagram generation.  Since we have
-                                # different flow, there is already a Majorana
-                                # particle along the fermion line.
+                            # Check fermion flow direction
+                            if old_wf.is_fermion() and \
+                                   old_wf.get_with_flow('state') != \
+                                         final_decay_wfs[0].get_with_flow('state'):
 
-                                final_decay_wfs[i], numbers[0] = \
-                                                wf.check_majorana_and_flip_flow(\
-                                                         True,
-                                                         earlier_wavefunctions,
-                                                         decay_diag_wfs,
-                                                         {},
-                                                         numbers[0])
+                                # Not same flow state - need to flip flow of wf
 
-                        # Remove wavefunctions which are already present in
-                        # earlier_wavefunctions
-                        i = 0
-                        earlier_wavefunctions = \
-                            sum([d.get('wavefunctions') for d in \
-                                 self.get('diagrams')[:diagram.get('number') - 1]], \
-                                [])
-                        earlier_wf_numbers = [wf.get('number') for wf in \
-                                              earlier_wavefunctions]
-                        i = 0
-                        mother_arrays = [w.get('mothers').to_array() for \
-                                         w in final_decay_wfs]
-                        while decay_diag_wfs[i:]:
-                            wf = decay_diag_wfs[i]
-                            try:
-                                new_wf = earlier_wavefunctions[\
-                                    earlier_wf_numbers.index(wf.get('number'))]
-                                # If the wavefunctions are not identical,
-                                # then we should keep this wavefunction,
-                                # and update its number so it is unique
-                                if wf != new_wf:
-                                    numbers[0] = numbers[0] + 1
-                                    wf.set('number', numbers[0])
-                                    continue
-                                decay_diag_wfs.pop(i)
-                                pres_mother_arrays = [w.get('mothers').to_array() for \
-                                                      w in decay_diag_wfs[i:]] + \
-                                                      mother_arrays
-                                self.update_later_mothers(wf, new_wf,
-                                                          decay_diag_wfs[i:] + \
-                                                          final_decay_wfs,
-                                                          pres_mother_arrays)
-                            except ValueError:
-                                i = i + 1
+                                for i, wf in enumerate(final_decay_wfs):
 
-                        # Since we made deepcopy, go through mothers and make
-                        # sure we are using the ones in earlier_wavefunctions
-                        for decay_wf in decay_diag_wfs + final_decay_wfs:
-                            mothers = decay_wf.get('mothers')
-                            for i, wf in enumerate(mothers):
+                                    # We use the function
+                                    # check_majorana_and_flip_flow, as in the
+                                    # helas diagram generation.  Since we have
+                                    # different flow, there is already a Majorana
+                                    # particle along the fermion line.
+
+                                    final_decay_wfs[i], numbers[0] = \
+                                                    wf.check_majorana_and_flip_flow(\
+                                                             True,
+                                                             earlier_wavefunctions,
+                                                             decay_diag_wfs,
+                                                             {},
+                                                             numbers[0])
+
+                            # Remove wavefunctions which are already present in
+                            # earlier_wavefunctions
+                            i = 0
+                            earlier_wavefunctions = \
+                                sum([d.get('wavefunctions') for d in \
+                                     self.get('diagrams')[:diagram.get('number') - 1]], \
+                                    [])
+                            earlier_wf_numbers = [wf.get('number') for wf in \
+                                                  earlier_wavefunctions]
+                            i = 0
+                            mother_arrays = [w.get('mothers').to_array() for \
+                                             w in final_decay_wfs]
+                            while decay_diag_wfs[i:]:
+                                wf = decay_diag_wfs[i]
                                 try:
-                                    mothers[i] = earlier_wavefunctions[\
+                                    new_wf = earlier_wavefunctions[\
                                         earlier_wf_numbers.index(wf.get('number'))]
+                                    # If the wavefunctions are not identical,
+                                    # then we should keep this wavefunction,
+                                    # and update its number so it is unique
+                                    if wf != new_wf:
+                                        numbers[0] = numbers[0] + 1
+                                        wf.set('number', numbers[0])
+                                        continue
+                                    decay_diag_wfs.pop(i)
+                                    pres_mother_arrays = [w.get('mothers').to_array() for \
+                                                          w in decay_diag_wfs[i:]] + \
+                                                          mother_arrays
+                                    self.update_later_mothers(wf, new_wf,
+                                                              decay_diag_wfs[i:] + \
+                                                              final_decay_wfs,
+                                                              pres_mother_arrays)
                                 except ValueError:
-                                    pass
-                    else:
-                        # If there are no Majorana particles, the
-                        # treatment is much simpler
-                        decay_diag_wfs = \
-                                       copy.copy(decay_diag.get('wavefunctions'))
+                                    i = i + 1
 
-                        # These are the wavefunctions which directly
-                        # replace old_wf
-                        final_decay_wfs = [amp.get('mothers')[1] for amp in \
-                                              decay_diag.get('amplitudes')]
+                            # Since we made deepcopy, go through mothers and make
+                            # sure we are using the ones in earlier_wavefunctions
+                            for decay_wf in decay_diag_wfs + final_decay_wfs:
+                                mothers = decay_wf.get('mothers')
+                                for i, wf in enumerate(mothers):
+                                    try:
+                                        mothers[i] = earlier_wavefunctions[\
+                                            earlier_wf_numbers.index(wf.get('number'))]
+                                    except ValueError:
+                                        pass
+                        else:
+                            # If there are no Majorana particles, the
+                            # treatment is much simpler
+                            decay_diag_wfs = \
+                                           copy.copy(decay_diag.get('wavefunctions'))
 
-                        # Remove final wavefunctions from decay_diag_wfs,
-                        # since these will be replaced separately by
-                        # replace_wavefunctions
-                        for wf in final_decay_wfs:
-                            decay_diag_wfs.remove(wf)
+                            # These are the wavefunctions which directly
+                            # replace old_wf
+                            final_decay_wfs = [amp.get('mothers')[1] for amp in \
+                                                  decay_diag.get('amplitudes')]
 
+                            # Remove final wavefunctions from decay_diag_wfs,
+                            # since these will be replaced separately by
+                            # replace_wavefunctions
+                            for wf in final_decay_wfs:
+                                decay_diag_wfs.remove(wf)
+                    # else: reuse decay_diag_wfs and final_decay_wfs computed
+                    # for the first diagram.  The decay wavefunctions depend
+                    # only on decay_diag (fixed for this numdecay iteration)
+                    # and on old_wf, which is the same shared object in all
+                    # diagrams, so the result is identical for every diagram.
 
                     diagram_wfs = diagram.get('wavefunctions')
 
@@ -4789,6 +4799,10 @@ class HelasMatrixElement(base_objects.PhysicsObject):
                     for wf in final_decay_wfs:
                         wf.set('onshell', True)
 
+                # Call replace_wavefunctions once after all sharing diagrams
+                # have been processed.  replace_wavefunctions itself scans
+                # the full diagrams list and handles all occurrences of old_wf.
+                if final_decay_wfs is not None:
                     if len_decay == 1 and len(final_decay_wfs) == 1:
                         # Can use simplified treatment, by just modifying old_wf
                         self.replace_single_wavefunction(old_wf,
@@ -4944,10 +4958,12 @@ class HelasMatrixElement(base_objects.PhysicsObject):
                                  [wf.get('number') for wf in \
                                   diag.get('wavefunctions')]]
 
-            if len(wf_diagrams) > 1:
-                raise self.PhysicsObjectError("Decay chains not yet prepared for GPU")
-
-            for diagram in wf_diagrams:
+            # wf_diagrams may have more than one element when the same
+            # wavefunction is shared across diagrams (e.g., GPU/unoptimized
+            # mode or wavefunction-merging optimization).  The body below does
+            # not depend on the specific diagram, so we only need to execute it
+            # once; replace_wavefunctions handles all diagrams recursively.
+            if wf_diagrams:
 
                 # Now create new wfs with updated mothers
                 replace_daughters = [ copy.copy(wf) for wf in \
