@@ -2784,8 +2784,7 @@ class ProcessExporterMG7(ProcessExporterCPP):
         process_exporter_mg7 = self.oneprocessclass(matrix_element,cpp_helas_call_writer)
 
         # Create the directory PN_xx_xxxxx in the specified path
-        proc_dir_name = "P%d_%s" % (process_exporter_mg7.process_number, 
-                                    process_exporter_mg7.process_name)
+        proc_dir_name = process_exporter_mg7.name
         dirpath = pjoin(self.dir_path, 'SubProcesses', proc_dir_name)
 
         try:
@@ -2800,7 +2799,7 @@ class ProcessExporterMG7(ProcessExporterCPP):
             for file in self.to_link_in_P:
                 ln('../%s' % file) 
 
-        me_lib_path = self.me_lib_format.format(process_id = process_exporter_mg7.name)
+        me_lib_path = self.me_lib_format.format(process_id = proc_dir_name)
         self.process_info.append(process_exporter_mg7.get_subprocess_info(dirpath, me_lib_path))
 
     def copy_template(self, model):

@@ -1873,8 +1873,8 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
         ###misc.sprint('Entering OneProcessExporterMadMatrix.edit_processidfile')
         template = open(pjoin(self.template_path,'madmatrix','epoch_process_id.h'),'r').read()
         replace_dict = {}
-        replace_dict['processid'] = self.get_process_name()
-        replace_dict['processid_uppercase'] = self.get_process_name().upper()
+        replace_dict['processid'] = self.name
+        replace_dict['processid_uppercase'] = self.name.upper()
         ff = open(pjoin(self.path, 'epoch_process_id.h'),'w')
         ff.write(template % replace_dict)
         ff.close()
@@ -1897,7 +1897,7 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
         template = open(pjoin(self.template_path,'madmatrix','processConfig.h'),'r').read()
         replace_dict = {}
         replace_dict['ndiagrams'] = len(self.matrix_elements[0].get('diagrams'))
-        replace_dict['processid_uppercase'] = self.get_process_name().upper()
+        replace_dict['processid_uppercase'] = self.name.upper()
         ff = open(pjoin(self.path, 'processConfig.h'),'w')
         ff.write(template % replace_dict)
         ff.close()
@@ -1999,7 +1999,9 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
             replace_dict['helamps_h'] = open(pjoin(self.path, os.pardir, os.pardir,'src','HelAmps_%s.h' % self.model_name)).read()
         except FileNotFoundError:
             replace_dict['helamps_h'] = "\n#include \"../../src/HelAmps_%s.h\"" % self.model_name
-        
+
+        replace_dict['process_file_name'] = self.name.upper()
+
         if writer:
             file = self.read_template_file(self.process_template_h) % replace_dict
             # Write the file
