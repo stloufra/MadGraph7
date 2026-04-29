@@ -4319,8 +4319,10 @@ class HelasMatrixElement(base_objects.PhysicsObject):
                             for wf in final_decay_wfs:
                                 decay_diag_wfs.remove(wf)
                     # else: reuse decay_diag_wfs and final_decay_wfs computed
-                    # for the first diagram (all diagrams share the same old_wf
-                    # object so the decay wavefunctions are identical).
+                    # for the first diagram.  The decay wavefunctions depend
+                    # only on decay_diag (fixed for this numdecay iteration)
+                    # and on old_wf, which is the same shared object in all
+                    # diagrams, so the result is identical for every diagram.
 
                     diagram_wfs = diagram.get('wavefunctions')
 
