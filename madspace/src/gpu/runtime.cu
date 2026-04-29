@@ -535,18 +535,77 @@ void op_batch_scatter(
     }
 }
 
+void batch_reduce_mean_impl(
+    const GpuRuntime::Instruction& instruction,
+    TensorVec& locals,
+    const AsyncGpuDevice& device,
+    bool keepdim
+) {
+    auto input = locals[instruction.input_indices[0]].contiguous(device);
+    auto& output = locals[instruction.output_indices[0]];
+    AllocHint hint = instruction.output_alloc_hints[0];
+    std::size_t batch_size = input.size(0);
+
+    auto input_ptr = thrust::device_pointer_cast(static_cast<double*>(input.data()));
+    double mean =
+        thrust::reduce(
+            thrust_par.on(device.stream()), input_ptr, input_ptr + batch_size
+        ) /
+        batch_size;
+    if (keepdim) {
+        output = Tensor(DataType::dt_float, batch_size, device, hint);
+        thrust::fill_n(
+            thrust_par.on(device.stream()),
+            thrust::device_pointer_cast(static_cast<double*>(output.data())),
+            batch_size,
+            mean
+        );
+    } else {
+        output = Tensor(mean, batch_size, device, hint);
+    }
+}
+
+void batch_reduce_mean_backward_impl(
+    const GpuRuntime::Instruction& instruction,
+    TensorVec& locals,
+    TensorVec& local_grads,
+    const AsyncGpuDevice& device,
+    bool keepdim
+) {}
+
 void op_batch_reduce_mean(
     const GpuRuntime::Instruction& instruction,
     TensorVec& locals,
     const AsyncGpuDevice& device
-) {}
+) {
+    batch_reduce_mean_impl(instruction, locals, device, true);
+}
 
 void backward_op_batch_reduce_mean(
     const GpuRuntime::Instruction& instruction,
     TensorVec& locals,
     TensorVec& local_grads,
     const AsyncGpuDevice& device
-) {}
+) {
+    batch_reduce_mean_backward_impl(instruction, locals, local_grads, device, true);
+}
+
+void op_batch_reduce_mean_keepdim(
+    const GpuRuntime::Instruction& instruction,
+    TensorVec& locals,
+    const AsyncGpuDevice& device
+) {
+    batch_reduce_mean_impl(instruction, locals, device, false);
+}
+
+void backward_op_batch_reduce_mean_keepdim(
+    const GpuRuntime::Instruction& instruction,
+    TensorVec& locals,
+    TensorVec& local_grads,
+    const AsyncGpuDevice& device
+) {
+    batch_reduce_mean_backward_impl(instruction, locals, local_grads, device, false);
+}
 
 void op_offset_indices(
     const GpuRuntime::Instruction& instruction,
@@ -1275,6 +1334,8 @@ GpuRuntime::GpuRuntime(const Function& function_arg, ContextPtr context) :
         if (context->global_requires_grad(name)) {
             _requires_grad_init.at(value.local_index) = true;
             _grad_global_indices.push_back(value.local_index);
+            _grad_global_shapes.push_back(global.shape());
+            _grad_global_total_size += global.shape().product();
         }
     }
 
@@ -1441,7 +1502,8 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> GpuRuntime::run_with_grad(
 std::pair<TensorVec, TensorVec> GpuRuntime::run_backward(
     const TensorVec& output_grads,
     const TensorVec& stored_locals,
-    const std::vector<bool>& eval_grad
+    const std::vector<bool>& eval_grad,
+    bool return_contiguous_grads
 ) {
     auto& gpu_device = *static_cast<const GpuDevice*>(_context->device());
     auto& streams = _streams.get();
@@ -1454,6 +1516,19 @@ std::pair<TensorVec, TensorVec> GpuRuntime::run_backward(
     }
     gpuStream_t main_stream = streams.at(0);
     MemPool mem_pool(gpu_device, load_pool_size_cache(), main_stream);
+
+    Tensor all_global_grads(
+        DataType::dt_float,
+        {_grad_global_total_size},
+        AsyncGpuDevice(gpu_device, main_stream, 0, &mem_pool),
+        AllocHint::global_grad
+    );
+    all_global_grads.zero();
+    TensorVec global_grads = all_global_grads.split_and_reshape(_grad_global_shapes);
+    for (auto [index, grad] : zip(_grad_global_indices, global_grads)) {
+        local_grads[index] = grad;
+    }
+
     for (auto [instr, instr_eval_grad] :
          zip(std::views::reverse(_instructions), std::views::reverse(eval_grad))) {
         /*gpuStream_t stream = streams.at(instr.stream);
@@ -1491,12 +1566,11 @@ std::pair<TensorVec, TensorVec> GpuRuntime::run_backward(
     }*/
     update_pool_size_cache(mem_pool.total_sizes());
     update_cached_tensors(mem_pool.reset(main_stream));
-    TensorVec global_grads;
-    for (std::size_t index : _grad_global_indices) {
-        global_grads.push_back(local_grads[index]);
-    }
     check_error(gpuStreamSynchronize(main_stream));
-    return {{local_grads.begin(), local_grads.begin() + _input_count}, global_grads};
+    return {
+        {local_grads.begin(), local_grads.begin() + _input_count},
+        return_contiguous_grads ? TensorVec{all_global_grads} : global_grads
+    };
 }
 
 std::vector<std::tuple<std::size_t, std::size_t, Tensor>>

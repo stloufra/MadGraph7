@@ -38,7 +38,8 @@ public:
     std::pair<TensorVec, TensorVec> run_backward(
         const TensorVec& output_grads,
         const TensorVec& stored_locals,
-        const std::vector<bool>& eval_grad
+        const std::vector<bool>& eval_grad,
+        bool return_contiguous_grads
     ) override;
     Context& context() { return *_context; }
     gpublasHandle_t gpublas_handle() { return _gpublas_handle.get(); }
@@ -57,6 +58,8 @@ private:
     TensorVec _locals_init;
     std::vector<bool> _requires_grad_init;
     SizeVec _grad_global_indices;
+    std::vector<Sizes> _grad_global_shapes;
+    std::size_t _grad_global_total_size;
     ContextPtr _context;
     ThreadResource<std::vector<gpuStream_t>> _streams;
     ThreadResource<std::vector<gpuEvent_t>> _events;
