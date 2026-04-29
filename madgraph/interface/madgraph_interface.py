@@ -1453,6 +1453,10 @@ This will take effect only in a NEW terminal
             raise self.InvalidCmd('%s : Not a valid directory' % path)
         if os.path.isfile(pjoin(bin_path,'madevent')):
             return 'madevent'
+        elif os.path.isfile(pjoin(subproc_path, 'madmatrix.mk')):
+            # standalone_mg7 writes SubProcesses/madmatrix.mk explicitly
+            # (the regular mg7 export does not).
+            return 'standalone_mg7'
         elif os.path.isfile(pjoin(card_path, 'run_card.toml')):
             return 'mg7'
         elif os.path.isdir(src_path):
@@ -2990,7 +2994,8 @@ class MadGraphCmd(HelpToCmd, CheckValidForCmd, CompleteForCmd, CmdExtended):
     _v4_export_formats = ['madevent', 'standalone', 'standalone_msP','standalone_msF',
                           'matrix', 'standalone_rw', 'madweight'] 
     _export_formats = _v4_export_formats + ['standalone_cpp', 'pythia8', 'aloha',
-                                            'matchbox_cpp', 'matchbox', 'mg7_v5', 'mg7']
+                                            'matchbox_cpp', 'matchbox', 'mg7_v5', 'mg7',
+                                            'standalone_mg7']
     _set_options = ['group_subprocesses',
                     'ignore_six_quark_processes',
                     'stdout_level',
@@ -3185,7 +3190,7 @@ class MadGraphCmd(HelpToCmd, CheckValidForCmd, CompleteForCmd, CmdExtended):
 
         self._v4_export_formats = ['madevent', 'standalone','standalone_msP','standalone_msF',
                                    'matrix', 'standalone_rw']
-        self._export_formats = self._v4_export_formats + ['standalone_cpp', 'pythia8', 'mg7_v5', 'mg7']
+        self._export_formats = self._v4_export_formats + ['standalone_cpp', 'pythia8', 'mg7_v5', 'mg7', 'standalone_mg7']
         self._nlo_modes_for_completion = ['all','virt','real']
 
     def do_quit(self, line):
@@ -7598,7 +7603,17 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
         options = options.__dict__
         # args is now MODE PATH
 
-        if args[0].startswith('standalone'):
+        if args[0] == 'standalone_mg7':
+            class ext_program:
+                @staticmethod
+                def run():
+                    os.chdir(args[1])
+                    try:
+                        subprocess.run(os.path.join("bin", "generate_events"))
+                    except KeyboardInterrupt:
+                        pass
+
+        elif args[0].startswith('standalone'):
             if os.path.isfile(os.path.join(os.getcwd(),args[1],'Cards',\
               'MadLoopParams.dat')) and not os.path.isfile(os.path.join(\
               os.getcwd(),args[1],'SubProcesses','check_poles.f')):
@@ -9239,6 +9254,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
         config['madweight'] =      {'check': True, 'exporter': 'v4',  'output':'Template'}
         config['mg7_v5'] =         {'check': True, 'exporter': 'cpp', 'output': 'Template'}
         config['mg7'] =            {'check': True, 'exporter': 'cpp', 'output': 'Template'}
+        config['standalone_mg7'] = {'check': True, 'exporter': 'cpp', 'output': 'Template'}
 
         if self._export_format == 'plugin':
             options = {'check': self._export_plugin.check, 'exporter':self._export_plugin.exporter, 'output':self._export_plugin.output}

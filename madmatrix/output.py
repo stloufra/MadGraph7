@@ -165,3 +165,51 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
         # Irrelevant here since group_mode=False so this function is never called
         misc.sprint('Entering ProcessExporterMadMatrix.modify_grouping')
         return False, matrix_element
+
+
+# Standalone mode: in addition to the normal madmatrix exports, this writes
+# an additional wrapper Makefile (with the template file being madmatrix_standalone.mk) on top of madmatrix.mk,
+# so that when running `make` in a P* folder, it builds check_sa.exe as well as the process library (predicatable behaviour)
+class ProcessExporterMadMatrixStandalone(ProcessExporterMadMatrix):
+
+    # This wrapper replaces madmatrix.mk
+    template_Sub_make = pjoin(ProcessExporterMadMatrix.madmatrix_templates, 'madmatrix_standalone.mk')
+
+    # Standalone-only template files needed to build check_sa.exe
+    _standalone_extra_files = ['check_sa.cc',
+                               'RamboSamplingKernels.cc', 'RamboSamplingKernels.h',
+                               'CommonRandomNumberKernel.cc', 'CommonRandomNumbers.h',
+                               'RandomNumberKernels.h',
+                               'rambo.h', 'timer.h', 'timermap.h']
+
+    from_template = dict(ProcessExporterMadMatrix.from_template)
+    from_template['SubProcesses'] = (ProcessExporterMadMatrix.from_template['SubProcesses']
+                                     + relative_path_list(ProcessExporterMadMatrix.madmatrix_templates,
+                                                          _standalone_extra_files))
+
+    # We don't need the run_card.toml
+    from_template['Cards'] = []
+
+    # Symlink the madmatrix.mk file to each P* folder
+    to_link_in_P = ProcessExporterMadMatrix.to_link_in_P + _standalone_extra_files + ['madmatrix.mk']
+
+    def copy_template(self, model):
+        super().copy_template(model)
+        madmatrix_mk = pjoin(self.madmatrix_templates, 'madmatrix.mk')
+        rendered = self.read_template_file(madmatrix_mk) % {
+            'model': self.get_model_name(model.get('name')),
+            'cpp_compiler': self.opt['cpp_compiler'] if self.opt['cpp_compiler'] else 'g++',
+        }
+        open(pjoin(self.dir_path, 'SubProcesses', 'madmatrix.mk'), 'w').write(rendered)
+
+        # Write another custom bin/generate_events to orchestrate the standalone mode
+        gen_events = pjoin(self.dir_path, 'bin', 'generate_events')
+        if os.path.exists(gen_events):
+            os.remove(gen_events)
+        files.cp(pjoin(self.madmatrix_templates, 'generate_events_standalone'),
+                 gen_events)
+        os.chmod(gen_events, 0o755)
+
+    def finalize(self, *args, **kwargs):
+        # We disable this since we don't need subprocesses.json either
+        pass

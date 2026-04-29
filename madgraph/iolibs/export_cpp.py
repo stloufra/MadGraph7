@@ -2853,6 +2853,9 @@ def ExportCPPFactory(cmd, group_subprocesses=False, cmd_options={}):
     elif cformat == 'mg7':
         from madmatrix.output import ProcessExporterMadMatrix
         return ProcessExporterMadMatrix(cmd._export_dir, opt)
+    elif cformat == 'standalone_mg7':
+        from madmatrix.output import ProcessExporterMadMatrixStandalone
+        return ProcessExporterMadMatrixStandalone(cmd._export_dir, opt)
     else:
         return cmd._export_plugin(cmd._export_dir, opt)
 
