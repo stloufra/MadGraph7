@@ -4073,7 +4073,8 @@ This implies that with decay chains:
                          amp.get('process').nice_string())
             plot.draw(opt=options)
             logger.info("Wrote file " + filename)
-            self.exec_cmd('open %s' % filename)
+            if not options.generate_only:
+                self.exec_cmd('open %s' % filename)
 
         stop = time.time()
         logger.info('time to draw %s' % (stop - start))
@@ -10390,6 +10391,8 @@ _draw_parser.add_option("", "--non_propagating", default=True, \
 _draw_parser.add_option("", "--add_gap", default=0, type='float', \
                           help="set the x-distance between external particles")
 
+_draw_parser.add_option("", "--generate_only", default=False, action='store_true', \
+                          help="forbid to display the generate file and only generate the eps file")
 # LAUNCH PROGRAM
 _launch_usage = "launch [DIRPATH] [options]\n" + \
          "-- execute the madevent/standalone/standalone_cpp/pythia8/NLO output present in DIRPATH\n" + \
