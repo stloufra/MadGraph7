@@ -1344,6 +1344,7 @@ GpuRuntime::GpuRuntime(const Function& function_arg, ContextPtr context) :
         ++instr_index;
     }
 
+    _grad_global_total_size = 0;
     for (auto& [name, value] : function.globals()) {
         Tensor global = context->global(name);
         auto& global_shape = value.type.shape;
