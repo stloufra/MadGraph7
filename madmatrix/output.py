@@ -81,11 +81,11 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
     home_path = pjoin(MG5DIR, "madmatrix")
 
     from_template = {'.': relative_path_list(home_path, ['COPYRIGHT', 'COPYING', 'COPYING.LESSER']),
-                     'src': relative_path_list(mg7_templates, ["api.h"]) + relative_path_list(madmatrix_templates, [
+                     'src': relative_path_list(madmatrix_templates, [
                          'mgOnGpuFptypes.h', 'mgOnGpuCxtypes.h', 'mgOnGpuVectors.h',
                          'constexpr_math.h', 'read_slha.h', 'read_slha.cc'
                      ]),
-                     'SubProcesses': relative_path_list(mg7_templates, ["api.h", "api.cpp"]) + relative_path_list(madmatrix_templates, ['nvtx.h', 'GpuRuntime.h', 'GpuAbstraction.h', 'color_sum.h', 'color_sum.cc',
+                     'SubProcesses': relative_path_list(madmatrix_templates, ['nvtx.h', 'GpuRuntime.h', 'GpuAbstraction.h', 'color_sum.h', 'color_sum.cc',
                                       'MemoryAccessHelpers.h', 'MemoryAccessVectors.h',
                                       'MemoryAccessMatrixElements.h', 'MemoryAccessMomenta.h',
                                       'MemoryAccessRandomNumbers.h', 'MemoryAccessWeights.h',
@@ -112,7 +112,7 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
                     'EventStatistics.h',
                     'MemoryBuffers.h', # this is generated from a template in Subprocesses but we still link it in P1
                     'MemoryAccessCouplings.h', # this is generated from a template in Subprocesses but we still link it in P1
-                    'umami.h', 'umami.cc', 'api.h', 'api.cpp']
+                    'umami.h', 'umami.cc']
 
     template_src_make = pjoin(madmatrix_templates, 'madmatrix_src.mk')
     template_Sub_make = pjoin(madmatrix_templates, 'madmatrix.mk')
