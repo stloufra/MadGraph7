@@ -153,6 +153,25 @@ private:
     std::size_t _batch_stride;
 };
 
+template <typename T>
+class ScalarView {
+public:
+    using DType = T;
+    static constexpr bool is_scalar_view = true;
+
+    ScalarView(T data) : _data(data) {}
+    const ScalarView<T> operator[](std::size_t index) const { return _data; }
+    template <typename... I>
+    const ScalarView<T> get(I... index) const {
+        return _data;
+    }
+    operator T() const { return _data; }
+
+private:
+    T _data;
+};
+
+
 // return the tuple of flattened PackedTensorViews where the type is extracted
 // from the signature of F
 template <typename F, int dims>

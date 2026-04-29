@@ -20,19 +20,27 @@ public:
     static constexpr std::size_t max_size = 4;
 
     Sizes() : _size(0) {};
-    Sizes(std::size_t size) : _size(size) { std::fill(begin(), end(), 0); };
+    explicit Sizes(std::size_t size) : _size(size) {
+        if (size > max_size) {
+            throw std::out_of_range("maximum dimension exceeded");
+        }
+        std::fill(begin(), end(), 0);
+    };
     Sizes(std::size_t size, std::size_t value) : _size(size) {
+        if (size > max_size) {
+            throw std::out_of_range("maximum dimension exceeded");
+        }
         std::fill(begin(), end(), value);
     };
     Sizes(std::initializer_list<std::size_t> values) : _size(values.size()) {
         if (values.size() > max_size) {
-            throw std::invalid_argument("maximum dimension exceeded");
+            throw std::out_of_range("maximum dimension exceeded");
         }
         std::copy(values.begin(), values.end(), begin());
     }
     Sizes(const SizeVec& values) : _size(values.size()) {
         if (values.size() > max_size) {
-            throw std::invalid_argument("maximum dimension exceeded");
+            throw std::out_of_range("maximum dimension exceeded");
         }
         std::copy(values.begin(), values.end(), begin());
     }
@@ -76,24 +84,6 @@ struct PackedTensorView {
     T* data;
     Sizes stride;
     Sizes shape;
-};
-
-template <typename T>
-class ScalarView {
-public:
-    using DType = T;
-    static constexpr bool is_scalar_view = true;
-
-    ScalarView(T data) : _data(data) {}
-    const ScalarView<T> operator[](std::size_t index) const { return _data; }
-    template <typename... I>
-    const ScalarView<T> get(I... index) const {
-        return _data;
-    }
-    operator T() const { return _data; }
-
-private:
-    T _data;
 };
 
 template <ScalarType T, int _dim>

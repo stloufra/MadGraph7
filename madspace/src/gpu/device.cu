@@ -59,7 +59,19 @@ void GpuDevice::adam_step(
     double eps,
     double bias_corr2_sqrt
 ) const {
-    // TODO
+    activate();
+    AsyncGpuDevice device(*this, gpuStreamPerThread, 0);
+    tensor_foreach_dynamic<kernel_adam_step<GpuTypes>, 1, 3>(
+        {&gradient},
+        {&parameter, &exp_avg, &exp_avg_sq},
+        gradient.size(0),
+        device,
+        step_size,
+        beta1,
+        beta2,
+        eps,
+        bias_corr2_sqrt
+    );
 }
 
 MemPool::MemPool(

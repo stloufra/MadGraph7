@@ -125,6 +125,24 @@ private:
     SizeType _shape;
 };
 
+template <typename T>
+class GpuScalarView {
+public:
+    using DType = T;
+    static constexpr bool is_scalar_view = true;
+
+    __host__ __device__ GpuScalarView(T data) : _data(data) {}
+    __host__ __device__ const GpuScalarView<T> operator[](std::size_t index) const { return _data; }
+    template <typename... I>
+    __host__ __device__ const GpuScalarView<T> get(I... index) const {
+        return _data;
+    }
+    __host__ __device__ operator T() const { return _data; }
+
+private:
+    T _data;
+};
+
 // return the tuple of packed GpuTensorViews where the type is extracted from
 // the signature of F
 template <typename F, int dims>
@@ -133,11 +151,15 @@ template <typename... TParam, int dims>
 struct get_views<void (*)(TParam...), dims> {
     template <typename... TArg>
     auto operator()(TArg&&... args) {
-        return std::make_tuple(
-            GpuTensorView<typename TParam::DType, TParam::dim + dims, true>(
-                args->template view<typename TParam::DType, TParam::dim + dims>()
-            )...
-        );
+        return std::make_tuple([&]() {
+            if constexpr (ScalarType<TArg>) {
+                return GpuScalarView(args);
+            } else {
+                return GpuTensorView<typename TParam::DType, TParam::dim + dims, true>(
+                    args->template view<typename TParam::DType, TParam::dim + dims>()
+                );
+            }
+        }()...);
     }
 };
 
@@ -221,19 +243,19 @@ void launch_kernel(
     check_error();
 }
 
-template <auto func, int n_in, int n_out, int dims>
+template <auto func, int n_in, int n_out, int dims, ScalarType... S>
 void tensor_foreach(
     std::array<const Tensor*, n_in>& inputs,
     std::array<Tensor*, n_out>& outputs,
     std::size_t batch_size,
-    const AsyncGpuDevice& device
+    const AsyncGpuDevice& device,
+    S... scalar_args
 ) {
     if (batch_size == 0) {
         return;
     }
     // get views to the tensors with the correct types based on the signature of func
-    auto views =
-        std::apply(get_views<decltype(func), dims>(), std::tuple_cat(inputs, outputs));
+    auto views = std::apply(get_views<decltype(func), dims>(), std::tuple_cat(inputs, outputs, std::make_tuple(scalar_args...)));
     auto& first_view = std::get<0>(views);
 
     std::size_t total_count = batch_size;
@@ -264,28 +286,29 @@ template <typename F>
 struct first_param;
 template <typename... TParam>
 struct first_param<void (*)(TParam...)> {
-    static constexpr int dim = std::get<0>(std::tie(TParam::dim...));
+    static constexpr int dim = std::tuple_element_t<0, std::tuple<TParam...>>::dim;
 };
 
-template <auto func, int n_in, int n_out>
+template <auto func, int n_in, int n_out, ScalarType... S>
 void tensor_foreach_dynamic(
     std::array<const Tensor*, n_in> inputs,
     std::array<Tensor*, n_out> outputs,
     std::size_t batch_size,
-    const AsyncGpuDevice& device
+    const AsyncGpuDevice& device,
+    S... scalar_args
 ) {
     switch (std::get<0>(inputs)->shape().size() - first_param<decltype(func)>::dim) {
     case 1:
-        tensor_foreach<func, n_in, n_out, 1>(inputs, outputs, batch_size, device);
+        tensor_foreach<func, n_in, n_out, 1>(inputs, outputs, batch_size, device, scalar_args...);
         break;
     case 2:
-        tensor_foreach<func, n_in, n_out, 2>(inputs, outputs, batch_size, device);
+        tensor_foreach<func, n_in, n_out, 2>(inputs, outputs, batch_size, device, scalar_args...);
         break;
     case 3:
-        tensor_foreach<func, n_in, n_out, 3>(inputs, outputs, batch_size, device);
+        tensor_foreach<func, n_in, n_out, 3>(inputs, outputs, batch_size, device, scalar_args...);
         break;
     case 4:
-        tensor_foreach<func, n_in, n_out, 4>(inputs, outputs, batch_size, device);
+        tensor_foreach<func, n_in, n_out, 4>(inputs, outputs, batch_size, device, scalar_args...);
         break;
     default:
         throw std::runtime_error("The number of dimensions must be between 1 and 4");

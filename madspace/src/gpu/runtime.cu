@@ -553,7 +553,7 @@ void batch_reduce_mean_impl(
         ) /
         batch_size;
     if (keepdim) {
-        output = Tensor(DataType::dt_float, batch_size, device, hint);
+        output = Tensor(DataType::dt_float, {batch_size}, device, hint);
         thrust::fill_n(
             thrust_par.on(device.stream()),
             thrust::device_pointer_cast(static_cast<double*>(output.data())),
@@ -563,6 +563,7 @@ void batch_reduce_mean_impl(
     } else {
         output = Tensor(mean, device, hint);
     }
+    input.reset(device);
 }
 
 void batch_reduce_mean_backward_impl(
@@ -571,14 +572,36 @@ void batch_reduce_mean_backward_impl(
     TensorVec& local_grads,
     const AsyncGpuDevice& device,
     bool keepdim
-) {}
+) {
+    auto& input = locals[instruction.input_indices[0]];
+    auto& input_grad = local_grads[instruction.input_indices[0]];
+    auto output_grad = local_grads[instruction.output_indices[0]].contiguous(device);
+    if (!input_grad) {
+        input_grad = Tensor(
+            DataType::dt_float, input.shape(), device, instruction.input_grad_alloc_hints[0]
+        );
+        input_grad.zero(device);
+    }
+
+    std::size_t batch_size = output_grad.size(0);
+    auto grad_ptr = thrust::device_pointer_cast(static_cast<double*>(output_grad.data()));
+    double grad_val =
+        thrust::reduce(
+            thrust_par.on(device.stream()), grad_ptr, grad_ptr + batch_size
+        ) /
+        batch_size;
+    Tensor grad(grad_val, device, AllocHint::temporary);
+    input_grad.add(grad, device);
+    grad.reset(device);
+    output_grad.reset(device);
+}
 
 void op_batch_reduce_mean(
     const GpuRuntime::Instruction& instruction,
     TensorVec& locals,
     const AsyncGpuDevice& device
 ) {
-    batch_reduce_mean_impl(instruction, locals, device, true);
+    batch_reduce_mean_impl(instruction, locals, device, false);
 }
 
 void backward_op_batch_reduce_mean(
@@ -587,7 +610,7 @@ void backward_op_batch_reduce_mean(
     TensorVec& local_grads,
     const AsyncGpuDevice& device
 ) {
-    batch_reduce_mean_backward_impl(instruction, locals, local_grads, device, true);
+    batch_reduce_mean_backward_impl(instruction, locals, local_grads, device, false);
 }
 
 void op_batch_reduce_mean_keepdim(
@@ -595,7 +618,7 @@ void op_batch_reduce_mean_keepdim(
     TensorVec& locals,
     const AsyncGpuDevice& device
 ) {
-    batch_reduce_mean_impl(instruction, locals, device, false);
+    batch_reduce_mean_impl(instruction, locals, device, true);
 }
 
 void backward_op_batch_reduce_mean_keepdim(
@@ -604,7 +627,7 @@ void backward_op_batch_reduce_mean_keepdim(
     TensorVec& local_grads,
     const AsyncGpuDevice& device
 ) {
-    batch_reduce_mean_backward_impl(instruction, locals, local_grads, device, false);
+    batch_reduce_mean_backward_impl(instruction, locals, local_grads, device, true);
 }
 
 void op_offset_indices(
@@ -1040,6 +1063,7 @@ void op_histogram(
         square_values_ptr
     );
 
+    input.reset(device);
     reduce_tmp.reset(device);
     indices_tmp.reset(device);
     weights_tmp.reset(device);
@@ -1343,7 +1367,7 @@ GpuRuntime::GpuRuntime(const Function& function_arg, ContextPtr context) :
         std::visit(
             Overloaded{
                 [&](auto val) {
-                    Tensor tensor(val, &gpu_device);
+                    Tensor tensor(val, static_cast<DevicePtr>(&gpu_device));
                     _locals_init[local.local_index] = tensor;
                 },
                 [](std::monostate val) {}
