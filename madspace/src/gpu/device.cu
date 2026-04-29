@@ -248,7 +248,7 @@ void AsyncGpuDevice::tensor_copy(const Tensor& source, Tensor& target) const {
 void AsyncGpuDevice::tensor_zero(Tensor& tensor) const {
     if (tensor.dtype() == DataType::dt_float) {
         if (tensor.is_contiguous()) {
-            gpuMemsetAsync(tensor.data(), 0, tensor.byte_size(), _stream);
+            check_error(gpuMemsetAsync(tensor.data(), 0, tensor.byte_size(), _stream));
         } else {
             tensor_foreach_dynamic<kernel_zero<GpuTypes>, 1, 1>(
                 {&tensor}, {&tensor}, tensor.size(0), *this
@@ -256,7 +256,7 @@ void AsyncGpuDevice::tensor_zero(Tensor& tensor) const {
         }
     } else if (tensor.dtype() == DataType::dt_int) {
         if (tensor.is_contiguous()) {
-            gpuMemsetAsync(tensor.data(), 0, tensor.byte_size(), _stream);
+            check_error(gpuMemsetAsync(tensor.data(), 0, tensor.byte_size(), _stream));
         } else {
             tensor_foreach_dynamic<kernel_zero_int<GpuTypes>, 1, 1>(
                 {&tensor}, {&tensor}, tensor.size(0), *this

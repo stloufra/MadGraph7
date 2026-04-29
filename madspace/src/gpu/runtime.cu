@@ -561,7 +561,7 @@ void batch_reduce_mean_impl(
             mean
         );
     } else {
-        output = Tensor(mean, batch_size, device, hint);
+        output = Tensor(mean, device, hint);
     }
 }
 
