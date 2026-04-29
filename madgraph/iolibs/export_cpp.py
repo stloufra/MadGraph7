@@ -2738,7 +2738,7 @@ class ProcessExporterCPP(VirtualExporter):
 
         all_flavors = matrix_element.get_external_flavors(all_perm=False)
         all_pdgs    = [l.get('id') for l in
-                       matrix_element.get('processes')[0].get('legs')]
+                       matrix_element.get('processes')[0].get('legs_with_decays')]
         nexternal   = len(all_pdgs)
 
         # Deduplicate flavor combinations (same logic as the Fortran exporter):

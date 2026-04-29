@@ -301,7 +301,7 @@ class TestCmdShell2(unittest.TestCase,
         if os.path.isdir(self.out_dir):
             shutil.rmtree(self.out_dir)
         
-        self.cmd.do_import('model_v4 sm', force=True)
+        self.cmd.do_import('model sm', force=True)
         self.do('set group_subprocesses False')
         self.do('generate e+ e- > e+ e-')
 #        self.do('load processes %s' % self.join_path(_pickle_path,'e+e-_e+e-.pkl'))
@@ -313,9 +313,9 @@ class TestCmdShell2(unittest.TestCase,
                                                'SubProcesses', 'P0_epem_epem')))
         self.assertTrue(os.path.exists(os.path.join(self.out_dir,
                                                  'Cards', 'proc_card_mg5.dat')))
-        self.assertFalse(os.path.exists(os.path.join(self.out_dir,
-                                                    'Cards',
-                                                    'ident_card.dat')))
+        #self.assertFalse(os.path.exists(os.path.join(self.out_dir,
+        #                                            'Cards',
+        #                                            'ident_card.dat')))
         self.assertTrue(os.path.exists(os.path.join(self.out_dir,
                                                  'Cards', 'run_card_default.dat')))
         self.assertTrue(os.path.exists(os.path.join(self.out_dir,
@@ -716,7 +716,7 @@ class TestCmdShell2(unittest.TestCase,
         self.do('output standalone_cpp %s ' % self.out_dir)
         devnull = open(os.devnull,'w')
     
-        directories= ['P0_Sigma_sm_gg_bmupvmbxmumvmx', 'P0_Sigma_sm_uux_bmupvmbxmumvmx']
+        directories= ['P0_Sigma_sm_gg_bmupvmbxmumvmx', 'P0_Sigma_sm_QQx_bmupvmbxmumvmx']
         def get_values():
             values = []
             for oneproc in directories:

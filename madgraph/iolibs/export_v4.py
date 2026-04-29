@@ -8124,8 +8124,21 @@ C
         for coupl in self.coups_flv_indep:
 
             for key, c in coupl.flavors.items():
-                # get first/second index
-                k1, k2 = [i for i in key if i!=0]
+                keys = [i for i in key if i!=0]
+                if len(keys) == 2:
+                    # get first/second index
+                    k1, k2 = [i for i in key if i!=0]
+                elif len(keys) == 1:
+                    k = keys[0]
+                    if key[0] == k:
+                        k1 = k
+                        k2 = 1
+                    else:
+                        k1 = 1
+                        k2 = k
+                else:
+                    raise Exception('Flavor coupling with more than 2 flavors is not supported for the moment') 
+
                 def_flv.append('%(name)s %% PARTNER(%(in)i) = %(out)i' % {'name': coupl.name,'in': k1, 'out': k2})
                 def_flv.append('%(name)s %% PARTNER2(%(out)i) = %(in)i' % {'name': coupl.name,'in': k1, 'out': k2}) 
                 def_flv.append('%(name)s %% VAL(%(in)i) %%p  =>  %(coupl)s' % {'name': coupl.name,'in': k1, 'coupl': c})

@@ -1449,6 +1449,7 @@ def get_routine_name(name=None, outgoing=None, tag=None, abstract=None):
         tag = list(abstract.tag)
     else:
         tag=list(tag)
+    tag.sort()
 
     if name is None:
         prefix=''

@@ -5248,8 +5248,10 @@ class HelasMatrixElement(base_objects.PhysicsObject):
         external_wfs = sorted([wf for wf in self.get_all_wavefunctions() if len(wf.get('mothers')) == 0],
                               key=lambda w: w['number_external'])
         external_number=1
+        id_to_wf =collections.defaultdict(list)
         for wf in external_wfs:
             if wf.get('number_external')==external_number:
+                id_to_wf[external_number].append(wf)
                 external_number=external_number+1
                 pdgs.append(wf.get('particle').get_pdg_code())
         
@@ -5259,8 +5261,9 @@ class HelasMatrixElement(base_objects.PhysicsObject):
             to_map[key] = model.get('merged_particles')[key] 
             
         flavor_list = []
-        restricted_flavor = [None]*len(external_wfs)
-        for i,wf in enumerate(external_wfs):
+        restricted_flavor = [None]*len(pdgs)
+        for i in range(len(pdgs)):
+            wf = id_to_wf[i+1][0]
             if wf.get('flavor'):
                 restricted_flavor[i] = wf.get('flavor') 
 
