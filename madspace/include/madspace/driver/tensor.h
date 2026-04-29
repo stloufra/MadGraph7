@@ -192,6 +192,12 @@ enum class AllocHint {
     global_grad,
 };
 
+inline bool needs_zero_init(AllocHint hint) {
+    return hint == AllocHint::input_grad
+        || hint == AllocHint::local_grad
+        || hint == AllocHint::global_grad;
+}
+
 class Device {
 public:
     virtual ~Device() = default;

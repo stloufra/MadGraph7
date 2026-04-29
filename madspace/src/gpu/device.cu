@@ -10,6 +10,9 @@ std::pair<void*, Tensor> GpuDevice::allocate(std::size_t size, AllocHint hint) c
     activate();
     void* ptr;
     check_error(gpuMalloc(&ptr, size));
+    if (needs_zero_init(hint)) {
+        check_error(gpuMemset(ptr, 0, size));
+    }
     return {ptr, Tensor()};
 }
 
@@ -72,17 +75,18 @@ void GpuDevice::adam_step(
         eps,
         bias_corr2_sqrt
     );
+    check_error(gpuStreamSynchronize(gpuStreamPerThread));
 }
 
 MemPool::MemPool(
     const GpuDevice& device,
-    const std::vector<std::tuple<std::size_t, std::size_t, Tensor>>&
+    const std::vector<std::tuple<std::size_t, std::size_t, Tensor, bool>>&
         cached_sizes_and_tensors,
     gpuStream_t stream
 ) :
     _device(device) {
     std::size_t pool_count = 0;
-    for (auto& [pool_index, size, parent_tensor] : cached_sizes_and_tensors) {
+    for (auto& [pool_index, size, parent_tensor, zero_init] : cached_sizes_and_tensors) {
         if (pool_index >= pool_count) {
             pool_count = pool_index + 1;
         }
@@ -90,7 +94,7 @@ MemPool::MemPool(
     _pools.resize(pool_count);
 
     AsyncGpuDevice async_device(device, stream);
-    for (auto& [pool_index, size, parent_tensor] : cached_sizes_and_tensors) {
+    for (auto& [pool_index, size, parent_tensor, zero_init] : cached_sizes_and_tensors) {
         auto& pool = _pools.at(pool_index);
         if (parent_tensor) {
             pool.parent_tensor = parent_tensor;
@@ -101,7 +105,9 @@ MemPool::MemPool(
             pool.parent_tensor = Tensor(DataType::dt_float, {word_count}, async_device);
             pool.capacity = word_count * 8;
             pool.needed_size = word_count * 8;
-            // println("create pool {} {}", pool_index, pool.size);
+        }
+        if (zero_init) {
+            check_error(gpuMemsetAsync(pool.parent_tensor.data(), 0, pool.parent_tensor.byte_size(), stream));
         }
     }
 }
@@ -143,7 +149,8 @@ std::pair<void*, Tensor> MemPool::allocate(
     std::size_t pool_index,
     std::size_t size,
     gpuStream_t stream,
-    std::size_t stream_index
+    std::size_t stream_index,
+    bool zero_init
 ) {
     if (pool_index >= _pools.size()) {
         _pools.resize(pool_index + 1);
@@ -160,8 +167,10 @@ std::pair<void*, Tensor> MemPool::allocate(
             .size = size,
             .parent_tensor = ret.second,
         };
-        // println("reuse {} {} {}", ret.first, pool_index, size);
         free_pointers.erase(search);
+        if (zero_init) {
+            check_error(gpuMemsetAsync(ret.first, 0, size, stream));
+        }
         return ret;
     } else if (pool.parent_tensor && pool.capacity - pool.size >= size) {
         void* ptr = &static_cast<uint8_t*>(pool.parent_tensor.data())[pool.size];
@@ -171,18 +180,18 @@ std::pair<void*, Tensor> MemPool::allocate(
             .size = size,
             .parent_tensor = pool.parent_tensor,
         };
-        // println("pooled {} {} {} {} {}", ptr, pool_index, size, pool.size,
-        // pool.capacity);
         return {ptr, pool.parent_tensor};
     } else {
         void* ptr;
         check_error(gpuMallocAsync(&ptr, size, stream));
+        if (zero_init) {
+            check_error(gpuMemsetAsync(ptr, 0, size, stream));
+        }
         _allocs[ptr] = {
             .pool_index = pool_index,
             .size = size,
             .parent_tensor = Tensor(),
         };
-        // println("alloc {} {} {}", ptr, pool_index, size);
         pool.needed_size += (size + 7) / 8 * 8;
         return {ptr, Tensor()};
     }
@@ -202,7 +211,6 @@ bool MemPool::free(void* ptr, std::size_t stream_index) {
     free_pointers.emplace(
         alloc.size, std::pair<void*, Tensor>{ptr, alloc.parent_tensor}
     );
-    // println("free {} {} {}", ptr, alloc.pool_index, alloc.size);
     _allocs.erase(search);
     return true;
 }
@@ -223,11 +231,14 @@ std::pair<void*, Tensor>
 AsyncGpuDevice::allocate(std::size_t size, AllocHint hint) const {
     if (_mem_pool && hint != AllocHint::normal && size <= 4 * 1024 * 1024) {
         return _mem_pool->allocate(
-            static_cast<std::size_t>(hint) - 1, size, _stream, _stream_index
+            static_cast<std::size_t>(hint) - 1, size, _stream, _stream_index, needs_zero_init(hint)
         );
     } else {
         void* ptr;
         check_error(gpuMallocAsync(&ptr, size, _stream));
+        if (needs_zero_init(hint)) {
+            check_error(gpuMemsetAsync(ptr, 0, size, _stream));
+        }
         return {ptr, Tensor()};
     }
 }

@@ -12,7 +12,11 @@ public:
     static constexpr bool is_concurrent = false;
 
     std::pair<void*, Tensor> allocate(std::size_t size, AllocHint hint) const override {
-        return {new std::byte[size], Tensor()};
+        std::pair<void*, Tensor> ret{new std::byte[size], Tensor()};
+        if (needs_zero_init(hint)) {
+            std::memset(ret.first, 0, size);
+        }
+        return ret;
     }
 
     void free(void* ptr) const override { delete[] static_cast<std::byte*>(ptr); }

@@ -13,6 +13,7 @@
 #define gpuFree cudaFree
 #define gpuFreeAsync cudaFreeAsync
 #define gpuMemcpy cudaMemcpy
+#define gpuMemset cudaMemset
 #define gpuMemcpyDefault cudaMemcpyDefault
 #define gpuMemcpyAsync cudaMemcpyAsync
 #define gpuMemsetAsync cudaMemsetAsync

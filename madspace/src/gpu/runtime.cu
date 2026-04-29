@@ -206,7 +206,7 @@ void backward_op_matmul(
             device,
             instruction.input_grad_alloc_hints[0]
         );
-        input_grad.zero(device);
+        //input_grad.zero(device);
     }
     if (!weight_grad) {
         weight_grad = Tensor(
@@ -215,7 +215,7 @@ void backward_op_matmul(
             device,
             instruction.input_grad_alloc_hints[1]
         );
-        weight_grad.zero(device);
+        //weight_grad.zero(device);
     }
     if (!bias_grad) {
         bias_grad = Tensor(
@@ -224,7 +224,7 @@ void backward_op_matmul(
             device,
             instruction.input_grad_alloc_hints[2]
         );
-        bias_grad.zero(device);
+        //bias_grad.zero(device);
     }
     if (batch_size == 0) {
         input.reset(device);
@@ -580,7 +580,7 @@ void batch_reduce_mean_backward_impl(
         input_grad = Tensor(
             DataType::dt_float, input.shape(), device, instruction.input_grad_alloc_hints[0]
         );
-        input_grad.zero(device);
+        //input_grad.zero(device);
     }
 
     std::size_t batch_size = output_grad.size(0);
@@ -1133,7 +1133,8 @@ GpuRuntime::GpuRuntime(const Function& function_arg, ContextPtr context) :
         },
         [](gpurandGenerator_t handle) { check_error(gpurandDestroyGenerator(handle)); }
     ),
-    _prev_caches(context->thread_pool(), []() { return TensorVec{}; }) {
+    _prev_caches(context->thread_pool(), []() { return TensorVec{}; }),
+    _prev_caches_backward(context->thread_pool(), []() { return TensorVec{}; }) {
     if (context->device()->device_type() != GpuDevice::gpu_device_type) {
         throw std::runtime_error("Context has incompatible device");
     }
@@ -1422,9 +1423,8 @@ TensorVec GpuRuntime::run(const TensorVec& inputs) {
     auto locals = _locals_init;
     std::copy(inputs.begin(), inputs.end(), locals.begin());
     gpuStream_t main_stream = streams.at(0);
-    MemPool mem_pool(gpu_device, load_pool_size_cache(), main_stream);
+    MemPool mem_pool(gpu_device, load_pool_size_cache(false), main_stream);
 
-    // println("----");
     for (auto& instr : _instructions) {
         gpuStream_t stream = streams.at(instr.stream);
         AsyncGpuDevice device(gpu_device, stream, instr.stream, &mem_pool);
@@ -1444,8 +1444,8 @@ TensorVec GpuRuntime::run(const TensorVec& inputs) {
     for (auto event : _wait_events) {
         check_error(gpuStreamWaitEvent(main_stream, events.at(event)));
     }
-    update_pool_size_cache(mem_pool.total_sizes());
-    update_cached_tensors(mem_pool.reset(main_stream));
+    update_pool_size_cache(mem_pool.total_sizes(), false);
+    update_cached_tensors(mem_pool.reset(main_stream), false);
     TensorVec outputs;
     for (auto index : _output_indices) {
         outputs.push_back(locals[index]);
@@ -1470,7 +1470,7 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> GpuRuntime::run_with_grad(
         input_requires_grad.begin(), input_requires_grad.end(), requires_grad.begin()
     );
     gpuStream_t main_stream = streams.at(0);
-    MemPool mem_pool(gpu_device, load_pool_size_cache(), main_stream);
+    MemPool mem_pool(gpu_device, load_pool_size_cache(false), main_stream);
 
     for (auto [instr, instr_eval_grad] : zip(_instructions, eval_grad)) {
         gpuStream_t stream = streams.at(instr.stream);
@@ -1513,8 +1513,8 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> GpuRuntime::run_with_grad(
     for (auto event : _wait_events) {
         check_error(gpuStreamWaitEvent(main_stream, events.at(event)));
     }
-    update_pool_size_cache(mem_pool.total_sizes());
-    update_cached_tensors(mem_pool.reset(main_stream));
+    update_pool_size_cache(mem_pool.total_sizes(), false);
+    update_cached_tensors(mem_pool.reset(main_stream), false);
     TensorVec outputs;
     for (auto index : _output_indices) {
         outputs.push_back(locals[index]);
@@ -1539,15 +1539,16 @@ std::pair<TensorVec, TensorVec> GpuRuntime::run_backward(
         local_grads[index] = grad;
     }
     gpuStream_t main_stream = streams.at(0);
-    MemPool mem_pool(gpu_device, load_pool_size_cache(), main_stream);
+    MemPool mem_pool(gpu_device, load_pool_size_cache(true), main_stream);
 
+    AsyncGpuDevice init_device(gpu_device, main_stream, 0, &mem_pool);
     Tensor all_global_grads(
         DataType::dt_float,
         {_grad_global_total_size},
-        AsyncGpuDevice(gpu_device, main_stream, 0, &mem_pool),
+        init_device,
         AllocHint::global_grad
     );
-    all_global_grads.zero();
+    //all_global_grads.zero(init_device);
     TensorVec global_grads = all_global_grads.split_and_reshape(_grad_global_shapes);
     for (auto [index, grad] : zip(_grad_global_indices, global_grads)) {
         local_grads[index] = grad;
@@ -1562,7 +1563,6 @@ std::pair<TensorVec, TensorVec> GpuRuntime::run_backward(
         if (instr_eval_grad) {
             // AsyncGpuDevice device(gpu_device, stream, &mem_pool);
             AsyncGpuDevice device(gpu_device, main_stream, 0, &mem_pool);
-            // println("instr {} {}", static_cast<const void*>(&gpu_device),
             // static_cast<const void*>(&mem_pool));
             for (auto [output_index, output_dtype] :
                  zip(instr.output_indices, instr.output_dtypes)) {
@@ -1574,7 +1574,7 @@ std::pair<TensorVec, TensorVec> GpuRuntime::run_backward(
                         device,
                         AllocHint::local_grad
                     );
-                    grad.zero(device);
+                    //grad.zero(device);
                 }
             }
             switch (instr.opcode) {
@@ -1588,8 +1588,8 @@ std::pair<TensorVec, TensorVec> GpuRuntime::run_backward(
     /*for (auto event : _backward_wait_events) {
         check_error(gpuStreamWaitEvent(main_stream, events.at(event)));
     }*/
-    update_pool_size_cache(mem_pool.total_sizes());
-    update_cached_tensors(mem_pool.reset(main_stream));
+    update_pool_size_cache(mem_pool.total_sizes(), true);
+    update_cached_tensors(mem_pool.reset(main_stream), true);
     check_error(gpuStreamSynchronize(main_stream));
     return {
         {local_grads.begin(), local_grads.begin() + _input_count},
@@ -1597,12 +1597,12 @@ std::pair<TensorVec, TensorVec> GpuRuntime::run_backward(
     };
 }
 
-std::vector<std::tuple<std::size_t, std::size_t, Tensor>>
-GpuRuntime::load_pool_size_cache() {
-    auto cache = _pool_size_cache.load();
-    std::vector<std::tuple<std::size_t, std::size_t, Tensor>> ret;
+std::vector<std::tuple<std::size_t, std::size_t, Tensor, bool>>
+GpuRuntime::load_pool_size_cache(bool backward) {
+    auto cache = backward ? _pool_size_cache_backward.load() : _pool_size_cache.load();
+    std::vector<std::tuple<std::size_t, std::size_t, Tensor, bool>> ret;
     if (cache) {
-        auto& thread_prev_caches = _prev_caches.get();
+        auto& thread_prev_caches = backward ? _prev_caches_backward.get() : _prev_caches.get();
         for (auto [pool_index, size] : *cache) {
             Tensor new_cache;
             if (pool_index < thread_prev_caches.size()) {
@@ -1611,16 +1611,17 @@ GpuRuntime::load_pool_size_cache() {
                     new_cache = prev_cache;
                 }
             }
-            ret.push_back({pool_index, size, new_cache});
+            ret.push_back({pool_index, size, new_cache, needs_zero_init(static_cast<AllocHint>(pool_index + 1))});
         }
     }
     return ret;
 }
 
 void GpuRuntime::update_pool_size_cache(
-    const std::vector<std::pair<std::size_t, std::size_t>>& total_sizes
+    const std::vector<std::pair<std::size_t, std::size_t>>& total_sizes,
+    bool backward
 ) {
-    auto cache = _pool_size_cache.load();
+    auto cache = backward ? _pool_size_cache_backward.load() : _pool_size_cache.load();
     auto new_cache = cache
         ? std::make_shared<std::unordered_map<std::size_t, std::size_t>>(*cache)
         : std::make_shared<std::unordered_map<std::size_t, std::size_t>>();
@@ -1632,13 +1633,18 @@ void GpuRuntime::update_pool_size_cache(
             cache_size = size * 4 / 3;
         }
     }
-    _pool_size_cache.store(new_cache);
+    if (backward) {
+        _pool_size_cache_backward.store(new_cache);
+    } else {
+        _pool_size_cache.store(new_cache);
+    }
 }
 
 void GpuRuntime::update_cached_tensors(
-    const std::vector<std::pair<std::size_t, Tensor>>& tensors
+    const std::vector<std::pair<std::size_t, Tensor>>& tensors,
+    bool backward
 ) {
-    auto& thread_prev_caches = _prev_caches.get();
+    auto& thread_prev_caches = backward ? _prev_caches_backward.get() : _prev_caches.get();
     for (auto& [pool_index, tensor] : tensors) {
         if (pool_index >= thread_prev_caches.size()) {
             thread_prev_caches.resize(pool_index + 1);
