@@ -535,6 +535,17 @@ void op_batch_scatter(
     }
 }
 
+__global__ void kernel_div_batch_size(
+    std::size_t batch_size,
+    GpuTensorView<double, 1, true> input,
+    GpuTensorView<double, 1, true> output
+) {
+    me_int_t i = blockDim.x * blockIdx.x + threadIdx.x;
+    if (i < batch_size) {
+        output[i] = input[i] / batch_size;
+    }
+}
+
 void batch_reduce_mean_impl(
     const GpuRuntime::Instruction& instruction,
     TensorVec& locals,
@@ -546,24 +557,42 @@ void batch_reduce_mean_impl(
     AllocHint hint = instruction.output_alloc_hints[0];
     std::size_t batch_size = input.size(0);
 
-    auto input_ptr = thrust::device_pointer_cast(static_cast<double*>(input.data()));
-    double mean =
-        thrust::reduce(
-            thrust_par.on(device.stream()), input_ptr, input_ptr + batch_size
-        ) /
-        batch_size;
-    if (keepdim) {
-        output = Tensor(DataType::dt_float, {batch_size}, device, hint);
-        thrust::fill_n(
-            thrust_par.on(device.stream()),
-            thrust::device_pointer_cast(static_cast<double*>(output.data())),
-            batch_size,
-            mean
-        );
-    } else {
-        output = Tensor(mean, device, hint);
-    }
+    Tensor out(DataType::dt_float, {1}, device, hint);
+    std::size_t temp_storage_bytes = 0;
+    cub::DeviceReduce::Sum(
+        nullptr,
+        temp_storage_bytes,
+        static_cast<double*>(input.data()),
+        static_cast<double*>(out.data()),
+        batch_size,
+        device.stream()
+    );
+    Tensor temp(
+        DataType::dt_float, {(temp_storage_bytes + 7) / 8}, device, AllocHint::temporary
+    );
+    cub::DeviceReduce::Sum(
+        temp.data(),
+        temp_storage_bytes,
+        static_cast<double*>(input.data()),
+        static_cast<double*>(out.data()),
+        batch_size,
+        device.stream()
+    );
+    temp.reset(device);
     input.reset(device);
+    launch_kernel(
+        kernel_div_batch_size,
+        1,
+        device.stream(),
+        batch_size,
+        out.view<double, 1>(),
+        out.view<double, 1>()
+    );
+    if (keepdim) {
+        output = out.expand({batch_size});
+    } else {
+        output = out;
+    }
 }
 
 void batch_reduce_mean_backward_impl(
@@ -575,7 +604,6 @@ void batch_reduce_mean_backward_impl(
 ) {
     auto& input = locals[instruction.input_indices[0]];
     auto& input_grad = local_grads[instruction.input_indices[0]];
-    auto output_grad = local_grads[instruction.output_indices[0]].contiguous(device);
     if (!input_grad) {
         input_grad = Tensor(
             DataType::dt_float, input.shape(), device, instruction.input_grad_alloc_hints[0]
@@ -583,17 +611,53 @@ void batch_reduce_mean_backward_impl(
         //input_grad.zero(device);
     }
 
-    std::size_t batch_size = output_grad.size(0);
-    auto grad_ptr = thrust::device_pointer_cast(static_cast<double*>(output_grad.data()));
-    double grad_val =
-        thrust::reduce(
-            thrust_par.on(device.stream()), grad_ptr, grad_ptr + batch_size
-        ) /
-        batch_size;
-    Tensor grad(grad_val, device, AllocHint::temporary);
+    Tensor grad(DataType::dt_float, {1}, device, AllocHint::temporary);
+    if (keepdim) {
+        auto output_grad = local_grads[instruction.output_indices[0]].contiguous(device);
+        std::size_t batch_size = output_grad.size(0);
+        std::size_t temp_storage_bytes = 0;
+        cub::DeviceReduce::Sum(
+            nullptr,
+            temp_storage_bytes,
+            static_cast<double*>(output_grad.data()),
+            static_cast<double*>(grad.data()),
+            batch_size,
+            device.stream()
+        );
+        Tensor temp(
+            DataType::dt_float, {(temp_storage_bytes + 7) / 8}, device, AllocHint::temporary
+        );
+        cub::DeviceReduce::Sum(
+            temp.data(),
+            temp_storage_bytes,
+            static_cast<double*>(output_grad.data()),
+            static_cast<double*>(grad.data()),
+            batch_size,
+            device.stream()
+        );
+        launch_kernel(
+            kernel_div_batch_size,
+            1,
+            device.stream(),
+            output_grad.size(0),
+            grad.view<double, 1>(),
+            grad.view<double, 1>()
+        );
+        temp.reset(device);
+        output_grad.reset(device);
+    } else {
+        auto& output_grad = local_grads[instruction.output_indices[0]];
+        launch_kernel(
+            kernel_div_batch_size,
+            1,
+            device.stream(),
+            output_grad.size(0),
+            output_grad.view<double, 1>(),
+            grad.view<double, 1>()
+        );
+    }
     input_grad.add(grad, device);
     grad.reset(device);
-    output_grad.reset(device);
 }
 
 void op_batch_reduce_mean(

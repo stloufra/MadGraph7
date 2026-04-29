@@ -5,6 +5,7 @@
 #include <cublas_v2.h>
 #include <cuda_runtime.h>
 #include <curand.h>
+#include <cub/cub.cuh>
 
 #define gpuGetDeviceCount cudaGetDeviceCount
 #define gpuSetDevice cudaSetDevice
@@ -62,6 +63,7 @@
 #include <hip/hip_runtime_api.h>
 #include <rocblas/rocblas.h>
 #include <rocrand/rocrand.h>
+#include <hipcub/hipcub.hpp>
 
 #define gpuGetDeviceCount hipGetDeviceCount
 #define gpuSetDevice hipSetDevice
@@ -112,5 +114,6 @@
 #define GPURAND_RNG_PSEUDO_DEFAULT ROCRAND_RNG_PSEUDO_DEFAULT
 
 #define thrust_par thrust::hip_rocprim::par
+namespace cub = hipcub;
 
 #endif
