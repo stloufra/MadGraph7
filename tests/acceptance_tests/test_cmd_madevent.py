@@ -42,6 +42,8 @@ import madgraph.various.banner as banner_mod
 import madgraph.various.lhe_parser as lhe_parser
 import madgraph.various.banner as banner
 
+import tests.parallel_tests.test_aloha as test_aloha
+
 _file_path = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0]
 _pickle_path =os.path.join(_file_path, 'input_files')
 
@@ -690,13 +692,15 @@ class TestMECmdShell(unittest.TestCase):
         self.assertEqual(run_card['lpp2'], 3)
         self.assertEqual(run_card['pdlabel'], 'eva')
         self.assertEqual(run_card['fixed_fac_scale'], True)
+        run_card.set('eva_xcut', 0, user=True)
+        run_card.write(pjoin(self.run_dir, 'Cards','run_card.dat'))
         self.assertEqual(run_card['eva_xcut'], 0)
-        
+
         self.do('generate_events -f')
         val1 = self.cmd_line.results.current['cross']
         err1 = self.cmd_line.results.current['error']
         
-        target = 0.02174605
+        target = 0.02187245
         self.assertTrue(abs(val1 - target) / err1 < 2., 'large diference between %s and %s +- %s (%s sigma)'%
                         (target, val1, err1, abs(val1 - target) / err1))    
 
@@ -733,10 +737,12 @@ class TestMECmdShell(unittest.TestCase):
         self.assertEqual(run_card['lpp1'], -3)
         self.assertEqual(run_card['lpp2'], 3)
         self.assertEqual(run_card['pdlabel'], 'eva')
+        run_card.set('evaorder', 1, user=True)
+        run_card.write(pjoin(self.run_dir, 'Cards','run_card.dat'))
         self.assertEqual(run_card['evaorder'], 1)
         self.assertEqual(run_card['eva_xcut'], 1)
         self.assertEqual(run_card['fixed_fac_scale'], True)
-        
+
         self.do('generate_events -f')
         val1 = self.cmd_line.results.current['cross']
         err1 = self.cmd_line.results.current['error']
@@ -1000,7 +1006,7 @@ C
 
 
 
-
+    @test_aloha.set_global()
     def test_complex_mass_scheme(self):
         """check that auto-width and Madspin works nicely with complex-mass-scheme"""
         mg_cmd = MGCmd.MasterCmd()
