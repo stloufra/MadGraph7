@@ -5374,6 +5374,7 @@ class ProcessExporterFortranME(ProcessExporterFortran):
             replace_dict['start_ipsel_for_IFLAV'] += '    ipsel_shift = %d\n' % ipsel
             ipsel += len(flv)
         replace_dict['start_ipsel_for_IFLAV'] += ' ENDIF\n'
+        replace_dict['maxflavor'] = len(all_flv)
 
 
         if writer:

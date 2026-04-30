@@ -122,11 +122,28 @@ C       Set up process information from file symfact
 C     Continue only if IMODE is 0, 4 or 5
       IF(IMODE.NE.0.AND.IMODE.NE.4.and.IMODE.NE.5) RETURN
 
+      if (iflav.eq.0) then
+        if( MAXFLAVPERPROC.eq.1)then 
+            iflav = 1 ! handling one flavor case
+        else
+          call  ranmar(R)
+          do i=1, %(maxflavor)d
+                if(R.le.REAL(i)/%(maxflavor)d) then
+                    IFLAV=I
+                    EXIT
+                endif
+          enddo
+          WGT = WGT * %(maxflavor)d
+        endif
+      endif
 %(passcuts_begin)s
 ## if( nogrouping) {
       ! for no grouping update the scale here (done in main autodsig for grouping  
       call update_scale_coupling(PP, WGT)
 ## }     
+
+
+
 %(pdf_lines)s
          IF (IMODE.EQ.4)THEN
             DSIG%(proc_id)s = PD(0)
@@ -155,7 +172,6 @@ C     Select a flavor combination (need to do here for right sign)
 
       %(start_ipsel_for_IFLAV)s
       IPSEL = IPSEL + IPSEL_SHIFT
-      DSIGUU=DSIGUU*REWGT(PP,1)
       rwgt_value=REWGT(PP,1)
 
      CALL SMATRIX%(proc_id)s(P1, IFLAV, RHEL, RCOL,channel,1, DSIGUU, selected_hel(1), selected_col(1))

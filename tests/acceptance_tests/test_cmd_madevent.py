@@ -492,7 +492,84 @@ class TestMECmdShell(unittest.TestCase):
         #check precision
         self.assertLess(err2 / val2, 0.005)
         self.assertLess(err1 / val1, 0.005)
-        
+
+    def test_flavor_grouping_consistency(self):
+        """Check that the four combinations of 'apply_flavor_grouping' and
+        'group_subprocesses' return compatible cross-sections for the
+        process p p > e+ e-.
+
+        Settings tested:
+            1. apply_flavor_grouping True  / group_subprocesses False
+            2. apply_flavor_grouping True  / group_subprocesses True
+            3. apply_flavor_grouping False / group_subprocesses False
+            4. apply_flavor_grouping False / group_subprocesses True
+        """
+
+        settings = [
+            # (apply_flavor_grouping, group_subprocesses)
+            ('True',  'False'),
+            ('True',  'True'),
+            ('False', 'False'),
+            ('false', 'True'),
+        ]
+
+        results = []
+        for i, (afg, gsp) in enumerate(settings):
+            run_dir = pjoin(self.path, 'MGPROC_fg_%d' % i)
+            if os.path.exists(run_dir):
+                shutil.rmtree(run_dir)
+
+            mg_cmd = MGCmd.MasterCmd()
+            mg_cmd.no_notification()
+            mg_cmd.exec_cmd('set automatic_html_opening False --no_save')
+            mg_cmd.exec_cmd('set apply_flavor_grouping %s' % afg)
+            mg_cmd.exec_cmd('import model sm')
+            mg_cmd.exec_cmd('set group_subprocesses %s' % gsp)
+            mg_cmd.exec_cmd('generate p p > e+ e-')
+            mg_cmd.exec_cmd('output %s' % run_dir)
+
+            self.cmd_line = MECmd.MadEventCmdShell(me_dir=run_dir)
+            self.cmd_line.no_notification()
+            self.cmd_line.exec_cmd('set automatic_html_opening False')
+
+            self.do('generate_events -f')
+
+            val = self.cmd_line.results.current['cross'] + 1e-99
+            err = self.cmd_line.results.current['error']
+            results.append((val, err, afg, gsp))
+
+            if val == 0:
+                misc.sprint('Warning: cross-section is zero for '
+                             'apply_flavor_grouping=%s/group_subprocesses=%s' % (afg, gsp))
+
+            #check precision is reasonable for each individual run
+            self.assertLess(err / val, 0.05,
+                'cross-section determination is too imprecise '
+                '(apply_flavor_grouping=%s, group_subprocesses=%s): '
+                '%s +- %s' % (afg, gsp, val, err))
+
+        # Check pairwise compatibility: each pair of cross-sections should
+        # agree within 5 times the combined statistical uncertainty.
+        #for val, err, afg, gsp in results:
+        #    misc.sprint('  apply_flavor_grouping=%s/group_subprocesses=%s: %s +- %s' %
+        #                 (afg, gsp, val, err))
+        for i in range(len(results)):
+            for j in range(i + 1, len(results)):
+                val_i, err_i, afg_i, gsp_i = results[i]
+                val_j, err_j, afg_j, gsp_j = results[j]
+                self.assertLess(
+                    abs(val_i - val_j) / (err_i + err_j),
+                    3,
+                    'Incompatible cross-sections between '
+                    'apply_flavor_grouping=%s/group_subprocesses=%s '
+                    '(%s +- %s) and '
+                    'apply_flavor_grouping=%s/group_subprocesses=%s '
+                    '(%s +- %s)' % (
+                        afg_i, gsp_i, val_i, err_i,
+                        afg_j, gsp_j, val_j, err_j
+                    )
+                )
+
     def test_e_p_collision(self):
         """check that e p > e j gives the correct result"""
         

@@ -365,7 +365,7 @@ C     Update summed weight and number of events
       RETURN
       END
 
-DOUBLE PRECISION FUNCTION DSIG(PP,WGT,IMODE)
+DOUBLE PRECISION FUNCTION DSIG(PP, DUMMYFLAV,WGT,IMODE)
 C ****************************************************
 C
 %(info_lines)s
@@ -398,7 +398,9 @@ C
 C ARGUMENTS 
 C  
       DOUBLE PRECISION PP(0:3,NEXTERNAL), WGT
-      INTEGER IMODE
+      INTEGER IMODE, DUMMYFLAV
+      ! FLAVOR INDEX is selected differently so dummyflav
+      ! should be zero
 C   
 C LOCAL VARIABLES 
 C  
@@ -484,6 +486,7 @@ C ----------
 C BEGIN CODE
 C ----------
       DSIG=0D0
+
 
 C     Make sure cuts are evaluated for first subprocess
 C      CUTSDONE=.FALSE.
