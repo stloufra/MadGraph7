@@ -222,12 +222,25 @@ def main():
             raise SystemExit(
                 "\nERROR: CADNA analysis requires CADNA_PATH environment variable.\n"
                 "Please install CADNA and set the environment variable:\n"
-                "  export CADNA_PATH=/path/to/cadna/lib\n"
+                "  export CADNA_PATH=/path/to/cadna/prefix\n"
                 "Then re-run the command."
             )
         if not os.path.isdir(cadna_path):
             raise SystemExit(
                 f"\nERROR: CADNA_PATH='{cadna_path}' is not a valid directory."
+            )
+        # Check for include and lib directories
+        cadna_include = os.path.join(cadna_path, 'include')
+        if not os.path.isdir(cadna_include):
+            raise SystemExit(
+                f"\nERROR: CADNA include directory not found at '{cadna_include}'.\n"
+                "Ensure CADNA_PATH is set to the installation prefix (e.g., /usr/local)"
+            )
+        cadna_lib = os.path.join(cadna_path, 'lib')
+        if not os.path.isdir(cadna_lib):
+            raise SystemExit(
+                f"\nERROR: CADNA lib directory not found at '{cadna_lib}'.\n"
+                "Ensure CADNA_PATH is set to the installation prefix (e.g., /usr/local)"
             )
 
     cadna_flag = 'CADNA=1' if cadna else ''
