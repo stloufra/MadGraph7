@@ -586,7 +586,7 @@ class OneProcessExporterCPP(object):
     process_dir = '.'
     include_dir = '.'
     template_path = os.path.join(_file_path, 'iolibs', 'template_files')
-    __template_path = os.path.join(_file_path, 'iolibs', 'template_files') 
+    _template_path = os.path.join(_file_path, 'iolibs', 'template_files')
     process_template_h = 'cpp_process_h.inc'
     process_template_cc = 'cpp_process_cc.inc'
     process_class_template = 'cpp_process_class.inc'
@@ -715,7 +715,7 @@ class OneProcessExporterCPP(object):
             filename = filename[1]
         elif isinstance(filename, str):
             if classpath:
-                file_path = cls.__template_path
+                file_path = cls._template_path
             else:
                 file_path = cls.template_path
         else:
