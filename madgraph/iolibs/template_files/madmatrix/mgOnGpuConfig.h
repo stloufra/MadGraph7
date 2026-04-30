@@ -159,6 +159,10 @@
 #endif
 
 // NB: namespace mgOnGpu includes types which are defined in exactly the same way for CPU and GPU builds (see #318 and #725)
+#ifdef __CADNA_ANALYSIS__
+#include <cadna.h>
+#endif
+
 namespace mgOnGpu
 {
 
@@ -166,16 +170,33 @@ namespace mgOnGpu
 
   // Floating point type (for everything but color algebra #537): fptype
 #if defined MGONGPU_FPTYPE_DOUBLE
+#ifdef __CADNA_ANALYSIS__
+  typedef double_st fptype; // double precision stochastic type
+#else
   typedef double fptype; // double precision (8 bytes, fp64)
+#endif
 #elif defined MGONGPU_FPTYPE_FLOAT
+#ifdef __CADNA_ANALYSIS__
+  typedef float_st fptype; // signle precision stochastic type
+#else
   typedef float fptype;  // single precision (4 bytes, fp32)
+#endif
 #endif
 
   // Floating point type (for color algebra alone #537): fptype2
 #if defined MGONGPU_FPTYPE2_DOUBLE
+#ifdef __CADNA_ANALYSIS__
+  typedef double_st fptype2; // double precision stochastic type
+#else
   typedef double fptype2; // double precision (8 bytes, fp64)
+#endif
 #elif defined MGONGPU_FPTYPE2_FLOAT
-  typedef float fptype2; // single precision (4 bytes, fp32)
+#ifdef __CADNA_ANALYSIS__
+  typedef float_st fptype2; // single precision stochastic type
+
+#else
+  typedef float fptype2;  // single precision (4 bytes, fp32)
+#endif
 #endif
 
   // --- Platform-specific software implementation details

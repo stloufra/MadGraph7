@@ -17,10 +17,11 @@ ifeq ($(CADNA),1)
   # Remove -ffast-math which is incompatible with CADNA
   CXXFLAGS := $(filter-out -ffast-math,$(CXXFLAGS))
   CXXFLAGS += -D__CADNA_ANALYSIS__
-  CADNA_LIBFLAGS = -lcadnaOpenmpC
+  CADNA_LIBFLAGS = -L$(CADNA_PATH) -lcadnaOpenmpC
 else
   CADNA_LIBFLAGS =
 endif
+export CADNA_LIBFLAGS
 
 # Override the default goal so that running `make` in this folder builds both
 # the process library and the standalone driver.

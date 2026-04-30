@@ -27,6 +27,10 @@
 #include "timermap.h"
 #include "umami.h"
 
+#ifdef __CADNA_ANALYSIS__
+#include <cadna.h>
+#endif
+
 #include <algorithm>
 #include <cmath>
 #include <cstring>
@@ -77,7 +81,7 @@ namespace
   //   UMAMI: soa[ip4 * npar*nevt + ipar*nevt + ievt]
   __host__ __device__ inline void
   aosoa_to_umami_one( const fptype* aosoa,
-                      double* soa,
+                      fptype* soa,
                       std::size_t ievt,
                       std::size_t nevt )
   {
@@ -86,8 +90,15 @@ namespace
     {
       for( int ip4 = 0; ip4 < 4; ++ip4 )
       {
-        soa[(std::size_t)ip4 * npar * nevt + (std::size_t)ipar * nevt + ievt] =
-          (double)MemoryAccessMomenta::ieventAccessIp4IparConst( aosoa, ievt, ip4, ipar );
+
+  // Casting for cadna to make incoming momenta exact
+#ifdef __CADNA_ANALYSIS__
+          double holder = static_cast<double>(MemoryAccessMomenta::ieventAccessIp4IparConst( aosoa, ievt, ip4, ipar ));
+#else
+          fptype holder = MemoryAccessMomenta::ieventAccessIp4IparConst( aosoa, ievt, ip4, ipar );
+#endif
+        soa[(std::size_t)ip4 * npar * nevt + (std::size_t)ipar * nevt + ievt] = static_cast<fptype>(holder);
+
       }
     }
   }
@@ -95,7 +106,7 @@ namespace
 #ifdef MGONGPUCPP_GPUIMPL
   __global__ void
   aosoa_to_umami_kernel( const fptype* aosoa,
-                         double* soa,
+                         fptype* soa,
                          std::size_t nevt )
   {
     std::size_t ievt = blockDim.x * blockIdx.x + threadIdx.x;
@@ -111,6 +122,16 @@ int main( int argc, char** argv )
   using namespace mg5amcGpu;
 #else
   using namespace mg5amcCpu;
+#endif
+
+#ifdef __CADNA_ANALYSIS__
+  cadna_init(0);
+  double avgMEAccuracy= 0.f;
+  int avgMEAccuracy_n = 0;
+#endif
+
+#ifdef __CADNA_ANALYSIS__ and MGONGPUCPP_GPUIMPL
+  throw("Cadna GPU analysis not implemented yet.")
 #endif
 
   // CLI defaults
@@ -181,15 +202,15 @@ int main( int argc, char** argv )
   DeviceBufferMomenta devMomenta( nevt );
   DeviceBufferWeights devWeights( nevt );
   // SoA buffers for UMAMI live entirely on the device.
-  DeviceBufferBase<double> devUmamiMomenta( (std::size_t)4 * CPPProcess::npar * nevt );
-  DeviceBufferBase<double> devUmamiMEs( nevt );
-  std::vector<double> hstUmamiMEs( nevt );
+  DeviceBufferBase<fptype> devUmamiMomenta( (std::size_t)4 * CPPProcess::npar * nevt );
+  DeviceBufferBase<fptype> devUmamiMEs( nevt );
+  std::vector<fptype> hstUmamiMEs( nevt );
 #else
   HostBufferRndNumMomenta hstRndmom( nevt );
   HostBufferMomenta hstMomenta( nevt );
   HostBufferWeights hstWeights( nevt );
-  std::vector<double> umamiMomenta( (std::size_t)4 * CPPProcess::npar * nevt );
-  std::vector<double> umamiMEs( nevt );
+  std::vector<fptype> umamiMomenta( (std::size_t)4 * CPPProcess::npar * nevt );
+  std::vector<fptype> umamiMEs( nevt );
 #endif
 
   // ---- Kernels ----
@@ -212,17 +233,17 @@ int main( int argc, char** argv )
   }
 
   // ---- Per-iteration timings ----
-  std::unique_ptr<double[]> genrtimes( new double[niter] );
-  std::unique_ptr<double[]> rambtimes( new double[niter] );
-  std::unique_ptr<double[]> wavetimes( new double[niter] );
+  std::unique_ptr<fptype[]> genrtimes( new double[niter] );
+  std::unique_ptr<fptype[]> rambtimes( new double[niter] );
+  std::unique_ptr<fptype[]> wavetimes( new double[niter] );
 
   // ---- Inline event statistics ----
   unsigned int nevtABN = 0;
   unsigned int nevtZERO = 0;
-  double sumME = 0.;
-  double sumMEsq = 0.;
-  double minME = std::numeric_limits<double>::infinity();
-  double maxME = -std::numeric_limits<double>::infinity();
+  fptype sumME = 0.;
+  fptype sumMEsq = 0.;
+  fptype minME = std::numeric_limits<double>::infinity();
+  fptype maxME = -std::numeric_limits<double>::infinity();
   unsigned int nevtALL = 0;
 
   const int meGeVexponent = -( 2 * CPPProcess::npar - 8 );
@@ -230,7 +251,7 @@ int main( int argc, char** argv )
   for( unsigned int iiter = 0; iiter < niter; ++iiter )
   {
     // Step 1 - random numbers (always generated on host).
-    double genrtime = 0;
+    fptype genrtime = 0;
     timermap.start( "1a GenSeed " );
     prnk->seedGenerator( kSeed + iiter );
     genrtime += timermap.stop();
@@ -244,7 +265,7 @@ int main( int argc, char** argv )
 #endif
 
     // Step 2 - RAMBO momenta.
-    double rambtime = 0;
+    fptype rambtime = 0;
     timermap.start( "2a RamboIni" );
     prsk->getMomentaInitial();
     rambtime += timermap.stop();
@@ -264,7 +285,7 @@ int main( int argc, char** argv )
     rambtime += timermap.stop();
 
     // Step 3 - matrix elements via UMAMI.
-    double wavetime = 0;
+    fptype wavetime = 0;
     timermap.start( "3a SigmaKin" );
     UmamiInputKey in_keys[1] = { UMAMI_IN_MOMENTA };
     UmamiOutputKey out_keys[1] = { UMAMI_OUT_MATRIX_ELEMENT };
@@ -288,22 +309,22 @@ int main( int argc, char** argv )
 #ifdef MGONGPUCPP_GPUIMPL
     // Step 3b - copy the matrix elements (and momenta, for verbose) back.
     timermap.start( "3b CpDTHmes" );
-    gpuMemcpy( hstUmamiMEs.data(), devUmamiMEs.data(), nevt * sizeof( double ), gpuMemcpyDeviceToHost );
+    gpuMemcpy( hstUmamiMEs.data(), devUmamiMEs.data(), nevt * sizeof( fptype ), gpuMemcpyDeviceToHost );
     if( verbose ) copyHostFromDevice( hstMomenta, devMomenta );
     wavetime += timermap.stop();
 #endif
 
 #ifdef MGONGPUCPP_GPUIMPL
-    const double* mes = hstUmamiMEs.data();
+    const fptype* mes = hstUmamiMEs.data();
 #else
-    const double* mes = umamiMEs.data();
+    const fptype* mes = umamiMEs.data();
 #endif
 
     // Step 4 - update inline statistics + per-event verbose printout.
     timermap.start( "4@ UpdtStat" );
     for( unsigned int ievt = 0; ievt < nevt; ++ievt )
     {
-      double me = mes[ievt];
+      fptype me = mes[ievt];
       ++nevtALL;
       if( !std::isfinite( me ) )
         ++nevtABN;
@@ -320,8 +341,11 @@ int main( int argc, char** argv )
     rambtimes[iiter] = rambtime;
     wavetimes[iiter] = wavetime;
 
+    const auto ndigits = std:std::numeric_limits<fptype>::digits10;
+
     if( verbose )
     {
+
       std::cout << std::string( SEP79, '*' ) << std::endl
                 << "Iteration #" << iiter + 1 << " of " << niter << std::endl;
       if( perf ) std::cout << "Wave function time: " << wavetime << std::endl;
@@ -330,18 +354,32 @@ int main( int argc, char** argv )
         std::cout << "Momenta:" << std::endl;
         for( int ipar = 0; ipar < CPPProcess::npar; ipar++ )
         {
-          std::cout << std::scientific
+
+          std::cout << std::scientific << std::setprecision(ndigits) <<
                     << std::setw( 4 ) << ipar + 1
-                    << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 0, ipar )
-                    << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 1, ipar )
-                    << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 2, ipar )
-                    << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 3, ipar )
-                    << std::endl
+                    << std::setw( ndigits + 8 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 0, ipar )
+                    << std::setw( ndigits + 8 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 1, ipar )
+                    << std::setw( ndigits + 8 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 2, ipar )
+                    << std::setw( ndigits + 8 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 3, ipar )
+                    << '\n'
+#ifdef __CADNA_ANALYSIS__
+		    << std::setw( ndigits + 8 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 0, ipar ).nb_significant_digit()
+		    << std::setw( ndigits + 8 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 1, ipar ).nb_significant_digit()
+		    << std::setw( ndigits + 8 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 2, ipar ).nb_significant_digit()
+		    << std::setw( ndigits + 8 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 3, ipar ).nb_significant_digit()
+                    << '\n'
+#endif
                     << std::defaultfloat;
         }
         std::cout << std::string( SEP79, '-' ) << std::endl
                   << " Matrix element = " << mes[ievt]
                   << " GeV^" << meGeVexponent << std::endl
+#ifdef __CADNA_ANALYSIS__
+        std::cout << " Matrix element number of sig dig = " << MemoryAccessMatrixElements::ieventAccessConst( hstMatrixElements.data(), ievt ).nb_significant_digit()<< " "<<std::endl;
+             avgMEAccuracy += MemoryAccessMatrixElements::ieventAccessConst( hstMatrixElements.data(), ievt ).nb_significant_digit();
+             avgMEAccuracy_n++;
+      
+#endif
                   << std::string( SEP79, '-' ) << std::endl;
       }
     }
@@ -351,12 +389,20 @@ int main( int argc, char** argv )
     }
   }
 
+
+#ifdef __CADNA_ANALYSIS__
+  if(verbose)
+  {
+	std::cout << std::setw( ndigits + 8 ) <<  
+	"Average element accuracy = " << avgMEAccuracy/avgMEAccuracy_n << '\n'; 
+  }
+#endif
   if( !( verbose || debug || perf ) ) std::cout << std::endl;
 
   // ---- summary ----
   timermap.start( "8a CompStat" );
-  double sumgtim = 0, sumrtim = 0, sumwtim = 0;
-  double minwtim = wavetimes[0], maxwtim = wavetimes[0];
+  fptype sumgtim = 0, sumrtim = 0, sumwtim = 0;
+  fptype minwtim = wavetimes[0], maxwtim = wavetimes[0];
   for( unsigned int i = 0; i < niter; ++i )
   {
     sumgtim += genrtimes[i];
@@ -365,12 +411,12 @@ int main( int argc, char** argv )
     minwtim = std::min( minwtim, wavetimes[i] );
     maxwtim = std::max( maxwtim, wavetimes[i] );
   }
-  double meanwtim = sumwtim / niter;
+  fptype meanwtim = sumwtim / niter;
 
   unsigned int nevtGood = nevtALL - nevtABN;
-  double meanME = ( nevtGood > 0 ) ? sumME / nevtGood : 0.;
-  double varME = ( nevtGood > 0 ) ? sumMEsq / nevtGood - meanME * meanME : 0.;
-  double stdME = ( varME > 0 ) ? std::sqrt( varME ) : 0.;
+  fptype meanME = ( nevtGood > 0 ) ? sumME / nevtGood : 0.;
+  fptype varME = ( nevtGood > 0 ) ? sumMEsq / nevtGood - meanME * meanME : 0.;
+  fptype stdME = ( varME > 0 ) ? std::sqrt( varME ) : 0.;
 
   if( perf )
   {
@@ -392,10 +438,10 @@ int main( int argc, char** argv )
               << "NumThreadsPerBlock          = " << gputhreads << std::endl
               << "NumIterations               = " << niter << std::endl
               << std::string( SEP79, '-' ) << std::endl
-#if defined MGONGPU_FPTYPE_DOUBLE and defined MGONGPU_FPTYPE2_FLOAT
+#if defined MGONGPU_FPTYPE_fptype and defined MGONGPU_FPTYPE2_FLOAT
               << "FP precision                = MIXED (NaN/abnormal=" << nevtABN << ", zero=" << nevtZERO << ")" << std::endl
-#elif defined MGONGPU_FPTYPE_DOUBLE
-              << "FP precision                = DOUBLE (NaN/abnormal=" << nevtABN << ", zero=" << nevtZERO << ")" << std::endl
+#elif defined MGONGPU_FPTYPE_fptype
+              << "FP precision                = fptype (NaN/abnormal=" << nevtABN << ", zero=" << nevtZERO << ")" << std::endl
 #elif defined MGONGPU_FPTYPE_FLOAT
               << "FP precision                = FLOAT (NaN/abnormal=" << nevtABN << ", zero=" << nevtZERO << ")" << std::endl
 #endif
@@ -417,7 +463,7 @@ int main( int argc, char** argv )
               << "EvtsPerSec[MatrixElems] (3) = ( " << nevtALL / sumwtim << " )  sec^-1" << std::endl
               << std::defaultfloat
               << std::string( SEP79, '*' ) << std::endl
-              << "MeanMatrixElemValue         = ( " << meanME << " +- " << stdME / std::sqrt( (double)std::max( 1u, nevtGood ) )
+              << "MeanMatrixElemValue         = ( " << meanME << " +- " << stdME / std::sqrt( (fptype)std::max( 1u, nevtGood ) )
               << " )  GeV^" << meGeVexponent << std::endl
               << "[Min,Max]MatrixElemValue    = [ " << minME << " ,  " << maxME << " ]  GeV^" << meGeVexponent << std::endl
               << std::string( SEP79, '*' ) << std::endl;
@@ -471,5 +517,10 @@ int main( int argc, char** argv )
   }
 
   umami_free( umami_handle );
+
+#ifdef __CADNA_ANALYSIS__
+  cadna_end();
+#endif
+
   return 0;
 }
