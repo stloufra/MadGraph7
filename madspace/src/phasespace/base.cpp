@@ -2,19 +2,6 @@
 
 #include "madspace/util.h"
 
-#define CATCH_ONE_ERROR(etype, name)                                                   \
-    catch (const etype& e) {                                                           \
-        handle_errors(e, name);                                                        \
-    }
-#define CATCH_ERRORS(name)                                                             \
-    CATCH_ONE_ERROR(std::invalid_argument, name)                                       \
-    CATCH_ONE_ERROR(std::domain_error, name)                                           \
-    CATCH_ONE_ERROR(std::length_error, name)                                           \
-    CATCH_ONE_ERROR(std::out_of_range, name)                                           \
-    CATCH_ONE_ERROR(std::logic_error, name)                                            \
-    CATCH_ONE_ERROR(std::range_error, name)                                            \
-    CATCH_ONE_ERROR(std::runtime_error, name)
-
 using namespace madspace;
 
 namespace {
@@ -68,7 +55,7 @@ void check_types(
 }
 
 template <typename T>
-[[noreturn]] void handle_errors(const T& e, const std::string& name) {
+[[noreturn]] void handle_error(const T& e, const std::string& name) {
     std::string message(e.what());
     if (auto in_pos = message.find("[in "); in_pos != std::string::npos) {
         message.insert(in_pos + 4, std::format("{} > ", name));
@@ -76,6 +63,26 @@ template <typename T>
         message.append(std::format("\n [in {}]", name));
     }
     throw T(message);
+}
+
+[[noreturn]] void handle_errors(const std::string& name) {
+    try {
+        throw;
+    } catch (const std::invalid_argument& e) {
+        handle_error(e, name);
+    } catch (const std::domain_error& e) {
+        handle_error(e, name);
+    } catch (const std::length_error& e) {
+        handle_error(e, name);
+    } catch (const std::out_of_range& e) {
+        handle_error(e, name);
+    } catch (const std::logic_error& e) {
+        handle_error(e, name);
+    } catch (const std::range_error& e) {
+        handle_error(e, name);
+    } catch (const std::runtime_error& e) {
+        handle_error(e, name);
+    }
 }
 
 } // namespace
@@ -98,8 +105,9 @@ NamedVector<Value> Mapping::build_forward(
         check_types({{"det", det}}, {{"det", batch_float}}, "Determinant");
         outputs.push_back("det", det);
         return outputs;
+    } catch (...) {
+        handle_errors(name());
     }
-    CATCH_ERRORS(name());
 }
 
 NamedVector<Value> Mapping::build_inverse(
@@ -119,8 +127,9 @@ NamedVector<Value> Mapping::build_inverse(
         check_types({{"det", det}}, {{"det", batch_float}}, "Determinant");
         outputs.push_back("det", det);
         return outputs;
+    } catch (...) {
+        handle_errors(name());
     }
-    CATCH_ERRORS(name());
 }
 
 Function Mapping::forward_function() const {
@@ -170,8 +179,9 @@ NamedVector<Value> FunctionGenerator::build_function(
             outputs.sort_like(_return_types.index_map());
         check_types(sorted_outputs, _return_types, "Output");
         return outputs;
+    } catch (...) {
+        handle_errors(name());
     }
-    CATCH_ERRORS(name());
 }
 
 Function FunctionGenerator::function() const {
