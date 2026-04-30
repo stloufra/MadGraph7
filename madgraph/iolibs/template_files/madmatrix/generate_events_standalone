@@ -72,6 +72,8 @@ def build_parser():
                         help=f"Args forwarded to check_sa.exe "
                              f"(default: {' '.join(DEFAULT_CHECK_SA_ARGS)}). "
                              f"Use '--' to separate them from orchestrator options.")
+    parser.add_argument("--cadna", choices=('Y', 'y', 'N', 'n'), default=None,
+                        help="Enable CADNA analysis (Y/N).")
     return parser
 
 
@@ -98,6 +100,24 @@ def prompt_check_sa_args(default):
     for i, tok in enumerate(tokens):
         result[i] = tok
     return result
+
+
+def prompt_yes_no(label, default=False):
+    """Prompt for yes/no question. Returns True for yes, False for no."""
+    default_str = 'Y' if default else 'N'
+    while True:
+        try:
+            answer = input(f"\n{label} (Y/N) [{default_str}]: ").strip().lower()
+        except EOFError:
+            print()
+            return default
+        if not answer:
+            return default
+        if answer in ('y', 'yes'):
+            return True
+        if answer in ('n', 'no'):
+            return False
+        print(f"Invalid choice: {answer!r}. Please enter Y or N.", file=sys.stderr)
 
 
 def resolve_proc(arg_proc, p_dirs):
@@ -157,13 +177,23 @@ def main():
         extra = (prompt_check_sa_args(DEFAULT_CHECK_SA_ARGS)
                  if interactive else list(DEFAULT_CHECK_SA_ARGS))
 
+    # CADNA analysis
+    if args.cadna is not None:
+        cadna = args.cadna.lower() in ('y', 'yes')
+    elif interactive:
+        cadna = prompt_yes_no('Enable CADNA analysis?', default=False)
+    else:
+        cadna = False
+
+    cadna_flag = 'CADNA=1' if cadna else ''
+
     for d in chosen:
         path = os.path.join(subproc, d)
         print(f"\n=== [{backend}] Building {d} ===", flush=True)
-        subprocess.run(
-            ['make', '-j', str(args.jobs), f'BACKEND={backend}', 'USEBUILDDIR=1'],
-            cwd=path, check=True,
-        )
+        make_cmd = ['make', '-j', str(args.jobs), f'BACKEND={backend}', 'USEBUILDDIR=1']
+        if cadna_flag:
+            make_cmd.append(cadna_flag)
+        subprocess.run(make_cmd, cwd=path, check=True)
         print(f"\n=== [{backend}] Running {d}/check_sa.exe {' '.join(extra)} ===", flush=True)
         subprocess.run(['./check_sa.exe', '-p', *extra], cwd=path, check=True)
 

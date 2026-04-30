@@ -12,6 +12,16 @@
 # own .DEFAULT_GOAL := all.$(TAG), which we override below.
 include madmatrix.mk
 
+# CADNA analysis support
+ifeq ($(CADNA),1)
+  # Remove -ffast-math which is incompatible with CADNA
+  CXXFLAGS := $(filter-out -ffast-math,$(CXXFLAGS))
+  CXXFLAGS += -D__CADNA_ANALYSIS__
+  CADNA_LIBFLAGS = -lcadnaOpenmpC
+else
+  CADNA_LIBFLAGS =
+endif
+
 # Override the default goal so that running `make` in this folder builds both
 # the process library and the standalone driver.
 .DEFAULT_GOAL := standalone_all
@@ -35,10 +45,10 @@ standalone_all: all.$(TAG) check_sa.exe
 # code (the AOSOA->SoA transposition kernel).
 ifeq ($(GPUCC),)
 check_sa.exe: $(standalone_objects) $(LIBDIR)/lib$(MADMATRIX_LIB).so $(LIBDIR)/lib$(MADMATRIX_COMMONLIB).so
-	$(CXX) -o $@ $(standalone_objects) $(CXXLIBFLAGSRPATH) -L$(LIBDIR) -l$(MADMATRIX_LIB) -l$(MADMATRIX_COMMONLIB) $(BLASLIBFLAGS)
+	$(CXX) -o $@ $(standalone_objects) $(CXXLIBFLAGSRPATH) -L$(LIBDIR) -l$(MADMATRIX_LIB) -l$(MADMATRIX_COMMONLIB) $(CADNA_LIBFLAGS) $(BLASLIBFLAGS)
 else
 check_sa.exe: $(standalone_objects) $(LIBDIR)/lib$(MADMATRIX_LIB).so $(LIBDIR)/lib$(MADMATRIX_COMMONLIB).so
-	$(GPUCC) -o $@ $(standalone_objects) $(GPULIBFLAGSRPATH) -L$(LIBDIR) -l$(MADMATRIX_LIB) -l$(MADMATRIX_COMMONLIB) $(BLASLIBFLAGS)
+	$(GPUCC) -o $@ $(standalone_objects) $(GPULIBFLAGSRPATH) -L$(LIBDIR) -l$(MADMATRIX_LIB) -l$(MADMATRIX_COMMONLIB) $(CADNA_LIBFLAGS) $(BLASLIBFLAGS)
 endif
 
 #=== Standalone-aware clean
