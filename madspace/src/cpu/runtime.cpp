@@ -1130,8 +1130,8 @@ std::pair<TensorVec, TensorVec> CpuRuntime::run_backward_single(
         local_grads[index] = grad;
     }
 
-    Tensor all_global_grads(DataType::dt_float, {_grad_global_total_size});
-    all_global_grads.zero();
+    Tensor all_global_grads(DataType::dt_float, {_grad_global_total_size}, AllocHint::global_grad);
+    //all_global_grads.zero();
     TensorVec global_grads = all_global_grads.split_and_reshape(_grad_global_shapes);
     for (auto [index, grad] : zip(_grad_global_indices, global_grads)) {
         local_grads[index] = grad;

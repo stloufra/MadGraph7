@@ -46,12 +46,15 @@ public:
     gpurandGenerator_t gpurand_generator() { return _gpurand_generator.get(); }
 
 private:
-    std::vector<std::tuple<std::size_t, std::size_t, Tensor>> load_pool_size_cache();
+    std::vector<std::tuple<std::size_t, std::size_t, Tensor, bool>> load_pool_size_cache(bool backward);
     void update_pool_size_cache(
-        const std::vector<std::pair<std::size_t, std::size_t>>& pool
+        const std::vector<std::pair<std::size_t, std::size_t>>& total_sizes,
+        bool backward
     );
-    void
-    update_cached_tensors(const std::vector<std::pair<std::size_t, Tensor>>& tensors);
+    void update_cached_tensors(
+        const std::vector<std::pair<std::size_t, Tensor>>& tensors,
+        bool backward
+    );
     std::vector<Instruction> _instructions;
     SizeVec _output_indices;
     std::size_t _input_count;
@@ -69,7 +72,10 @@ private:
     ThreadResource<gpurandGenerator_t> _gpurand_generator;
     std::atomic<std::shared_ptr<std::unordered_map<std::size_t, std::size_t>>>
         _pool_size_cache;
+    std::atomic<std::shared_ptr<std::unordered_map<std::size_t, std::size_t>>>
+        _pool_size_cache_backward;
     ThreadResource<TensorVec> _prev_caches;
+    ThreadResource<TensorVec> _prev_caches_backward;
 };
 
 extern "C" Runtime*

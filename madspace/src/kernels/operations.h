@@ -79,7 +79,7 @@ void backward_batch_foreach(
                 device,
                 instruction.input_grad_alloc_hints[i]
             );
-            input_grad.zero(device);
+            //input_grad.zero(device);
         }
         input_grads[i] = &input_grad;
     }
@@ -124,7 +124,7 @@ void backward_op_stack(
                 device,
                 instruction.input_grad_alloc_hints[i]
             );
-            input_grad.zero(device);
+            //input_grad.zero(device);
         }
         ++i;
     }
@@ -175,7 +175,7 @@ void backward_op_unstack(
             device,
             instruction.input_grad_alloc_hints[0]
         );
-        input_grad.zero(device);
+        //input_grad.zero(device);
     }
     device.sync_barrier();
     auto unstacked_grads = input_grad.unstack(1);
@@ -205,7 +205,7 @@ void backward_op_pop(
             device,
             instruction.input_grad_alloc_hints[0]
         );
-        input_grad.zero(device);
+        //input_grad.zero(device);
     }
     device.sync_barrier();
     std::size_t last_index = input_grad.size(1) - 1;
@@ -258,7 +258,7 @@ void backward_op_batch_cat(
                 device,
                 instruction.input_grad_alloc_hints[i]
             );
-            input_grad.zero(device);
+            //input_grad.zero(device);
         }
         ++i;
     }
@@ -294,7 +294,7 @@ void backward_op_batch_split(
             device,
             instruction.input_grad_alloc_hints[0]
         );
-        input_grad.zero(device);
+        //input_grad.zero(device);
     }
     device.sync_barrier();
     auto split_grads = input_grad.split(0, sizes);
@@ -346,7 +346,7 @@ void backward_op_cat(
                 device,
                 instruction.input_grad_alloc_hints[i]
             );
-            input_grad.zero(device);
+            //input_grad.zero(device);
         }
         ++i;
     }
@@ -460,7 +460,7 @@ void backward_op_rqs_reshape(
             device,
             instruction.input_grad_alloc_hints[0]
         );
-        input_grad.zero(device);
+        //input_grad.zero(device);
     }
     device.sync_barrier();
     auto input_grad_reshaped = input_grad.factor_dim(1, n_dims);
