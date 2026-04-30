@@ -14,6 +14,7 @@ import re
 import logging
 PLUGIN_NAME = __name__.rsplit('.',1)[0]
 logger = logging.getLogger('madgraph.%s.model_handling'%PLUGIN_NAME)
+_file_path = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0] + '/'
 
 from madgraph.iolibs import export_cpp, export_mg7
 from madgraph.iolibs import file_writers as writers
@@ -874,10 +875,14 @@ class MadMatrixUFOModelConverter(export_cpp.UFOModelConverterGPU):
 
     # Update defaults from export_cpp.UFOModelConverterGPU
     ###cc_ext = 'cu'
+    # The following are defined in OneProcessExporterMadMatrix
+    # _template_path = pjoin(_file_path, "aloha", "template_files") # this one is used specifying classpath in read_template_file
+    # template_path = pjoin(_file_path, "madgraph", "iolibs", "template_files")
+
     aloha_template_h = pjoin('madmatrix','cpp_hel_amps_h.inc')
     aloha_template_cc = pjoin('madmatrix','cpp_hel_amps_cc.inc')
-    helas_h = pjoin('madmatrix', 'helas.h')
-    helas_cc = pjoin('madmatrix', 'helas.cu')
+    helas_h = pjoin('madmatrix', 'helas.h') # _template_path
+    helas_cc = pjoin('madmatrix', 'helas.cu') # _template_path
     param_template_h = pjoin('madmatrix', 'cpp_model_parameters_h.inc')
     param_template_cc = pjoin('madmatrix', 'cpp_model_parameters_cc.inc')
 
@@ -889,25 +894,24 @@ class MadMatrixUFOModelConverter(export_cpp.UFOModelConverterGPU):
     def read_aloha_template_files(self, ext):
         """Read all ALOHA template files with extension ext, strip them of
         compiler options and namespace options, and return in a list"""
-        ###path = pjoin(MG5DIR, 'aloha','template_files')
-        path = pjoin('aloha', 'template_files')
         out = []        
         if not fd_gauge:
             helas_temp_file = self.helas_h
         else:
             helas_temp_file = self.helas_h.replace('.h', '_fd.h')
  
-        if ext == 'h': file = open(pjoin(path, helas_temp_file)).read()
-        else: file = open(pjoin(path, self.helas_cc)).read()
+        if ext == 'h':
+            file = self.read_template_file(helas_temp_file, classpath=True)
+        else:
+            file = self.read_template_file(self.helas_cc, classpath=True)
         file = strip_banner(file, banner_mark = "!") # skip first 9 lines in helas.h/cu (copyright including ALOHA)
         out.append( file )
         return out
 
-    # AV - use the plugin's OneProcessExporterMadMatrix template_path and __template_path (for aloha_template_h/cc)
+    # AV - use the plugin's OneProcessExporterMadMatrix template_path and _template_path (for aloha_template_h/cc)
     @classmethod
     def read_template_file(cls, filename, classpath=False):
         """Open a template file and return the contents."""
-        ###return OneProcessExporterCPP.read_template_file(filename, classpath)
         return OneProcessExporterMadMatrix.read_template_file(filename, classpath)
 
     # AV - overload export_cpp.UFOModelConverterCPP method (improve formatting)
@@ -1430,6 +1434,8 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
     cc_ext = 'cc' # create CPPProcess.cc
     process_dir = '.'
     include_dir = '.'
+    _template_path = pjoin(_file_path, "aloha", "template_files") # this one is used specifying classpath in read_template_file
+    template_path = pjoin(_file_path, "madgraph", "iolibs", "template_files")
     process_template_h = pjoin('madmatrix', 'process_h.inc')
     process_template_cc = pjoin('madmatrix', 'process_cc.inc')
     process_class_template = pjoin('madmatrix', 'process_class.inc')
@@ -1873,8 +1879,8 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
         ###misc.sprint('Entering OneProcessExporterMadMatrix.edit_processidfile')
         template = open(pjoin(self.template_path,'madmatrix','epoch_process_id.h'),'r').read()
         replace_dict = {}
-        replace_dict['processid'] = self.get_process_name()
-        replace_dict['processid_uppercase'] = self.get_process_name().upper()
+        replace_dict['processid'] = self.name
+        replace_dict['processid_uppercase'] = self.name.upper()
         ff = open(pjoin(self.path, 'epoch_process_id.h'),'w')
         ff.write(template % replace_dict)
         ff.close()
@@ -1897,7 +1903,7 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
         template = open(pjoin(self.template_path,'madmatrix','processConfig.h'),'r').read()
         replace_dict = {}
         replace_dict['ndiagrams'] = len(self.matrix_elements[0].get('diagrams'))
-        replace_dict['processid_uppercase'] = self.get_process_name().upper()
+        replace_dict['processid_uppercase'] = self.name.upper()
         ff = open(pjoin(self.path, 'processConfig.h'),'w')
         ff.write(template % replace_dict)
         ff.close()
@@ -1999,7 +2005,9 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
             replace_dict['helamps_h'] = open(pjoin(self.path, os.pardir, os.pardir,'src','HelAmps_%s.h' % self.model_name)).read()
         except FileNotFoundError:
             replace_dict['helamps_h'] = "\n#include \"../../src/HelAmps_%s.h\"" % self.model_name
-        
+
+        replace_dict['process_file_name'] = self.name.upper()
+
         if writer:
             file = self.read_template_file(self.process_template_h) % replace_dict
             # Write the file

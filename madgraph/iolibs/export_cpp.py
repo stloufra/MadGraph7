@@ -586,7 +586,7 @@ class OneProcessExporterCPP(object):
     process_dir = '.'
     include_dir = '.'
     template_path = os.path.join(_file_path, 'iolibs', 'template_files')
-    __template_path = os.path.join(_file_path, 'iolibs', 'template_files') 
+    _template_path = os.path.join(_file_path, 'iolibs', 'template_files')
     process_template_h = 'cpp_process_h.inc'
     process_template_cc = 'cpp_process_cc.inc'
     process_class_template = 'cpp_process_class.inc'
@@ -715,7 +715,7 @@ class OneProcessExporterCPP(object):
             filename = filename[1]
         elif isinstance(filename, str):
             if classpath:
-                file_path = cls.__template_path
+                file_path = cls._template_path
             else:
                 file_path = cls.template_path
         else:
@@ -2784,8 +2784,7 @@ class ProcessExporterMG7(ProcessExporterCPP):
         process_exporter_mg7 = self.oneprocessclass(matrix_element,cpp_helas_call_writer)
 
         # Create the directory PN_xx_xxxxx in the specified path
-        proc_dir_name = "P%d_%s" % (process_exporter_mg7.process_number, 
-                                    process_exporter_mg7.process_name)
+        proc_dir_name = process_exporter_mg7.name
         dirpath = pjoin(self.dir_path, 'SubProcesses', proc_dir_name)
 
         try:
@@ -2800,8 +2799,8 @@ class ProcessExporterMG7(ProcessExporterCPP):
             for file in self.to_link_in_P:
                 ln('../%s' % file) 
 
-        me_lib_path = self.me_lib_format.format(process_id = process_exporter_mg7.name)
-        self.process_info.append(process_exporter_mg7.get_subprocess_info(proc_dir_name, me_lib_path))
+        me_lib_path = self.me_lib_format.format(process_id = proc_dir_name)
+        self.process_info.append(process_exporter_mg7.get_subprocess_info(dirpath, me_lib_path))
 
     def copy_template(self, model):
         super().copy_template(model)
@@ -2854,6 +2853,9 @@ def ExportCPPFactory(cmd, group_subprocesses=False, cmd_options={}):
     elif cformat == 'mg7':
         from madmatrix.output import ProcessExporterMadMatrix
         return ProcessExporterMadMatrix(cmd._export_dir, opt)
+    elif cformat == 'standalone_mg7':
+        from madmatrix.output import ProcessExporterMadMatrixStandalone
+        return ProcessExporterMadMatrixStandalone(cmd._export_dir, opt)
     else:
         return cmd._export_plugin(cmd._export_dir, opt)
 

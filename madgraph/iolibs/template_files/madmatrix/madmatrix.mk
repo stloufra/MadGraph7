@@ -70,7 +70,7 @@ endif
 #=== Configure MADMATRIX_BUILDDIR
 
 # Build directory "full" tag (used for build lockfiles to prevent mixing builds with different options)
-override DIRTAG := $(patsubst cpp%,%,$(BACKEND))_$(FPTYPE)_inl$(HELINL)_hrd$(HRDCOD)
+override DIRTAG := $(patsubst cpp%%,%%,$(BACKEND))_$(FPTYPE)_inl$(HELINL)_hrd$(HRDCOD)
 
 # Build directory: current directory by default, or build.<BACKEND> if USEBUILDDIR==1
 # NB: using '=' (not ':=') ensures BACKEND is evaluated lazily after potential cppauto resolution
@@ -113,7 +113,6 @@ override SRC := ../../src
 # NB: LIBDIR is resolved to an absolute path so it can be passed unchanged to sub-makes via export.
 LIBDIR ?= ../../lib
 override LIBDIR := $(abspath $(LIBDIR))
-export LIBDIR
 
 $(info Building objects in BUILDDIR=$(BUILDDIR), libraries in LIBDIR=$(LIBDIR))
 
@@ -189,7 +188,7 @@ export CXXFLAGS
 override CUDA_HOME = $(patsubst %%/bin/nvcc,%%,$(shell which nvcc 2>/dev/null))
 
 # Set HIP_HOME from the path to hipcc, if it exists
-override HIP_HOME = $(shell hipconfig --rocmpath)
+override HIP_HOME = $(shell hipconfig --rocmpath 2>/dev/null)
 
 # Configure CUDA_INC (for CURAND and NVTX) and NVTX if a CUDA installation exists (see #965)
 ifeq ($(CUDA_HOME),)
@@ -667,10 +666,10 @@ endif
 #=== Configure build directories and build lockfiles ===
 
 # Build lockfile "full" tag (defines full specification of object-file builds that cannot be intermixed)
-override TAG = $(patsubst cpp%,%,$(BACKEND))_$(FPTYPE)_inl$(HELINL)_hrd$(HRDCOD)
+override TAG = $(patsubst cpp%%,%%,$(BACKEND))_$(FPTYPE)_inl$(HELINL)_hrd$(HRDCOD)
 
 # Export TAG (so that there is no need to check/define it again in src/Makefile)
-xport TAG
+export TAG
 
 # Build directory for object files: current directory by default, or build.<BACKEND> if USEBUILDDIR==1
 override BUILDDIR = $(MADMATRIX_BUILDDIR)
@@ -701,7 +700,7 @@ override RUNTIME =
 #=== Makefile TARGETS and build rules below
 #===============================================================================
 
-processid_short=$(shell basename $(CURDIR) | awk -F_ '{print $$(NF-1)"_"$$NF}')
+processid_short=$(shell basename $(CURDIR))
 ###$(info processid_short=$(processid_short))
 
 MADMATRIX_LIB = madmatrix_$(processid_short)_$(BACKEND)
@@ -727,7 +726,7 @@ all.$(TAG): $(BUILDDIR)/.build.$(TAG) $(LIBDIR)/lib$(MADMATRIX_LIB).so
 override oldtagsb=`if [ -d $(BUILDDIR) ]; then find $(BUILDDIR) -maxdepth 1 -name '.build.*' ! -name '.build.$(TAG)' -exec echo $(shell pwd)/{} \; ; fi`
 $(BUILDDIR)/.build.$(TAG):
 	@if [ ! -d $(BUILDDIR) ]; then echo "mkdir -p $(BUILDDIR)"; mkdir -p $(BUILDDIR); fi
-	@if [ "$(oldtagsb)" != "" ]; then echo "Cannot build for tag=$(TAG) as old builds exist for other tags:"; echo "  $(oldtagsb)"; echo "Please run 'make clean' first\nIf 'make clean' is not enough: run 'make clean USEBUILDDIR=1 BACKEND=$(BACKEND) FPTYPE=$(FPTYPE)' or 'make cleanall'"; exit 1; fi
+	@if [ "$(oldtagsb)" != "" ]; then echo "Cannot build for tag=$(TAG) as old builds exist for other tags:"; echo "  $(oldtagsb)"; echo "Please run 'make clean' first"; echo "If 'make clean' is not enough: run 'make clean USEBUILDDIR=1 BACKEND=$(BACKEND) FPTYPE=$(FPTYPE)' or 'make cleanall'"; exit 1; fi
 	@touch $(BUILDDIR)/.build.$(TAG)
 
 # Apply special build flags only to CrossSectionKernels.o (no fast math, see #117 and #516)
@@ -752,11 +751,11 @@ endif
 # incompatible backends (different BACKEND, FPTYPE, etc.) in the same directory.
 # Use USEBUILDDIR=1 to build for multiple backends simultaneously without cleaning.
 ifeq ($(GPUCC),)
-$(BUILDDIR)/%.o : %.cc *.h $(SRC)/*.h $(BUILDDIR)/.build.$(TAG)
+$(BUILDDIR)/%%.o : %%.cc *.h $(SRC)/*.h $(BUILDDIR)/.build.$(TAG)
 	@if [ ! -d $(BUILDDIR) ]; then echo "mkdir -p $(BUILDDIR)"; mkdir -p $(BUILDDIR); fi
 	$(CXX) $(CPPFLAGS) $(INCFLAGS) $(CXXFLAGS) -c $< -o $@
 else
-$(BUILDDIR)/%.o : %.cc *.h $(SRC)/*.h $(BUILDDIR)/.build.$(TAG)
+$(BUILDDIR)/%%.o : %%.cc *.h $(SRC)/*.h $(BUILDDIR)/.build.$(TAG)
 	@if [ ! -d $(BUILDDIR) ]; then echo "mkdir -p $(BUILDDIR)"; mkdir -p $(BUILDDIR); fi
 	$(GPUCC) $(CPPFLAGS) $(INCFLAGS) $(GPUFLAGS) -c -x $(GPULANGUAGE) $< -o $@
 endif
@@ -767,7 +766,7 @@ endif
 commonlib : $(LIBDIR)/lib$(MADMATRIX_COMMONLIB).so
 
 $(LIBDIR)/lib$(MADMATRIX_COMMONLIB).so: $(SRC)/*.h $(SRC)/*.cc $(BUILDDIR)/.build.$(TAG)
-	$(MAKE) -C $(SRC) BACKEND=$(BACKEND)
+	$(MAKE) -C $(SRC) BACKEND=$(BACKEND) LIBDIR=$(LIBDIR)
 
 #-------------------------------------------------------------------------------
 
@@ -851,14 +850,15 @@ else
 	rm -f $(BUILDDIR)/.build.* $(BUILDDIR)/*.o
 	rm -f $(LIBDIR)/lib$(MADMATRIX_LIB).so
 	rm -f $(BACKEND_LOG)
-	$(MAKE) -C $(SRC) clean BACKEND=$(BACKEND)
+	$(MAKE) -C $(SRC) clean BACKEND=$(BACKEND) LIBDIR=$(LIBDIR)
+endif
  
 # cleanall: remove objects and libraries for ALL backends.
 cleanall:
 	rm -rf build.*
 	rm -f ./.build.* ./*.o
 	rm -f $(LIBDIR)/libmadmatrix_$(processid_short)_*.so
-	$(MAKE) -C $(SRC) cleanall
+	$(MAKE) -C $(SRC) cleanall LIBDIR=$(LIBDIR)
 
 #-------------------------------------------------------------------------------
 

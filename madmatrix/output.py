@@ -74,14 +74,18 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
     # AV - use template files from PLUGINDIR instead of MG5DIR and add gpu/mgOnGpuVectors.h
     # [NB: mgOnGpuConfig.h, check_sa.cc and fcheck_sa.f are handled through dedicated methods]
     ###s = MG5DIR + '/madgraph/iolibs/template_files/'
-    templates_path = pjoin(MG5DIR, 'madgraph', 'iolibs', 'template_files', 'madmatrix')
+
+    templates_path = pjoin(MG5DIR, 'madgraph', 'iolibs', 'template_files')
+    mg7_templates = pjoin(templates_path, 'mg7')
+    madmatrix_templates = pjoin(templates_path, 'madmatrix')
     home_path = pjoin(MG5DIR, "madmatrix")
+
     from_template = {'.': relative_path_list(home_path, ['COPYRIGHT', 'COPYING', 'COPYING.LESSER']),
-                     'src': relative_path_list(templates_path, [
+                     'src': relative_path_list(madmatrix_templates, [
                          'mgOnGpuFptypes.h', 'mgOnGpuCxtypes.h', 'mgOnGpuVectors.h',
                          'constexpr_math.h', 'read_slha.h', 'read_slha.cc'
                      ]),
-                     'SubProcesses': relative_path_list(templates_path, ['nvtx.h', 'GpuRuntime.h', 'GpuAbstraction.h', 'color_sum.h', 'color_sum.cc',
+                     'SubProcesses': relative_path_list(madmatrix_templates, ['nvtx.h', 'GpuRuntime.h', 'GpuAbstraction.h', 'color_sum.h', 'color_sum.cc',
                                       'MemoryAccessHelpers.h', 'MemoryAccessVectors.h',
                                       'MemoryAccessMatrixElements.h', 'MemoryAccessMomenta.h',
                                       'MemoryAccessRandomNumbers.h', 'MemoryAccessWeights.h',
@@ -92,7 +96,8 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
                                       'CrossSectionKernels.cc', 'CrossSectionKernels.h',
                                       'MatrixElementKernels.cc', 'MatrixElementKernels.h',
                                       'EventStatistics.h',
-                                      'umami.h', 'umami.cc']) }
+                                      'umami.h', 'umami.cc']),
+                     'Cards': relative_path_list(mg7_templates, ["run_card.toml"])}
 
     to_link_in_P = ['nvtx.h', 'GpuRuntime.h', 'GpuAbstraction.h', 'color_sum.h',
                     'MemoryAccessHelpers.h', 'MemoryAccessVectors.h',
@@ -109,8 +114,8 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
                     'MemoryAccessCouplings.h', # this is generated from a template in Subprocesses but we still link it in P1
                     'umami.h', 'umami.cc']
 
-    template_src_make = pjoin(templates_path, 'madmatrix_src.mk')
-    template_Sub_make = pjoin(templates_path, 'madmatrix.mk')
+    template_src_make = pjoin(madmatrix_templates, 'madmatrix_src.mk')
+    template_Sub_make = pjoin(madmatrix_templates, 'madmatrix.mk')
 
     dirs_to_create = ['bin', 'src', 'lib', 'Cards', 'SubProcesses']
 
@@ -126,7 +131,7 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
     def __init__(self, *args, **kwargs):
         self.in_madevent_mode = False # see MR #747
         misc.sprint('Entering ProcessExporterMadMatrix.__init__ (initialise the exporter)')
-        args[1]["me_lib_format"] = pjoin("lib", "libmg5amc_{process_id}_{{device}}.so")
+        args[1]["me_lib_format"] = pjoin("lib", "libmadmatrix_{process_id}_{{device}}.so")
         super().__init__(*args, **kwargs)
 
     # AV - overload the default version: create CMake directory, do not create lib directory
@@ -160,3 +165,51 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
         # Irrelevant here since group_mode=False so this function is never called
         misc.sprint('Entering ProcessExporterMadMatrix.modify_grouping')
         return False, matrix_element
+
+
+# Standalone mode: in addition to the normal madmatrix exports, this writes
+# an additional wrapper Makefile (with the template file being madmatrix_standalone.mk) on top of madmatrix.mk,
+# so that when running `make` in a P* folder, it builds check_sa.exe as well as the process library (predicatable behaviour)
+class ProcessExporterMadMatrixStandalone(ProcessExporterMadMatrix):
+
+    # This wrapper replaces madmatrix.mk
+    template_Sub_make = pjoin(ProcessExporterMadMatrix.madmatrix_templates, 'madmatrix_standalone.mk')
+
+    # Standalone-only template files needed to build check_sa.exe
+    _standalone_extra_files = ['check_sa.cc',
+                               'RamboSamplingKernels.cc', 'RamboSamplingKernels.h',
+                               'CommonRandomNumberKernel.cc', 'CommonRandomNumbers.h',
+                               'RandomNumberKernels.h',
+                               'rambo.h', 'timer.h', 'timermap.h']
+
+    from_template = dict(ProcessExporterMadMatrix.from_template)
+    from_template['SubProcesses'] = (ProcessExporterMadMatrix.from_template['SubProcesses']
+                                     + relative_path_list(ProcessExporterMadMatrix.madmatrix_templates,
+                                                          _standalone_extra_files))
+
+    # We don't need the run_card.toml
+    from_template['Cards'] = []
+
+    # Symlink the madmatrix.mk file to each P* folder
+    to_link_in_P = ProcessExporterMadMatrix.to_link_in_P + _standalone_extra_files + ['madmatrix.mk']
+
+    def copy_template(self, model):
+        super().copy_template(model)
+        madmatrix_mk = pjoin(self.madmatrix_templates, 'madmatrix.mk')
+        rendered = self.read_template_file(madmatrix_mk) % {
+            'model': self.get_model_name(model.get('name')),
+            'cpp_compiler': self.opt['cpp_compiler'] if self.opt['cpp_compiler'] else 'g++',
+        }
+        open(pjoin(self.dir_path, 'SubProcesses', 'madmatrix.mk'), 'w').write(rendered)
+
+        # Write another custom bin/generate_events to orchestrate the standalone mode
+        gen_events = pjoin(self.dir_path, 'bin', 'generate_events')
+        if os.path.exists(gen_events):
+            os.remove(gen_events)
+        files.cp(pjoin(self.madmatrix_templates, 'generate_events_standalone'),
+                 gen_events)
+        os.chmod(gen_events, 0o755)
+
+    def finalize(self, *args, **kwargs):
+        # We disable this since we don't need subprocesses.json either
+        pass
