@@ -4169,6 +4169,8 @@ class Channel(base_objects.Diagram):
                     if lor_value == 0:
                         new_structure = new_structure.replace('-','+')
                         lor_value = eval(new_structure % q_dict_lor)
+                    if isinstance(v, base_objects.FLV_Coupling):
+                        v = v.get_all_couplings()[0]
                     lorentz_factor += abs(eval(v))**2 * lor_value**2
 
                 apx_m *= lorentz_factor
@@ -4268,6 +4270,8 @@ class Channel(base_objects.Diagram):
                         new_structure = new_structure.replace('-','+')
                         lor_value = eval(new_structure % q_dict_lor)
 
+                    if isinstance(v, base_objects.FLV_Coupling):
+                        v = v.get_all_couplings()[0]
                     lorentz_factor += abs(eval(v))**2 * eval(new_structure % q_dict_lor)**2
 
                 apx_m *= lorentz_factor

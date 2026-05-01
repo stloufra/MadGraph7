@@ -2262,12 +2262,19 @@ class UFOMG5Converter(object):
         logger.debug('MG5 converter defines %s to %s', name, expr)
         assert name not in [c.name for c in self.additional_couplings] + [c.name for c in self.ufomodel.all_couplings]
         #avoid side effect that the instantiate a UFO class update the list of coupling in the model
-        with misc.TMP_variable(self.ufomodel.object_library, 'all_couplings', 
-                               self.additional_couplings):
-            new = self.ufomodel.all_couplings[0].__class__(name = name,
-                value = expr,
-                order = order)
-        #self.additional_couplings.append(new)
+        # Use the Coupling class's own __globals__ dict directly, because self.ufomodel.object_library
+        # may have been replaced by a new module object (e.g. when decays.py uses a relative import
+        # `from .object_library import ...` which Python registers under a different sys.modules key
+        # and overwrites ufomodel.object_library).  The Coupling class's __globals__ always points
+        # to the original object_library.__dict__ where `global all_couplings` resolves.
+        coup_class = self.ufomodel.all_couplings[0].__class__
+        coup_globals = coup_class.__init__.__globals__
+        old_all_couplings = coup_globals['all_couplings']
+        coup_globals['all_couplings'] = self.additional_couplings
+        try:
+            new = coup_class(name=name, value=expr, order=order)
+        finally:
+            coup_globals['all_couplings'] = old_all_couplings
         return new
 
 
