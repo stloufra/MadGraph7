@@ -434,6 +434,104 @@ c          print *,'Added BW for resonance ',i,icl(i),this_config
       
       end
 
+      logical function flavor_compatible(ipdg_prop, flav1, flav2,
+     &                                     ipdg1, ipdg2)
+c     Check if two particles with given flavors can couple via ipdg_prop
+c     Validates flavor conservation/change rules for different propagators
+c
+c     For gluon/photon/Z: flavor/color preserving
+c       - q + q̄ → g/Z: must have same flavor (e.g., d + d̄ → g)
+c       - q + g → q: flavor propagates (e.g., d + g → d)
+c
+c     For W: flavor-changing with CKM structure
+c       - Diagonal CKM: (d,u) and (s,c) pairs allowed
+c       - Non-diagonal CKM: all combinations allowed
+      implicit none
+      integer ipdg_prop, flav1, flav2, ipdg1, ipdg2
+      integer iflav1, iflav2, abs_ipdg1, abs_ipdg2
+      logical is_quark1, is_quark2, is_antiquark1, is_antiquark2
+      logical is_gluon1, is_gluon2
+
+      flavor_compatible = .true.
+
+      abs_ipdg1 = abs(ipdg1)
+      abs_ipdg2 = abs(ipdg2)
+      is_quark1 = (abs_ipdg1.ge.1.and.abs_ipdg1.le.5).or.
+     &            (flav1.ge.1.and.flav1.le.4)
+      is_quark2 = (abs_ipdg2.ge.1.and.abs_ipdg2.le.5).or.
+     &            (flav2.ge.1.and.flav2.le.4)
+      is_gluon1 = (ipdg1.eq.21)
+      is_gluon2 = (ipdg2.eq.21)
+      is_antiquark1 = (ipdg1.lt.0)
+      is_antiquark2 = (ipdg2.lt.0)
+
+      iflav1 = abs(flav1)
+      iflav2 = abs(flav2)
+
+c     GLUON coupling (flavor and color preserving)
+      if(iabs(ipdg_prop).eq.21) then
+c        q + q̄ → g: must have same flavor
+         if(is_quark1.and.is_quark2.and.
+     &      (is_antiquark1.neqv.is_antiquark2)) then
+            flavor_compatible = (iflav1.eq.iflav2)
+            return
+         endif
+c        q + g → q or q̄ + g → q̄: flavor propagates
+         if((is_quark1.and.is_gluon2).or.
+     &      (is_gluon1.and.is_quark2)) then
+            flavor_compatible = .true.
+            return
+         endif
+         flavor_compatible = .true.
+         return
+      endif
+
+c     PHOTON coupling (flavor preserving)
+      if(iabs(ipdg_prop).eq.22) then
+         if(is_quark1.and.is_quark2) then
+            flavor_compatible = (iflav1.eq.iflav2.and.
+     &                          (is_antiquark1.neqv.is_antiquark2))
+            return
+         endif
+         flavor_compatible = .true.
+         return
+      endif
+
+c     Z BOSON coupling (flavor preserving)
+      if(iabs(ipdg_prop).eq.23) then
+         if(is_quark1.and.is_quark2) then
+            flavor_compatible = (iflav1.eq.iflav2.and.
+     &                          (is_antiquark1.neqv.is_antiquark2))
+            return
+         endif
+         flavor_compatible = .true.
+         return
+      endif
+
+c     W BOSON coupling (flavor-changing, CKM-dependent)
+      if(iabs(ipdg_prop).eq.24) then
+c        Assume diagonal CKM: (d,u)→W and (s,c)→W allowed
+c        up-type: 2(u), 4(c);  down-type: 1(d), 3(s)
+         if((iflav1.eq.1.and.iflav2.eq.2).or.
+     &      (iflav1.eq.2.and.iflav2.eq.1).or.
+     &      (iflav1.eq.3.and.iflav2.eq.4).or.
+     &      (iflav1.eq.4.and.iflav2.eq.3)) then
+c           Check quark vs antiquark pairing
+            if((is_antiquark1.and..not.is_antiquark2).or.
+     &         (.not.is_antiquark1.and.is_antiquark2)) then
+               flavor_compatible = .true.
+               return
+            endif
+         endif
+         flavor_compatible = .false.
+         return
+      endif
+
+c     Unknown or other propagators: be permissive
+      flavor_compatible = .true.
+
+      end
+
       logical function findmt(idij,icgs)
 c**************************************************************************
 c     input:
@@ -516,10 +614,11 @@ c     Check for common graphs
       end
 
 
-      logical function cluster(p, ivec)
+      logical function cluster(p, ivec, flavor)
 c**************************************************************************
 c     input:
 c            p(0:3,i)           momentum of i'th parton
+c            flavor(nexternal)  flavor index for merged flavor particles (81)
 c     output:
 c            true if tree structure identified
 c**************************************************************************
@@ -531,10 +630,14 @@ c**************************************************************************
       include 'message.inc'
       include 'run.inc'
       integer ivec
+      integer flavor(nexternal)
       real*8 p(0:3,nexternal), pcmsp(0:3), p1(0:3)
       real*8 pi(0:3), nr(0:3), pz(0:3)
-      integer i, j, k, n, idi, idj, idij, icgs(0:n_max_cg)
-      integer nleft, iwin, jwin, iwinp, imap(nexternal,2) 
+      integer i, j, k, n, l, idi, idj, idij, icgs(0:n_max_cg)
+      integer nleft, iwin, jwin, iwinp, imap(nexternal,2)
+      integer iproc, igraph, ipdg_prop, ipdg_i, ipdg_j
+      logical flavor_compatible
+      external flavor_compatible
       double precision nn2,ct,st
       double precision minpt2ij,pt2ij(n_max_cl),zij(n_max_cl)
 
@@ -555,6 +658,9 @@ c**************************************************************************
       if (btest(mlevel,1))
      $   write (*,*)'New event'
 
+c     Store original flavor values for mapping 81 PDG codes
+c     Use flavor array to get correct PDG codes for merged flavor particles
+
       iwin = 0
       jwin = 0
       cluster=.false.
@@ -574,9 +680,25 @@ c     initialize index map
          imap(i,1)=i
          imap(i,2)=ishft(1,i-1)
          mt2ij(i)=0
-      enddo   
+      enddo
       mt2last=0
       minpt2ij=1.0d37
+
+c     Map merged flavor particles (PDG=81) to their actual quark flavors
+      do i=1,nexternal
+         if(flavor(i).ge.1.and.flavor(i).le.4)then
+            do iproc=1,maxsproc
+               do igraph=1,n_max_cg
+                  if(ipdgcl(ishft(1,i-1),igraph,iproc).eq.81)then
+                     ipdgcl(ishft(1,i-1),igraph,iproc)=flavor(i)
+                  else if(ipdgcl(ishft(1,i-1),igraph,iproc).eq.-81)then
+                     ipdgcl(ishft(1,i-1),igraph,iproc)=-flavor(i)
+                  endif
+               enddo
+            enddo
+         endif
+      enddo
+
       do i=1,nexternal
 c     initialize momenta
          idi=ishft(1,i-1)
@@ -597,8 +719,29 @@ c     cluster only combinable legs (acc. to diagrams)
                idij=combid(idi,idj)
                pt2ij(idij)=1.0d37
                if (findmt(idij,icgs)) then
+c     Filter by flavor compatibility for this specific combination
+c     Get original PDG codes for particles i and j from ipdgcl
+c     Use flavor_compatible to check if flavor assignment is valid
+                  if(icgs(0).gt.0) then
+                     do k=icgs(0),1,-1
+                        igraph = icgs(k)
+                        ipdg_prop = ipdgcl(idij,igraph,iproc)
+                        ipdg_i = ipdgcl(ishft(1,i-1),igraph,iproc)
+                        ipdg_j = ipdgcl(ishft(1,j-1),igraph,iproc)
+c     Check flavor compatibility for this propagator and particle pair
+                        if(.not.flavor_compatible(ipdg_prop,
+     &                                             flavor(i), flavor(j),
+     &                                             ipdg_i, ipdg_j)) then
+c     Remove this graph - invalid flavor combination for this vertex
+                           do l=k,icgs(0)-1
+                              icgs(l)=icgs(l+1)
+                           enddo
+                           icgs(0)=icgs(0)-1
+                        endif
+                     enddo
+                  endif
                   if (btest(mlevel,4)) then
-                     write(*,*)'diagrams: ',(icgs(k),k=1,icgs(0))
+                     write(*,*)'diagrams after flavor check: ',(icgs(k),k=1,icgs(0))
                   endif
                   if (j.ne.1.and.j.ne.2) then
 c     final state clustering                     
