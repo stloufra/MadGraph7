@@ -1837,7 +1837,7 @@ c            s_rwfact=0d0
       return
       end
 
-      subroutine update_scale_coupling(p, wgt, flavor)
+      subroutine update_scale_coupling(p, wgt)
           use model_object
       implicit none
 
@@ -1860,11 +1860,13 @@ C      include 'maxparticles.inc'
       double precision all_p(4*maxdim/3+14,1), all_wgt(1)
       double precision p(4*maxdim/3+14), wgt
       double precision all_q2fact(2,1)
-      integer flavor(nexternal)
       integer flavor_vec(nexternal,1)
+      integer i
       all_p(:,1) = p(:)
       all_wgt(1) = wgt
-      flavor_vec(:,1) = flavor(:)
+      do i=1,nexternal
+         flavor_vec(i,1) = 0
+      enddo
       call update_scale_coupling_vec(all_p, all_wgt,all_q2fact, 1, flavor_vec)
       wgt = all_wgt(1)
       return
