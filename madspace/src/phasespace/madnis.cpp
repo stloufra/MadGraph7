@@ -39,7 +39,7 @@ MadnisLoss::MadnisLoss(
             return arg_types;
         }(),
         {{"loss", single_float},
-         {"means", single_float_array(functions.size())},
+         {"abs_means", single_float_array(functions.size())},
          {"variances", single_float_array(functions.size())}}
     ),
     _functions(functions),
@@ -86,7 +86,7 @@ NamedVector<Value> MadnisLoss::build_function_impl(
         chan_weights = ValueVec(_functions.size());
     }
 
-    ValueVec chan_losses, chan_means, chan_abs_means, chan_variances;
+    ValueVec chan_losses, chan_abs_means, chan_variances;
     for (std::size_t index = 0;
          auto [integrand, g, q, cw] :
          zip(integrands, flow_probs, sample_probs, chan_weights)) {
@@ -94,13 +94,9 @@ NamedVector<Value> MadnisLoss::build_function_impl(
             fb.set_current_stream(index + 1);
         }
         Value f = _cwnet ? fb.mul(cw, integrand) : integrand;
-        // TODO: avoid computing mean twice
-        Value mean_keepdim = fb.batch_reduce_mean_keepdim(fb.div(f, q));
-        Value mean = fb.batch_reduce_mean(fb.div(f, q));
+        Value mean = fb.batch_reduce_mean_keepdim(fb.div(f, q));
         Value abs_mean = fb.batch_reduce_mean(fb.madnis_abs_weight(f, q));
-        Value variance =
-            fb.batch_reduce_mean(fb.madnis_variance(f, g, q, mean_keepdim));
-        chan_means.push_back(mean);
+        Value variance = fb.batch_reduce_mean(fb.madnis_variance(f, g, q, mean));
         chan_abs_means.push_back(abs_mean);
         chan_variances.push_back(variance);
         ++index;
@@ -113,7 +109,7 @@ NamedVector<Value> MadnisLoss::build_function_impl(
              fb.madnis_single_channel_variance(
                  chan_variances.at(0), chan_abs_means.at(0)
              )},
-            {"means", fb.unsqueeze(chan_means.at(0))},
+            {"abs_means", fb.unsqueeze(chan_abs_means.at(0))},
             {"variances", fb.unsqueeze(chan_variances.at(0))},
         };
     } else {
@@ -122,7 +118,7 @@ NamedVector<Value> MadnisLoss::build_function_impl(
         );
         return {
             {"loss", loss},
-            {"means", fb.stack(chan_means)},
+            {"abs_means", fb.stack(chan_abs_means)},
             {"variances", fb.stack(chan_variances)},
         };
     }

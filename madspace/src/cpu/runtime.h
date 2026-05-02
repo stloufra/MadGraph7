@@ -12,8 +12,11 @@ namespace cpu {
 
 class CpuRuntime : public Runtime {
 public:
+    template <bool is_grad>
     struct DummyAllocHints {
-        AllocHint operator[](std::size_t index) const { return AllocHint::normal; }
+        AllocHint operator[](std::size_t index) const {
+            return is_grad ? AllocHint::local_grad : AllocHint::local;
+        }
     };
     struct Instruction {
         int opcode;
@@ -28,8 +31,8 @@ public:
         std::size_t dependency_count;
         SizeVec dependent_instructions_backward;
         std::size_t dependency_count_backward;
-        DummyAllocHints output_alloc_hints;
-        DummyAllocHints input_grad_alloc_hints;
+        DummyAllocHints<false> output_alloc_hints;
+        DummyAllocHints<true> input_grad_alloc_hints;
     };
 
     CpuRuntime(const Function& function, ContextPtr context, bool concurrent);

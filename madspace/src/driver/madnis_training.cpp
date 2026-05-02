@@ -52,7 +52,12 @@ void MadnisTraining::train() {
         }
         TensorVec results = _optimizer->step(build_training_batch(channel_sizes));
         update_history(results, channel_sizes);
-        if ((batch_index + 1) % _config.channel_dropping_interval == 0) {
+        if (_channels.size() > 0 && _cwnet &&
+            (batch_index + 1) % _config.channel_dropping_interval == 0) {
+            std::vector<std::size_t> job_ids;
+            while ((job_ids = gen_thread_pool.wait_multiple()).size() != 0) {
+                process_job_results(job_ids);
+            }
             drop_channels();
         }
         print_progress_update(batch_index);
@@ -123,7 +128,7 @@ std::vector<std::size_t> MadnisTraining::compute_channel_sizes() {
     for (auto& channel : _channels) {
         std::size_t total_count = 0;
         double total_var = 0.0;
-        for (auto [count, mean, var] : channel.integration_history) {
+        for (auto [count, abs_mean, var] : channel.integration_history) {
             if (!std::isnan(var)) {
                 total_count += count;
                 total_var += count * var;
@@ -418,7 +423,7 @@ void MadnisTraining::update_history(
     const TensorVec& results, const std::vector<std::size_t>& counts
 ) {
     Tensor loss_cpu = results.at(0).cpu();
-    Tensor means_cpu = results.at(1).cpu();
+    Tensor abs_means_cpu = results.at(1).cpu();
     Tensor variances_cpu = results.at(2).cpu();
     double loss = loss_cpu.view<double, 1>()[0];
     if (_loss_history.size() < _config.log_interval) {
@@ -430,17 +435,17 @@ void MadnisTraining::update_history(
         _loss_history_index = 0;
     }
 
-    auto means = means_cpu.view<double, 2>()[0];
+    auto abs_means = abs_means_cpu.view<double, 2>()[0];
     auto variances = variances_cpu.view<double, 2>()[0];
-    if (means.size() != _channels.size() || variances.size() != _channels.size()) {
+    if (abs_means.size() != _channels.size() || variances.size() != _channels.size()) {
         throw std::logic_error("wrong channel count returned");
     }
     for (std::size_t i = 0; auto [channel, count] : zip(_channels, counts)) {
         if (channel.integration_history.size() < _config.integration_history_length) {
-            channel.integration_history.push_back({count, means[i], variances[i]});
+            channel.integration_history.push_back({count, abs_means[i], variances[i]});
         } else {
             channel.integration_history.at(channel.history_index) = {
-                count, means[i], variances[i]
+                count, abs_means[i], variances[i]
             };
         }
         if (++channel.history_index == _config.log_interval) {
@@ -450,7 +455,61 @@ void MadnisTraining::update_history(
     }
 }
 
-void MadnisTraining::drop_channels() {}
+void MadnisTraining::drop_channels() {
+    std::vector<double> abs_means;
+    abs_means.reserve(_channels.size());
+    double abs_mean_sum = 0.;
+    for (auto& channel : _channels) {
+        std::size_t chan_count = 0;
+        double chan_abs_mean = 0.0;
+        for (auto [count, abs_mean, var] : channel.integration_history) {
+            if (!std::isnan(abs_mean)) {
+                chan_count += count;
+                chan_abs_mean += count * abs_mean;
+            }
+        }
+        abs_mean_sum += chan_abs_mean;
+        abs_means.push_back(chan_abs_mean);
+    }
+    std::vector<std::size_t> indices(_channels.size());
+    std::iota(indices.begin(), indices.end(), 0);
+    std::sort(indices.begin(), indices.end(), [&](auto i, auto j) {
+        return abs_means.at(i) < abs_means.at(j);
+    });
+
+    Tensor active_mask_glob = _optimizer_context->global(_cwnet.value().mask_name());
+    Tensor active_mask = active_mask_glob.cpu();
+    auto mask_view = active_mask.view<double, 2>()[0];
+
+    double drop_sum = 0.;
+    for (std::size_t chan_index : indices) {
+        drop_sum += abs_means.at(chan_index);
+        if (drop_sum / abs_mean_sum > _config.channel_dropping_threshold) {
+            break;
+        }
+        auto& channel = _channels.at(chan_index);
+        channel.integrand = nullptr;
+        for (me_int_t index : channel.integrand->channel_indices()) {
+            if (index < 0 || index > mask_view.size()) {
+                throw std::out_of_range("channel index out of bounds");
+            }
+            mask_view[index] = 0;
+        }
+    }
+    _channels.erase(
+        std::remove_if(
+            _channels.begin(),
+            _channels.end(),
+            [&](auto& channel) { return !channel.integrand; }
+        ),
+        _channels.end()
+    );
+    if (_optimizer_context->device()->device_type() != DeviceType::cpu) {
+        active_mask_glob.copy_from(active_mask);
+    }
+    _generator_context->global(_cwnet.value().mask_name()).copy_from(active_mask);
+    build_runtimes_and_optimizer();
+}
 
 void MadnisTraining::print_progress_init() { Logger::info("training started"); }
 

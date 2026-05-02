@@ -118,6 +118,7 @@ public:
     }
     const std::size_t random_dim() const { return _random_dim; }
     std::tuple<std::vector<std::size_t>, std::vector<bool>> latent_dims() const;
+    const std::vector<me_int_t>& channel_indices() const { return _channel_indices; }
 
 private:
     struct ChannelArgs {

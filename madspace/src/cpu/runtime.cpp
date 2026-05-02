@@ -188,16 +188,19 @@ void backward_op_matmul(
     std::size_t dims_out = weight.size(1);
 
     if (!input_grad) {
-        input_grad = Tensor(DataType::dt_float, input.shape(), device);
-        input_grad.zero(device);
+        input_grad =
+            Tensor(DataType::dt_float, input.shape(), device, AllocHint::local_grad);
+        // input_grad.zero(device);
     }
     if (!weight_grad) {
-        weight_grad = Tensor(DataType::dt_float, weight.shape(), device);
-        weight_grad.zero(device);
+        weight_grad =
+            Tensor(DataType::dt_float, weight.shape(), device, AllocHint::local_grad);
+        // weight_grad.zero(device);
     }
     if (!bias_grad) {
-        bias_grad = Tensor(DataType::dt_float, {1, dims_out}, device);
-        bias_grad.zero(device);
+        bias_grad =
+            Tensor(DataType::dt_float, {1, dims_out}, device, AllocHint::local_grad);
+        // bias_grad.zero(device);
     }
     if (batch_size == 0) {
         return;
@@ -448,8 +451,9 @@ void batch_reduce_mean_backward_impl(
     auto& input_grad = local_grads[instruction.input_indices[0]];
     auto& output_grad = local_grads[instruction.output_indices[0]];
     if (!input_grad) {
-        input_grad = Tensor(DataType::dt_float, input.shape(), device);
-        input_grad.zero(device);
+        input_grad =
+            Tensor(DataType::dt_float, input.shape(), device, AllocHint::local_grad);
+        // input_grad.zero(device);
     }
     device.sync_barrier();
 
@@ -1130,8 +1134,10 @@ std::pair<TensorVec, TensorVec> CpuRuntime::run_backward_single(
         local_grads[index] = grad;
     }
 
-    Tensor all_global_grads(DataType::dt_float, {_grad_global_total_size}, AllocHint::global_grad);
-    //all_global_grads.zero();
+    Tensor all_global_grads(
+        DataType::dt_float, {_grad_global_total_size}, AllocHint::global_grad
+    );
+    // all_global_grads.zero();
     TensorVec global_grads = all_global_grads.split_and_reshape(_grad_global_shapes);
     for (auto [index, grad] : zip(_grad_global_indices, global_grads)) {
         local_grads[index] = grad;
@@ -1146,8 +1152,13 @@ std::pair<TensorVec, TensorVec> CpuRuntime::run_backward_single(
              zip(instr.output_indices, instr.output_dtypes)) {
             auto& grad = local_grads[output_index];
             if (!grad && output_dtype == DataType::dt_float) {
-                grad = Tensor(DataType::dt_float, locals[output_index].shape(), device);
-                grad.zero(device);
+                grad = Tensor(
+                    DataType::dt_float,
+                    locals[output_index].shape(),
+                    device,
+                    AllocHint::local_grad
+                );
+                // grad.zero(device);
             }
         }
         using DeviceType = CpuDevice;
@@ -1303,8 +1314,10 @@ std::pair<TensorVec, TensorVec> CpuRuntime::run_backward_concurrent(
         local_grads[index] = grad;
     }
 
-    Tensor all_global_grads(DataType::dt_float, {_grad_global_total_size});
-    all_global_grads.zero();
+    Tensor all_global_grads(
+        DataType::dt_float, {_grad_global_total_size}, AllocHint::global_grad
+    );
+    // all_global_grads.zero();
     TensorVec global_grads = all_global_grads.split_and_reshape(_grad_global_shapes);
     for (auto [index, grad] : zip(_grad_global_indices, global_grads)) {
         local_grads[index] = grad;
@@ -1340,9 +1353,12 @@ std::pair<TensorVec, TensorVec> CpuRuntime::run_backward_concurrent(
                         auto& grad = local_grads[output_index];
                         if (!grad && output_dtype == DataType::dt_float) {
                             grad = Tensor(
-                                DataType::dt_float, locals[output_index].shape(), device
+                                DataType::dt_float,
+                                locals[output_index].shape(),
+                                device,
+                                AllocHint::local_grad
                             );
-                            grad.zero(device);
+                            // grad.zero(device);
                         }
                     }
 
