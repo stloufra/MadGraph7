@@ -1,7 +1,7 @@
-#include "madspace/phasespace/discrete_flow.h"
+#include "madspace/phasespace/discrete_flow.hpp"
 
-#include "madspace/phasespace/discrete_sampler.h"
-#include "madspace/util.h"
+#include "madspace/phasespace/discrete_sampler.hpp"
+#include "madspace/util.hpp"
 
 using namespace madspace;
 

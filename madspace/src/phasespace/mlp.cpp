@@ -1,4 +1,4 @@
-#include "madspace/phasespace/mlp.h"
+#include "madspace/phasespace/mlp.hpp"
 
 #include <format>
 #include <random>

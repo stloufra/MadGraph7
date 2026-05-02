@@ -3,12 +3,12 @@
 #include <pybind11/stl.h>
 #include <sstream>
 
-#include "function_runtime.h"
-#include "instruction_set.h"
-#include "madspace/compgraphs.h"
-#include "madspace/driver.h"
-#include "madspace/phasespace.h"
-#include "madspace/util.h"
+#include "function_runtime.hpp"
+#include "instruction_set.hpp"
+#include "madspace/compgraphs.hpp"
+#include "madspace/driver.hpp"
+#include "madspace/phasespace.hpp"
+#include "madspace/util.hpp"
 
 namespace py = pybind11;
 using namespace madspace;

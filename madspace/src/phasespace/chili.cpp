@@ -1,4 +1,4 @@
-#include "madspace/phasespace/chili.h"
+#include "madspace/phasespace/chili.hpp"
 
 using namespace madspace;
 

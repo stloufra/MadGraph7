@@ -1,9 +1,9 @@
-#include "madspace/phasespace/topology.h"
+#include "madspace/phasespace/topology.hpp"
 
 #include <algorithm>
 #include <numeric>
 
-#include "madspace/util.h"
+#include "madspace/util.hpp"
 
 using namespace madspace;
 

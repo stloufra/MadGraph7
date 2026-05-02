@@ -1,6 +1,6 @@
-#include "madspace/phasespace/t_propagator_mapping.h"
+#include "madspace/phasespace/t_propagator_mapping.hpp"
 
-#include "madspace/util.h"
+#include "madspace/util.hpp"
 
 using namespace madspace;
 

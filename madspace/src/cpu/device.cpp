@@ -1,6 +1,6 @@
-#include "device.h"
-#include "../kernels/kernels.h"
-#include "tensor.h"
+#include "device.hpp"
+#include "../kernels/kernels.hpp"
+#include "tensor.hpp"
 
 using namespace madspace;
 using namespace madspace::cpu;

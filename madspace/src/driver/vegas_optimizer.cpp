@@ -1,4 +1,4 @@
-#include "madspace/driver/vegas_optimizer.h"
+#include "madspace/driver/vegas_optimizer.hpp"
 
 using namespace madspace;
 

@@ -1,6 +1,6 @@
-#include "madspace/phasespace/channel_weights.h"
+#include "madspace/phasespace/channel_weights.hpp"
 
-#include "madspace/util.h"
+#include "madspace/util.hpp"
 
 using namespace madspace;
 

@@ -1,6 +1,6 @@
-#include "madspace/driver/lhe_output.h"
+#include "madspace/driver/lhe_output.hpp"
 
-#include "madspace/util.h"
+#include "madspace/util.hpp"
 
 #include <algorithm>
 #include <cstdio>

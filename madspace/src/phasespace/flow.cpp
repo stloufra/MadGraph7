@@ -1,6 +1,6 @@
-#include "madspace/phasespace/flow.h"
+#include "madspace/phasespace/flow.hpp"
 
-#include "madspace/constants.h"
+#include "madspace/constants.hpp"
 
 #include <algorithm>
 #include <bitset>

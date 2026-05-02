@@ -1,4 +1,4 @@
-#include "madspace/driver/backend.h"
+#include "madspace/driver/backend.hpp"
 
 #include <cstdlib>
 #include <dlfcn.h>

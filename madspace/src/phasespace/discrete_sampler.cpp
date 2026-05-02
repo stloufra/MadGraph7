@@ -1,4 +1,4 @@
-#include "madspace/phasespace/discrete_sampler.h"
+#include "madspace/phasespace/discrete_sampler.hpp"
 
 using namespace madspace;
 

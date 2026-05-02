@@ -1,4 +1,4 @@
-#include "madspace/phasespace/pdf.h"
+#include "madspace/phasespace/pdf.hpp"
 
 #include <cmath>
 #include <fstream>

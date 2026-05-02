@@ -1,4 +1,4 @@
-#include "madspace/driver/channel_generator.h"
+#include "madspace/driver/channel_generator.hpp"
 
 using namespace madspace;
 using json = nlohmann::json;

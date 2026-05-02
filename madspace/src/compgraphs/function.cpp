@@ -1,5 +1,5 @@
-#include "madspace/compgraphs/function.h"
-#include "madspace/util.h"
+#include "madspace/compgraphs/function.hpp"
+#include "madspace/util.hpp"
 
 #include <format>
 #include <fstream>

@@ -1,4 +1,4 @@
-#include "madspace/driver/tensor.h"
+#include "madspace/driver/tensor.hpp"
 
 using namespace madspace;
 

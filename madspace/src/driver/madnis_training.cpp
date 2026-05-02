@@ -1,6 +1,6 @@
-#include "madspace/driver/madnis_training.h"
+#include "madspace/driver/madnis_training.hpp"
 
-#include "madspace/driver/logger.h"
+#include "madspace/driver/logger.hpp"
 
 using namespace madspace;
 

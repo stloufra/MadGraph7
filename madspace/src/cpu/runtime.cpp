@@ -1,15 +1,15 @@
-#include "runtime.h"
+#include "runtime.hpp"
 
 #include <algorithm>
 #include <random>
 #include <ranges>
 #include <tuple>
 
-#include "../kernels/kernels.h"
-#include "../kernels/operations.h"
-#include "device.h"
-#include "madspace/compgraphs/optimizer.h"
-#include "madspace/util.h"
+#include "../kernels/kernels.hpp"
+#include "../kernels/operations.hpp"
+#include "device.hpp"
+#include "madspace/compgraphs/optimizer.hpp"
+#include "madspace/util.hpp"
 
 extern "C" void dgemm_(
     char* transa,
@@ -1060,7 +1060,7 @@ TensorVec CpuRuntime::run_single(const TensorVec& inputs) const {
         case -1: // free memory
             locals[instr.input_indices[0]].reset(device);
             break;
-#include "runtime_mixin.h"
+#include "runtime_mixin.inc"
         }
     }
     TensorVec outputs;
@@ -1111,7 +1111,7 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> CpuRuntime::run_with_grad_si
             }
             break;
         }
-#include "runtime_mixin.h"
+#include "runtime_mixin.inc"
         }
     }
     TensorVec outputs;
@@ -1163,7 +1163,7 @@ std::pair<TensorVec, TensorVec> CpuRuntime::run_backward_single(
         }
         using DeviceType = CpuDevice;
         switch (instr.opcode) {
-#include "runtime_backward_mixin.h"
+#include "runtime_backward_mixin.inc"
         }
     }
     return {
@@ -1242,7 +1242,7 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> CpuRuntime::run_concurrent(
                     }
                     break;
                 }
-#include "runtime_mixin.h"
+#include "runtime_mixin.inc"
                 }
 
                 if (job_count == 0) {
@@ -1363,7 +1363,7 @@ std::pair<TensorVec, TensorVec> CpuRuntime::run_backward_concurrent(
                     }
 
                     switch (instr.opcode) {
-#include "runtime_backward_mixin.h"
+#include "runtime_backward_mixin.inc"
                     }
                 }
 

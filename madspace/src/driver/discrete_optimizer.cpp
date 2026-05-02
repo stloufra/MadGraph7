@@ -1,4 +1,4 @@
-#include "madspace/driver/discrete_optimizer.h"
+#include "madspace/driver/discrete_optimizer.hpp"
 
 using namespace madspace;
 

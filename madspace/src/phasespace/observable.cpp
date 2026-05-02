@@ -1,4 +1,4 @@
-#include "madspace/phasespace/observable.h"
+#include "madspace/phasespace/observable.hpp"
 
 #include <ranges>
 #include <set>

@@ -1,4 +1,4 @@
-#include "madspace/driver/generator_data.h"
+#include "madspace/driver/generator_data.hpp"
 
 using namespace madspace;
 

@@ -1,4 +1,4 @@
-#include "runtime.h"
+#include "runtime.hpp"
 
 #include <algorithm>
 #include <array>
@@ -15,11 +15,11 @@
 #include <thrust/iterator/constant_iterator.h>
 #include <thrust/sort.h>
 
-#include "../kernels/kernels.h"
-#include "../kernels/operations.h"
-#include "device.h"
-#include "madspace/util.h"
-#include "tensor.h"
+#include "../kernels/kernels.hpp"
+#include "../kernels/operations.hpp"
+#include "device.hpp"
+#include "madspace/util.hpp"
+#include "tensor.cuh"
 
 using namespace madspace;
 using namespace madspace::gpu;
@@ -206,7 +206,7 @@ void backward_op_matmul(
             device,
             instruction.input_grad_alloc_hints[0]
         );
-        //input_grad.zero(device);
+        // input_grad.zero(device);
     }
     if (!weight_grad) {
         weight_grad = Tensor(
@@ -215,7 +215,7 @@ void backward_op_matmul(
             device,
             instruction.input_grad_alloc_hints[1]
         );
-        //weight_grad.zero(device);
+        // weight_grad.zero(device);
     }
     if (!bias_grad) {
         bias_grad = Tensor(
@@ -224,7 +224,7 @@ void backward_op_matmul(
             device,
             instruction.input_grad_alloc_hints[2]
         );
-        //bias_grad.zero(device);
+        // bias_grad.zero(device);
     }
     if (batch_size == 0) {
         input.reset(device);
@@ -606,14 +606,18 @@ void batch_reduce_mean_backward_impl(
     auto& input_grad = local_grads[instruction.input_indices[0]];
     if (!input_grad) {
         input_grad = Tensor(
-            DataType::dt_float, input.shape(), device, instruction.input_grad_alloc_hints[0]
+            DataType::dt_float,
+            input.shape(),
+            device,
+            instruction.input_grad_alloc_hints[0]
         );
-        //input_grad.zero(device);
+        // input_grad.zero(device);
     }
 
     Tensor grad(DataType::dt_float, {1}, device, AllocHint::temporary);
     if (keepdim) {
-        auto output_grad = local_grads[instruction.output_indices[0]].contiguous(device);
+        auto output_grad =
+            local_grads[instruction.output_indices[0]].contiguous(device);
         std::size_t batch_size = output_grad.size(0);
         std::size_t temp_storage_bytes = 0;
         cub::DeviceReduce::Sum(
@@ -625,7 +629,10 @@ void batch_reduce_mean_backward_impl(
             device.stream()
         );
         Tensor temp(
-            DataType::dt_float, {(temp_storage_bytes + 7) / 8}, device, AllocHint::temporary
+            DataType::dt_float,
+            {(temp_storage_bytes + 7) / 8},
+            device,
+            AllocHint::temporary
         );
         cub::DeviceReduce::Sum(
             temp.data(),
@@ -1500,7 +1507,7 @@ TensorVec GpuRuntime::run(const TensorVec& inputs) {
         case -1: // free memory
             locals[instr.input_indices[0]].reset(device);
             break;
-#include "runtime_mixin.h"
+#include "runtime_mixin.inc"
         }
         if (instr.record_event != -1) {
             check_error(gpuEventRecord(events.at(instr.record_event), stream));
@@ -1569,7 +1576,7 @@ std::tuple<TensorVec, TensorVec, std::vector<bool>> GpuRuntime::run_with_grad(
             }
             break;
         }
-#include "runtime_mixin.h"
+#include "runtime_mixin.inc"
         }
         if (instr.record_event != -1) {
             check_error(gpuEventRecord(events.at(instr.record_event), stream));
@@ -1613,7 +1620,7 @@ std::pair<TensorVec, TensorVec> GpuRuntime::run_backward(
         init_device,
         AllocHint::global_grad
     );
-    //all_global_grads.zero(init_device);
+    // all_global_grads.zero(init_device);
     TensorVec global_grads = all_global_grads.split_and_reshape(_grad_global_shapes);
     for (auto [index, grad] : zip(_grad_global_indices, global_grads)) {
         local_grads[index] = grad;
@@ -1639,11 +1646,11 @@ std::pair<TensorVec, TensorVec> GpuRuntime::run_backward(
                         device,
                         AllocHint::local_grad
                     );
-                    //grad.zero(device);
+                    // grad.zero(device);
                 }
             }
             switch (instr.opcode) {
-#include "runtime_backward_mixin.h"
+#include "runtime_backward_mixin.inc"
             }
         }
         /*if (instr.backward_record_event != -1) {
@@ -1667,7 +1674,8 @@ GpuRuntime::load_pool_size_cache(bool backward) {
     auto cache = backward ? _pool_size_cache_backward.load() : _pool_size_cache.load();
     std::vector<std::tuple<std::size_t, std::size_t, Tensor, bool>> ret;
     if (cache) {
-        auto& thread_prev_caches = backward ? _prev_caches_backward.get() : _prev_caches.get();
+        auto& thread_prev_caches =
+            backward ? _prev_caches_backward.get() : _prev_caches.get();
         for (auto [pool_index, size] : *cache) {
             Tensor new_cache;
             if (pool_index < thread_prev_caches.size()) {
@@ -1676,15 +1684,19 @@ GpuRuntime::load_pool_size_cache(bool backward) {
                     new_cache = prev_cache;
                 }
             }
-            ret.push_back({pool_index, size, new_cache, needs_zero_init(static_cast<AllocHint>(pool_index + 1))});
+            ret.push_back(
+                {pool_index,
+                 size,
+                 new_cache,
+                 needs_zero_init(static_cast<AllocHint>(pool_index + 1))}
+            );
         }
     }
     return ret;
 }
 
 void GpuRuntime::update_pool_size_cache(
-    const std::vector<std::pair<std::size_t, std::size_t>>& total_sizes,
-    bool backward
+    const std::vector<std::pair<std::size_t, std::size_t>>& total_sizes, bool backward
 ) {
     auto cache = backward ? _pool_size_cache_backward.load() : _pool_size_cache.load();
     auto new_cache = cache
@@ -1706,10 +1718,10 @@ void GpuRuntime::update_pool_size_cache(
 }
 
 void GpuRuntime::update_cached_tensors(
-    const std::vector<std::pair<std::size_t, Tensor>>& tensors,
-    bool backward
+    const std::vector<std::pair<std::size_t, Tensor>>& tensors, bool backward
 ) {
-    auto& thread_prev_caches = backward ? _prev_caches_backward.get() : _prev_caches.get();
+    auto& thread_prev_caches =
+        backward ? _prev_caches_backward.get() : _prev_caches.get();
     for (auto& [pool_index, tensor] : tensors) {
         if (pool_index >= thread_prev_caches.size()) {
             thread_prev_caches.resize(pool_index + 1);

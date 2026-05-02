@@ -1,6 +1,6 @@
-#include "madspace/phasespace/cuts.h"
+#include "madspace/phasespace/cuts.hpp"
 
-#include "madspace/compgraphs/type.h"
+#include "madspace/compgraphs/type.hpp"
 
 using namespace madspace;
 

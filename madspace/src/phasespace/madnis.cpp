@@ -1,4 +1,4 @@
-#include "madspace/phasespace/madnis.h"
+#include "madspace/phasespace/madnis.hpp"
 
 using namespace madspace;
 

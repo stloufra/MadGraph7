@@ -1,11 +1,11 @@
-#include "madspace/compgraphs/optimizer.h"
+#include "madspace/compgraphs/optimizer.hpp"
 
 #include <algorithm>
 #include <numeric>
 #include <ranges>
 #include <unordered_map>
 
-#include "madspace/util.h"
+#include "madspace/util.hpp"
 
 using namespace madspace;
 

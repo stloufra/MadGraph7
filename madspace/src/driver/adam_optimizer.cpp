@@ -1,6 +1,6 @@
-#include "madspace/driver/adam_optimizer.h"
+#include "madspace/driver/adam_optimizer.hpp"
 
-#include "madspace/constants.h"
+#include "madspace/constants.hpp"
 
 using namespace madspace;
 

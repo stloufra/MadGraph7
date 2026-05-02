@@ -1,4 +1,4 @@
-#include "madspace/phasespace/vegas.h"
+#include "madspace/phasespace/vegas.hpp"
 
 using namespace madspace;
 

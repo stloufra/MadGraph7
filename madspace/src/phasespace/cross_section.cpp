@@ -1,4 +1,4 @@
-#include "madspace/phasespace/cross_section.h"
+#include "madspace/phasespace/cross_section.hpp"
 
 #include <set>
 

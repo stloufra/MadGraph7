@@ -1,4 +1,4 @@
-#include "madspace/phasespace/channel_weight_network.h"
+#include "madspace/phasespace/channel_weight_network.hpp"
 
 using namespace madspace;
 

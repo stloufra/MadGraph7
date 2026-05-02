@@ -1,11 +1,11 @@
-#include "madspace/driver/context.h"
+#include "madspace/driver/context.hpp"
 
 #include <dlfcn.h>
 #include <filesystem>
 #include <nlohmann/json.hpp>
 #include <unordered_map>
 
-#include "madspace/driver/io.h"
+#include "madspace/driver/io.hpp"
 
 using namespace madspace;
 using json = nlohmann::json;

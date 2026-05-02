@@ -1,6 +1,6 @@
-#include "madspace/phasespace/integrand.h"
+#include "madspace/phasespace/integrand.hpp"
 
-#include "madspace/util.h"
+#include "madspace/util.hpp"
 
 #include <set>
 

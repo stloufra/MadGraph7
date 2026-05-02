@@ -1,6 +1,6 @@
-#include "madspace/phasespace/phasespace.h"
-#include "madspace/constants.h"
-#include "madspace/util.h"
+#include "madspace/phasespace/phasespace.hpp"
+#include "madspace/constants.hpp"
+#include "madspace/util.hpp"
 
 using namespace madspace;
 

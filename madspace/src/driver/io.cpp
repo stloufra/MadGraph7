@@ -1,4 +1,4 @@
-#include "madspace/driver/io.h"
+#include "madspace/driver/io.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -6,7 +6,7 @@
 
 #include <nlohmann/json.hpp>
 
-#include "madspace/util.h"
+#include "madspace/util.hpp"
 
 using namespace madspace;
 using json = nlohmann::json;

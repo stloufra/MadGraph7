@@ -1,4 +1,4 @@
-#include "madspace/phasespace/two_particle.h"
+#include "madspace/phasespace/two_particle.hpp"
 
 using namespace madspace;
 

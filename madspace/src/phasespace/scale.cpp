@@ -1,4 +1,4 @@
-#include "madspace/phasespace/scale.h"
+#include "madspace/phasespace/scale.hpp"
 
 using namespace madspace;
 

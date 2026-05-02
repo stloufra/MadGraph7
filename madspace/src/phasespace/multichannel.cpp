@@ -1,4 +1,4 @@
-#include "madspace/phasespace/multichannel.h"
+#include "madspace/phasespace/multichannel.hpp"
 
 using namespace madspace;
 

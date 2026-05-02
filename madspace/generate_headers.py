@@ -36,7 +36,7 @@ def write_autogen(f):
 
 
 def function_builder_mixin(commands):
-    with open("include/madspace/compgraphs/function_builder_mixin.h", "w") as f:
+    with open("include/madspace/compgraphs/function_builder_mixin.inc", "w") as f:
         write_autogen(f)
         first = True
         for name, cmd in commands.items():
@@ -77,13 +77,13 @@ def function_builder_mixin(commands):
 
 
 def instruction_set_python(commands):
-    with open("src/python/instruction_set.h", "w") as f:
+    with open("src/python/instruction_set.hpp", "w") as f:
         write_autogen(f)
         f.write(
             "#pragma once\n\n"
             "#include <pybind11/pybind11.h>\n"
             "#include <pybind11/stl.h>\n"
-            '#include "madspace/compgraphs.h"\n\n'
+            '#include "madspace/compgraphs.hpp"\n\n'
             "namespace py = pybind11;\n"
             "using madspace::FunctionBuilder;\n\n"
             "namespace {\n\n"
@@ -123,8 +123,8 @@ def format_type(data):
 
 def instruction_set_mixin(commands):
     with (
-        open("src/compgraphs/instruction_set_mixin.h", "w") as f,
-        open("include/madspace/compgraphs/opcode_mixin.h", "w") as f_op,
+        open("src/compgraphs/instruction_set_mixin.inc", "w") as f,
+        open("include/madspace/compgraphs/opcode_mixin.inc", "w") as f_op,
     ):
         write_autogen(f)
         f.write("using SigType = SimpleInstruction::SigType;\n")
@@ -171,7 +171,7 @@ def instruction_set_mixin(commands):
 
 
 def runtime_mixin(commands, device):
-    with open(f"src/{device}/runtime_mixin.h", "w") as f:
+    with open(f"src/{device}/runtime_mixin.inc", "w") as f:
         write_autogen(f)
 
         for name, cmd in commands.items():
@@ -207,7 +207,7 @@ def runtime_mixin(commands, device):
 
 
 def runtime_backward_mixin(commands, device):
-    with open(f"src/{device}/runtime_backward_mixin.h", "w") as f:
+    with open(f"src/{device}/runtime_backward_mixin.inc", "w") as f:
         write_autogen(f)
 
         for name, cmd in commands.items():

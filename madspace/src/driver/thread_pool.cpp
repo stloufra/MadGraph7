@@ -1,6 +1,6 @@
-#include "madspace/driver/thread_pool.h"
+#include "madspace/driver/thread_pool.hpp"
 
-#include "madspace/util.h"
+#include "madspace/util.hpp"
 
 using namespace madspace;
 

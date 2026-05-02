@@ -1,6 +1,6 @@
-#include "../kernels/kernels.h"
-#include "device.h"
-#include "tensor.h"
+#include "../kernels/kernels.hpp"
+#include "device.hpp"
+#include "tensor.cuh"
 
 using namespace madspace;
 using namespace madspace::gpu;
@@ -86,7 +86,8 @@ MemPool::MemPool(
 ) :
     _device(device) {
     std::size_t pool_count = 0;
-    for (auto& [pool_index, size, parent_tensor, zero_init] : cached_sizes_and_tensors) {
+    for (auto& [pool_index, size, parent_tensor, zero_init] :
+         cached_sizes_and_tensors) {
         if (pool_index >= pool_count) {
             pool_count = pool_index + 1;
         }
@@ -94,7 +95,8 @@ MemPool::MemPool(
     _pools.resize(pool_count);
 
     AsyncGpuDevice async_device(device, stream);
-    for (auto& [pool_index, size, parent_tensor, zero_init] : cached_sizes_and_tensors) {
+    for (auto& [pool_index, size, parent_tensor, zero_init] :
+         cached_sizes_and_tensors) {
         auto& pool = _pools.at(pool_index);
         if (parent_tensor) {
             pool.parent_tensor = parent_tensor;
@@ -107,7 +109,9 @@ MemPool::MemPool(
             pool.needed_size = word_count * 8;
         }
         if (zero_init) {
-            check_error(gpuMemsetAsync(pool.parent_tensor.data(), 0, pool.parent_tensor.byte_size(), stream));
+            check_error(gpuMemsetAsync(
+                pool.parent_tensor.data(), 0, pool.parent_tensor.byte_size(), stream
+            ));
         }
     }
 }
@@ -231,7 +235,11 @@ std::pair<void*, Tensor>
 AsyncGpuDevice::allocate(std::size_t size, AllocHint hint) const {
     if (_mem_pool && hint != AllocHint::normal && size <= 4 * 1024 * 1024) {
         return _mem_pool->allocate(
-            static_cast<std::size_t>(hint) - 1, size, _stream, _stream_index, needs_zero_init(hint)
+            static_cast<std::size_t>(hint) - 1,
+            size,
+            _stream,
+            _stream_index,
+            needs_zero_init(hint)
         );
     } else {
         void* ptr;

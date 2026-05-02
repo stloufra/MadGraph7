@@ -1,8 +1,8 @@
-#include "madspace/phasespace/rambo.h"
+#include "madspace/phasespace/rambo.hpp"
 
 #include <cmath>
 
-#include "madspace/constants.h"
+#include "madspace/constants.hpp"
 
 using namespace madspace;
 

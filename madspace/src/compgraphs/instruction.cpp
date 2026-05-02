@@ -1,4 +1,4 @@
-#include "madspace/compgraphs/instruction.h"
+#include "madspace/compgraphs/instruction.hpp"
 #include "madspace/umami.h"
 
 #include <algorithm>
@@ -900,7 +900,7 @@ TypeVec MatrixElementInstruction::signature(const ValueVec& args) const {
 
 const std::unordered_map<std::string, InstructionOwner>
 madspace::build_instruction_set() {
-#include "instruction_set_mixin.h"
+#include "instruction_set_mixin.inc"
     std::unordered_map<std::string, InstructionOwner> instruction_set;
     for (auto& instruction : instructions) {
         instruction_set[instruction->name()] = std::move(instruction);

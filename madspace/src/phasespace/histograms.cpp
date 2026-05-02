@@ -1,4 +1,4 @@
-#include "madspace/phasespace/histograms.h"
+#include "madspace/phasespace/histograms.hpp"
 
 using namespace madspace;
 

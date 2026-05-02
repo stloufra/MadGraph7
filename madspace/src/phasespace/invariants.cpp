@@ -1,4 +1,4 @@
-#include "madspace/phasespace/invariants.h"
+#include "madspace/phasespace/invariants.hpp"
 
 using namespace madspace;
 

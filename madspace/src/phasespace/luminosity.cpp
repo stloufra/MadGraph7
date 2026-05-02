@@ -1,4 +1,4 @@
-#include "madspace/phasespace/luminosity.h"
+#include "madspace/phasespace/luminosity.hpp"
 
 using namespace madspace;
 

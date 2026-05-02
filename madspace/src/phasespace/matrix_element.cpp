@@ -1,4 +1,4 @@
-#include "madspace/phasespace/matrix_element.h"
+#include "madspace/phasespace/matrix_element.hpp"
 
 using namespace madspace;
 
