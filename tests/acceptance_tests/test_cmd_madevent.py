@@ -572,6 +572,100 @@ class TestMECmdShell(unittest.TestCase):
                     )
                 )
 
+    def test_flavor_grouping_consistency_mlm(self):
+        """Check flavor_compatible function in clustering with MLM merging.
+
+        Tests the process q q~ > q q~ (with q = u d s c, q~ = u~ d~ s~ c~)
+        with MLM merging (ickkw=1) and xqcut=20 to verify that flavor-filtering
+        in the clustering algorithm correctly identifies valid diagram topologies.
+
+        The process should cluster via W boson (u<->d coupling) but not via
+        gluon/photon/Z (which require same flavor).
+        """
+        settings = [
+            # (apply_flavor_grouping, group_subprocesses)
+            ('True',  'False'),
+            ('True',  'True'),
+            ('False', 'False'),
+            ('false', 'True'),
+        ]
+
+        results = [(5184588.926738217,2971, '3.7.2', 'neventa=150k')]
+        for i, (afg, gsp) in enumerate(settings):
+            run_dir = pjoin(self.path, 'MGPROC_fg_%d' % i)
+
+
+            if os.path.exists(run_dir):
+                shutil.rmtree(run_dir)
+
+            mg_cmd = MGCmd.MasterCmd()
+            mg_cmd.no_notification()
+            mg_cmd.exec_cmd('set automatic_html_opening False --no_save')
+            #mg_cmd.exec_cmd('import model sm')
+            mg_cmd.exec_cmd('set apply_flavor_grouping %s' % afg)
+            mg_cmd.exec_cmd('import model sm')
+            mg_cmd.exec_cmd('set group_subprocesses %s' % gsp)
+
+            # Define custom particles for flavor grouping
+            mg_cmd.exec_cmd('define q = u d s c')
+            mg_cmd.exec_cmd('define q~ = u~ d~ s~ c~')
+
+            # Generate process with flavor-grouped particles
+            mg_cmd.exec_cmd('generate q q~ > q q~')
+            mg_cmd.exec_cmd('output %s' % run_dir)
+
+            self.cmd_line = MECmd.MadEventCmdShell(me_dir=run_dir)
+            self.cmd_line.no_notification()
+            self.cmd_line.exec_cmd('set automatic_html_opening False')
+
+            # Configure MLM merging parameters
+            run_card = banner.RunCardLO(pjoin(run_dir, 'Cards', 'run_card.dat'))
+            run_card.set('ickkw', 1, user=True)
+            run_card.set('xqcut', 20.0, user=True)
+            run_card.write(pjoin(run_dir, 'Cards', 'run_card.dat'))
+            
+
+            # Generate events with MLM merging enabled
+            self.do('generate_events -f')
+
+            # Verify event generation succeeded
+            val = self.cmd_line.results.current['cross'] + 1e-99
+            err = self.cmd_line.results.current['error']
+            results.append((val, err, afg, gsp))
+
+            # Check that we got a valid cross-section
+            self.assertGreater(val, 0,
+                'cross-section is zero for q q~ > q q~ with MLM merging')
+
+            # Check precision is reasonable
+            self.assertLess(err / val, 0.10,
+                'cross-section determination is too imprecise for MLM merging: '
+                '%s +- %s' % (val, err))
+            
+       # Check pairwise compatibility: each pair of cross-sections should
+        # agree within 5 times the combined statistical uncertainty.
+        if unittest.debug:
+            for val, err, afg, gsp in results:
+                misc.sprint('  apply_flavor_grouping=%s/group_subprocesses=%s: %s +- %s' %
+                            (afg, gsp, val, err))
+        for i in range(len(results)):
+            for j in range(i + 1, len(results)):
+                val_i, err_i, afg_i, gsp_i = results[i]
+                val_j, err_j, afg_j, gsp_j = results[j]
+                self.assertLess(
+                    abs(val_i - val_j) / (err_i + err_j),
+                    3,
+                    'Incompatible cross-sections between '
+                    'apply_flavor_grouping=%s/group_subprocesses=%s '
+                    '(%s +- %s) and '
+                    'apply_flavor_grouping=%s/group_subprocesses=%s '
+                    '(%s +- %s)' % (
+                        afg_i, gsp_i, val_i, err_i,
+                        afg_j, gsp_j, val_j, err_j
+                    )
+                )
+
+
     def test_e_p_collision(self):
         """check that e p > e j gives the correct result"""
         
