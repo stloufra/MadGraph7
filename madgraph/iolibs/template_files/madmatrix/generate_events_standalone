@@ -78,6 +78,8 @@ def build_parser():
                         help="Floating-point type (f=both float, d=both double, m=mixed double/float).")
     parser.add_argument("--debug", action="store_true", default=False,
                         help="Enable debug build (-O0 -g -fno-omit-frame-pointer).")
+    parser.add_argument("-v", "--verbose", action="store_true", default=False,
+                        help="Enable verbose output from check_sa.exe.")
     return parser
 
 
@@ -257,6 +259,14 @@ def main():
 
     debug_flag = 'DEBUG=1' if debug else ''
 
+    # Verbose mode
+    if args.verbose:
+        verbose = True
+    elif interactive:
+        verbose = prompt_yes_no('Enable verbose output?', default=False)
+    else:
+        verbose = False
+
     # FPTYPE (f=both float, d=both double, m=mixed double/float)
     fptype_choices = ['f', 'd', 'm']
     if args.fptype is not None:
@@ -276,8 +286,12 @@ def main():
         if debug_flag:
             make_cmd.append(debug_flag)
         subprocess.run(make_cmd, cwd=path, check=True)
-        print(f"\n=== [{backend}] Running {d}/check_sa.exe {' '.join(extra)} ===", flush=True)
-        subprocess.run(['./check_sa.exe', '-p', *extra], cwd=path, check=True)
+        run_cmd = ['./check_sa.exe', '-p']
+        if verbose:
+            run_cmd.append('-v')
+        run_cmd.extend(extra)
+        print(f"\n=== [{backend}] Running {d}/check_sa.exe {' '.join(run_cmd[1:])} ===", flush=True)
+        subprocess.run(run_cmd, cwd=path, check=True)
 
 
 if __name__ == '__main__':
