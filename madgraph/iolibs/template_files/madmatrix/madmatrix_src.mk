@@ -133,4 +133,8 @@ cleanall:
 	rm -f ./.build.* ./*.o
 	rm -f $(LIBDIR)/libmadmatrix_common_*.so
 
+# distclean: full clean for complete rebuild (all backends)
+distclean: cleanall
+.PHONY: distclean
+
 #-------------------------------------------------------------------------------

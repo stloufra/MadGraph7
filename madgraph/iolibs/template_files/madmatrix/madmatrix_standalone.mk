@@ -74,3 +74,7 @@ cleanall: cleanall_standalone
 .PHONY: cleanall_standalone
 cleanall_standalone:
 	rm -f check_sa.exe
+
+# distclean: full clean for complete rebuild (all backends + standalone driver)
+distclean: cleanall
+.PHONY: distclean
