@@ -205,8 +205,16 @@ def main():
         extra = (prompt_check_sa_args(DEFAULT_CHECK_SA_ARGS)
                  if interactive else list(DEFAULT_CHECK_SA_ARGS))
 
+    # Default vs custom settings
+    if interactive:
+        use_defaults = prompt_yes_no('Use default settings (CADNA=N, debug=N, verbose=N, FPTYPE=m)?', default=True)
+    else:
+        use_defaults = False
+
     # CADNA analysis
-    if args.cadna is not None:
+    if use_defaults:
+        cadna = False
+    elif args.cadna is not None:
         cadna = args.cadna.lower() in ('y', 'yes')
     elif interactive:
         cadna = prompt_yes_no('Enable CADNA analysis?', default=False)
@@ -250,7 +258,9 @@ def main():
     cadna_flag = 'CADNA=1' if cadna else ''
 
     # Debug build
-    if args.debug:
+    if use_defaults:
+        debug = False
+    elif args.debug:
         debug = True
     elif interactive:
         debug = prompt_yes_no('Enable debug build?', default=False)
@@ -260,7 +270,9 @@ def main():
     debug_flag = 'DEBUG=1' if debug else ''
 
     # Verbose mode
-    if args.verbose:
+    if use_defaults:
+        verbose = False
+    elif args.verbose:
         verbose = True
     elif interactive:
         verbose = prompt_yes_no('Enable verbose output?', default=False)
@@ -269,7 +281,9 @@ def main():
 
     # FPTYPE (f=both float, d=both double, m=mixed double/float)
     fptype_choices = ['f', 'd', 'm']
-    if args.fptype is not None:
+    if use_defaults:
+        fptype = 'm'
+    elif args.fptype is not None:
         fptype = args.fptype
     elif interactive:
         fptype = prompt_fptype(fptype_choices, default_index=2)
