@@ -76,6 +76,8 @@ def build_parser():
                         help="Enable CADNA analysis (Y/N).")
     parser.add_argument("--fptype", choices=('f', 'd', 'm'), default=None,
                         help="Floating-point type (f=both float, d=both double, m=mixed double/float).")
+    parser.add_argument("--debug", action="store_true", default=False,
+                        help="Enable debug build (-O0 -g -fno-omit-frame-pointer).")
     return parser
 
 
@@ -245,6 +247,16 @@ def main():
 
     cadna_flag = 'CADNA=1' if cadna else ''
 
+    # Debug build
+    if args.debug:
+        debug = True
+    elif interactive:
+        debug = prompt_yes_no('Enable debug build?', default=False)
+    else:
+        debug = False
+
+    debug_flag = 'DEBUG=1' if debug else ''
+
     # FPTYPE (f=both float, d=both double, m=mixed double/float)
     fptype_choices = ['f', 'd', 'm']
     if args.fptype is not None:
@@ -261,6 +273,8 @@ def main():
         if cadna_flag:
             make_cmd.append(cadna_flag)
             make_cmd.append(f'CADNA_PATH={cadna_path}')
+        if debug_flag:
+            make_cmd.append(debug_flag)
         subprocess.run(make_cmd, cwd=path, check=True)
         print(f"\n=== [{backend}] Running {d}/check_sa.exe {' '.join(extra)} ===", flush=True)
         subprocess.run(['./check_sa.exe', '-p', *extra], cwd=path, check=True)
