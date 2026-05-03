@@ -235,8 +235,9 @@ class SubProcessGroup(base_objects.PhysicsObject):
         beam = [l.get('id') for l in process.get('legs') if not l.get('state')]
         fs = [(l.get('id'), l) for l in process.get('legs') if l.get('state')]
         name = ""
-        for beam in beam:
+        for i, beam in enumerate(beam):
             part = process.get('model').get_particle(beam)
+
             if criteria == 'gpu':
                 name += part.get_name().replace('~', 'x').\
                             replace('+', 'p').replace('-', 'm')
@@ -247,8 +248,16 @@ class SubProcessGroup(base_objects.PhysicsObject):
                 name += part.get_name().replace('~', 'x').\
                             replace('+', 'p').replace('-', 'm')
             elif part.get('mass').lower() == 'zero' and part.is_fermion() and \
-                   part.get('color') == 1 and part.get('pdg_code') % 2 == 1:
-                name += "l"
+                   part.get('color') == 1 and \
+            (part.get('pdg_code') % 2 == 1 or abs(part.get('pdg_code')) == 82):
+                if abs(part.get('pdg_code')) == 82:
+                    flavor =process.get('legs')[i].get('flavor')
+                    if not flavor or len(flavor)>1:
+                        name += "l"
+                    else:
+                        part = process.get('model').get_particle(flavor[0])
+                        name += part.get_name().replace('+', 'p').replace('-', 'm')
+
             elif part.get('mass').lower() == 'zero' and part.is_fermion() and \
                    part.get('color') == 1 and part.get('pdg_code') % 2 == 0:
                 name += "vl"
