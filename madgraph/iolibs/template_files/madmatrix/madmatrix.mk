@@ -860,6 +860,10 @@ cleanall:
 	rm -f $(LIBDIR)/libmadmatrix_$(processid_short)_*.so
 	$(MAKE) -C $(SRC) cleanall LIBDIR=$(LIBDIR)
 
+# distclean: full clean for complete rebuild (all backends)
+distclean: cleanall
+.PHONY: distclean
+
 #-------------------------------------------------------------------------------
 
 # Detect backend (to be used in case of 'cppauto' to give info to the user)
