@@ -67,8 +67,10 @@ namespace
   __MGCONSTEXPR__  unsigned long long kSeed = 20200805ULL;  // reproducible RAMBO seed
 
   template<typename T> auto numeric_infinity()           { return std::numeric_limits<T>::infinity(); }
+#ifdef __CADNA_ANALYSIS__
   template<>           auto numeric_infinity<double_st>() { return std::numeric_limits<double>::infinity(); }
   template<>           auto numeric_infinity<float_st>()  { return std::numeric_limits<float>::infinity(); }
+#endif
 
   bool is_number( const char* s )
   {
