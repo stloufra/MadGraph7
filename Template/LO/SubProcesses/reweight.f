@@ -674,7 +674,7 @@ c      are flagged as jets)
       if(njetstore(iconfig).eq.-1)then
          chcluster=.true.
       endif
- 100  clustered = cluster(p(0,1), ivec, flavor)
+ 100  clustered = cluster(p(0,1), flavor, ivec)
       if(.not.clustered) then
          if(init_mode) goto 999
          open(unit=26,file='../../../error',status='unknown',err=999)
@@ -1341,7 +1341,7 @@ c     'bias_weight' option will implement a constant bias_weight of 1.0 below.
 
       end
 
-      double precision function rewgt(p, ivec, flavor)
+      double precision function rewgt(p, flavor, ivec)
 c**************************************************
 c   reweight the hard me according to ckkw
 c   employing the information in common/cl_val/
@@ -1837,7 +1837,7 @@ c            s_rwfact=0d0
       return
       end
 
-      subroutine update_scale_coupling(p, wgt)
+      subroutine update_scale_coupling(p, flavor, wgt)
           use model_object
       implicit none
 
@@ -1857,6 +1857,7 @@ c     include 'vector.inc' ! defines VECSIZE_MEMMAX
       include 'coupl.inc' ! needs VECSIZE_MEMMAX (defined in vector.inc)
 C      include 'maxparticles.inc'
 
+      integer flavor(nexternal)
       double precision all_p(4*maxdim/3+14,1), all_wgt(1)
       double precision p(4*maxdim/3+14), wgt
       double precision all_q2fact(2,1)
@@ -1864,9 +1865,7 @@ C      include 'maxparticles.inc'
       integer i
       all_p(:,1) = p(:)
       all_wgt(1) = wgt
-      do i=1,nexternal
-         flavor_vec(i,1) = 0
-      enddo
+      flavor_vec(:,1) = flavor
       call update_scale_coupling_vec(all_p, all_wgt,all_q2fact, 1, flavor_vec)
       wgt = all_wgt(1)
       return

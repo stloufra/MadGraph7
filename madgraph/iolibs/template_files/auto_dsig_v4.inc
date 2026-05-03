@@ -42,7 +42,6 @@ C
       DOUBLE PRECISION XPQ(-7:7),PD(0:MAXFLAVPERPROC)
       DOUBLE PRECISION DSIGUU,R,RCONF
       INTEGER FLAVOR(NEXTERNAL)
-
       INTEGER LUN,ICONF,IFACT,NFACT
       DATA NFACT/1/
       SAVE NFACT
@@ -136,11 +135,12 @@ C     Continue only if IMODE is 0, 4 or 5
           WGT = WGT * %(maxflavor)d
         endif
       endif
+      CALL GET_FLAVOR%(proc_id)s(IFLAV, FLAVOR)
 %(passcuts_begin)s
 ## if( nogrouping) {
-      ! for no grouping update the scale here (done in main autodsig for grouping  
-      call update_scale_coupling(PP, WGT)
-## }     
+      ! for no grouping update the scale here (done in main autodsig for grouping
+      call update_scale_coupling(PP, FLAVOR ,WGT)
+## }
 
 
 
@@ -172,7 +172,7 @@ C     Select a flavor combination (need to do here for right sign)
 
       %(start_ipsel_for_IFLAV)s
       IPSEL = IPSEL + IPSEL_SHIFT
-      rwgt_value=REWGT(PP,1)
+      rwgt_value=REWGT(PP,FLAVOR, 1)
 
      CALL SMATRIX%(proc_id)s(P1, IFLAV, RHEL, RCOL,channel,1, DSIGUU, selected_hel(1), selected_col(1))
          
@@ -312,7 +312,7 @@ C     Keep track of whether cuts already calculated for this event
       COMMON/TO_CUTSDONE/cutsdone,cutspassed
 %(define_subdiag_lines)s
       include 'run.inc'
-
+      INTEGER FLAVOR(NEXTERNAL)
       double precision p_multi(0:3, nexternal, VECSIZE_MEMMAX)
       double precision hel_rand(VECSIZE_MEMMAX)
       double precision col_rand(VECSIZE_MEMMAX)
@@ -388,7 +388,8 @@ C     Select a flavor combination (need to do here for right sign)
        %(get_channel_vec)s
 
 
-       ALL_RWGT(IVEC) = REWGT(all_PP(0,1,IVEC), ivec)
+       CALL GET_FLAVOR%(proc_id)s(IFLAV_VEC(IVEC), FLAVOR)
+       ALL_RWGT(IVEC) = REWGT(all_PP(0,1,IVEC),FLAVOR,ivec)
 
      if(frame_id.ne.6)then
            call boost_to_frame(ALL_PP(0,1,IVEC), frame_id, p_multi(0,1,IVEC))

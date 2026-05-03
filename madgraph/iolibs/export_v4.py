@@ -5375,6 +5375,15 @@ class ProcessExporterFortranME(ProcessExporterFortran):
             ipsel += len(flv)
         replace_dict['start_ipsel_for_IFLAV'] += ' ENDIF\n'
         replace_dict['maxflavor'] = len(all_flv)
+        replace_dict['get_flavor_matrix'] = ''
+        pdg_to_group_pos = {}
+        for members in self.model.get('merged_particles').values():
+            for pos, pdg in enumerate(members, 1):
+                pdg_to_group_pos[pdg] = pos
+        for i, flav in enumerate(all_flv):
+            flav_positions = [str(pdg_to_group_pos.get(f, f)) for f in flav[0]]
+            replace_dict['get_flavor_matrix'] += ' DATA (FLAVOR(i,  %d),i=  1, NEXTERNAL) /%s/\n' % (i+1, ', '.join(flav_positions))
+        
 
 
         if writer:
@@ -6850,6 +6859,23 @@ class ProcessExporterFortranMEGroup(ProcessExporterFortranME):
 
         replace_dict['call_to_local_get_helicities'] = "\n".join(get_helicity)
         replace_dict['definition_of_local_get_nhel'] = "\n".join(get_nhel)
+
+        # Generate get_flavor dispatch for the grouped case
+        # Each subprocess has its own GET_FLAVOR<N> subroutine (from matrix element template)
+        # The wrapper get_flavor(iflav, iproc, flavor) dispatches based on iproc
+        get_flavor_decl = []
+        get_flavor_call = []
+        for iproc in range(len(matrix_elements)):
+            get_flavor_decl.append("   external get_flavor%i" % (iproc + 1))
+            if iproc == 0:
+                get_flavor_call.append(' if(iproc.eq.1)then')
+            else:
+                get_flavor_call.append(' elseif(iproc.eq.%d)then' % (iproc + 1))
+            get_flavor_call.append("   call get_flavor%i(iflav, flavor)" % (iproc + 1))
+        get_flavor_call.append(' endif')
+
+        replace_dict['call_to_local_get_flavor'] = "\n".join(get_flavor_call)
+        replace_dict['definition_of_local_get_flavor'] = "\n".join(get_flavor_decl)
 
         if writer:
             file = open(pjoin(_file_path, \

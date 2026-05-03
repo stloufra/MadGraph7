@@ -552,9 +552,10 @@ class TestMECmdShell(unittest.TestCase):
 
         # Check pairwise compatibility: each pair of cross-sections should
         # agree within 5 times the combined statistical uncertainty.
-        #for val, err, afg, gsp in results:
-        #    misc.sprint('  apply_flavor_grouping=%s/group_subprocesses=%s: %s +- %s' %
-        #                 (afg, gsp, val, err))
+        if unittest.debug:
+            for val, err, afg, gsp in results:
+                misc.sprint('  apply_flavor_grouping=%s/group_subprocesses=%s: %s +- %s' %
+                         (afg, gsp, val, err))
         for i in range(len(results)):
             for j in range(i + 1, len(results)):
                 val_i, err_i, afg_i, gsp_i = results[i]

@@ -58,10 +58,9 @@ C
     INTEGER IDUM, NGOOD, J, JJ
     REAL     XRAN1
     EXTERNAL XRAN1
-    INTEGER FLAVOR(NEXTERNAL,%(max_flavor)s)
-    %(get_flavor_matrix)s
+    INTEGER FLAVOR(NEXTERNAL)
 
-C  
+C
 C GLOBAL VARIABLES
 C  
     DOUBLE PRECISION AMP2(MAXAMPS), JAMP2(0:MAXFLOW)
@@ -86,6 +85,7 @@ c    COMMON/TO_HELICITY/  HEL_BUFF
 C ----------
 C BEGIN CODE
 C ----------
+    CALL GET_FLAVOR%(proc_id)s(IFLAV, FLAVOR)
     NTRY=NTRY+1
     DO I=1,NEXTERNAL
        JC(I) = +1
@@ -110,7 +110,7 @@ c    WRITE(HEL_BUFF,'(20I5)') (0,I=1,NEXTERNAL)
     IF (ISUM_HEL.EQ.0.or.(DS_get_dim_status('Helicity').eq.0)) THEN
         DO I=1,NCOMB
            IF (GOODHEL(I) .OR. NTRY .LE. MAXTRIES.OR.(ISUM_HEL.NE.0)) THEN
-               T=MATRIX%(proc_id)s(P,NHEL(1,I),FLAVOR(1,IFLAV), IVEC)            
+               T=MATRIX%(proc_id)s(P,NHEL(1,I),FLAVOR, IVEC)            
             %(beam_polarization)s
              IF (ISUM_HEL.NE.0) then
                call DS_add_entry('Helicity',I,T)
@@ -152,7 +152,7 @@ c    WRITE(HEL_BUFF,'(20I5)') (0,I=1,NEXTERNAL)
 C           The helicity configuration was chosen already by genps and put in a common block defined in genps.inc.
             I = HEL_PICKED
             
-            T=MATRIX%(proc_id)s(P ,NHEL(1,I),FLAVOR(1,IFLAV), IVEC)            
+            T=MATRIX%(proc_id)s(P ,NHEL(1,I),FLAVOR, IVEC)            
             %(beam_polarization)s
 c           Always one helicity at a time
             ANS = T
@@ -192,8 +192,21 @@ c          WRITE(HEL_BUFF,'(20i5)')(NHEL(II,I),II=1,NEXTERNAL)
     CALL SELECT_COLOR(RCOL, JAMP2, ICONFIG, 1,  SELECTED_COL, IVEC)
 
     END
- 
- 
+
+
+      SUBROUTINE GET_FLAVOR%(proc_id)s(IFLAV, FLAVOR_OUT)
+C     Returns the flavor array for a given flavor index IFLAV
+      IMPLICIT NONE
+      include 'nexternal.inc'
+      INTEGER IFLAV, I
+      INTEGER FLAVOR_OUT(NEXTERNAL)
+      INTEGER FLAVOR(NEXTERNAL,%(max_flavor)s)
+      %(get_flavor_matrix)s
+      FLAVOR_OUT(:) = FLAVOR(:, IFLAV)
+      RETURN
+      END
+
+
 REAL*8 FUNCTION MATRIX%(proc_id)s(P,NHEL,FLAVOR, IVEC)
 use model_object
 use aloha_object
