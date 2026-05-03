@@ -81,14 +81,10 @@ namespace
   {
     std::cout << "Usage: " << argv0
               << " [--verbose|-v] [--debug|-d] [--performance|-p] [--json|-j]"
-              << " [#blocksPerGrid #threadsPerBlock] #iterations" << '
-'
-              << '
-'
-              << "Number of events per iteration = #blocksPerGrid * #threadsPerBlock" << '
-'
-              << "(in CPU/C++ code only the product matters)." << '
-';
+              << " [#blocksPerGrid #threadsPerBlock] #iterations" << '\n'
+              << '\n'
+              << "Number of events per iteration = #blocksPerGrid * #threadsPerBlock" << '\n'
+              << "(in CPU/C++ code only the product matters)." << '\n';
     return ret;
   }
 
@@ -168,7 +164,7 @@ int main( int argc, char** argv )
   int avgMEAccuracy_n = 0;
 #endif
 
-#ifdef __CADNA_ANALYSIS__ and MGONGPUCPP_GPUIMPL
+#if defined(__CADNA_ANALYSIS__) && defined(MGONGPUCPP_GPUIMPL)
   throw("Cadna GPU analysis not implemented yet.");
 #endif
 
@@ -267,8 +263,7 @@ int main( int argc, char** argv )
   UmamiHandle umami_handle = nullptr;
   if( umami_initialize( &umami_handle, "../../Cards/param_card.dat" ) != UMAMI_SUCCESS )
   {
-    std::cerr << "ERROR! umami_initialize failed" << '
-';
+    std::cerr << "ERROR! umami_initialize failed" << '\n';
     return 2;
   }
 
@@ -340,8 +335,7 @@ int main( int argc, char** argv )
       umami_handle, nevt, nevt, 0, 1, in_keys, inputs, 1, out_keys, outputs );
     if( st != UMAMI_SUCCESS )
     {
-      std::cerr << "ERROR! umami_matrix_element failed (status=" << st << ")" << '
-';
+      std::cerr << "ERROR! umami_matrix_element failed (status=" << st << ")" << '\n';
       umami_free( umami_handle );
       return 3;
     }
@@ -390,16 +384,12 @@ int main( int argc, char** argv )
     if( verbose )
     {
 
-      std::cout << std::string( SEP79, '*' ) << '
-'
-                << "Iteration #" << iiter + 1 << " of " << niter << '
-';
-      if( perf ) std::cout << "Wave function time: " << wavetime << '
-';
+      std::cout << std::string( SEP79, '*' ) << '\n'
+                << "Iteration #" << iiter + 1 << " of " << niter << '\n';
+      if( perf ) std::cout << "Wave function time: " << wavetime << '\n';
       for( unsigned int ievt = 0; ievt < nevt; ++ievt )
       {
-        std::cout << "Momenta:" << '
-';
+        std::cout << "Momenta:" << '\n';
         for( int ipar = 0; ipar < CPPProcess::npar; ipar++ )
         {
 
@@ -426,8 +416,7 @@ int main( int argc, char** argv )
                   << " Matrix element number of sig dig = " << mes[ievt].nb_significant_digit()<< " "<< '\n'
      
 #endif
-                  << std::string( SEP79, '-' ) << '
-';
+                  << std::string( SEP79, '-' ) << '\n';
 #ifdef __CADNA_ANALYSIS__
                   avgMEAccuracy += mes[ievt].nb_significant_digit();
                   avgMEAccuracy_n++;
@@ -449,8 +438,7 @@ int main( int argc, char** argv )
 	"Average element accuracy = " << avgMEAccuracy/avgMEAccuracy_n << '\n'; 
   }
 #endif
-  if( !( verbose || debug || perf ) ) std::cout << '
-';
+  if( !( verbose || debug || perf ) ) std::cout << '\n';
 
   // ---- summary ----
   timermap.start( "8a CompStat" );
@@ -480,78 +468,48 @@ int main( int argc, char** argv )
 #else
     const std::string proc_suffix = "_CPP";
 #endif
-    std::cout << std::string( SEP79, '*' ) << '
-'
+    std::cout << std::string( SEP79, '*' ) << '\n'
               << "Process                     = " << XSTRINGIFY( MG_EPOCH_PROCESS_ID ) << proc_suffix
 #ifdef MGONGPU_HARDCODE_PARAM
-              << " [hardcodePARAM=1]" << '
-'
+              << " [hardcodePARAM=1]" << '\n'
 #else
-              << " [hardcodePARAM=0]" << '
-'
+              << " [hardcodePARAM=0]" << '\n'
 #endif
-              << "NumBlocksPerGrid            = " << gpublocks << '
-'
-              << "NumThreadsPerBlock          = " << gputhreads << '
-'
-              << "NumIterations               = " << niter << '
-'
-              << std::string( SEP79, '-' ) << '
-'
+              << "NumBlocksPerGrid            = " << gpublocks << '\n'
+              << "NumThreadsPerBlock          = " << gputhreads << '\n'
+              << "NumIterations               = " << niter << '\n'
+              << std::string( SEP79, '-' ) << '\n'
 #if defined MGONGPU_FPTYPE_fptype and defined MGONGPU_FPTYPE2_FLOAT
-              << "FP precision                = MIXED (NaN/abnormal=" << nevtABN << ", zero=" << nevtZERO << ")" << '
-'
+              << "FP precision                = MIXED (NaN/abnormal=" << nevtABN << ", zero=" << nevtZERO << ")" << '\n'
 #elif defined MGONGPU_FPTYPE_fptype
-              << "FP precision                = fptype (NaN/abnormal=" << nevtABN << ", zero=" << nevtZERO << ")" << '
-'
+              << "FP precision                = fptype (NaN/abnormal=" << nevtABN << ", zero=" << nevtZERO << ")" << '\n'
 #elif defined MGONGPU_FPTYPE_FLOAT
-              << "FP precision                = FLOAT (NaN/abnormal=" << nevtABN << ", zero=" << nevtZERO << ")" << '
-'
+              << "FP precision                = FLOAT (NaN/abnormal=" << nevtABN << ", zero=" << nevtZERO << ")" << '\n'
 #endif
-              << "Random number generation    = COMMON RANDOM HOST" << '
-'
-              << std::string( SEP79, '-' ) << '
-'
-              << "NumberOfEntries             = " << niter << '
-'
+              << "Random number generation    = COMMON RANDOM HOST" << '\n'
+              << std::string( SEP79, '-' ) << '\n'
+              << "NumberOfEntries             = " << niter << '\n'
               << std::scientific
-              << "TotalTime[Rnd+Rmb+ME] (123) = ( " << sumgtim + sumrtim + sumwtim << " )  sec" << '
-'
-              << "TotalTime[Rambo+ME]    (23) = ( " << sumrtim + sumwtim << " )  sec" << '
-'
-              << "TotalTime[RndNumGen]    (1) = ( " << sumgtim << " )  sec" << '
-'
-              << "TotalTime[Rambo]        (2) = ( " << sumrtim << " )  sec" << '
-'
-              << "TotalTime[MatrixElems]  (3) = ( " << sumwtim << " )  sec" << '
-'
-              << "MeanTimeInMatrixElems       = ( " << meanwtim << " )  sec" << '
-'
-              << "[Min,Max]TimeInMatrixElems  = [ " << minwtim << " ,  " << maxwtim << " ]  sec" << '
-'
-              << std::string( SEP79, '-' ) << '
-'
-              << "TotalEventsComputed         = " << nevtALL << '
-'
-              << "EvtsPerSec[Rnd+Rmb+ME](123) = ( " << nevtALL / ( sumgtim + sumrtim + sumwtim ) << " )  sec^-1" << '
-'
-              << "EvtsPerSec[Rmb+ME]     (23) = ( " << nevtALL / ( sumrtim + sumwtim ) << " )  sec^-1" << '
-'
-              << "EvtsPerSec[MatrixElems] (3) = ( " << nevtALL / sumwtim << " )  sec^-1" << '
-'
+              << "TotalTime[Rnd+Rmb+ME] (123) = ( " << sumgtim + sumrtim + sumwtim << " )  sec" << '\n'
+              << "TotalTime[Rambo+ME]    (23) = ( " << sumrtim + sumwtim << " )  sec" << '\n'
+              << "TotalTime[RndNumGen]    (1) = ( " << sumgtim << " )  sec" << '\n'
+              << "TotalTime[Rambo]        (2) = ( " << sumrtim << " )  sec" << '\n'
+              << "TotalTime[MatrixElems]  (3) = ( " << sumwtim << " )  sec" << '\n'
+              << "MeanTimeInMatrixElems       = ( " << meanwtim << " )  sec" << '\n'
+              << "[Min,Max]TimeInMatrixElems  = [ " << minwtim << " ,  " << maxwtim << " ]  sec" << '\n'
+              << std::string( SEP79, '-' ) << '\n'
+              << "TotalEventsComputed         = " << nevtALL << '\n'
+              << "EvtsPerSec[Rnd+Rmb+ME](123) = ( " << nevtALL / ( sumgtim + sumrtim + sumwtim ) << " )  sec^-1" << '\n'
+              << "EvtsPerSec[Rmb+ME]     (23) = ( " << nevtALL / ( sumrtim + sumwtim ) << " )  sec^-1" << '\n'
+              << "EvtsPerSec[MatrixElems] (3) = ( " << nevtALL / sumwtim << " )  sec^-1" << '\n'
               << std::defaultfloat
-              << std::string( SEP79, '*' ) << '
-'
+              << std::string( SEP79, '*' ) << '\n'
               << "MeanMatrixElemValue         = ( " << meanME << " +- " << stdME / sqrt( (fptype)std::max( 1u, nevtGood ) )
-              << " )  GeV^" << meGeVexponent << '
-'
-              << "[Min,Max]MatrixElemValue    = [ " << minME << " ,  " << maxME << " ]  GeV^" << meGeVexponent << '
-'
-              << std::string( SEP79, '*' ) << '
-';
+              << " )  GeV^" << meGeVexponent << '\n'
+              << "[Min,Max]MatrixElemValue    = [ " << minME << " ,  " << maxME << " ]  GeV^" << meGeVexponent << '\n'
+              << std::string( SEP79, '*' ) << '\n';
     timermap.dump();
-    std::cout << std::string( SEP79, '*' ) << '
-';
+    std::cout << std::string( SEP79, '*' ) << '\n';
   }
 
   // ---- json dump ----
@@ -564,62 +522,37 @@ int main( int argc, char** argv )
     std::ofstream jsonFile( jsonFileName, std::ios_base::app );
     if( !fileExists )
     {
-      jsonFile << "[" << '
-';
+      jsonFile << "[" << '\n';
     }
     else
     {
       std::string temp = "truncate -s-1 " + jsonFileName;
       if( system( temp.c_str() ) != 0 )
-        std::cout << "WARNING! Command '" << temp << "' failed" << '
-';
-      jsonFile << ", " << '
-';
+        std::cout << "WARNING! Command '" << temp << "' failed" << '\n';
+      jsonFile << ", " << '\n';
     }
-    jsonFile << "{" << '
-'
-             << "\"NumIterations\": " << niter << ", " << '
-'
-             << "\"NumThreadsPerBlock\": " << gputhreads << ", " << '
-'
-             << "\"NumBlocksPerGrid\": " << gpublocks << ", " << '
-'
-             << "\"TotalTime[Rnd+Rmb+ME] (123)\": \"" << to_string( sumgtim + sumrtim + sumwtim ) << " sec\"," << '
-'
-             << "\"TotalTime[Rambo+ME] (23)\": \"" << to_string( sumrtim + sumwtim ) << " sec\"," << '
-'
-             << "\"TotalTime[RndNumGen] (1)\": \"" << to_string( sumgtim ) << " sec\"," << '
-'
-             << "\"TotalTime[Rambo] (2)\": \"" << to_string( sumrtim ) << " sec\"," << '
-'
-             << "\"TotalTime[MatrixElems] (3)\": \"" << to_string( sumwtim ) << " sec\"," << '
-'
-             << "\"MeanTimeInMatrixElems\": \"" << to_string( meanwtim ) << " sec\"," << '
-'
-             << "\"MinTimeInMatrixElems\": \"" << to_string( minwtim ) << " sec\"," << '
-'
-             << "\"MaxTimeInMatrixElems\": \"" << to_string( maxwtim ) << " sec\"," << '
-'
-             << "\"TotalEventsComputed\": " << nevtALL << "," << '
-'
-             << "\"EvtsPerSec[Rnd+Rmb+ME](123)\": \"" << to_string( nevtALL / ( sumgtim + sumrtim + sumwtim ) ) << " sec^-1\"," << '
-'
-             << "\"EvtsPerSec[Rmb+ME] (23)\": \"" << to_string( nevtALL / ( sumrtim + sumwtim ) ) << " sec^-1\"," << '
-'
-             << "\"EvtsPerSec[MatrixElems] (3)\": \"" << to_string( nevtALL / sumwtim ) << " sec^-1\"," << '
-'
-             << "\"NumMatrixElems(notAbnormal)\": " << nevtGood << "," << '
-'
-             << "\"MeanMatrixElemValue\": \"" << to_string( meanME ) << " GeV^" << to_string( meGeVexponent ) << "\"," << '
-'
-             << "\"StdDevMatrixElemValue\": \"" << to_string( stdME ) << " GeV^" << to_string( meGeVexponent ) << "\"," << '
-'
-             << "\"MinMatrixElemValue\": \"" << to_string( minME ) << " GeV^" << to_string( meGeVexponent ) << "\"," << '
-'
-             << "\"MaxMatrixElemValue\": \"" << to_string( maxME ) << " GeV^" << to_string( meGeVexponent ) << "\"" << '
-'
-             << "}" << '
-'
+    jsonFile << "{" << '\n'
+             << "\"NumIterations\": " << niter << ", " << '\n'
+             << "\"NumThreadsPerBlock\": " << gputhreads << ", " << '\n'
+             << "\"NumBlocksPerGrid\": " << gpublocks << ", " << '\n'
+             << "\"TotalTime[Rnd+Rmb+ME] (123)\": \"" << to_string( sumgtim + sumrtim + sumwtim ) << " sec\"," << '\n'
+             << "\"TotalTime[Rambo+ME] (23)\": \"" << to_string( sumrtim + sumwtim ) << " sec\"," << '\n'
+             << "\"TotalTime[RndNumGen] (1)\": \"" << to_string( sumgtim ) << " sec\"," << '\n'
+             << "\"TotalTime[Rambo] (2)\": \"" << to_string( sumrtim ) << " sec\"," << '\n'
+             << "\"TotalTime[MatrixElems] (3)\": \"" << to_string( sumwtim ) << " sec\"," << '\n'
+             << "\"MeanTimeInMatrixElems\": \"" << to_string( meanwtim ) << " sec\"," << '\n'
+             << "\"MinTimeInMatrixElems\": \"" << to_string( minwtim ) << " sec\"," << '\n'
+             << "\"MaxTimeInMatrixElems\": \"" << to_string( maxwtim ) << " sec\"," << '\n'
+             << "\"TotalEventsComputed\": " << nevtALL << "," << '\n'
+             << "\"EvtsPerSec[Rnd+Rmb+ME](123)\": \"" << to_string( nevtALL / ( sumgtim + sumrtim + sumwtim ) ) << " sec^-1\"," << '\n'
+             << "\"EvtsPerSec[Rmb+ME] (23)\": \"" << to_string( nevtALL / ( sumrtim + sumwtim ) ) << " sec^-1\"," << '\n'
+             << "\"EvtsPerSec[MatrixElems] (3)\": \"" << to_string( nevtALL / sumwtim ) << " sec^-1\"," << '\n'
+             << "\"NumMatrixElems(notAbnormal)\": " << nevtGood << "," << '\n'
+             << "\"MeanMatrixElemValue\": \"" << to_string( meanME ) << " GeV^" << to_string( meGeVexponent ) << "\"," << '\n'
+             << "\"StdDevMatrixElemValue\": \"" << to_string( stdME ) << " GeV^" << to_string( meGeVexponent ) << "\"," << '\n'
+             << "\"MinMatrixElemValue\": \"" << to_string( minME ) << " GeV^" << to_string( meGeVexponent ) << "\"," << '\n'
+             << "\"MaxMatrixElemValue\": \"" << to_string( maxME ) << " GeV^" << to_string( meGeVexponent ) << "\"" << '\n'
+             << "}" << '\n'
              << "]";
     jsonFile.close();
   }
