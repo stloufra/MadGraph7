@@ -111,10 +111,10 @@ namespace
     if( i_event >= count ) return;
 
     transpose_momenta( &momenta_in[offset], momenta, i_event, stride );
-    diagram_random[i_event] = diagram_random_in ? diagram_random_in[i_event + offset] : 0.5;
-    helicity_random[i_event] = helicity_random_in ? helicity_random_in[i_event + offset] : 0.5;
-    color_random[i_event] = color_random_in ? color_random_in[i_event + offset] : 0.5;
-    g_s[i_event] = alpha_s_in ? sqrt( 4 * M_PI * alpha_s_in[i_event + offset] ) : 1.2177157847767195;
+    diagram_random[i_event] = diagram_random_in ? diagram_random_in[i_event + offset] : static_cast<fptype>( 0.5 );
+    helicity_random[i_event] = helicity_random_in ? helicity_random_in[i_event + offset] : static_cast<fptype>( 0.5 );
+    color_random[i_event] = color_random_in ? color_random_in[i_event + offset] : static_cast<fptype>( 0.5 );
+    g_s[i_event] = alpha_s_in ? sqrt( 4 * M_PI * alpha_s_in[i_event + offset] ) : static_cast<fptype>( 1.2177157847767195 );
     flavor_indices[i_event] = flavor_indices_in ? flavor_indices_in[i_event + offset] : 0;
   }
 
@@ -461,10 +461,10 @@ extern "C"
     for( std::size_t i_event = 0; i_event < count; ++i_event )
     {
       transpose_momenta( &momenta_in[offset], momenta.data(), i_event, stride );
-      helicity_random[i_event] = random_helicity_in ? random_helicity_in[i_event + offset] : 0.5;
-      color_random[i_event] = random_color_in ? random_color_in[i_event + offset] : 0.5;
-      diagram_random[i_event] = random_diagram_in ? random_diagram_in[i_event + offset] : 0.5;
-      g_s[i_event] = alpha_s_in ? sqrt( 4 * M_PI * alpha_s_in[i_event + offset] ) : 1.2177157847767195;
+      helicity_random[i_event] = random_helicity_in ? random_helicity_in[i_event + offset] : static_cast<fptype>( 0.5 );
+      color_random[i_event] = random_color_in ? random_color_in[i_event + offset] : static_cast<fptype>( 0.5 );
+      diagram_random[i_event] = random_diagram_in ? random_diagram_in[i_event + offset] : static_cast<fptype>( 0.5 );
+    g_s[i_event] = alpha_s_in ? sqrt( 4 * M_PI * alpha_s_in[i_event + offset] ) : static_cast<fptype>( 1.2177157847767195 );
       flavor_indices[i_event] = flavor_indices_in ? flavor_indices_in[i_event + offset] : 0;
     }
     for ( std::size_t i_event = count; i_event < rounded_count; ++i_event ) {
