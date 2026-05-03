@@ -72,7 +72,7 @@ namespace
   __device__
 #endif
     void
-    transpose_momenta( const double* momenta_in, fptype* momenta_out, std::size_t i_event, std::size_t stride )
+    transpose_momenta( const fptype* momenta_in, fptype* momenta_out, std::size_t i_event, std::size_t stride )
   {
     std::size_t page_size = MemoryAccessMomentaBase::neppM;
     std::size_t i_page = i_event / page_size;
@@ -91,11 +91,11 @@ namespace
 #ifdef MGONGPUCPP_GPUIMPL
 
   __global__ void copy_inputs(
-    const double* momenta_in,
-    const double* helicity_random_in,
-    const double* color_random_in,
-    const double* diagram_random_in,
-    const double* alpha_s_in,
+    const fptype* momenta_in,
+    const fptype* helicity_random_in,
+    const fptype* color_random_in,
+    const fptype* diagram_random_in,
+    const fptype* alpha_s_in,
     const unsigned int* flavor_indices_in,
     fptype* momenta,
     fptype* helicity_random,
@@ -125,8 +125,8 @@ namespace
     unsigned int* diagram_index,
     int* color_index,
     int* helicity_index,
-    double* m2_out,
-    double* amp2_out,
+    fptype* m2_out,
+    fptype* amp2_out,
     int* diagram_out,
     int* color_out,
     int* helicity_out,
@@ -140,7 +140,7 @@ namespace
     if( m2_out ) m2_out[i_event + offset] = matrix_elements[i_event];
     if( amp2_out )
     {
-      double denominator = denominators[i_event];
+      fptype denominator = denominators[i_event];
       for( std::size_t i_diag = 0; i_diag < CPPProcess::ndiagrams; ++i_diag )
       {
         amp2_out[stride * i_diag + i_event + offset] = numerators[i_event * CPPProcess::ndiagrams + i_diag] / denominator;
@@ -245,12 +245,12 @@ extern "C"
     UmamiOutputKey const* output_keys,
     void* const* outputs )
   {
-    const double* momenta_in = nullptr;
-    const double* alpha_s_in = nullptr;
+    const fptype* momenta_in = nullptr;
+    const fptype* alpha_s_in = nullptr;
     const unsigned int* flavor_indices_in = nullptr;
-    const double* random_color_in = nullptr;
-    const double* random_helicity_in = nullptr;
-    const double* random_diagram_in = nullptr;
+    const fptype* random_color_in = nullptr;
+    const fptype* random_helicity_in = nullptr;
+    const fptype* random_diagram_in = nullptr;
     const int* diagram_in = nullptr; // TODO: unused
 
     for( std::size_t i = 0; i < input_count; ++i )
@@ -259,22 +259,22 @@ extern "C"
       switch( input_keys[i] )
       {
         case UMAMI_IN_MOMENTA:
-          momenta_in = static_cast<const double*>( input );
+          momenta_in = static_cast<const fptype*>( input );
           break;
         case UMAMI_IN_ALPHA_S:
-          alpha_s_in = static_cast<const double*>( input );
+          alpha_s_in = static_cast<const fptype*>( input );
           break;
         case UMAMI_IN_FLAVOR_INDEX:
           flavor_indices_in = static_cast<const unsigned int*>( input );
           break;
         case UMAMI_IN_RANDOM_COLOR:
-          random_color_in = static_cast<const double*>( input );
+          random_color_in = static_cast<const fptype*>( input );
           break;
         case UMAMI_IN_RANDOM_HELICITY:
-          random_helicity_in = static_cast<const double*>( input );
+          random_helicity_in = static_cast<const fptype*>( input );
           break;
         case UMAMI_IN_RANDOM_DIAGRAM:
-          random_diagram_in = static_cast<const double*>( input );
+          random_diagram_in = static_cast<const fptype*>( input );
           break;
         case UMAMI_IN_HELICITY_INDEX:
           return UMAMI_ERROR_UNSUPPORTED_INPUT;
@@ -290,8 +290,8 @@ extern "C"
 #ifdef MGONGPUCPP_GPUIMPL
     gpuStream_t gpu_stream = nullptr;
 #endif
-    double* m2_out = nullptr;
-    double* amp2_out = nullptr;
+    fptype* m2_out = nullptr;
+    fptype* amp2_out = nullptr;
     int* diagram_out = nullptr;
     int* color_out = nullptr;
     int* helicity_out = nullptr;
@@ -301,10 +301,10 @@ extern "C"
       switch( output_keys[i] )
       {
         case UMAMI_OUT_MATRIX_ELEMENT:
-          m2_out = static_cast<double*>( output );
+          m2_out = static_cast<fptype*>( output );
           break;
         case UMAMI_OUT_DIAGRAM_AMP2:
-          amp2_out = static_cast<double*>( output );
+          amp2_out = static_cast<fptype*>( output );
           break;
         case UMAMI_OUT_COLOR_INDEX:
           color_out = static_cast<int*>( output );
@@ -509,7 +509,7 @@ extern "C"
       std::size_t i_page = i_event / page_size;
       std::size_t i_vector = i_event % page_size;
 
-      double denominator = denominators[i_event];
+      fptype denominator = denominators[i_event];
       if( m2_out != nullptr )
       {
         m2_out[i_event + offset] = matrix_elements[i_event];
