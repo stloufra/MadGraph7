@@ -2586,7 +2586,7 @@ class FLV_Coupling(PhysicsObject):
     
     def get_one_coupling(self):
         """return one coupling"""
-        return next(iter(self['flavors']))
+        return next(iter(self['flavors'].values()))
     
     def get_all_couplings(self):
         """return all couplings"""

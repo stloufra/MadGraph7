@@ -7721,7 +7721,7 @@ C
         
         if c_list:
             fsock.writelines('type(flv_coupling) '+', '.join(c_list)+'\n')
-            if sel.opt['loop_induced']:
+            if self.opt['loop_induced']:
                 raise Exception('Flavor coupling are not supported for loop induced process for the moment')  
 
 
@@ -8155,50 +8155,74 @@ C
             implicit none
             %(include_vector)s
             include 'coupl.inc'
+            %(loop_decl)s
 
-            %(def_flv)s            
+            %(def_flv)s
         end subroutine init_flv_couplings
             """
 
+        def _get_k1_k2(key):
+            keys = [i for i in key if i != 0]
+            if len(keys) == 2:
+                return keys[0], keys[1]
+            elif len(keys) == 1:
+                k = keys[0]
+                if key[0] == k:
+                    return k, 1
+                else:
+                    return 1, k
+            else:
+                raise Exception('Flavor coupling with more than 2 flavors is not supported for the moment')
+
         def_flv = []
         for coupl in self.coups_flv_indep:
-
             for key, c in coupl.flavors.items():
-                keys = [i for i in key if i!=0]
-                if len(keys) == 2:
-                    # get first/second index
-                    k1, k2 = [i for i in key if i!=0]
-                elif len(keys) == 1:
-                    k = keys[0]
-                    if key[0] == k:
-                        k1 = k
-                        k2 = 1
-                    else:
-                        k1 = 1
-                        k2 = k
-                else:
-                    raise Exception('Flavor coupling with more than 2 flavors is not supported for the moment') 
+                k1, k2 = _get_k1_k2(key)
+                def_flv.append('%(name)s %% PARTNER(%(in)i) = %(out)i' % {'name': coupl.name, 'in': k1, 'out': k2})
+                def_flv.append('%(name)s %% PARTNER2(%(out)i) = %(in)i' % {'name': coupl.name, 'in': k1, 'out': k2})
+                def_flv.append('%(name)s %% VAL(%(in)i) %%p  =>  %(coupl)s' % {'name': coupl.name, 'in': k1, 'coupl': c})
 
-                def_flv.append('%(name)s %% PARTNER(%(in)i) = %(out)i' % {'name': coupl.name,'in': k1, 'out': k2})
-                def_flv.append('%(name)s %% PARTNER2(%(out)i) = %(in)i' % {'name': coupl.name,'in': k1, 'out': k2}) 
-                def_flv.append('%(name)s %% VAL(%(in)i) %%p  =>  %(coupl)s' % {'name': coupl.name,'in': k1, 'coupl': c})
+        # For alpha_s-dependent flavor couplings the underlying coupling and the
+        # FLV_COUPLING itself are both declared as arrays of size VECSIZE_MEMMAX.
+        # A scalar pointer cannot be associated to the whole array, so we use a
+        # do-loop to point each FLV_COUPLING(j) % VAL(k) % p to its corresponding
+        # coupling array element.
+        if self.coups_flv_dep:
+            if self.vector_size:
+                loop_lines = []
+                for coupl in self.coups_flv_dep:
+                    for key, c in coupl.flavors.items():
+                        k1, k2 = _get_k1_k2(key)
+                        loop_lines.append('%(name)s(j_flv_init) %% PARTNER(%(in)i) = %(out)i' % {'name': coupl.name, 'in': k1, 'out': k2})
+                        loop_lines.append('%(name)s(j_flv_init) %% PARTNER2(%(out)i) = %(in)i' % {'name': coupl.name, 'in': k1, 'out': k2})
+                        loop_lines.append('%(name)s(j_flv_init) %% VAL(%(in)i) %%p  =>  %(coupl)s(j_flv_init)' % {'name': coupl.name, 'in': k1, 'coupl': c})
+                def_flv.append('do j_flv_init = 1, VECSIZE_MEMMAX')
+                def_flv.extend(['  ' + l for l in loop_lines])
+                def_flv.append('end do')
+            else:
+                # Non-vectorized dep couplings: same scalar pointer assignment as indep
+                for coupl in self.coups_flv_dep:
+                    for key, c in coupl.flavors.items():
+                        k1, k2 = _get_k1_k2(key)
+                        def_flv.append('%(name)s %% PARTNER(%(in)i) = %(out)i' % {'name': coupl.name, 'in': k1, 'out': k2})
+                        def_flv.append('%(name)s %% PARTNER2(%(out)i) = %(in)i' % {'name': coupl.name, 'in': k1, 'out': k2})
+                        def_flv.append('%(name)s %% VAL(%(in)i) %%p  =>  %(coupl)s' % {'name': coupl.name, 'in': k1, 'coupl': c})
 
-
-
-        
         # max size needed for the couplings
         max_flavor = max([len(ids) for ids in self.model['merged_particles'].values()], default=0)
 
         if self.vector_size:
             include_vector = "include \'../vector.inc\'\n"
+            loop_decl = 'integer j_flv_init' if self.coups_flv_dep else ''
         else:
             include_vector = ''
+            loop_decl = ''
         replace = {'max_flavor': max_flavor,
                    'include_vector': include_vector,
+                   'loop_decl': loop_decl,
                    'def_flv': '\n'.join(def_flv)}
-        fsock = self.open('flavor_couplings.f', format='fortran') 
+        fsock = self.open('flavor_couplings.f', format='fortran')
         fsock.writelines(template % replace)
-
 
         fsock.close()
 
