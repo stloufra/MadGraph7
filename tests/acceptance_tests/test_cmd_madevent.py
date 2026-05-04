@@ -121,13 +121,13 @@ class TestMECmdShell(unittest.TestCase):
             stdout=devnull
             stderr=devnull
 
-        if not os.path.exists(pjoin(MG5DIR, 'MadAnalysis')):
-            print("install MadAnalysis")
-            p = subprocess.Popen([pjoin(MG5DIR,'bin','mg5_aMC')],
-                             stdin=subprocess.PIPE,
-                             stdout=stdout,stderr=stderr)
-            out = p.communicate('install MadAnalysis4'.encode())
-        misc.compile(cwd=pjoin(MG5DIR,'MadAnalysis'))
+        #if not os.path.exists(pjoin(MG5DIR, 'MadAnalysis')):
+        #    print("install MadAnalysis")
+        #    p = subprocess.Popen([pjoin(MG5DIR,'bin','mg5_aMC')],
+        #                     stdin=subprocess.PIPE,
+        #                     stdout=stdout,stderr=stderr)
+        #    out = p.communicate('install MadAnalysis4'.encode())
+        #misc.compile(cwd=pjoin(MG5DIR,'MadAnalysis'))
 
         #if not misc.which('root'):
         #    raise Exception('root is require for this test')
