@@ -495,11 +495,15 @@ c           Same flavor leptons only
       endif
 
 c     W Boson (24): couples up-type to down-type (opposite weak isospin)
+c     Charge conservation requires one quark (positive PDG) and one antiquark
+c     (negative PDG): e.g. u(+2)+d~(-1) is valid, u(+2)+d(+1) is not.
       if(abs_prop.eq.24) then
-c        W couples u<->d, c<->s, t<->b (mod 2 separates odd/even PDG IDs)
+c        Up-type (even abs PDG) must pair with down-type (odd abs PDG)
+c        and the two must have opposite signs for electric charge conservation
          flavor_compatible = (
      &      ((mod(abs_pdg1,2).eq.1.and.mod(abs_pdg2,2).eq.0).or.
-     &       (mod(abs_pdg1,2).eq.0.and.mod(abs_pdg2,2).eq.1)))
+     &       (mod(abs_pdg1,2).eq.0.and.mod(abs_pdg2,2).eq.1)).and.
+     &      (ipdg1*ipdg2.lt.0))
          return
       endif
 
