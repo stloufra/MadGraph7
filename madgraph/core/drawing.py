@@ -48,9 +48,6 @@ import math
 import madgraph.core.base_objects as base_objects
 import madgraph.loop.loop_base_objects as loop_objects
 import madgraph.various.misc as misc
-import six
-from six.moves import range
-
 #===============================================================================
 # FeynmanLine
 #===============================================================================
@@ -1660,7 +1657,7 @@ class DiagramDrawer(object):
         #No need to test Diagram class, it will be tested before using it anyway
         try:
             assert(not model or isinstance(model, base_objects.Model))
-            assert(not filename or isinstance(filename, six.string_types))
+            assert(not filename or isinstance(filename, str))
         except AssertionError:
             raise self.DrawDiagramError('No valid model provide to convert ' + \
                                         'diagram in appropriate format')
@@ -1996,20 +1993,21 @@ class DrawOption(object):
         self.horizontal = False
         self.max_size = 1.5
         self.contract_non_propagating = True
+        self.generate_only = False
 
         if isinstance(opt, dict):
             for key, value in opt.items():
                 self.set(key, value)
         else:    
             for value in ['external','add_gap','horizontal','max_size',
-                                                    'contract_non_propagating']:
+                                    'contract_non_propagating','generate_only']:
                 if hasattr(opt, value):
                     self.set(value, getattr(opt, value))
 
     def set(self, key, value):
         """Check and attribute the given value."""
         
-        if key in ['horizontal', 'contract_non_propagating']:
+        if key in ['horizontal', 'contract_non_propagating','generate_only']:
             value = self.pass_to_logical(value)
             setattr(self, key, value)
         elif(key in ['external', 'max_size', 'add_gap']):

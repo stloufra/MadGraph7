@@ -34,18 +34,19 @@ import subprocess
 import copy
 import sys
 import shutil
+import tempfile
 
 import traceback
 import time
 import inspect
-import six.moves.urllib.request, six.moves.urllib.parse, six.moves.urllib.error
+import urllib.request, urllib.parse, urllib.error
 import random
-import six
-StringIO = six
-from six.moves import range
-
+import io
 #useful shortcut
 pjoin = os.path.join
+
+# define a temporary directory for drawing diagrams
+tempdir = tempfile.TemporaryDirectory()
 
 try:
     import readline
@@ -508,6 +509,8 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info("o full:",'$MG:color:GREEN')
         logger.info("   Perform all four checks described below:")
         logger.info("   permutation, brs, gauge and lorentz_invariance.")
+        logger.info("   If the model uses flavor grouping (merged particles),")
+        logger.info("   the flavor check is also performed automatically.")
         logger.info("o permutation:",'$MG:color:GREEN')
         logger.info("   Check that the model and MG5 are working properly")
         logger.info("   by generating permutations of the process and checking")
@@ -523,6 +526,16 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info("o lorentz_invariance:",'$MG:color:GREEN')
         logger.info("   Check that the amplitude is lorentz invariant by")
         logger.info("   comparing the amplitiude in different frames")
+        logger.info("o flavor:",'$MG:color:GREEN')
+        logger.info("   Check that the flavor-merged matrix element agrees with")
+        logger.info("   the individual-flavor matrix elements computed without")
+        logger.info("   flavor grouping at the same phase-space point.")
+        logger.info("   This is useful to validate the merged-flavor method.")
+        logger.info("o language:",'$MG:color:GREEN')
+        logger.info("   Cross-check the matrix element by comparing the Python,")
+        logger.info("   Fortran standalone (SA), and C++ standalone (SA) back-ends")
+        logger.info("   at the same phase-space point.  Requires gfortran / g++.")
+        logger.info("   Example: check language p p > e+ e-",'$MG:color:GREEN')
         logger.info("o cms:",'$MG:color:GREEN')
         logger.info("   Check the complex mass scheme consistency by comparing")
         logger.info("   it to the narrow width approximation in the off-shell")
@@ -620,6 +633,11 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info(" o core process, decay1, (decay2, (decay2', ...)), ...  etc")
         logger.info(" o Example: generate p p > t~ t QED=0, (t~ > W- b~, W- > l- vl~), t > j j b @2",'$MG:color:GREEN')
         logger.info(" > Note that identical particles will all be decayed.")
+        logger.info("Polarized process syntax:",'$MG:BOLD')
+        logger.info(" > Fix the helicity polarizations of external particles (massless or massive) or massive internal particles")
+        logger.info("   before decay chain by adding '{X}' to (multi)particles in process definitions.")
+        logger.info(" > Example: generate t{L} > w+{T} b{R}, w+ > ta+ vt",'$MG:color:GREEN')
+        logger.info(" > For further help, see 'help polarization'")
         logger.info("Loop processes syntax:",'$MG:BOLD')
         logger.info(" o core process [ <NLO_mode=> LoopOrder1 LoopOrder2 ... ] SQUAREDCOUPi=ORDERi")
         logger.info(" o Example: generate p p > t~ t QED=0 QCD=2 [ all= QCD ] QCD=6",'$MG:color:GREEN')
@@ -657,6 +675,11 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info(" o core process, decay1, (decay2, (decay2', ...)), ...  etc")
         logger.info(" o Example: add process p p > t~ t QED=0, (t~ > W- b~, W- > l- vl~), t > j j b @2",'$MG:color:GREEN')
         logger.info(" > Note that identical particles will all be decayed.")
+        logger.info("Polarized process syntax:",'$MG:BOLD')
+        logger.info(" > Fix the helicity polarizations of external particles (massless or massive) or massive internal particles")
+        logger.info("   before decay chain by adding '{X}' to (multi)particles in process definitions.")
+        logger.info(" > Example: add process t{L} > w+{T} b{R}, w+ > ta+ vt",'$MG:color:GREEN')
+        logger.info(" > For further help, see 'help polarization'")
         logger.info("Loop processes syntax:",'$MG:BOLD')
         logger.info(" o core process [ <NLO_mode=> LoopOrder1 LoopOrder2 ... ] SQUAREDCOUPi=ORDERi")
         logger.info(" o Example: add process p p > t~ t QED=0 QCD=2 [ all= QCD ] QCD=6",'$MG:color:GREEN')
@@ -747,6 +770,22 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info("Example: define p = g u u~ c c~ d d~ s s~ b b~",'$MG:color:GREEN')
         logger.info("Special syntax: Use | for OR (used for required s-channels)")
         logger.info("Special syntax: Use / to remove particles. Example: define q = p / g")
+
+    def help_polarization(self):
+        logger.info("Polarized process syntax:",'$MG:BOLD')
+        logger.info(" > Fix the helicity polarizations of external particles (massless or massive) or massive internal particles")
+        logger.info("   before decay chain by adding '{X}' to (multi)particles in process definitions.")
+        logger.info(" > Example: generate t{L} > w+{T} b{R}, w+ > ta+ vt",'$MG:color:GREEN')
+        logger.info(" > Example: generate p p > z{T} z{A}, z > e+ e-",'$MG:color:GREEN')
+        logger.info(" > Example: generate p p > z{0} z{T}, z > e+ e-, z > mu+ mu-",'$MG:color:GREEN')
+        logger.info(" > Users need to set 'group_subprocesses False', 'nhel=1' (run_card), and 'me_frame' (run_card)")
+        logger.info(" > For the proces 'p p > w+ z j j, w+ > l+ vl, z > l+ l-', the WZ rest frame is given by me_frame = [3,4,5,6]")
+        logger.info(" > For further details, see appendices of [arXiv:1912.01725] and [arXiv:2512.10015],")
+        logger.info("   and for possibilities with loop-induced processes, see [2401.17365].")
+    
+    def help_polarisation(self):
+        logger.info("Polarized process syntax:",'$MG:BOLD')
+        logger.info(" > See 'help polarization'")
 
     def help_set(self):
         logger.info("-- set options for generation or output.",'$MG:color:BLUE')
@@ -960,7 +999,7 @@ class CheckValidForCmd(cmd.CheckCmd):
         """
 
         if len(args) < 1:
-            args.append('/tmp')
+            args.append(tempdir.name)
 
         if not self._curr_amps:
             raise self.InvalidCmd("No process generated, please generate a process!")
@@ -1527,6 +1566,8 @@ This will take effect only in a NEW terminal
                         config_dir = legacy_config_dir
                     else:
                         config_dir = os.getenv('XDG_CONFIG_HOME', os.path.join(os.environ['HOME'], '.config'))
+                        if not os.path.exists(config_dir):
+                            os.makedirs(config_dir)
 
                     config_file = os.path.join(config_dir, 'mg5_configuration.txt')
                     args.remove('global')
@@ -2968,7 +3009,7 @@ class MadGraphCmd(HelpToCmd, CheckValidForCmd, CompleteForCmd, CmdExtended):
     _tutorial_opts = ['aMCatNLO', 'stop', 'MadLoop', 'MadGraph5']
     _switch_opts = ['mg5','aMC@NLO','ML5']
     _check_opts = ['full', 'timing', 'stability', 'profile', 'permutation',
-                   'gauge','lorentz', 'brs', 'cms']
+                   'gauge','lorentz', 'brs', 'cms', 'flavor', 'language']
     _import_formats = ['model_v4', 'model', 'proc_v4', 'command', 'banner']
     _install_opts = ['Delphes', 'MadAnalysis4', 'ExRootAnalysis',
                      'update', 'Golem95', 'QCDLoop', 'maddm', 'maddump',
@@ -3066,6 +3107,7 @@ class MadGraphCmd(HelpToCmd, CheckValidForCmd, CompleteForCmd, CmdExtended):
                        'auto_convert_model': True,
                        'acknowledged_v3.1_syntax': True,
                        'auto_update':7,
+                       'heptools_install_dir': './HEPTools',
                        }
 
     options_madgraph= {'group_subprocesses': 'Auto',
@@ -3577,6 +3619,9 @@ This implies that with decay chains:
                                      % nb_unpropagating)
 
         elif args[0] == 'particles':
+            conserved = self._curr_model.get('conserved_charge')
+            if conserved:
+                print("Conserved charges in the current model: %s" % ', '.join(sorted(conserved)))
             for arg in args[1:]:
                 if arg.isdigit() or (arg[0] == '-' and arg[1:].isdigit()):
                     particle = self._curr_model.get_particle(abs(int(arg)))
@@ -4034,7 +4079,8 @@ This implies that with decay chains:
                          amp.get('process').nice_string())
             plot.draw(opt=options)
             logger.info("Wrote file " + filename)
-            self.exec_cmd('open %s' % filename)
+            if not options.generate_only:
+                self.exec_cmd('open %s' % filename)
 
         stop = time.time()
         logger.info('time to draw %s' % (stop - start))
@@ -4450,6 +4496,8 @@ This implies that with decay chains:
         profile_time = []
         profile_stab = []
         cms_results = []
+        flavor_result = []
+        language_result = []
 
         if "_cuttools_dir" in dir(self):
             CT_dir = self._cuttools_dir
@@ -4596,6 +4644,25 @@ This implies that with decay chains:
                                           options=options)
             nb_processes += len(lorentz_result)
 
+        _merged_pdgs = myprocdef.get('model').get('merged_particles') if myprocdef else {}
+        _proc_has_merged = myprocdef and any(
+            abs(pid) in _merged_pdgs
+            for leg in myprocdef.get('legs')
+            for pid in leg.get('ids'))
+        if args[0] in ['flavor'] or (args[0] == 'full' and _proc_has_merged):
+            flavor_result = process_checks.check_flavor(myprocdef,
+                                          param_card = param_card,
+                                          options=options,
+                                          cmd = self)
+            nb_processes += len(flavor_result)
+
+        if args[0] in ['language']:
+            language_result = process_checks.check_language(myprocdef,
+                                          param_card = param_card,
+                                          options=options,
+                                          cmd = self)
+            nb_processes += len(language_result)
+
         if args[0] in  ['brs', 'full']:
             gauge_result = process_checks.check_gauge(myprocdef,
                                           param_card = param_card,
@@ -4710,6 +4777,12 @@ This implies that with decay chains:
         if lorentz_result:
             text += 'Lorentz invariance results:\n'
             text += process_checks.output_lorentz_inv(lorentz_result) + '\n'
+        if flavor_result:
+            text += 'Flavor grouping check results:\n'
+            text += process_checks.output_flavor(flavor_result) + '\n'
+        if language_result:
+            text += 'Language comparison results (Fortran SA / C++ SA):\n'
+            text += process_checks.output_language(language_result) + '\n'
         if gauge_result:
             text += 'Gauge results:\n'
             text += process_checks.output_gauge(gauge_result) + '\n'
@@ -5090,22 +5163,48 @@ This implies that with decay chains:
                     if ignore or p==',':
                         ignore= False
                         continue
-                    if p in ['t','T']:
+                    if p.upper() in ['T']:
                         if spin == 3:
                             polarization += [1,-1]
                         else:
                             raise self.InvalidCmd('"T" (transverse) polarization are only supported for spin one particle.')
-                    elif p in ['l', 'L']:
+                    elif p.upper() in ['L']:
                         if spin == 3:
-                            logger.warning('"L" polarization is interpreted as Left for Longitudinal please use "0".')
+                            logger.warning('"L" polarization is interpreted as left (-1); for longitudinal (0) please use "0".')
                         polarization += [-1]
                     elif p in ['R','r']:
                         polarization += [1]
-                    elif p in ["A",'a']:
+                    elif p.upper() in ["A"]:
                         if spin == 3:
                             polarization += [99]
                         else:
-                            raise self.InvalidCmd('"A" (auxiliary) polarization are only supported for spin one particle.')
+                            raise self.InvalidCmd('"A" (auxiliary) polarization is only supported for spin one particles.')
+                    elif p.upper() in ['G']:
+                        if spin == 3:
+                            polarization += [4]
+                        else:
+                            raise self.InvalidCmd('"G" (metric) polarization is only supported for spin one particles.')
+                    elif p.upper() in ['H']:
+                        if spin == 3:
+                            polarization += [5]
+                        else:
+                            raise self.InvalidCmd('"H" (Theta) polarization is only supported for spin one particles.')
+                    elif p.upper() in ['Q']:
+                        if spin == 3:
+                            polarization += [6]
+                        else:
+                            raise self.InvalidCmd('"Q" (qq = longitudinal - Theta) polarization is only supported for spin one particles.')
+                    elif p.upper() in ['W']:
+                        if spin == 3:
+                            polarization += [7]
+                        else:
+                            raise self.InvalidCmd('"W" (Ward-protected full prop) polarization is only supported for spin one particles.')
+                    elif p.upper() in ['S']:
+                        if spin == 3:
+                            polarization += [9]
+                        else:
+                            raise self.InvalidCmd('"S" (scalar=aux+width) polarization is only supported for spin one particles.')
+
                     elif p in ['+']:
                         if i +1 < len(pol) and pol[i+1].isdigit():
                             p = int(pol[i+1])
@@ -5168,10 +5267,17 @@ This implies that with decay chains:
                             pdg_to_merge[mpart] = pdg
                             pdg_to_merge[-mpart] = -pdg
                     for pid in self._multiparticles[part_name]:
-                        if pid in pdg_to_merge and pdg_to_merge[pid] not in mylegids:
-                            mylegids.append(pdg_to_merge[pid])
-                            if not all(pdg in self._multiparticles[part_name] for pdg in self._curr_model.merged_particles[abs(pdg_to_merge[pid])]):
-                                raise self.InvalidCmd("Multiparticle %s contains merged particles but not all their merged components." % part_name)
+                        if pid in pdg_to_merge:
+                            merged_pdg = pdg_to_merge[pid]
+                            if merged_pdg not in mylegids:
+                                mylegids.append(merged_pdg)
+                            # If not all merged components are in this multiparticle,
+                            # record the present ones as a per-leg flavor restriction
+                            # so diagram generation only allows those specific flavors.
+                            if not all(pdg in self._multiparticles[part_name]
+                                       for pdg in self._curr_model.merged_particles[abs(merged_pdg)]):
+                                if pid not in flavor:
+                                    flavor.append(pid)
                         else:
                             mylegids.append(pid)
             elif part_name.isdigit() or part_name.startswith('-') and part_name[1:].isdigit():
@@ -5225,9 +5331,6 @@ This implies that with decay chains:
                         if is_tagged:
                             raise self.InvalidCmd(
                                 "%s mode does not handle tagged particles" % LoopOption)
-                        if flavor:
-                            logger.critical("convert process to multi-flavor equivalent (flavor selection is not yet supported)")
-                        
                         myleglist.append(base_objects.MultiLeg({'ids':mylegids,
                                                             'state':state,
                                                             'polarization': polarization,
@@ -5594,7 +5697,7 @@ This implies that with decay chains:
         allow multiple required s-channel propagators to be specified
         (e.g. Z/gamma)."""
 
-        if isinstance(args, six.string_types):
+        if isinstance(args, str):
             args.replace("|", " | ")
             args = self.split_arg(args)
         all_ids = []
@@ -5791,7 +5894,7 @@ This implies that with decay chains:
                         options=options)
                 except ufomodels.UFOError as err:
                     model_path, _,_ = import_ufo.get_path_restrict(args[1])
-                    if six.PY3 and self.options['auto_convert_model']:
+                    if self.options['auto_convert_model']:
                         logger.info("fail to load model but auto_convert_model is on True. Trying to convert the model")
                         
                         self.exec_cmd('convert model %s' % model_path, errorhandling=False, printcmd=True, precmd=False, postcmd=False)
@@ -5803,10 +5906,8 @@ This implies that with decay chains:
                                 self.exec_cmd('import %s' % line, errorhandling=False, printcmd=True, precmd=False, postcmd=False)
                             except Exception:
                                 raise err
-                    elif six.PY3:
-                        raise self.InvalidCmd('UFO model not python3 compatible. You can convert it via the command \nconvert model %s\nYou can also type \"set auto_convert_model T\" to automatically convert all python2 module to be python3 compatible in the future.' % model_path)
                     else:
-                        raise
+                        raise self.InvalidCmd('UFO model not python3 compatible. You can convert it via the command \nconvert model %s\nYou can also type \"set auto_convert_model T\" to automatically convert all python2 module to be python3 compatible in the future.' % model_path)
                 if os.path.sep in args[1] and "import" in self.history[-1]:
                     self.history[-1] = 'import model %s' % self._curr_model.get('modelpath+restriction')
 
@@ -6189,7 +6290,7 @@ This implies that with decay chains:
             compiler_options.append('--fortran_compiler=%s'%
                                                self.options['fortran_compiler'])
 
-        if 'heptools_install_dir' in self.options:
+        if  self.options['heptools_install_dir']:
             prefix = self.options['heptools_install_dir']
             legacy_config_dir = os.path.join(os.environ['HOME'], '.mg5')
 
@@ -6197,6 +6298,8 @@ This implies that with decay chains:
                 config_dir = legacy_config_dir
             else:
                 config_dir = os.getenv('XDG_CONFIG_HOME', os.path.join(os.environ['HOME'], '.config'))
+                if not os.path.exists(config_dir):
+                    os.makedirs(config_dir)
 
             config_file = os.path.join(config_dir, 'mg5_configuration.txt')
         else:
@@ -6216,7 +6319,7 @@ This implies that with decay chains:
                 logger.warning("==========")
             if self.options['pythia8_path']:
                 add_options.append(
-                               '--with_pythia8=%s'%self.options['pythia8_path'])
+                               '--with_pythia8=%s'%os.path.abspath(self.options['pythia8_path']))
 
         # Special rules for certain tools
         if tool in ['madanalysis5', 'rivet']:
@@ -6234,7 +6337,7 @@ This implies that with decay chains:
                 add_options.append('--with_delphes3=%s'%\
                    os.path.normpath(pjoin(MG5DIR,self.options['delphes_path'])))
 
-        if tool=='pythia8':
+        if tool in ['pythia8','eMELA']:
             # All what's below is to handle the lhapdf dependency of Pythia8
             lhapdf_config  = misc.which(self.options['lhapdf'])
             lhapdf_version = None
@@ -6267,11 +6370,11 @@ This implies that with decay chains:
                 lhapdf_path = os.path.abspath(pjoin(os.path.dirname(\
                                                  lhapdf_config),os.path.pardir))
             if lhapdf_version is None:
-                logger.warning('You decided not to link the Pythia8 installation'+
+                logger.warning('You decided not to link the '+ tool + ' installation'+
                   ' to LHAPDF. Beware that only built-in PDF sets can be used then.')
             else:
-                logger.info('Pythia8 will be linked to LHAPDF v%d.'%lhapdf_version)
-            logger.info('Now installing Pythia8. Be patient...','$MG:color:GREEN')
+                logger.info(tool + 'will be linked to LHAPDF v%d.'%lhapdf_version)
+            logger.info('Now installing' + tool + '. Be patient...','$MG:color:GREEN')
             lhapdf_option = []
             if lhapdf_version is None:
                 lhapdf_option.append('--with_lhapdf6=OFF')
@@ -6290,7 +6393,7 @@ This implies that with decay chains:
             add_options = [opt for opt in add_options if opt!='--force']+\
                         (['--force'] if '--force' in add_options else [])
             return_code = misc.call([sys.executable, pjoin(MG5DIR,'HEPTools',
-             'HEPToolsInstallers','HEPToolInstaller.py'),'pythia8',
+             'HEPToolsInstallers','HEPToolInstaller.py'), tool,
              '--prefix=%s' % prefix]
                         + lhapdf_option + compiler_options + add_options)
         else:
@@ -6333,8 +6436,7 @@ This implies that with decay chains:
                               additional_options=add_options+['--force'])            
         else:
             if tool=='madanalysis5' and '--update' not in add_options and \
-                                 ('--no_MA5_further_install' not in add_options or
-                                                        '--no_root_in_MA5' in add_options):
+                                 ('--no_MA5_further_install' not in add_options):
                 if not __debug__:
                     logger.warning('Default installation of Madanalys5 failed.')
                     logger.warning("MG5aMC will now attempt to reinstall it with the options '--no_MA5_further_install --no_root_in_MA5'.")
@@ -6359,16 +6461,11 @@ This implies that with decay chains:
             self.advanced_install('mg5amc_py8_interface',
                               additional_options=add_options+['--force'])          
         elif tool == 'lhapdf6':
-            if six.PY3:
                 self.options['lhapdf_py3'] = pjoin(prefix,'lhapdf6_py3','bin', 'lhapdf-config')
                 self.exec_cmd('save options %s lhapdf_py3' % config_file)
                 self.options['lhapdf'] = self.options['lhapdf_py3']
-            else:
-                self.options['lhapdf_py2'] = pjoin(prefix,'lhapdf6','bin', 'lhapdf-config')
-                self.exec_cmd('save options %s lhapdf_py2' % config_file)
-                self.options['lhapdf'] = self.options['lhapdf_py2']
         elif tool == 'eMELA':
-            self.options['eMELA'] = pjoin(prefix,'EMELA','bin', 'eMELA-config')
+            self.options['eMELA'] = pjoin(prefix,'bin', 'eMELA-config')
             self.exec_cmd('save options %s eMELA' % config_file)
         elif tool == 'lhapdf5':
             self.options['lhapdf'] = pjoin(prefix,'lhapdf5','bin', 'lhapdf-config')
@@ -6517,7 +6614,7 @@ MG5aMC that supports quadruple precision (typically g++ based on gcc 4.6+).""")
                 'ExRootAnalysis': 'ExRootAnalysis','MadAnalysis':'madanalysis5',
                 'MadAnalysis4':'MadAnalysis',
                 'SysCalc':'SysCalc', 'Golem95': 'golem95',
-                    'lhapdf6' : 'lhapdf6' if six.PY2 else 'lhapdf6_py3',
+                    'lhapdf6' : 'lhapdf6_py3',
                 'QCDLoop':'QCDLoop','MadAnalysis5':'madanalysis5',
                 'maddm':'maddm'
                 }
@@ -6566,7 +6663,7 @@ MG5aMC that supports quadruple precision (typically g++ based on gcc 4.6+).""")
 
         source = None
         # Load file with path of the different program:
-        import six.moves.urllib.request, six.moves.urllib.parse, six.moves.urllib.error
+        import urllib.request, urllib.parse, urllib.error
         if paths:
             path = paths
         else:
@@ -6598,7 +6695,7 @@ MG5aMC that supports quadruple precision (typically g++ based on gcc 4.6+).""")
             for index in r:
                 cluster_path = data_path[index]
                 try:
-                    data = six.moves.urllib.request.urlopen(cluster_path)
+                    data = urllib.request.urlopen(cluster_path)
                 except Exception as error:
                     misc.sprint(str(error), cluster_path)
                     continue
@@ -6825,16 +6922,13 @@ MG5aMC that supports quadruple precision (typically g++ based on gcc 4.6+).""")
                 maximal_mg5amcnlo_version = plugin.maximal_mg5amcnlo_version
             except Exception as error:
                 print(error)
-                if six.PY2:
-                    raise Exception('Plugin %s fail to be loaded. Please contact the author of the PLUGIN\n Error %s' % (name, error))
-                elif six.PY3:
-                    logger.warning('Plugin not python3 compatible! It will run with python2')
-                    text = open(os.path.join(MG5DIR, 'PLUGIN', name, '__init__.py')).read()
-                    if re.search(r'^\s*new_interface\s*=\s*(?!None).', text, re.M):
-                        new_interface = True
-                        pyvers = 2
-                    else:
-                        misc.sprint(text)
+                logger.warning('Plugin not python3 compatible! It will run with python2')
+                text = open(os.path.join(MG5DIR, 'PLUGIN', name, '__init__.py')).read()
+                if re.search(r'^\s*new_interface\s*=\s*(?!None).', text, re.M):
+                    new_interface = True
+                    pyvers = 2
+                else:
+                    misc.sprint(text)
                 new_output = []
                 latest_validated_version = ''
                 minimal_mg5amcnlo_version = ''
@@ -7237,7 +7331,7 @@ os.system('%s  -O -W ignore::DeprecationWarning %s %s --mode={0}' %(sys.executab
         signal.alarm(timeout)
         to_update = 0
         try:
-            filetext = six.moves.urllib.request.urlopen('http://madgraph.phys.ucl.ac.be/mg5amc3_build_nb')
+            filetext = urllib.request.urlopen('http://madgraph.phys.ucl.ac.be/mg5amc3_build_nb')
             signal.alarm(0)
             text = filetext.read().decode(errors='ignore').split('\n')
             web_version = int(text[0].strip())
@@ -7306,7 +7400,7 @@ os.system('%s  -O -W ignore::DeprecationWarning %s %s --mode={0}' %(sys.executab
             fail = 0
             for i in range(data['version_nb'], web_version):
                 try:
-                    filetext = six.moves.urllib.request.urlopen('http://madgraph.phys.ucl.ac.be/patch/build%s.patch' %(i+1))
+                    filetext = urllib.request.urlopen('http://madgraph.phys.ucl.ac.be/patch/build%s.patch' %(i+1))
                 except Exception:
                     print('fail to load patch to build #%s' % (i+1))
                     fail = i
@@ -7380,7 +7474,7 @@ os.system('%s  -O -W ignore::DeprecationWarning %s %s --mode={0}' %(sys.executab
                 if os.path.exists(legacy_config_dir):
                     config_dir = legacy_config_dir
                 else:
-                    config_dir = os.getenv('XDG_STATE_HOME', os.path.join(os.environ['HOME'], '.local', 'state'))
+                    config_dir = os.getenv('XDG_STATE_HOME', os.path.join(os.environ['HOME'], '.config'))
 
                 config_path = os.path.join(config_dir, "mg5_configuration.txt")
 
@@ -7412,11 +7506,11 @@ os.system('%s  -O -W ignore::DeprecationWarning %s %s --mode={0}' %(sys.executab
             else:
                 name = name.strip()
                 value = value.strip()
-                if name not in ['mg5_path', 'f2py_compiler', 'f2py_compiler_py2','f2py_compiler_py3']:
+                if name not in ['mg5_path', 'f2py_compiler', 'f2py_compiler_py2','f2py_compiler_py3', 'lhapdf']:
                     self.options[name] = value
-                elif hasattr(self, 'set_%s' % name):
+                elif hasattr(self, 'set2_%s' % name) and value:
                     misc.sprint('set configuration option %s to %s' % (name, value) )
-                    func = getattr(self, 'set_%s' % name)
+                    func = getattr(self, 'set2_%s' % name)
                     func(value.split())
                 if value.lower() == "none" or value=="":
                     self.options[name] = None
@@ -7772,7 +7866,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
         self._curr_model = import_ufo.import_model(model_path, restrict=False)
 
         #1) create the full param_card
-        out_path = StringIO.StringIO()
+        out_path = io.StringIO()
         param_writer.ParamCardWriter(self._curr_model, out_path)
         # and load it to a python object
         param_card = check_param_card.ParamCard(out_path.getvalue().split('\n'))
@@ -7823,7 +7917,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
 
         # if some need to put on one
         if put_to_one:
-            out_path = StringIO.StringIO()
+            out_path = io.StringIO()
             param_writer.ParamCardWriter(self._curr_model, out_path)
             # and load it to a python object
             param_card = check_param_card.ParamCard(out_path.getvalue().split('\n'))
@@ -7911,7 +8005,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
                 filepath = pjoin(MG5DIR, 'input', 'mg5_configuration.txt')
             
             basedir = MG5DIR
-            if partial_save:
+            if partial_save and os.path.exists(filepath):
                 basefile = filepath
             else:
                 basefile = pjoin(MG5DIR, 'input', '.mg5_configuration_default.txt')
@@ -7997,6 +8091,11 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
             export_v4.ProcessExporterFortranMEGroup.grouped_mode = 'gpu'
         else:
             export_v4.ProcessExporterFortranMEGroup.grouped_mode = 'madevent'
+
+        # remove flavor special handling for non grouped case
+        if args[1].lower() == 'False':
+            self._curr_model.unmerge_flavors()
+
 
     def set2_stdout_level(self, args, log=True):
         """Set the level of output information.  Options are:
@@ -8232,10 +8331,10 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
                return 
             
         to_do = True
-        if args[0].endswith('_py2') and six.PY3:
+        if args[0].endswith('_py2'):
             to_do = False
         # not supported anymore
-        #elif args[0].endswith('_py3') and six.PY2:
+        #elif args[0].endswith('_py3') and False:
         #    to_do = False
         if to_do:
             if args[1] != 'None':
@@ -8448,9 +8547,9 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
                return  
 
         to_do = True
-        if args[0].endswith('_py2') and six.PY3:
+        if args[0].endswith('_py2'):
             to_do = False
-        #elif args[0].endswith('_py3') and six.PY2:
+        #elif args[0].endswith('_py3') and False:
         #    to_do = False
         if to_do:
             try:
@@ -8619,7 +8718,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
         """
         args = ['OLP'] + args
         self.check_set(args)
-        if six.PY3 and self.options['low_mem_multicore_nlo_generation'] and args[1] != "MadLoop":
+        if self.options['low_mem_multicore_nlo_generation'] and args[1] != "MadLoop":
             raise self.InvalidCmd('Not possible to set OLP with both \"low_mem_multicore_nlo_generation\" and python3')
         # Reset the amplitudes, MatrixElements and exporter as they might
         # depend on this option
@@ -8774,7 +8873,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
         """
         args = ['low_mem_multicore_nlo_generation'] + args
         self.check_set(args)
-        if six.PY3 and self.options['OLP'] != 'MadLoop':
+        if self.options['OLP'] != 'MadLoop':
             raise self.InvalidCmd('Not possible to set \"low_mem_multicore_nlo_generation\" for an OLP different of MadLoop when running  python3')
         else:
             self.options[args[0]] = args[1]
@@ -9120,6 +9219,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
             if not self.history or self.history[-1].split() != line.split():
                 self.history.append('set %s' % line)
                 self.avoid_history_duplicate('set %s' % args[0], ['define', 'set'])
+
         return stop
 
     def do_open(self, line):
@@ -9489,10 +9589,18 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
                     self._curr_matrix_elements = subproc_groups
                     # assign a unique id number to all groups
                     uid = 0
+                    last_error = None
                     for group in subproc_groups:
+                        try:
+                            groupme = group.get('matrix_elements')
+                        except  helas_objects.HelasMatrixElement.NoFlavorError as error:
+                            last_error = error
+                            continue
                         uid += 1 # update the identification number
-                        for me in group.get('matrix_elements'):
+                        for me in groupme:
                             me.get('processes')[0].set('uid', uid)
+                    if uid == 0 and last_error:
+                        raise last_error
                 else: # Not grouped subprocesses
                     mode = {}
                     if self._export_format in [ 'standalone_msP' , 
@@ -9632,6 +9740,8 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
                       
                       
         matrix_elements = self._curr_matrix_elements.get_matrix_elements()
+        if any(l.get('flavor') is None for l in matrix_elements[0].get('processes')[0].get('legs')):
+            [m.get_external_flavors() for m in matrix_elements]  #precompute all flavors
         # Just the matrix.f files
         if self._export_format == 'matrix':
             for me in matrix_elements:
@@ -10298,6 +10408,8 @@ _draw_parser.add_option("", "--non_propagating", default=True, \
 _draw_parser.add_option("", "--add_gap", default=0, type='float', \
                           help="set the x-distance between external particles")
 
+_draw_parser.add_option("", "--generate_only", default=False, action='store_true', \
+                          help="forbid to display the generate file and only generate the eps file")
 # LAUNCH PROGRAM
 _launch_usage = "launch [DIRPATH] [options]\n" + \
          "-- execute the madevent/standalone/standalone_cpp/pythia8/NLO output present in DIRPATH\n" + \

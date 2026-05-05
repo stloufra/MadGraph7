@@ -46,8 +46,6 @@ import aloha.create_aloha as create_aloha
 import models.write_param_card as write_param_card
 from madgraph import MG5DIR
 from madgraph.iolibs.files import cp, ln, mv
-from six.moves import range
-from six.moves import zip
 _file_path = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0] + '/'
 logger = logging.getLogger('madgraph.group_subprocs')
 
@@ -237,8 +235,9 @@ class SubProcessGroup(base_objects.PhysicsObject):
         beam = [l.get('id') for l in process.get('legs') if not l.get('state')]
         fs = [(l.get('id'), l) for l in process.get('legs') if l.get('state')]
         name = ""
-        for beam in beam:
+        for i, beam in enumerate(beam):
             part = process.get('model').get_particle(beam)
+
             if criteria == 'gpu':
                 name += part.get_name().replace('~', 'x').\
                             replace('+', 'p').replace('-', 'm')
@@ -249,8 +248,16 @@ class SubProcessGroup(base_objects.PhysicsObject):
                 name += part.get_name().replace('~', 'x').\
                             replace('+', 'p').replace('-', 'm')
             elif part.get('mass').lower() == 'zero' and part.is_fermion() and \
-                   part.get('color') == 1 and part.get('pdg_code') % 2 == 1:
-                name += "l"
+                   part.get('color') == 1 and \
+            (part.get('pdg_code') % 2 == 1 or abs(part.get('pdg_code')) == 82):
+                if abs(part.get('pdg_code')) == 82:
+                    flavor =process.get('legs')[i].get('flavor')
+                    if not flavor or len(flavor)>1:
+                        name += "l"
+                    else:
+                        part = process.get('model').get_particle(flavor[0])
+                        name += part.get_name().replace('+', 'p').replace('-', 'm')
+
             elif part.get('mass').lower() == 'zero' and part.is_fermion() and \
                    part.get('color') == 1 and part.get('pdg_code') % 2 == 0:
                 name += "vl"
@@ -527,9 +534,26 @@ class SubProcessGroupList(base_objects.PhysicsObjectList):
 
     def get_matrix_elements(self):
         """Extract the list of matrix elements"""
+        # before was now handling special error when flavor drop subset
+        #return helas_objects.HelasMatrixElementList(\
+        #    sum([group.get('matrix_elements') for group in self], []))
 
-        return helas_objects.HelasMatrixElementList(\
-            sum([group.get('matrix_elements') for group in self], []))
+        last_error = None
+        to_sum = helas_objects.HelasMatrixElementList()
+        for group in self:       
+            try: 
+                to_add = group.get('matrix_elements')
+            except helas_objects.HelasMatrixElement.NoFlavorError as error:
+                misc.sprint("Warning: no diagram left for group %s after flavor restriction, skipping group"%(group.get('name')))
+                last_error = error
+                continue
+            except Exception as error:
+                raise error
+            to_sum+= to_add
+        if not to_sum and last_error:
+            raise last_error
+
+        return to_sum
 
     def get_used_lorentz(self):
         """Return the list of ALOHA routines used in these matrix elements"""
