@@ -32,9 +32,12 @@ C
       REAL*8 SQRTS,MATELEM           ! sqrt(s)= center of mass energy 
       REAL*8 PIN(0:3), POUT(0:3)
       CHARACTER*120 BUFF(NEXTERNAL)
+      CHARACTER*30 SQRTS_STR
+      INTEGER ARGC
       INTEGER MAXFLAVOR
       PARAMETER (MAXFLAVOR=%(maxflavor)d)
       INTEGER FLAVOR(NEXTERNAL, MAXFLAVOR)
+      INTEGER PDG_FOR_FLAVOR(NEXTERNAL,MAXFLAVOR)
 C     
 C     EXTERNAL
 C     
@@ -70,6 +73,12 @@ c
          SQRTS=PMASS(1)
       ELSE
          SQRTS=1000d0              !CMS energy in GEV
+c---  Allow the energy to be set via command-line argument: ./check <energy>
+         ARGC = COMMAND_ARGUMENT_COUNT()
+         IF (ARGC .GE. 1) THEN
+            CALL GET_COMMAND_ARGUMENT(1, SQRTS_STR)
+            READ(SQRTS_STR,*) SQRTS
+         ENDIF
          IF (SQRTS.le.2.0d0*TOTALMASS) THEN
             SQRTS = 2.0d0*TOTALMASS
          ENDIF
@@ -99,7 +108,7 @@ c
       do I=1, MAXFLAVOR
       CALL %(proc_prefix)sSMATRIX(P,FLAVOR(1,I), MATELEM)
 c
-      write(*,*) "flavor", FLAVOR(:,I)
+      write(*,*) "PDG", PDG_FOR_FLAVOR(:,I)
       write (*,*) "Matrix element = ", MATELEM, " GeV^",-(2*nexternal-8)	
       write (*,*) "-----------------------------------------------------------------------------"
       enddo

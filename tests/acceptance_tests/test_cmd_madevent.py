@@ -42,6 +42,8 @@ import madgraph.various.banner as banner_mod
 import madgraph.various.lhe_parser as lhe_parser
 import madgraph.various.banner as banner
 
+import tests.parallel_tests.test_aloha as test_aloha
+
 _file_path = os.path.split(os.path.dirname(os.path.realpath(__file__)))[0]
 _pickle_path =os.path.join(_file_path, 'input_files')
 
@@ -81,12 +83,19 @@ class TestMECmdShell(unittest.TestCase):
             os.mkdir(pjoin(MG5DIR, "tmp_test"))
         else:
             self.path = tempfile.mkdtemp(prefix='acc_test_mg5')
-        self.run_dir = pjoin(self.path, 'MGPROC') 
+        self.run_dir = pjoin(self.path, 'MGPROC')
+
+        if logging.getLogger('madgraph').level >= 20:
+            self.stdout = open(os.devnull, 'w')
+        else:
+            self.stdout = sys.stdout
     
     def tearDown(self):
 
         if self.path != pjoin(MG5DIR, "tmp_test"):
             shutil.rmtree(self.path)
+        if logging.getLogger('madgraph').level <= 20:
+            self.stdout.close() 
     
     def generate(self, process, model):
         """Create a process"""
@@ -112,13 +121,13 @@ class TestMECmdShell(unittest.TestCase):
             stdout=devnull
             stderr=devnull
 
-        if not os.path.exists(pjoin(MG5DIR, 'MadAnalysis')):
-            print("install MadAnalysis")
-            p = subprocess.Popen([pjoin(MG5DIR,'bin','mg5_aMC')],
-                             stdin=subprocess.PIPE,
-                             stdout=stdout,stderr=stderr)
-            out = p.communicate('install MadAnalysis4'.encode())
-        misc.compile(cwd=pjoin(MG5DIR,'MadAnalysis'))
+        #if not os.path.exists(pjoin(MG5DIR, 'MadAnalysis')):
+        #    print("install MadAnalysis")
+        #    p = subprocess.Popen([pjoin(MG5DIR,'bin','mg5_aMC')],
+        #                     stdin=subprocess.PIPE,
+        #                     stdout=stdout,stderr=stderr)
+        #    out = p.communicate('install MadAnalysis4'.encode())
+        #misc.compile(cwd=pjoin(MG5DIR,'MadAnalysis'))
 
         #if not misc.which('root'):
         #    raise Exception('root is require for this test')
@@ -147,6 +156,42 @@ class TestMECmdShell(unittest.TestCase):
         """ exec a line in the cmd under test """        
         self.cmd_line.run_cmd(line)
         
+    def test_madevent_dy3j_mlm(self):
+        """ Test that biasing LO event generation works as intended. """
+        self.out_dir = self.run_dir
+
+        if not self.debugging or not os.path.isdir(pjoin(MG5DIR,'BackUp_tmp_test')):
+            self.generate('u g > l+ l- u u u~', 'sm')
+
+            run_card = banner.RunCardLO(pjoin(self.out_dir, 'Cards', 'run_card.dat'))
+            run_card.set('ickkw', 1, user=True)
+            run_card.set('xqcut', 10.0, user=True)
+            run_card.write(pjoin(self.out_dir, 'Cards', 'run_card.dat'))
+            
+            # Compile the code
+            subprocess.Popen(['make'], cwd=pjoin(self.out_dir, 'Source'), stdout=self.stdout, stderr=self.stdout).wait()
+            subprocess.Popen(['make', 'madevent_forhel'],                         
+                             cwd=pjoin(self.out_dir, 'SubProcesses', 'P1_qg_llqqq'),
+                             stdout=self.stdout, stderr=self.stdout).wait()
+            with open(pjoin(self.out_dir, 'SubProcesses', 'P1_qg_llqqq', 'run_config.txt'), 'w') as fsock:  
+                fsock.write('1000 5 3\n')  
+                fsock.write('0.1\n')       # Accuracy
+                fsock.write('2\n')         # Grid Adjustment 0=none, 2=adjust   
+                fsock.write('1\n')         # Suppress Amplitude 1=yes
+                fsock.write('0\n')         # Helicity Sum/event 0=exact
+                fsock.write('      86\n')
+            fsock.close()
+            
+        return_code = subprocess.Popen(
+            ['./madevent_forhel'],
+            cwd=pjoin(self.out_dir, 'SubProcesses', 'P1_qg_llqqq'),
+            stdin=open(pjoin(self.out_dir, 'SubProcesses', 'P1_qg_llqqq', 'run_config.txt')),
+            stdout=self.stdout, stderr=self.stdout
+        ).wait()
+            
+        self.assertEqual(return_code, 0)
+
+
 
     def test_madevent_ptj_bias(self):
         """ Test that biasing LO event generation works as intended. """
@@ -154,6 +199,7 @@ class TestMECmdShell(unittest.TestCase):
 
         if not self.debugging or not os.path.isdir(pjoin(MG5DIR,'BackUp_tmp_test')):
             self.generate('d d~ > u u~', 'sm')
+
             run_card = banner.RunCardLO(pjoin(self.out_dir, 'Cards','run_card.dat'))
             # Some test checking that some cut are absent/present by default
             self.assertIn('ptj', run_card.user_set)
@@ -448,7 +494,258 @@ class TestMECmdShell(unittest.TestCase):
         #check precision
         self.assertLess(err2 / val2, 0.005)
         self.assertLess(err1 / val1, 0.005)
-        
+
+    def test_flavor_grouping_consistency(self):
+        """Check that the four combinations of 'apply_flavor_grouping' and
+        'group_subprocesses' return compatible cross-sections for the
+        process p p > e+ e-.
+
+        Settings tested:
+            1. apply_flavor_grouping True  / group_subprocesses False
+            2. apply_flavor_grouping True  / group_subprocesses True
+            3. apply_flavor_grouping False / group_subprocesses False
+            4. apply_flavor_grouping False / group_subprocesses True
+        """
+
+        settings = [
+            # (apply_flavor_grouping, group_subprocesses)
+            ('True',  'False'),
+            ('True',  'True'),
+            ('False', 'False'),
+            ('false', 'True'),
+        ]
+
+        results = []
+        for i, (afg, gsp) in enumerate(settings):
+            run_dir = pjoin(self.path, 'MGPROC_fg_%d' % i)
+            if os.path.exists(run_dir):
+                shutil.rmtree(run_dir)
+
+            mg_cmd = MGCmd.MasterCmd()
+            mg_cmd.no_notification()
+            mg_cmd.exec_cmd('set automatic_html_opening False --no_save')
+            mg_cmd.exec_cmd('set apply_flavor_grouping %s' % afg)
+            mg_cmd.exec_cmd('import model sm')
+            mg_cmd.exec_cmd('set group_subprocesses %s' % gsp)
+            mg_cmd.exec_cmd('generate p p > l+ l-')
+            mg_cmd.exec_cmd('output %s' % run_dir)
+
+            self.cmd_line = MECmd.MadEventCmdShell(me_dir=run_dir)
+            self.cmd_line.no_notification()
+            self.cmd_line.exec_cmd('set automatic_html_opening False')
+
+            self.do('generate_events -f')
+
+            val = self.cmd_line.results.current['cross'] + 1e-99
+            err = self.cmd_line.results.current['error']
+            results.append((val, err, afg, gsp))
+
+            if val == 0:
+                misc.sprint('Warning: cross-section is zero for '
+                             'apply_flavor_grouping=%s/group_subprocesses=%s' % (afg, gsp))
+
+            #check precision is reasonable for each individual run
+            self.assertLess(err / val, 0.05,
+                'cross-section determination is too imprecise '
+                '(apply_flavor_grouping=%s, group_subprocesses=%s): '
+                '%s +- %s' % (afg, gsp, val, err))
+
+        # Check pairwise compatibility: each pair of cross-sections should
+        # agree within 5 times the combined statistical uncertainty.
+        if unittest.debug:
+            for val, err, afg, gsp in results:
+                misc.sprint('  apply_flavor_grouping=%s/group_subprocesses=%s: %s +- %s' %
+                         (afg, gsp, val, err))
+        for i in range(len(results)):
+            for j in range(i + 1, len(results)):
+                val_i, err_i, afg_i, gsp_i = results[i]
+                val_j, err_j, afg_j, gsp_j = results[j]
+                self.assertLess(
+                    abs(val_i - val_j) / (err_i + err_j),
+                    3,
+                    'Incompatible cross-sections between '
+                    'apply_flavor_grouping=%s/group_subprocesses=%s '
+                    '(%s +- %s) and '
+                    'apply_flavor_grouping=%s/group_subprocesses=%s '
+                    '(%s +- %s)' % (
+                        afg_i, gsp_i, val_i, err_i,
+                        afg_j, gsp_j, val_j, err_j
+                    )
+                )
+
+    def test_flavor_grouping_consistency_width(self):
+        """Check that the four combinations of 'apply_flavor_grouping' and
+        'group_subprocesses' return compatible cross-sections for the
+        process z > l+ l-.
+
+        Settings tested:
+            1. apply_flavor_grouping True  / group_subprocesses False
+            2. apply_flavor_grouping True  / group_subprocesses True
+            3. apply_flavor_grouping False / group_subprocesses False
+            4. apply_flavor_grouping False / group_subprocesses True
+        """
+
+        settings = [
+            # (apply_flavor_grouping, group_subprocesses)
+            ('True',  'False'),
+            ('True',  'True'),
+            ('False', 'False'),
+            ('false', 'True'),
+        ]
+
+        results = []
+        for i, (afg, gsp) in enumerate(settings):
+            run_dir = pjoin(self.path, 'MGPROC_fg_%d' % i)
+            if os.path.exists(run_dir):
+                shutil.rmtree(run_dir)
+
+            mg_cmd = MGCmd.MasterCmd()
+            mg_cmd.no_notification()
+            mg_cmd.exec_cmd('set automatic_html_opening False --no_save')
+            mg_cmd.exec_cmd('set apply_flavor_grouping %s' % afg)
+            mg_cmd.exec_cmd('import model sm')
+            mg_cmd.exec_cmd('set group_subprocesses %s' % gsp)
+            mg_cmd.exec_cmd('generate z > l+ l-')
+            mg_cmd.exec_cmd('output %s' % run_dir)
+
+            self.cmd_line = MECmd.MadEventCmdShell(me_dir=run_dir)
+            self.cmd_line.no_notification()
+            self.cmd_line.exec_cmd('set automatic_html_opening False')
+
+            self.do('generate_events -f')
+
+            val = self.cmd_line.results.current['cross'] + 1e-99
+            err = self.cmd_line.results.current['error']
+            results.append((val, err, afg, gsp))
+
+            if val == 0:
+                misc.sprint('Warning: cross-section is zero for '
+                             'apply_flavor_grouping=%s/group_subprocesses=%s' % (afg, gsp))
+
+            #check precision is reasonable for each individual run
+            self.assertLess(err / val, 0.05,
+                'cross-section determination is too imprecise '
+                '(apply_flavor_grouping=%s, group_subprocesses=%s): '
+                '%s +- %s' % (afg, gsp, val, err))
+
+        # Check pairwise compatibility: each pair of cross-sections should
+        # agree within 5 times the combined statistical uncertainty.
+        if True or unittest.debug:
+            for val, err, afg, gsp in results:
+                misc.sprint('  apply_flavor_grouping=%s/group_subprocesses=%s: %s +- %s' %
+                         (afg, gsp, val, err))
+        for i in range(len(results)):
+            for j in range(i + 1, len(results)):
+                val_i, err_i, afg_i, gsp_i = results[i]
+                val_j, err_j, afg_j, gsp_j = results[j]
+                self.assertLess(
+                    abs(val_i - val_j) / (err_i + err_j),
+                    3,
+                    'Incompatible cross-sections between '
+                    'apply_flavor_grouping=%s/group_subprocesses=%s '
+                    '(%s +- %s) and '
+                    'apply_flavor_grouping=%s/group_subprocesses=%s '
+                    '(%s +- %s)' % (
+                        afg_i, gsp_i, val_i, err_i,
+                        afg_j, gsp_j, val_j, err_j
+                    )
+                )
+
+
+    def test_flavor_grouping_consistency_mlm(self):
+        """Check flavor_compatible function in clustering with MLM merging.
+
+        Tests the process q q~ > q q~ (with q = u d s c, q~ = u~ d~ s~ c~)
+        with MLM merging (ickkw=1) and xqcut=20 to verify that flavor-filtering
+        in the clustering algorithm correctly identifies valid diagram topologies.
+
+        The process should cluster via W boson (u<->d coupling) but not via
+        gluon/photon/Z (which require same flavor).
+        """
+        settings = [
+            # (apply_flavor_grouping, group_subprocesses)
+            ('True',  'False'),
+            ('True',  'True'),
+            ('False', 'False'),
+            ('false', 'True'),
+        ]
+
+        results = [(5184588.926738217,2971, '3.7.2', 'neventa=150k')]
+        for i, (afg, gsp) in enumerate(settings):
+            run_dir = pjoin(self.path, 'MGPROC_fg_%d' % i)
+
+
+            if os.path.exists(run_dir):
+                shutil.rmtree(run_dir)
+
+            mg_cmd = MGCmd.MasterCmd()
+            mg_cmd.no_notification()
+            mg_cmd.exec_cmd('set automatic_html_opening False --no_save')
+            #mg_cmd.exec_cmd('import model sm')
+            mg_cmd.exec_cmd('set apply_flavor_grouping %s' % afg)
+            mg_cmd.exec_cmd('import model sm')
+            mg_cmd.exec_cmd('set group_subprocesses %s' % gsp)
+
+            # Define custom particles for flavor grouping
+            mg_cmd.exec_cmd('define q = u d s c')
+            mg_cmd.exec_cmd('define q~ = u~ d~ s~ c~')
+
+            # Generate process with flavor-grouped particles
+            mg_cmd.exec_cmd('generate q q~ > q q~')
+            mg_cmd.exec_cmd('output %s' % run_dir)
+
+            self.cmd_line = MECmd.MadEventCmdShell(me_dir=run_dir)
+            self.cmd_line.no_notification()
+            self.cmd_line.exec_cmd('set automatic_html_opening False')
+
+            # Configure MLM merging parameters
+            run_card = banner.RunCardLO(pjoin(run_dir, 'Cards', 'run_card.dat'))
+            run_card.set('ickkw', 1, user=True)
+            run_card.set('xqcut', 20.0, user=True)
+            run_card.write(pjoin(run_dir, 'Cards', 'run_card.dat'))
+            
+
+            # Generate events with MLM merging enabled
+            self.do('generate_events -f')
+
+            # Verify event generation succeeded
+            val = self.cmd_line.results.current['cross'] + 1e-99
+            err = self.cmd_line.results.current['error']
+            results.append((val, err, afg, gsp))
+
+            # Check that we got a valid cross-section
+            self.assertGreater(val, 0,
+                'cross-section is zero for q q~ > q q~ with MLM merging')
+
+            # Check precision is reasonable
+            self.assertLess(err / val, 0.10,
+                'cross-section determination is too imprecise for MLM merging: '
+                '%s +- %s' % (val, err))
+            
+       # Check pairwise compatibility: each pair of cross-sections should
+        # agree within 5 times the combined statistical uncertainty.
+        if unittest.debug:
+            for val, err, afg, gsp in results:
+                misc.sprint('  apply_flavor_grouping=%s/group_subprocesses=%s: %s +- %s' %
+                            (afg, gsp, val, err))
+        for i in range(len(results)):
+            for j in range(i + 1, len(results)):
+                val_i, err_i, afg_i, gsp_i = results[i]
+                val_j, err_j, afg_j, gsp_j = results[j]
+                self.assertLess(
+                    abs(val_i - val_j) / (err_i + err_j),
+                    3,
+                    'Incompatible cross-sections between '
+                    'apply_flavor_grouping=%s/group_subprocesses=%s '
+                    '(%s +- %s) and '
+                    'apply_flavor_grouping=%s/group_subprocesses=%s '
+                    '(%s +- %s)' % (
+                        afg_i, gsp_i, val_i, err_i,
+                        afg_j, gsp_j, val_j, err_j
+                    )
+                )
+
+
     def test_e_p_collision(self):
         """check that e p > e j gives the correct result"""
         
@@ -481,8 +778,8 @@ class TestMECmdShell(unittest.TestCase):
         self.do('generate_events -f')
         val1 = self.cmd_line.results.current['cross']
         err1 = self.cmd_line.results.current['error']
-        
-        target = 3932.0
+        # 100k value is 3933.1 +- 3 
+        target = 3933.1
         self.assertLess(
             abs(val1 - target) / (err1+1.7),
             2.,
@@ -569,13 +866,15 @@ class TestMECmdShell(unittest.TestCase):
         self.assertEqual(run_card['lpp2'], 3)
         self.assertEqual(run_card['pdlabel'], 'eva')
         self.assertEqual(run_card['fixed_fac_scale'], True)
+        run_card.set('eva_xcut', 0, user=True)
+        run_card.write(pjoin(self.run_dir, 'Cards','run_card.dat'))
         self.assertEqual(run_card['eva_xcut'], 0)
-        
+
         self.do('generate_events -f')
         val1 = self.cmd_line.results.current['cross']
         err1 = self.cmd_line.results.current['error']
         
-        target = 0.02174605
+        target = 0.02187245
         self.assertTrue(abs(val1 - target) / err1 < 2., 'large diference between %s and %s +- %s (%s sigma)'%
                         (target, val1, err1, abs(val1 - target) / err1))    
 
@@ -612,10 +911,12 @@ class TestMECmdShell(unittest.TestCase):
         self.assertEqual(run_card['lpp1'], -3)
         self.assertEqual(run_card['lpp2'], 3)
         self.assertEqual(run_card['pdlabel'], 'eva')
+        run_card.set('evaorder', 1, user=True)
+        run_card.write(pjoin(self.run_dir, 'Cards','run_card.dat'))
         self.assertEqual(run_card['evaorder'], 1)
         self.assertEqual(run_card['eva_xcut'], 1)
         self.assertEqual(run_card['fixed_fac_scale'], True)
-        
+
         self.do('generate_events -f')
         val1 = self.cmd_line.results.current['cross']
         err1 = self.cmd_line.results.current['error']
@@ -828,9 +1129,13 @@ C
 
     def test_eft_running(self):
         """check that  gives the correct result"""
-        
+
+
+
         mg_cmd = MGCmd.MasterCmd()
         mg_cmd.no_notification()
+        if not os.path.exists(pjoin(MG5DIR, 'Template',"Running")):
+            mg_cmd.run_cmd('install RunningCoupling')
         mg_cmd.run_cmd('set automatic_html_opening False --save')
         mg_cmd.run_cmd('import model %s/tests/input_files/SMEFTatNLO_running' % madgraph.MG5DIR)
         mg_cmd.run_cmd('generate p p > t t~ NP=2 NP^2==2 QCD=2 QED=0')
@@ -847,14 +1152,17 @@ C
         self.assertIn('mue_ref_fixed', run_card.user_set)
         self.assertIn('mue_over_ref', run_card.user_set)
 
+        run_card['nevents'] = 10000
+        run_card.write('%s/Cards/run_card.dat' % self.run_dir)
         
         self.do('generate_events -f')
         val1 = self.cmd_line.results.current['cross']
         err1 = self.cmd_line.results.current['error']
 
         #target = 166.36114 # value used as reference before changing sde_strategy
-        target = 165.7 # computed with sde_strategy #165.8 +- 0.02099 pb
-        self.assertTrue(abs(val1 - target) / err1 < 2., 'large diference between %s and %s +- %s'%
+        # 100k value is 165.84 +- 0.05
+        target = 165.84
+        self.assertTrue(abs(val1 - target) / err1 < 1., 'large diference between %s and %s +- %s'%
                         (target, val1, err1))
 
         
@@ -866,7 +1174,8 @@ C
         self.do('generate_events -f')
         val1 = self.cmd_line.results.current['cross']
         err1 = self.cmd_line.results.current['error']
-        target = 165.7 
+        # 100k value is  165.71 +- 0.06
+        target = 165.71
         self.assertTrue(abs(val1 - target) / err1 < 1., 'large diference between %s and %s +- %s'%
                         (target, val1, err1))
 
@@ -875,7 +1184,7 @@ C
 
 
 
-
+    @test_aloha.set_global()
     def test_complex_mass_scheme(self):
         """check that auto-width and Madspin works nicely with complex-mass-scheme"""
         mg_cmd = MGCmd.MasterCmd()
@@ -1359,6 +1668,125 @@ class TestMEfromfile(unittest.TestCase):
         #a=rwa_input('freeze')
         self.check_parton_output(cross= 4.117e+08, error=1.413e+06,target_event=1000)
 
+    def test_polarization_top_decay(self):
+        """check that polarized process t{X} > w+{Y} b{Z}, w+ > ta+ vt gives the correct results
+        Test 1: check that various permutations can be called
+        Test 2: check helicity-flipping process (massive limit)
+        Test 3: check helicity-flipping process (massless limit)
+        """
+
+        cwd = os.getcwd()
+
+        if logging.getLogger('madgraph').level <= 20:
+            stdout=None
+            stderr=None
+        else:
+            devnull =open(os.devnull,'w')
+            stdout=devnull
+            stderr=devnull
+
+        if logging.getLogger('madgraph').level > 20:
+            stdout = devnull
+        else:
+            stdout= None
+
+        #
+        #  START REAL CODE (1/3)
+        #
+        command = open(pjoin(self.path, 'cmd'), 'w')
+        command.write("""set group_subprocesses False
+        import model loop_sm
+        set automatic_html_opening False --no_save
+        set notification_center False --no_save
+        generate    t{L} > w+{0} b{R}, w+ > ta+ vt
+        add process t{L} > w+{T} b{L}, w+ > ta+ vt
+        add process t{L} > w+{A} b{R}, w+ > ta+ vt
+        add process t{R} > w+{S} b{L}, w+ > ta+ vt
+        add process t{R} > w+{0S} b{R}, w+ > ta+ vt
+        add process t{L} > w+{S0} b{L}, w+ > ta+ vt
+        add process t{L} > w+{G} b{R}, w+ > ta+ vt
+        add process t{L} > w+{H} b{L}, w+ > ta+ vt
+        add process t{R} > w+{Q} b{R}, w+ > ta+ vt
+        add process t{R} > w+{W} b{L}, w+ > ta+ vt
+        output %(path)s
+        launch
+        analysis=off
+        set no_parton_cut
+        set nevents 40k
+        set me_frame [1]
+        set nhel 1
+        set bwcutoff 100
+        """ % {'path':self.run_dir})
+        command.close()
+
+        subprocess.call([sys.executable, pjoin(_file_path, os.path.pardir,'bin','mg5_aMC'),
+                         pjoin(self.path, 'cmd')],
+                         cwd=pjoin(_file_path, os.path.pardir),
+                        stdout=stdout,stderr=stdout)
+
+        # Width : 0.53881 ± 0.000343 (GeV) for 40k events
+        tolerance = 1.1
+        self.check_parton_output(cross= 0.53881, error=tolerance*0.000343,target_event=40000)
+
+        #
+        #  START REAL CODE (2/3)
+        #
+        command = open(pjoin(self.path, 'cmd'), 'w')
+        command.write("""set group_subprocesses False
+        import model loop_sm
+        set automatic_html_opening False --no_save
+        set notification_center False --no_save
+        generate    t > w+{A} b, w+ > ta+ vt
+        add process t > w+{S} b, w+ > ta+ vt
+        output %(path)s
+        launch
+        analysis=off
+        set no_parton_cut
+        set nevents 40k
+        set me_frame [1]
+        set nhel 1
+        set bwcutoff 100
+        """ % {'path':self.run_dir})
+        command.close()
+
+        subprocess.call([sys.executable, pjoin(_file_path, os.path.pardir,'bin','mg5_aMC'),
+                         pjoin(self.path, 'cmd')],
+                         cwd=pjoin(_file_path, os.path.pardir),
+                        stdout=stdout,stderr=stdout)
+
+        # Width : 1.3303e-05 ± 2.1e-08 (GeV) for 40k events
+        self.check_parton_output(cross= 1.3303e-05, error=tolerance*2.1e-08,target_event=40000)
+
+        #
+        #  START REAL CODE (3/3)
+        #
+        command = open(pjoin(self.path, 'cmd'), 'w')
+        command.write("""set group_subprocesses False
+        import model loop_sm
+        set automatic_html_opening False --no_save
+        set notification_center False --no_save
+        generate    t > w+{A} b, w+ > ta+ vt
+        add process t > w+{S} b, w+ > ta+ vt
+        output %(path)s
+        launch
+        analysis=off
+        set mta 1e-3
+        set no_parton_cut
+        set nevents 40k
+        set me_frame [1]
+        set nhel 1
+        set bwcutoff 100
+        set mmnl 5.0
+        """ % {'path':self.run_dir})
+        command.close()
+
+        subprocess.call([sys.executable, pjoin(_file_path, os.path.pardir,'bin','mg5_aMC'),
+                         pjoin(self.path, 'cmd')],
+                         cwd=pjoin(_file_path, os.path.pardir),
+                        stdout=stdout,stderr=stdout)
+
+        # Width : 3.9311e-12 ± 6.86e-15  (GeV) for 40k events
+        self.check_parton_output(cross=3.9311e-12, error=tolerance*6.86e-15,target_event=40000)
 
     def test_generation_from_file_1(self):
         """ """

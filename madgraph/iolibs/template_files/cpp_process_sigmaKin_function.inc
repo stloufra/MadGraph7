@@ -49,4 +49,4 @@ if (sum_hel[flavor_id] == 0 || ntry[flavor_id] < 10){
     }
 }
 
-return matrix_element / (denominator * broken_sym(flavor));
+return matrix_element * broken_sym(flavor) / denominator;

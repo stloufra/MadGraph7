@@ -49,8 +49,7 @@ C
         REAL*8 T
         REAL*8 R,SUMHEL,TS(NCOMB)
         INTEGER I,IDEN
-        INTEGER FLAVOR(NEXTERNAL, %(max_flavor)s),II
-        %(get_flavor_matrix)s
+        INTEGER FLAVOR(NEXTERNAL)
         REAL*8 XTOT
         INTEGER  J, JJ
       double precision get_channel_cut
@@ -87,8 +86,8 @@ ${helicity_lines}
 C ----------
 C BEGIN CODE
 C ----------
+    CALL GET_FLAVOR%(proc_id)s(IFLAV, FLAVOR)
 
-     
     IF (multi_channel) THEN
         DO I=1,NDIAGS
             AMP2(I)=0D0
@@ -104,7 +103,7 @@ C ----------
 
     TS(:) = 0d0
 
-    call MATRIX%(proc_id)s(P ,FLAVOR(1, IFLAV), TS, AMP2, JAMP2, IVEC)
+    call MATRIX%(proc_id)s(P ,FLAVOR, TS, AMP2, JAMP2, IVEC)
     DO I=1,NCOMB     
        T=TS(I)  
        DO JJ=1,nincoming
@@ -155,11 +154,24 @@ c         Set right sign for ANS, based on sign of chosen helicity
     ENDIF
     ANS=ANS/DBLE(IDEN)
 
-    call select_color(rcol, jamp2, iconfig,%(proc_id)s,  icol)
+    call select_color(rcol, jamp2, iconfig,%(proc_id)s,  icol, ivec)
 
     END
- 
- 
+
+
+      SUBROUTINE GET_FLAVOR%(proc_id)s(IFLAV, FLAVOR_OUT)
+C     Returns the flavor array for a given flavor index IFLAV
+      IMPLICIT NONE
+      include 'nexternal.inc'
+      INTEGER IFLAV, I
+      INTEGER FLAVOR_OUT(NEXTERNAL)
+      INTEGER FLAVOR(NEXTERNAL,%(max_flavor)s)
+      %(get_flavor_matrix)s
+      FLAVOR_OUT(:) = FLAVOR(:, IFLAV)
+      RETURN
+      END
+
+
 Subroutine  MATRIX%(proc_id)s(P,FLAVOR, TS, AMP2, JAMP2, IVEC)
 C  
 %(info_lines)s
@@ -193,6 +205,8 @@ C
 	SAVE CHOSEN_SO_CONFIGS
     INTEGER                 NCOMB         
     PARAMETER (             NCOMB=${ncomb})
+    double precision bwcutoff
+    common/to_bwcutoff/ bwcutoff
 C  
 C ARGUMENTS 
 C
