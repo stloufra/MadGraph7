@@ -342,6 +342,7 @@ class TestMECmdShell(unittest.TestCase):
                   (2,-2): 1.944158e-01,
                   (-11,11): 5.626776e-02,
                   (-13,13): 5.626776e-02}
+        misc.sprint('\n'.join(data))
         for l in data[1:]:
             if l.startswith("#"):
                 continue
