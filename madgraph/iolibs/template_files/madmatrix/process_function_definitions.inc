@@ -623,7 +623,7 @@ namespace mg5amcCpu
                     const fptype globaldenom) /* clang-format on */
   {
     const int ievt = blockDim.x * blockIdx.x + threadIdx.x; // index of event (thread)
-    allMEs[ievt] /= (globaldenom * broken_symmetry_factor(iflavorVec[ievt]));
+    allMEs[ievt] = allMEs[ievt] * broken_symmetry_factor(iflavorVec[ievt]) / globaldenom;
     const int nevt = gridDim.x * blockDim.x;
     if( storeChannelWeights ) // fix segfault #892 (not 'channelIds[0] != 0')
     {

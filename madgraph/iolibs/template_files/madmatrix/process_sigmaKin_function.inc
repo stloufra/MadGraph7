@@ -287,7 +287,7 @@
       const int ievt0 = ipagV * neppV;
       fptype* MEs = E_ACCESS::ieventAccessRecord( allMEs, ievt0 );
       fptype_sv& MEs_sv = E_ACCESS::kernelAccess( MEs );
-      MEs_sv /= (helcolDenominators[0] * broken_symmetry_factor(iflavorVec[ievt0]));
+      MEs_sv = MEs_sv * broken_symmetry_factor(iflavorVec[ievt0]) / helcolDenominators[0];
       if( mulChannelWeight && allChannelIds != nullptr ) // fix segfault #892 (not 'channelIds[0] != 0')
       {
         const unsigned int channelId = getChannelId( allChannelIds, ievt0, false );
