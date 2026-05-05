@@ -443,6 +443,10 @@ class MadgraphProcess:
                 cwnet=phasespace.cwnet
             )
             madnis_training.train()
+            phasespace.channels = [
+                phasespace.channels[index]
+                for index in madnis_training.active_channels()
+            ]
             madnis_phasespaces.append(phasespace)
         self.phasespaces = madnis_phasespaces
         for context in self.contexts[1:]:

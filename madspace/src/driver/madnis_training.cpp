@@ -16,7 +16,9 @@ MadnisTraining::MadnisTraining(
     _config(config),
     _channels(integrands.size()),
     _cwnet(cwnet) {
-    for (auto [integrand, channel] : zip(integrands, _channels)) {
+    for (std::size_t index = 0;
+         auto [integrand, channel] : zip(integrands, _channels)) {
+        channel.index = index;
         channel.integrand = integrand;
         channel.integrand_prob = std::make_shared<IntegrandProbability>(*integrand);
         if (_arg_permutation.size() == 0) {
@@ -32,6 +34,7 @@ MadnisTraining::MadnisTraining(
                 _arg_permutation.push_back(integ_args.at(key));
             }
         }
+        ++index;
     }
     build_runtimes_and_optimizer();
 }
@@ -62,6 +65,14 @@ void MadnisTraining::train() {
         }
         print_progress_update(batch_index);
     }
+}
+
+std::vector<std::size_t> MadnisTraining::active_channels() const {
+    std::vector<std::size_t> indices(_channels.size());
+    for (auto [channel, index] : zip(_channels, indices)) {
+        index = channel.index;
+    }
+    return indices;
 }
 
 void MadnisTraining::build_runtimes_and_optimizer() {
@@ -482,19 +493,24 @@ void MadnisTraining::drop_channels() {
     auto mask_view = active_mask.view<double, 2>()[0];
 
     double drop_sum = 0.;
+    std::size_t drop_count = 0;
     for (std::size_t chan_index : indices) {
         drop_sum += abs_means.at(chan_index);
         if (drop_sum / abs_mean_sum > _config.channel_dropping_threshold) {
             break;
         }
         auto& channel = _channels.at(chan_index);
-        channel.integrand = nullptr;
         for (me_int_t index : channel.integrand->channel_indices()) {
             if (index < 0 || index > mask_view.size()) {
                 throw std::out_of_range("channel index out of bounds");
             }
             mask_view[index] = 0;
         }
+        channel.integrand = nullptr;
+        ++drop_count;
+    }
+    if (drop_count == 0) {
+        return;
     }
     _channels.erase(
         std::remove_if(
@@ -532,10 +548,11 @@ void MadnisTraining::print_progress_update(std::size_t batch_index) {
     auto now = std::chrono::steady_clock::now();
     Logger::info(
         std::format(
-            "training, batch: {} / {}, loss: {:.4f}, time: {:%H:%M:%S}",
+            "training, batch: {} / {}, loss: {:.4f}, channels: {}, time: {:%H:%M:%S}",
             batch_index + 1,
             _config.batches,
             loss,
+            _channels.size(),
             std::chrono::round<std::chrono::seconds>(now - _start_time)
         )
     );

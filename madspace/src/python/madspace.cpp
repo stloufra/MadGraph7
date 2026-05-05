@@ -865,13 +865,15 @@ PYBIND11_MODULE(_madspace_py, m) {
                 std::size_t,
                 std::size_t,
                 MLP::Activation,
-                const std::string&>(),
+                const std::string&,
+                bool>(),
             py::arg("channel_count"),
             py::arg("particle_count"),
             py::arg("hidden_dim") = 32,
             py::arg("layers") = 3,
             py::arg("activation") = MLP::leaky_relu,
-            py::arg("prefix") = ""
+            py::arg("prefix") = "",
+            py::arg("include_preprocessing") = true
         )
         .def("mlp", &ChannelWeightNetwork::mlp)
         .def("preprocessing", &ChannelWeightNetwork::preprocessing)
@@ -1319,7 +1321,8 @@ PYBIND11_MODULE(_madspace_py, m) {
             py::arg("integrands"),
             py::arg("cwnet")
         )
-        .def("train", &MadnisTraining::train);
+        .def("train", &MadnisTraining::train)
+        .def("active_channels", &MadnisTraining::active_channels);
 
     py::classh<GeneratorConfig>(m, "GeneratorConfig")
         .def(py::init<>())

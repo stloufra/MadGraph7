@@ -299,7 +299,7 @@ void backward_op_batch_split(
     device.sync_barrier();
     auto split_grads = input_grad.split(0, sizes);
     for (auto [tensor, output_index] : zip(split_grads, instruction.output_indices)) {
-        tensor.add(locals[output_index], device);
+        tensor.add(local_grads[output_index], device);
     }
 }
 

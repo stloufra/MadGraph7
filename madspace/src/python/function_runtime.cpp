@@ -516,12 +516,17 @@ FunctionRuntime::call_backward(
         }
     }
     std::vector<std::tuple<std::string, std::optional<Tensor>>> global_grads;
-    for (auto [glob, grad] : zip(_function.globals(), ret_glob_grads)) {
+    for (std::size_t ret_index = 0; auto& glob : _function.globals()) {
+        if (!_context->global_requires_grad(glob.first)) {
+            continue;
+        }
+        auto& grad = ret_glob_grads.at(ret_index);
         if (grad) {
             global_grads.push_back({glob.first, grad});
         } else {
             global_grads.push_back({glob.first, std::nullopt});
         }
+        ++ret_index;
     }
     return {input_grads, global_grads};
 }

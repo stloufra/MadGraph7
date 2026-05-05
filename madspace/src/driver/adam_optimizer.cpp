@@ -76,7 +76,33 @@ TensorVec AdamOptimizer::step(const TensorVec& inputs) {
 }
 
 void AdamOptimizer::replace_function(const Function& function) {
-    std::logic_error("TODO");
+    std::unordered_map<std::string, std::pair<std::size_t, std::size_t>>
+        offsets_and_sizes;
+    for (std::size_t offset = 0; auto& name : _param_names) {
+        std::size_t size = _context->global(name).shape().product();
+        offsets_and_sizes[name] = {offset, size};
+        offset += size;
+    }
+    _param_names.clear();
+    for (auto& [name, value] : function.globals()) {
+        if (_context->global_requires_grad(name)) {
+            _param_names.push_back(name);
+        }
+    }
+    _runtime.reset();
+    _parameter = _context->reallocate_globals_contiguously(_param_names);
+    _runtime = build_runtime(function, _context);
+    Tensor old_ea = _exp_avg, old_eas = _exp_avg_sq;
+    _exp_avg = Tensor(_parameter.dtype(), _parameter.shape(), _parameter.device());
+    _exp_avg_sq = Tensor(_parameter.dtype(), _parameter.shape(), _parameter.device());
+    for (std::size_t offset = 0; auto& name : _param_names) {
+        auto [old_offset, size] = offsets_and_sizes.at(name);
+        _exp_avg.slice(0, offset, offset + size)
+            .copy_from(old_ea.slice(0, old_offset, old_offset + size));
+        _exp_avg_sq.slice(0, offset, offset + size)
+            .copy_from(old_eas.slice(0, old_offset, old_offset + size));
+        offset += size;
+    }
 }
 
 double AdamOptimizer::learning_rate() const {

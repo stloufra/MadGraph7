@@ -41,6 +41,7 @@ public:
         const std::optional<ChannelWeightNetwork>& cwnet
     );
     void train();
+    std::vector<std::size_t> active_channels() const;
 
 private:
     struct SampleBatch {
@@ -51,6 +52,7 @@ private:
         std::size_t channel_index = 0;
     };
     struct ChannelData {
+        std::size_t index;
         std::vector<std::unique_ptr<SampleBatch>> sample_batches;
         std::vector<std::tuple<std::size_t, double, double>> integration_history;
         std::size_t history_index = 0;
