@@ -66,6 +66,10 @@ void MadnisTraining::train_step(std::size_t batch_index) {
         static_cast<std::size_t>(
             (1 - _config.fixed_cwnet_fraction) * _config.batches
         )) {
+        std::vector<std::size_t> job_ids;
+        while ((job_ids = gen_thread_pool.wait_multiple()).size() != 0) {
+            process_job_results(job_ids);
+        }
         freeze_cwnet();
     }
 }

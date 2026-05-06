@@ -758,7 +758,7 @@ class MadgraphSubprocess:
 
         api_path_format = self.meta["me_path"]
         subproc_path = self.meta["path"]
-        devices = self.process.run_card["run"]["device"]
+        devices = self.process.run_card["run"]["devices"]
         api_paths = []
         if not isinstance(devices, list):
             devices = [devices]
