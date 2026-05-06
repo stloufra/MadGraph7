@@ -2754,11 +2754,7 @@ Beware that MG5aMC now changes your runtime options to a multi-core mode with on
     def do_launch(self, line, *args, **opt):
         """Main Commands: exec generate_events for 2>N and calculate_width for 1>N"""
                 
-        if self.ninitial == 1:
-            logger.info("Note that since 2.3. The launch for 1>N pass in event generation\n"+
-                           "    To have the previous behavior use the calculate_decay_widths function")
         #    self.do_calculate_decay_widths(line, *args, **opt)
-        #else:
         self.do_generate_events(line, *args, **opt)
             
     def getSysSummaryFromLog(self, kpath=None,knext_name=None):

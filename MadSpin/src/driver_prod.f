@@ -1,4 +1,5 @@
       PROGRAM DRIVER
+      use model_object
 C**************************************************************************
 C     THIS IS THE DRIVER FOR CHECKING THE STANDALONE MATRIX ELEMENT.
 C     IT USES A SIMPLE PHASE SPACE GENERATOR
