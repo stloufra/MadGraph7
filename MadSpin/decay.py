@@ -183,13 +183,16 @@ class Event:
             mother1 = part['mothup1']
             mother2 = part['mothup2']
             # Remap actual PDG code to merged-particle ID if applicable.
+            # Both the tag tuples and the order lists use merged IDs so that
+            # they are consistent with P_order (from tag2order, which is built
+            # from process legs and therefore always uses merged IDs).
             tag_pid = pdg_to_merged.get(pid, pid)
             if 0 == mother1 == mother2:
                 initial.append(tag_pid)
-                order[0].append(pid)   # keep real PID for event_map building
+                order[0].append(tag_pid)
             else:
                 final.append(tag_pid)
-                order[1].append(pid)
+                order[1].append(tag_pid)
         initial.sort()
         final.sort()
 
@@ -2698,7 +2701,16 @@ class decay_all_events(object):
                         try:
                             self.curr_event.particle[part_for_curr_evt]['mass']=self.banner.get('param_card','mass', abs(pid)).value
                         except KeyError:
-                            if self.model.get_particle(abs(pid)).get('mass').lower() == 'zero':
+                            # pid may be a merged-particle ID (e.g. 81) not present in
+                            # param_card; resolve to a real member first, then ask the
+                            # model whether the particle is massless.
+                            actual_pid = abs(pid)
+                            particle = self.model.get_particle(actual_pid)
+                            if particle is None:
+                                merged_map = self.model.get('merged_particles')
+                                if actual_pid in merged_map:
+                                    particle = self.model.get_particle(abs(merged_map[actual_pid][0]))
+                            if particle is not None and particle.get('mass', '').lower() == 'zero':
                                 self.curr_event.particle[part_for_curr_evt]['mass'] = 0
                             else:
                                 raise
