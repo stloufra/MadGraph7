@@ -76,11 +76,16 @@ class Event:
     """ class to read an event, record the information, write down the event in the lhe format.
             This class is used both for production and decayed events"""
 
-    def __init__(self, inputfile=None, banner=None):
+    def __init__(self, inputfile=None, banner=None, model=None):
         """Store the name of the event file """
         self.inputfile=inputfile
         self.particle={}
         self.banner = banner
+        # Optional model reference used by get_tag() to remap actual PDG codes
+        # to merged-particle IDs so that all_ME key lookups succeed.
+        self.model = model
+        # Lazy-built reverse map: actual_pdg -> merged_particle_pdg
+        self._pdg_to_merged = None
 
     def give_momenta(self, map_event=None):
         """ return the set of external momenta of the event, 
@@ -138,8 +143,38 @@ class Event:
         line.append('')
         return "\n".join(line)
     
+    def _get_pdg_to_merged(self):
+        """Build (and cache) a reverse map from real PDG code to merged-particle PDG.
+
+        For example, if merged_particles = {81: [1, 2, 3, 4], 82: [11, 13]},
+        the map contains {1: 81, 2: 81, 3: 81, 4: 81, -1: -81, -2: -81, ...}.
+        Particle 21 (gluon, self-antipart) would map both 21 -> 81 and -21 -> -81
+        only if 21 is a member of the group.
+        """
+        if self._pdg_to_merged is not None:
+            return self._pdg_to_merged
+        self._pdg_to_merged = {}
+        if self.model is None:
+            return self._pdg_to_merged
+        merged = self.model.get('merged_particles')
+        if not merged:
+            return self._pdg_to_merged
+        for merged_pdg, members in merged.items():
+            for pid in members:
+                self._pdg_to_merged[pid] = merged_pdg
+                self._pdg_to_merged[-pid] = -merged_pdg
+        return self._pdg_to_merged
+
     def get_tag(self):
-        
+        """Return the production tag and particle ordering for this event.
+
+        The tag is a pair of sorted tuples (initial_pdgs, final_pdgs) where
+        particle PDG codes that belong to a merged-particle group are replaced
+        by the corresponding merged-particle ID.  This ensures that the tag
+        matches the keys stored in AllMatrixElement (which are built from the
+        process legs and therefore use merged-particle IDs).
+        """
+        pdg_to_merged = self._get_pdg_to_merged()
         initial = []
         final = []
         order = [[],[]]
@@ -147,11 +182,13 @@ class Event:
             pid = part['pid']
             mother1 = part['mothup1']
             mother2 = part['mothup2']
+            # Remap actual PDG code to merged-particle ID if applicable.
+            tag_pid = pdg_to_merged.get(pid, pid)
             if 0 == mother1 == mother2:
-                initial.append(pid)
-                order[0].append(pid)
+                initial.append(tag_pid)
+                order[0].append(pid)   # keep real PID for event_map building
             else:
-                final.append(pid)
+                final.append(tag_pid)
                 order[1].append(pid)
         initial.sort()
         final.sort()
@@ -508,6 +545,29 @@ class dc_branch_from_me(dict):
         
         # launch the recursive loop
         add_decay(process)
+
+    def get_leaf_pids(self):
+        """Return a list of the leaf (final-state) PDG codes for this decay branch.
+
+        Traverses the decay tree starting at the root (-1) and collects the
+        'label' of every daughter node whose 'index' is positive (i.e. it is an
+        external final-state particle, not an intermediate resonance).  The list
+        is returned in depth-first tree order, which matches the ordering used
+        when building the full-ME external-particle array.
+        """
+        leaves = []
+
+        def collect(res_id):
+            tree_node = self['tree'][res_id]
+            for key in sorted(k for k in tree_node if k.startswith('d')):
+                daughter = tree_node[key]
+                if daughter['index'] > 0:   # external / leaf
+                    leaves.append(daughter['label'])
+                else:                         # intermediate resonance – recurse
+                    collect(daughter['index'])
+
+        collect(-1)
+        return leaves
 
     def generate_momenta(self,mom_init,ran, pid2width,pid2mass,BW_cut,E_collider, sol_nb=None):
         """Generate the momenta in each decay branch 
@@ -2039,7 +2099,9 @@ class decay_all_events(object):
         self.model = ms_interface.model
         self.banner = banner
         self.evtfile = inputfile
-        self.curr_event = Event(self.evtfile, banner) 
+        # Pass model so that Event.get_tag() can remap actual PDG codes to
+        # merged-particle IDs, matching the keys stored in AllMatrixElement.
+        self.curr_event = Event(self.evtfile, banner, model=self.model)
         self.inverted_decay_mapping={}
         self.width_estimator = None
         self.curr_dir = os.getcwd()
@@ -2309,6 +2371,10 @@ class decay_all_events(object):
         
         self.model = model
         self.all_ME.model = model
+        # Keep curr_event.model in sync so get_tag() uses the right merged_particles.
+        if self.curr_event is not None:
+            self.curr_event.model = model
+            self.curr_event._pdg_to_merged = None  # invalidate cached reverse map
         for proc in self.all_ME:
             if  'decays' in self.all_ME[proc]:
                 for me in self.all_ME[proc]['decays']:
@@ -2425,10 +2491,14 @@ class decay_all_events(object):
             nb_mc_masses=len(indices_for_mc_masses)
 
             p, p_str=self.curr_event.give_momenta(event_map)
-            # TODO(flavor): replace hardcoded flavor_index=1 with
-            #   self.curr_event.get_flavor_index(
-            #       self.all_ME[production_tag].get('flavor_groups_full', []), event_map)
-            stdin_text=' %s %s %s %s %s %s\n' % ('2', self.options['BW_cut'], self.Ecollider, decay_me['max_weight'], self.options['frame_id'], 1)
+            # Compute the two flavor indices for the full ME driver:
+            #   flavor_index_prod: which specific initial-state quarks are in this event
+            #   flavor_index_full: same, but matching against the full-event flavor groups
+            flavor_index_prod = self.curr_event.get_flavor_index(
+                self.all_ME[production_tag].get('flavor_groups_prod', []), event_map)
+            flavor_index_full = self.get_full_flavor_index(
+                production_tag, decay_me, event_map)
+            stdin_text=' %s %s %s %s %s %s %s\n' % ('2', self.options['BW_cut'], self.Ecollider, decay_me['max_weight'], self.options['frame_id'], flavor_index_prod, flavor_index_full)
             stdin_text+=p_str
             # here I also need to specify the Monte Carlo Masses
             stdin_text+=" %s \n" % nb_mc_masses
@@ -3252,6 +3322,56 @@ class decay_all_events(object):
         # flavor_groups[i]: all PDG tuples in coupling group i (for Python matching)
         flavor_groups = [list(flv) for flv in all_flav]
         return nexternal, flavor_combos, pdg_to_group_pos, flavor_groups
+
+    def get_full_flavor_index(self, production_tag, decay_me, event_map):
+        """Determine the 1-based flavor_index_full for the full (production+decay) ME.
+
+        The method matches the actual particle PDGs from the production event against
+        the positions in ``decay_me['flavor_groups_full']`` that correspond to
+        production particles (using the ``prod2full`` mapping pre-computed during
+        Fortran output generation).
+
+        For each production particle ``i`` (0-based):
+          - ``prod2full[i] > 0``: the particle is external in the full ME at
+            1-based position ``prod2full[i]``.  We retrieve its actual PID from
+            the event via ``event_map[i]`` and compare (by absolute value) with
+            the corresponding position in each flavor tuple.
+          - ``prod2full[i] <= 0``: the particle decays; its leaf products are not
+            compared here because they are specific particles (no merged group),
+            so they are the same across all flavor tuples.
+
+        Returns the 1-based index of the matching group, or 1 if no match is
+        found (safe fallback for processes without merged particles or when
+        ``flavor_groups_full`` or ``prod2full`` are not stored).
+        """
+        flavor_groups_full = decay_me.get('flavor_groups_full', [])
+        if not flavor_groups_full:
+            return 1
+
+        prod2full = decay_me.get('prod2full', [])
+        if not prod2full:
+            return 1
+
+        # Build a dict: 0-based full-ME position -> actual abs(PID) from event
+        pos_to_pid = {}
+        for prod_pos, full_pos in enumerate(prod2full):
+            if full_pos > 0:  # external in full ME (not a resonance / decaying particle)
+                evt_pos = event_map.get(prod_pos, prod_pos)  # 0-based event position
+                pid = self.curr_event.particle[evt_pos + 1]['pid']
+                pos_to_pid[full_pos - 1] = abs(pid)  # convert to 0-based index
+
+        if not pos_to_pid:
+            return 1
+
+        for group_idx, group_tuples in enumerate(flavor_groups_full):
+            for flav_tuple in group_tuples:
+                if all(abs(flav_tuple[pos]) == actual_pid
+                       for pos, actual_pid in pos_to_pid.items()
+                       if pos < len(flav_tuple)):
+                    return group_idx + 1  # 1-based
+
+        # No exact match – fall back to index 1
+        return 1
 
     def compile(self):
         logger.info('Compiling code')

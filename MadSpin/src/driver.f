@@ -37,7 +37,7 @@ c      integer mapconfig(0:lmaxconfigs)
       double precision M_PROD, M_FULL
       logical notpass
       integer counter,mode,nbpoints, counter2, counter3
-      integer flavor_index
+      integer flavor_index_prod, flavor_index_full
       integer FLAVOR(NEXTERNAL)
       integer FLAVOR_PROD(NEXTERNAL_PROD)
       double precision mean, variance, maxweight,weight,std
@@ -119,10 +119,11 @@ c      enddo
  
 1     continue
       maxBW=0d0
-      read(*,*) mode,  BWcut, Ecollider, temp, frame_id, flavor_index
+      read(*,*) mode,  BWcut, Ecollider, temp, frame_id,
+     &          flavor_index_prod, flavor_index_full
 
-      call GET_FLAVOR_MS_FULL(flavor_index, FLAVOR)
-      call GET_FLAVOR_MS_PROD(flavor_index, FLAVOR_PROD)
+      call GET_FLAVOR_MS_FULL(flavor_index_full, FLAVOR)
+      call GET_FLAVOR_MS_PROD(flavor_index_prod, FLAVOR_PROD)
  
 
       if (mode.eq.1) then    ! calculate the maximum weight
