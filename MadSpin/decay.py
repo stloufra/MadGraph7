@@ -2630,18 +2630,19 @@ class decay_all_events(object):
             frameid = self.options['frame_id']
         except KeyError:
             frameid = 6
-        # TODO(flavor): replace hardcoded flavor_index=1 with
-        #   self.curr_event.get_flavor_index(
-        #       self.all_ME[production_tag].get('flavor_groups_full', []), event_map)
-        stdin_text=' %s %s %s %s %s %s\n' % ('2', self.options['BW_cut'], self.Ecollider, 1.0, frameid, 1)
-        stdin_text+=p_str
-        # here I also need to specify the Monte Carlo Masses
-        stdin_text+=" %s \n" % nb_mc_masses
-        
         mepath = self.all_ME[production_tag]['path']
         decay = self.all_ME[production_tag]['decays'][0]
         decay_me=self.all_ME.get_decay_from_tag(production_tag, decay['decay_tag'])
         mepath = decay_me['path']
+        # Compute both flavor indices for the two-index header format of driver.f
+        flavor_index_prod = self.curr_event.get_flavor_index(
+            self.all_ME[production_tag].get('flavor_groups_prod', []), event_map)
+        flavor_index_full = self.get_full_flavor_index(
+            production_tag, decay_me, event_map)
+        stdin_text=' %s %s %s %s %s %s %s\n' % ('2', self.options['BW_cut'], self.Ecollider, 1.0, frameid, flavor_index_prod, flavor_index_full)
+        stdin_text+=p_str
+        # here I also need to specify the Monte Carlo Masses
+        stdin_text+=" %s \n" % nb_mc_masses
                         
         output = self.loadfortran( 'unweighting', mepath, stdin_text)
         if not output:
@@ -3635,7 +3636,9 @@ class decay_all_events(object):
                 if not tag:
                     continue # No decay for this process
                 atleastonedecay = True
-                weight = self.get_max_weight_from_fortran(decay['path'], event_map,numberps,self.options['BW_cut'])
+                weight = self.get_max_weight_from_fortran(
+                    decay['path'], event_map, numberps, self.options['BW_cut'],
+                    production_tag=production_tag, decay_me=decay)
                     #weight=mg5_me_full*BW_weight_prod*BW_weight_decay/mg5_me_prod
                 if tag in max_decay:
                     max_decay[tag] = max([max_decay[tag], weight])
@@ -3763,13 +3766,24 @@ class decay_all_events(object):
         
         return production_tag, event_map
     
-    def get_max_weight_from_fortran(self, path, event_map,nbpoints,BWcut):
+    def get_max_weight_from_fortran(self, path, event_map, nbpoints, BWcut,
+                                    production_tag=None, decay_me=None):
         """return the max. weight associated with me decay['path']"""
 
         p, p_str=self.curr_event.give_momenta(event_map)
-        # TODO(flavor): replace hardcoded flavor_index=1 with the correct
-        #   event flavor_index derived from self.curr_event.get_flavor_index(...)
-        std_in=" %s  %s %s %s %s %s\n" % ("1",BWcut, self.Ecollider, nbpoints, self.options['frame_id'], 1)
+        if production_tag and decay_me:
+            flavor_index_prod = self.curr_event.get_flavor_index(
+                self.all_ME[production_tag].get('flavor_groups_prod', []), event_map)
+            flavor_index_full = self.get_full_flavor_index(
+                production_tag, decay_me, event_map)
+        else:
+            # TODO(flavor): production_tag/decay_me not passed; using flavor_index=1 as
+            #   fallback. Update the caller to supply these when available.
+            flavor_index_prod = 1
+            flavor_index_full = 1
+        std_in=" %s  %s %s %s %s %s %s\n" % ("1", BWcut, self.Ecollider, nbpoints,
+                                              self.options['frame_id'],
+                                              flavor_index_prod, flavor_index_full)
         std_in+=p_str
         max_weight = self.loadfortran('maxweight',
                                path, std_in)
@@ -3857,7 +3871,7 @@ class decay_all_events(object):
                 if nb < cut:
                     if key[0]=='full':
                         path=key[1]
-                        end_signal="5 0 0 0 0\n"  # before closing, write down the seed 
+                        end_signal="5 0 0 0 0 0 0\n"  # before closing, write down the seed 
                         external.stdin.write(end_signal.encode())
                         external.stdin.flush()
                         external.stdout.flush()
@@ -3879,10 +3893,16 @@ class decay_all_events(object):
     def calculate_matrix_element(self, mode, production, stdin_text, flavor_index=1):
         """routine to return the matrix element
 
-        TODO(flavor): the flavor_index parameter defaults to 1 for all callers
-        in get_max_weight_from_event.  Once Event.get_flavor_index() is wired
-        up, the callers should pass the actual index derived from the event
-        particle content.
+        Uses driver_decay.f (mode='decay') or driver_prod.f (mode='prod'), both
+        of which take a single leading ``flavor_index`` line before the momenta.
+        This is distinct from driver.f (the full-event ME, used via loadfortran)
+        which takes two separate indices (flavor_index_prod, flavor_index_full).
+
+        NOTE(flavor): the flavor_index parameter is left at its default value of
+        1 for all callers in get_process_identical_ratio.  In that context the
+        code computes ratios of equivalent decay channels using random phase-space
+        points (no event PIDs available), so flavor_index=1 is a reasonable
+        fallback for now.
         """
 
         if mode != "decay":
@@ -4499,7 +4519,7 @@ class decay_all_events(object):
                     external.terminate()
                     del external
                 elif mode=='full':
-                    stdin_text="5 0 0 0 0\n".encode()  # before closing, write down the seed 
+                    stdin_text="5 0 0 0 0 0 0\n".encode()  # before closing, write down the seed 
                     external = self.calculator[('full',path)]
                     try:
                         external.stdin.write(stdin_text)
@@ -4531,7 +4551,7 @@ class decay_all_events(object):
             except Exception:
                 pass
             else:
-                stdin_text="5 0 0 0 0"
+                stdin_text="5 0 0 0 0 0 0"
                 try:
                     external.stdin.write(stdin_text)
                 except Exception:
