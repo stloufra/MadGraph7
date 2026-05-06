@@ -6940,7 +6940,20 @@ class ProcessExporterFortranMEGroup(ProcessExporterFortranME):
 
         lines.append("DATA NB_FLAV /%s/" % (
                       ",".join([str(len(me.get_external_flavors_with_iden())) for \
-                                me in matrix_elements]))) 
+                                me in matrix_elements])))
+        # Write number of individual (identical-coupling) flavors per group per subprocess.
+        # N_INDIV_FLAV(K,I) is the number of leshouche rows belonging to coupling group K
+        # of matrix element I.  This is used to correctly split the per-group cross section
+        # among the individual flavor entries when reporting decay widths.
+        max_flav_per_proc = max(len(list(me.get_external_flavors_with_iden()))
+                                for me in matrix_elements)
+        for i, me in enumerate(matrix_elements):
+            groups = list(me.get_external_flavors_with_iden())
+            n_per_group = [len(list(g)) for g in groups]
+            # Pad to max_flav_per_proc with zeros
+            n_per_group += [0] * (max_flav_per_proc - len(n_per_group))
+            lines.append("DATA (N_INDIV_FLAV(K,%d),K=1,%d)/%s/" % (
+                i + 1, max_flav_per_proc, ",".join(str(n) for n in n_per_group)))
         # Write the file
         writer.writelines(lines)
 
