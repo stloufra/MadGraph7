@@ -4,23 +4,11 @@
 #include <filesystem>
 #include <format>
 #include <ranges>
-#include <sys/resource.h>
 
 #include "madspace/driver/logger.hpp"
 #include "madspace/util.hpp"
 
 using namespace madspace;
-
-namespace {
-
-std::size_t cpu_time_microsec() {
-    struct rusage usage;
-    getrusage(RUSAGE_SELF, &usage);
-    return 1000000 * (usage.ru_utime.tv_sec + usage.ru_stime.tv_sec) +
-        usage.ru_utime.tv_usec + usage.ru_stime.tv_usec;
-}
-
-} // namespace
 
 const GeneratorConfig EventGenerator::default_config = {};
 
@@ -498,24 +486,6 @@ void EventGenerator::add_timing_data(const std::string& key) {
     };
 }
 
-std::string EventGenerator::format_run_time(const std::string& key) const {
-    using namespace std::chrono_literals;
-    auto [wall_time_sec, cpu_time_sec] = _timing_data.at(key);
-    std::chrono::duration<double> cpu_duration(cpu_time_sec),
-        wall_duration(wall_time_sec);
-    // we don't use the ratio feature of duration here because it seems to lead
-    // to errors in old gcc versions
-    double cpu_centisec = std::fmod(cpu_time_sec / 0.01, 100.);
-    double wall_centisec = std::fmod(wall_time_sec / 0.01, 100.);
-    return std::format(
-        "{:%H:%M:%S}.{:02.0f} wall, {:%H:%M:%S}.{:02.0f} cpu",
-        wall_duration,
-        wall_centisec,
-        cpu_duration,
-        cpu_centisec
-    );
-}
-
 void EventGenerator::unweight_all() {
     std::random_device rand_device;
     std::mt19937 rand_gen(rand_device());
@@ -754,7 +724,7 @@ void EventGenerator::write_status(const std::string& status, bool force_write) {
 void EventGenerator::print_survey_init() {
     init_status("survey");
     _last_print_time = std::chrono::steady_clock::now();
-    if (_config.verbosity != GeneratorConfig::pretty) {
+    if (_config.verbosity != Verbosity::pretty) {
         Logger::info("survey started");
         return;
     }
@@ -775,9 +745,9 @@ void EventGenerator::print_survey_update(
         add_timing_data("survey");
     }
     write_status("survey", done);
-    if (_config.verbosity == GeneratorConfig::pretty) {
+    if (_config.verbosity == Verbosity::pretty) {
         print_survey_update_pretty(done, done_event_count, total_event_count, iter);
-    } else if (_config.verbosity == GeneratorConfig::log) {
+    } else if (_config.verbosity == Verbosity::log) {
         print_survey_update_log(done, done_event_count, total_event_count, iter);
     }
 }
@@ -795,9 +765,13 @@ void EventGenerator::print_survey_update_pretty(
         format_si_prefix(_status.count_after_cuts)
     );
     if (done) {
+        auto [wall_time_sec, cpu_time_sec] = _timing_data.at("survey");
         _pretty_box_upper.set_column(
             1,
-            {std::format("{}", iter + 1), int_str, count_str, format_run_time("survey")}
+            {std::format("{}", iter + 1),
+             int_str,
+             count_str,
+             format_run_time(wall_time_sec, cpu_time_sec)}
         );
     } else {
         auto now = std::chrono::steady_clock::now();
@@ -853,14 +827,17 @@ void EventGenerator::print_survey_update_log(
     );
 
     if (done) {
-        Logger::info(std::format("survey done, {}", format_run_time("survey")));
+        auto [wall_time_sec, cpu_time_sec] = _timing_data.at("survey");
+        Logger::info(
+            std::format("survey done, {}", format_run_time(wall_time_sec, cpu_time_sec))
+        );
     }
 }
 
 void EventGenerator::print_gen_init() {
     init_status("generate");
     _last_print_time = std::chrono::steady_clock::now();
-    if (_config.verbosity != GeneratorConfig::pretty) {
+    if (_config.verbosity != Verbosity::pretty) {
         Logger::info("generating started");
         return;
     }
@@ -902,9 +879,9 @@ void EventGenerator::print_gen_update(bool done) {
         add_timing_data("generate");
     }
     write_status("generate", done);
-    if (_config.verbosity == GeneratorConfig::pretty) {
+    if (_config.verbosity == Verbosity::pretty) {
         print_gen_update_pretty(done);
-    } else if (_config.verbosity == GeneratorConfig::log) {
+    } else if (_config.verbosity == Verbosity::log) {
         print_gen_update_log(done);
     }
 }
@@ -942,7 +919,8 @@ void EventGenerator::print_gen_update_pretty(bool done) {
     );
     std::string time_str;
     if (done) {
-        time_str = format_run_time("generate");
+        auto [wall_time_sec, cpu_time_sec] = _timing_data.at("generate");
+        time_str = format_run_time(wall_time_sec, cpu_time_sec);
     } else {
         unw_str = std::format(
             "{:<15} {}",
@@ -1029,14 +1007,19 @@ void EventGenerator::print_gen_update_log(bool done) {
     );
 
     if (done) {
-        Logger::info(std::format("generating done, {}", format_run_time("generate")));
+        auto [wall_time_sec, cpu_time_sec] = _timing_data.at("generate");
+        Logger::info(
+            std::format(
+                "generating done, {}", format_run_time(wall_time_sec, cpu_time_sec)
+            )
+        );
     }
 }
 
 void EventGenerator::print_combine_init() {
     init_status("combine");
     _last_print_time = std::chrono::steady_clock::now();
-    if (_config.verbosity != GeneratorConfig::pretty) {
+    if (_config.verbosity != Verbosity::pretty) {
         Logger::info("combining started");
         return;
     }
@@ -1052,15 +1035,16 @@ void EventGenerator::print_combine_update(std::size_t count) {
     } else {
         write_status("combine", false);
     }
-    if (_config.verbosity == GeneratorConfig::pretty) {
+    if (_config.verbosity == Verbosity::pretty) {
         print_combine_update_pretty(count);
-    } else if (_config.verbosity == GeneratorConfig::log) {
+    } else if (_config.verbosity == Verbosity::log) {
         print_combine_update_log(count);
     }
 }
 
 void EventGenerator::print_combine_update_pretty(std::size_t count) {
     if (count == _config.target_count) {
+        auto [wall_time_sec, cpu_time_sec] = _timing_data.at("combine");
         _pretty_box_upper.set_column(
             1,
             {std::format(
@@ -1068,7 +1052,7 @@ void EventGenerator::print_combine_update_pretty(std::size_t count) {
                  format_si_prefix(count),
                  format_si_prefix(_config.target_count)
              ),
-             format_run_time("combine")}
+             format_run_time(wall_time_sec, cpu_time_sec)}
         );
     } else {
         auto now = std::chrono::steady_clock::now();
@@ -1113,7 +1097,12 @@ void EventGenerator::print_combine_update_log(std::size_t count) {
     );
 
     if (count == _config.target_count) {
-        Logger::info(std::format("combining done, {}", format_run_time("combine")));
+        auto [wall_time_sec, cpu_time_sec] = _timing_data.at("combine");
+        Logger::info(
+            std::format(
+                "combining done, {}", format_run_time(wall_time_sec, cpu_time_sec)
+            )
+        );
     }
 }
 

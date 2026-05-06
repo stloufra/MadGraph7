@@ -1,5 +1,6 @@
 #include "madspace/driver/format.hpp"
 
+#include <chrono>
 #include <cmath>
 #include <format>
 #include <iostream>
@@ -16,6 +17,30 @@ const std::array<std::string, 9> progress_symbols{
 };
 
 } // namespace
+
+std::size_t madspace::cpu_time_microsec() {
+    struct rusage usage;
+    getrusage(RUSAGE_SELF, &usage);
+    return 1000000 * (usage.ru_utime.tv_sec + usage.ru_stime.tv_sec) +
+        usage.ru_utime.tv_usec + usage.ru_stime.tv_usec;
+}
+
+std::string madspace::format_run_time(double wall_time_sec, double cpu_time_sec) {
+    using namespace std::chrono_literals;
+    std::chrono::duration<double> cpu_duration(cpu_time_sec),
+        wall_duration(wall_time_sec);
+    // we don't use the ratio feature of duration here because it seems to lead
+    // to errors in old gcc versions
+    double cpu_centisec = std::fmod(cpu_time_sec / 0.01, 100.);
+    double wall_centisec = std::fmod(wall_time_sec / 0.01, 100.);
+    return std::format(
+        "{:%H:%M:%S}.{:02.0f} wall, {:%H:%M:%S}.{:02.0f} cpu",
+        wall_duration,
+        wall_centisec,
+        cpu_duration,
+        cpu_centisec
+    );
+}
 
 std::string madspace::format_si_prefix(double value) {
     value = std::round(value);

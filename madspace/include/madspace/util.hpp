@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <format>
 #include <ranges>
+#include <sys/resource.h>
 #include <tuple>
 #include <unordered_map>
 #include <vector>

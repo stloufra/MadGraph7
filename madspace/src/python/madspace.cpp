@@ -1252,18 +1252,19 @@ PYBIND11_MODULE(_madspace_py, m) {
             py::arg("cwnet")
         );
 
-    add_enum<GeneratorConfig::Verbosity>(
+    add_enum<Verbosity>(
         m,
-        "GeneratorVerbosity",
+        "Verbosity",
         {
-            {"silent", GeneratorConfig::silent},
-            {"log", GeneratorConfig::log},
-            {"pretty", GeneratorConfig::pretty},
+            {"silent", Verbosity::silent},
+            {"log", Verbosity::log},
+            {"pretty", Verbosity::pretty},
         }
     );
 
     py::classh<MadnisTraining::Config>(m, "MadnisConfig")
         .def(py::init<>())
+        .def_readwrite("verbosity", &MadnisTraining::Config::verbosity)
         .def_readwrite("learning_rate", &MadnisTraining::Config::learning_rate)
         .def_readwrite("batches", &MadnisTraining::Config::batches)
         .def_readwrite("log_interval", &MadnisTraining::Config::log_interval)
@@ -1305,7 +1306,19 @@ PYBIND11_MODULE(_madspace_py, m) {
         .def_readwrite("lr_schedule", &MadnisTraining::Config::lr_schedule)
         .def_readwrite("adam_beta1", &MadnisTraining::Config::adam_beta1)
         .def_readwrite("adam_beta2", &MadnisTraining::Config::adam_beta2)
-        .def_readwrite("adam_eps", &MadnisTraining::Config::adam_eps);
+        .def_readwrite("adam_eps", &MadnisTraining::Config::adam_eps)
+        .def_readwrite("buffer_capacity", &MadnisTraining::Config::buffer_capacity)
+        .def_readwrite(
+            "minimum_buffer_size", &MadnisTraining::Config::minimum_buffer_size
+        )
+        .def_readwrite("buffered_steps", &MadnisTraining::Config::buffered_steps)
+        .def_readwrite(
+            "buffer_unweighting_quantile",
+            &MadnisTraining::Config::buffer_unweighting_quantile
+        )
+        .def_readwrite(
+            "fixed_cwnet_fraction", &MadnisTraining::Config::fixed_cwnet_fraction
+        );
 
     py::classh<MadnisTraining>(m, "MadnisTraining")
         .def(
@@ -1321,8 +1334,26 @@ PYBIND11_MODULE(_madspace_py, m) {
             py::arg("integrands"),
             py::arg("cwnet")
         )
-        .def("train", &MadnisTraining::train)
-        .def("active_channels", &MadnisTraining::active_channels);
+        .def("train_step", &MadnisTraining::train_step, py::arg("batch_index"))
+        .def("active_channels", &MadnisTraining::active_channels)
+        .def("active_channel_count", &MadnisTraining::active_channel_count);
+
+    py::classh<MultiMadnisTraining>(m, "MultiMadnisTraining")
+        .def(
+            py::init<
+                ContextPtr,
+                ContextPtr,
+                const MadnisTraining::Config&,
+                const nested_vector2<std::shared_ptr<Integrand>>&,
+                const std::vector<std::optional<ChannelWeightNetwork>>&>(),
+            py::arg("generator_context"),
+            py::arg("optimizer_context"),
+            py::arg("config"),
+            py::arg("integrands"),
+            py::arg("cwnets")
+        )
+        .def("train", &MultiMadnisTraining::train)
+        .def("active_channels", &MultiMadnisTraining::active_channels);
 
     py::classh<GeneratorConfig>(m, "GeneratorConfig")
         .def(py::init<>())

@@ -85,7 +85,6 @@ private:
     void update_counts();
     void reset_start_time();
     void add_timing_data(const std::string& key);
-    std::string format_run_time(const std::string& key) const;
     void unweight_all();
     std::tuple<std::vector<CombineChannelData>, std::size_t, double> init_combine();
     void read_and_combine(

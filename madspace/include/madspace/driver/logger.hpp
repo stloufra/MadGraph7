@@ -7,6 +7,8 @@
 
 namespace madspace {
 
+enum class Verbosity { silent, log, pretty };
+
 class Logger {
 public:
     enum LogLevel { level_debug, level_info, level_warning, level_error };
@@ -26,7 +28,7 @@ public:
             println("[INFO] {}", message);
             break;
         case level_warning:
-            println("[WARNIGN] {}", message);
+            println("[WARNING] {}", message);
             break;
         case level_error:
             println("[ERROR] {}", message);

@@ -394,60 +394,71 @@ class MadgraphProcess:
     def train_madnis(self) -> None:
         madnis_args = self.run_card["madnis"]
         gen_args = self.run_card["generation"]
+        run_args = self.run_card["run"]
         if madnis_args.get("old", False):
             self.train_madnis_old()
             return
 
+        config = ms.MadnisConfig()
+        config.verbosity = run_args["verbosity"]
+        config.learning_rate = madnis_args["lr"]
+        config.batches = madnis_args["train_batches"]
+        config.log_interval = madnis_args["log_interval"]
+        config.integration_history_length = madnis_args["integration_history_length"]
+        config.channel_dropping_interval = madnis_args["channel_dropping_interval"]
+        config.channel_dropping_threshold = madnis_args["channel_dropping_threshold"]
+        config.cpu_generator_batch_size = gen_args["cpu_batch_size"]
+        config.gpu_generator_batch_size = gen_args["gpu_batch_size"]
+        config.gpu_generator_batch_granularity = madnis_args["gpu_generator_batch_granularity"]
+        config.generator_target_size_factor = madnis_args["generator_target_size_factor"]
+        config.batch_size_offset = madnis_args["batch_size_offset"]
+        config.batch_size_per_channel = madnis_args["batch_size_per_channel"]
+        config.uniform_channel_ratio = madnis_args["uniform_channel_ratio"]
+        config.lr_schedule = madnis_args["lr_scheduler"]
+        config.adam_beta1 = madnis_args["adam_beta1"]
+        config.adam_beta2 = madnis_args["adam_beta2"]
+        config.adam_eps = madnis_args["adam_eps"]
+        madnis_integrand_flags = (
+            ms.Integrand.sample
+            | ms.Integrand.return_latent
+            | ms.Integrand.return_channel
+            | ms.Integrand.return_chan_weights
+            | ms.Integrand.return_cwnet_input
+            | ms.Integrand.return_discrete_latent
+            | ms.Integrand.exclude_adaptive_and_chan_weight
+        )
+        if madnis_args["drop_zero_integrands"]:
+            madnis_integrand_flags |= ms.Integrand.drop_cuts_and_rescale
+
         madnis_phasespaces = []
+        integrands = []
+        cwnets = []
         for subproc, phasespace in zip(self.subprocesses, self.phasespaces):
             phasespace = subproc.build_madnis(phasespace)
-            gen_context = self.contexts[0]
-            opt_context = ms.Context(
-                device=self.devices[0], thread_count=self.pool_sizes[0]
-            )
-            opt_context.copy_globals_from(gen_context)
-            config = ms.MadnisConfig()
-            config.learning_rate = madnis_args["lr"]
-            config.batches = madnis_args["train_batches"]
-            config.log_interval = madnis_args["log_interval"]
-            config.integration_history_length = madnis_args["integration_history_length"]
-            config.channel_dropping_interval = madnis_args["channel_dropping_interval"]
-            config.channel_dropping_threshold = madnis_args["channel_dropping_threshold"]
-            config.cpu_generator_batch_size = gen_args["cpu_batch_size"]
-            config.gpu_generator_batch_size = gen_args["gpu_batch_size"]
-            config.gpu_generator_batch_granularity = madnis_args["gpu_generator_batch_granularity"]
-            config.generator_target_size_factor = madnis_args["generator_target_size_factor"]
-            config.batch_size_offset = madnis_args["batch_size_offset"]
-            config.batch_size_per_channel = madnis_args["batch_size_per_channel"]
-            config.uniform_channel_ratio = madnis_args["uniform_channel_ratio"]
-            config.lr_schedule = madnis_args["lr_scheduler"]
-            config.adam_beta1 = madnis_args["adam_beta1"]
-            config.adam_beta2 = madnis_args["adam_beta2"]
-            config.adam_eps = madnis_args["adam_eps"]
-            madnis_integrand_flags = (
-                ms.Integrand.sample
-                | ms.Integrand.return_latent
-                | ms.Integrand.return_channel
-                | ms.Integrand.return_chan_weights
-                | ms.Integrand.return_cwnet_input
-                | ms.Integrand.return_discrete_latent
-                | ms.Integrand.exclude_adaptive_and_chan_weight
-            )
-            if madnis_args["drop_zero_integrands"]:
-                madnis_integrand_flags |= ms.Integrand.drop_cuts_and_rescale
-            madnis_training = ms.MadnisTraining(
-                generator_context=gen_context,
-                optimizer_context=opt_context,
-                config=config,
-                integrands=subproc.build_integrands(phasespace, madnis_integrand_flags),
-                cwnet=phasespace.cwnet
-            )
-            madnis_training.train()
-            phasespace.channels = [
-                phasespace.channels[index]
-                for index in madnis_training.active_channels()
-            ]
             madnis_phasespaces.append(phasespace)
+            integrands.append(subproc.build_integrands(phasespace, madnis_integrand_flags))
+            cwnets.append(phasespace.cwnet)
+
+        gen_context = self.contexts[0]
+        opt_context = ms.Context(
+            device=self.devices[0], thread_count=self.pool_sizes[0]
+        )
+        opt_context.copy_globals_from(gen_context)
+
+        madnis_training = ms.MultiMadnisTraining(
+            generator_context=gen_context,
+            optimizer_context=opt_context,
+            config=config,
+            integrands=integrands,
+            cwnets=cwnets,
+        )
+        madnis_training.train()
+        for phasespace, active_channels in zip(
+            madnis_phasespaces, madnis_training.active_channels()
+        ):
+            phasespace.channels = [
+                phasespace.channels[index] for index in active_channels
+            ]
         self.phasespaces = madnis_phasespaces
         for context in self.contexts[1:]:
             context.copy_globals_from(self.contexts[0])

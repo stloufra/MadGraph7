@@ -6,6 +6,8 @@
 
 namespace madspace {
 
+std::size_t cpu_time_microsec();
+std::string format_run_time(double wall_time_sec, double cpu_time_sec);
 std::string format_si_prefix(double value);
 std::string format_with_error(double value, double error);
 std::string format_progress(double progress, int width);

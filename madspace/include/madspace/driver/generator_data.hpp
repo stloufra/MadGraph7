@@ -7,6 +7,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include "madspace/driver/logger.hpp"
 #include "madspace/driver/tensor.hpp"
 
 namespace madspace {
@@ -44,8 +45,6 @@ private:
 };
 
 struct GeneratorConfig {
-    enum Verbosity { silent, log, pretty };
-
     std::size_t target_count = 10000; // TODO: don't include here
     double vegas_damping = 0.2;
     double max_overweight_truncation = 0.01;
@@ -59,7 +58,7 @@ struct GeneratorConfig {
     double optimization_threshold = 0.99;
     std::size_t cpu_batch_size = 1000;
     std::size_t gpu_batch_size = 64000;
-    Verbosity verbosity = silent;
+    Verbosity verbosity = Verbosity::silent;
     bool write_live_data = false;
     int combine_thread_count = -1;
 };
