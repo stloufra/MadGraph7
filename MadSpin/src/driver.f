@@ -37,6 +37,9 @@ c      integer mapconfig(0:lmaxconfigs)
       double precision M_PROD, M_FULL
       logical notpass
       integer counter,mode,nbpoints, counter2, counter3
+      integer flavor_index
+      integer FLAVOR(NEXTERNAL)
+      integer FLAVOR_PROD(NEXTERNAL_PROD)
       double precision mean, variance, maxweight,weight,std
       double precision temp
       double precision Pprod(0:3,nexternal_prod)
@@ -116,7 +119,10 @@ c      enddo
  
 1     continue
       maxBW=0d0
-      read(*,*) mode,  BWcut, Ecollider, temp, frame_id
+      read(*,*) mode,  BWcut, Ecollider, temp, frame_id, flavor_index
+
+      call GET_FLAVOR_MS_FULL(flavor_index, FLAVOR)
+      call GET_FLAVOR_MS_PROD(flavor_index, FLAVOR_PROD)
  
 
       if (mode.eq.1) then    ! calculate the maximum weight
@@ -174,7 +180,7 @@ cccccccccccccccccccccccccccccccccccccccccccccccccccc
       amp2(i)=0d0
       enddo
       call coup()
-      CALL SMATRIX_PROD(P,M_PROD)
+      CALL SMATRIX_PROD(P,FLAVOR_PROD,M_PROD)
 c      write(*,*) 'M_prod ', M_prod
 cccccccccccccccccccccccccccccccccccccccccccccccccccc
 c   IV. select one topology                        c
@@ -241,7 +247,7 @@ c           enddo
                do k=1,n_max_cg
                  amp2(k)=0d0
                enddo
-               CALL SMATRIX_PROD(P,M_PROD)
+               CALL SMATRIX_PROD(P,FLAVOR_PROD,M_PROD)
                call get_config(iconfig)
                do k=-nexternal_prod+2,-1
                 do j=1,2
@@ -261,10 +267,10 @@ c           enddo
            endif
           
            call  boost_to_frame(pfull, frame_id, P2)
-           call SMATRIX(P2,M_full)
+           call SMATRIX(P2,FLAVOR,M_full)
 
            call  boost_to_frame_prod(pprod, frame_id,nexternal_prod, P2)
-           call SMATRIX_PROD(P2,M_prod)
+           call SMATRIX_PROD(P2,FLAVOR_PROD,M_prod)
 
 
 
@@ -352,7 +358,7 @@ c        initialize the helicity amps
                do k=1,n_max_cg
                  amp2(k)=0d0
                enddo
-               CALL SMATRIX_PROD(P,M_PROD)
+               CALL SMATRIX_PROD(P,FLAVOR_PROD,M_PROD)
                call get_config(iconfig)
                do i=-nexternal_prod+2,-1
                 do j=1,2
@@ -372,11 +378,11 @@ c        initialize the helicity amps
            endif
 
            call  boost_to_frame(pfull, frame_id, P2)
-           call SMATRIX(P2,M_full)
+           call SMATRIX(P2,FLAVOR,M_full)
 
 
            call  boost_to_frame_prod(pprod, frame_id,nexternal_prod, P2)
-           call SMATRIX_PROD(P2,M_prod)
+           call SMATRIX_PROD(P2,FLAVOR_PROD,M_prod)
 
 
            weight=M_full*jac/M_prod
@@ -441,7 +447,7 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
            call generate_momenta_conf(jac,x,itree,qmass,qwidth,pfull,pprod,map_external2res) 
            if (jac.lt.0d0) cycle
            notpass=.false.
-           call SMATRIX(pfull,M_full)
+           call SMATRIX(pfull,FLAVOR,M_full)
 
            write(*,*) M_full
         enddo
@@ -451,6 +457,8 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 
 2     continue
       end
+
+      include 'flavor_ms.inc'
 
       subroutine get_helicity_ID(iconfig)
       implicit none
