@@ -6,6 +6,7 @@
 #include <iostream>
 #include <span>
 #include <sstream>
+#include <sys/resource.h>
 
 using namespace madspace;
 
