@@ -40,6 +40,7 @@ c
 c      integer imirror, iproc, iconf
       integer imirror_vec(NB_WARP), iproc, ICONF_VEC(NB_WARP)
       integer IFLAV_VEC(NB_WARP) 
+      integer dummyflavor
       integer ivec              ! position of the event in the vector (max is VECSIZE_MEMMAX, loops go over VECSIZE_USED)
       integer ilock             !  position of the event in the current warp (max is WARP_SIZE)
       integer iwarp               ! position of the current warp (max is NB_WARP)
@@ -163,6 +164,7 @@ c      maxcfig=nconfigs
 c
 c     Main Integration Loop
 c
+      dummyflavor = 0
       ievent = 0
       iter = 1
       ivec = 0
@@ -204,7 +206,10 @@ c               all_wgt(i) = all_wgt(i)*fx
                endif
 
                if (VECSIZE_USED.le.1) then
-                  all_fx(1) = dsig(all_p, all_wgt,0)
+                  ! 0  is used as flavor index to indicate that none has been
+                  ! set (yet) the handling depends group_subprocess/flavor
+                  dummyflavor = 0 ! important to reset since dsig can overwrite it
+                  all_fx(1) = dsig(all_p,dummyflavor, all_wgt,0)
                   ivec=0
                   ilock=0
                   iwarp=1 
@@ -433,7 +438,9 @@ c
             call x_to_f_arg(ndim,ipole,mincfig,maxcfig,ninvar,wgt,x,p)
             if (pass_point(p)) then
                xzoomfact = 1d0
-               fx = dsig(p,wgt,0) !Evaluate function
+               ! first 0 is for unset flavor
+               ! second 0 is for the mode
+               fx = dsig(p,dummyflavor,wgt,0) !Evaluate function
                if (xzoomfact .gt. 0d0) then
                   wgt = wgt*fx*xzoomfact
                else
@@ -1689,6 +1696,7 @@ c
 c
 c     Local
 c
+      integer dummyflavor
       integer i, j, k, knt, nun,itsum
       double precision vol,xnmin,xnmax,tot,xdum,tmp1,chi2tmp
       double precision rc, dr, xo, xn, x(maxinvar), dum(ng-1)
@@ -2264,7 +2272,7 @@ c            enddo
 c            close(26)
 
 c     Update weights in dsig (needed for subprocess group mode)
-            xdum=dsig(0,0,2)
+            xdum=dsig(0,dummyflavor,0,2)
 c
 c     Add test to see if we have achieved desired accuracy 
 c     Allow minimum itmin iterations

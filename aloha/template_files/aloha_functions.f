@@ -12,10 +12,17 @@ C
 C###############################################################################
       module ALOHA_OBJECT
          TYPE ALOHA 
+            SEQUENCE
             double complex::W(4)
             double precision :: P(0:3)
             integer :: flv_index 
          END TYPE ALOHA
+         TYPE ALOHA2D 
+            SEQUENCE
+            double complex::W(16)
+            double precision :: P(0:3)
+            integer :: flv_index 
+         END TYPE ALOHA2D
       end module ALOHA_OBJECT
 
 
@@ -455,7 +462,7 @@ c
       implicit none
       double precision p(0:3), tmass
       integer nhel, nst
-      type(aloha) tc
+      type(aloha2d) tc
 
       double complex ft(6,4), ep(4), em(4), e0(4)
       double precision pt, pt2, pp, pzpt, emp, sqh, sqs
@@ -1173,7 +1180,7 @@ c
       implicit none
       double precision p(0:3),rmass
       integer nhel,nsr
-      type(aloha) ri
+      type(aloha2d) ri
 
       double complex rc(6,4),ep(4),em(4),e0(4),fip(4),fim(4),chi(2)
       double precision pp,pt2,pt,pzpt,emp, sf(2),sfomeg(2),omega(2),pp3,
@@ -1503,7 +1510,7 @@ c
       double precision p(0:3),rmass
       integer nhel,nsr
       double complex fipp(4),fimm(4)
-      type(aloha) ro
+      type(aloha2d) ro
 
       double complex rc(6,4),ep(4),em(4),e0(4),fop(4),fom(4),chi(2)
       double precision pp,pt2,pt,pzpt,emp, sf(2),sfomeg(2),omega(2),pp3,
@@ -1851,6 +1858,21 @@ c spin-3/2 fermion wavefunction
       end
 
 
+      complex*16 function THETA_FUNCTIONR(cond, out_true, out_false)
+
+      double precision cond
+      double precision  out_true, out_false
+
+      if (cond.ge.0d0) then
+        THETA_FUNCTIONR = out_true
+      else
+        THETA_FUNCTIONR = out_false
+      endif
+
+      return
+
+
+      end
       complex*16 function THETA_FUNCTION(cond, out_true, out_false)
 
       double precision cond

@@ -23,16 +23,12 @@ import math
 import numbers
 import os
 import re
-import six
-StringIO = six
-
+import io
 import madgraph
 import madgraph.core.color_algebra as color
 import collections
 from madgraph import MadGraph5Error, MG5DIR, InvalidCmd
 import madgraph.various.misc as misc 
-from six.moves import range
-from six.moves import zip
 from functools import reduce
 
 
@@ -303,6 +299,13 @@ class Particle(PhysicsObject):
             else:
                 mystr = mystr + '    \'' + prop + '\': ' + \
                         repr(self[prop]) + ',\n'
+        # Also show extra UFO quantum numbers (e.g. LeptonNumber, Y) not in sorted_keys
+        standard_keys = set(self.get_sorted_keys())
+        for prop in sorted(k for k in self.keys() if k not in standard_keys):
+            if isinstance(self[prop], float):
+                mystr = mystr + '    \'' + prop + '\': %.2f,\n' % self[prop]
+            else:
+                mystr = mystr + '    \'' + prop + '\': ' + repr(self[prop]) + ',\n'
         mystr = mystr.rstrip(',\n')
         mystr = mystr + '\n}'
 
@@ -992,11 +995,16 @@ class Interaction(PhysicsObject):
 
         particles = [p for p in self.get('particles') if abs(p.get('pdg_code')) in ids_to_merge]
         
+        if ids_to_merge[0] != -ids_to_merge[1]: 
+            get_flav = lambda p: ids_to_merge.index(abs(p.get_pdg_code()))+1 
+        else:
+            # special case for W+/W- merging
+            get_flav = lambda p: ids_to_merge.index(p.get_pdg_code())+1
 
         # Update the coupling to FLV_coupling
         for key, coup in list(self.get('couplings').items()):
             if isinstance(coup, str):
-                flav = [ids_to_merge.index(abs(p.get_pdg_code()))+1 if p.get('pdg_code') in ids_to_merge else 0 for p in self.get('particles')]
+                flav = [get_flav(p) if p.get('pdg_code') in ids_to_merge else 0 for p in self.get('particles')]
                 assert isinstance(coup, str)
                 coupling = FLV_Coupling()
                 coupling.set('flavors', {tuple(flav): coup})
@@ -1011,7 +1019,7 @@ class Interaction(PhysicsObject):
                     for i, val in enumerate(flav):
                         p = self.get('particles')[i]
                         if val == 0 and p.get('pdg_code') in ids_to_merge:
-                            flav[i] = ids_to_merge.index(abs(p.get_pdg_code()))+1
+                            flav[i] = get_flav(p)
                     coup.get('flavors')[tuple(flav)] = coup.get('flavors').pop(flavors)
 
         # Change the particles
@@ -1033,9 +1041,23 @@ class Interaction(PhysicsObject):
         assert isinstance(self.get('couplings')[(0,0)], FLV_Coupling)
         #assert isinstance(other_flavor.get('couplings')[(0,0)], str)
 
+        debug = False
+        #if new_part is anti_part:
+        #    debug = True
+        #debug = True
 
-        flav = tuple([ids.index(abs(p.get_pdg_code()))+1 if p.get('pdg_code') 
+        if ids[0] != -ids[1]: 
+            get_flav = lambda p: ids.index(abs(p.get_pdg_code()))+1 
+        else:
+            #misc.sprint("use sign", ids_to_merge, [p.get_pdg_code() for p in self.get('particles')])
+            # special case for W+/W- merging
+            get_flav = lambda p: ids.index(p.get_pdg_code())+1
+
+        flav = tuple([get_flav(p) if p.get('pdg_code') 
                       in ids else 0 for p in other_flavor.get('particles')]) 
+        if debug: misc.sprint(self, other_flavor)
+        if debug: misc.sprint(flav)
+
         if isinstance(other_flavor.get('couplings')[(0,0)], str):        
             for color, lor in other_flavor.get('couplings'):
                 if (color, lor) in self.get('couplings'):
@@ -1231,6 +1253,7 @@ class Model(PhysicsObject):
         self['startfromalpha0'] = False
         # attribute which might be define if needed
         #self['name2pdg'] = {'name': pdg}
+        #self['unmerged_interactions'] = InteractionList()
         
         
 
@@ -1479,6 +1502,20 @@ class Model(PhysicsObject):
         new_part['charge'] = particles[0].get('charge') # might not be the same for all particles !
         if any(p.get('charge') != particles[0].get('charge') for p in particles):
             self['conserved_charge'].discard('charge')
+        # handle all conserved quantum numbers (LeptonNumber, Y, etc.)
+        for charge in list(self['conserved_charge']):
+            if charge == 'charge':
+                continue  # already handled above
+            values = []
+            for p in particles:
+                try:
+                    values.append(p.get(charge))
+                except Exception:
+                    values.append(None)
+            if all(v is not None and v == values[0] for v in values):
+                new_part.set(charge, values[0], force=True)
+            else:
+                self['conserved_charge'].discard(charge)
         # handle all parameter that have to be the same
         iden_param = ['mass', 'spin', 'color', 'width', 'line', 'propagator', 'is_part', 'self_antipart','type', 'counterterm']
         for param in iden_param:
@@ -1487,10 +1524,10 @@ class Model(PhysicsObject):
                 raise Exception("all merged particles should have the same %s: %s" % (param, [p.get(param) for p in particles]))
         if new_part.get('self_antipart'):
             new_part['antiname'] = name
-            anti_part = Particle(new_part)
+            anti_part = copy.deepcopy(new_part)
         else:
             new_part['antiname'] = '_anti'+name
-            anti_part = Particle(new_part)
+            anti_part = copy.deepcopy(new_part)
             anti_part['is_part'] = False
 
         self['merged_particles'][pdg_code] = ids
@@ -1526,7 +1563,10 @@ class Model(PhysicsObject):
                             c = next(iter(inter.get('couplings').values()))
                             f = next(iter(c['flavors']))
                             change[i] =  9 + 2 * f[pos]
-            delta = (change[1]-change[0]) % 6
+            if len(change) == 2:
+                delta = (change[1]-change[0]) % 6
+            else:
+                delta = 0
             # Here is the delta value for standard combination
             #   u c t  #   e  mu tau #    82(1) 82(2) 82(3)
             # d 1 3 5  #ve 5  1  3   # ve  5 .  1 .   3   #ve
@@ -1552,6 +1592,9 @@ class Model(PhysicsObject):
         (lorentz, color, flavor).
         The ids is the list of index of the particles to merge, 
         the associated flavor index will start at one"""
+
+        if not hasattr(self, 'unmerged_interactions'):
+            self['unmerged_interactions'] = InteractionList()
         
         # get the particle to merge into
         new_part, anti_part = self.define_merge_particle_for(ids)
@@ -1575,10 +1618,18 @@ class Model(PhysicsObject):
                 if key in new_interactions:
                     new_interactions[key].update_flavor(inter, ids, new_part, anti_part)
                     self.get('interactions').remove(inter)
+                    if not any(p.get('pdg_code') in self['merged_particles'] for p in inter.get('particles')):
+                        self['unmerged_interactions'].append(inter)
                 else:
                     #inter.pass_interaction_to_flavor_mode(ids, new_part, anti_part)
-                    new_interactions[key] = inter
-                    inter.pass_interaction_to_flavor_mode(ids, new_part, anti_part)
+                    self.get('interactions').remove(inter)
+                    newinter = copy.deepcopy(inter)
+                    newinter.set('color', inter.get('color')) # avoid deepcopy issue with color objects
+                    new_interactions[key] = newinter
+                    newinter.pass_interaction_to_flavor_mode(ids, new_part, anti_part)
+                    self.get('interactions').append(newinter)
+                    if not any(p.get('pdg_code') in self['merged_particles'] for p in inter.get('particles')):
+                        self['unmerged_interactions'].append(inter)
                 
                         
         # for vertex which preserve flavor and has identical couplings. Move it back
@@ -1593,6 +1644,116 @@ class Model(PhysicsObject):
                             if len([k for k in fkey if k]) == 2:
                                 inter.get('couplings')[key] = new_coup
                             break
+
+    def unmerge_flavors(self):
+        """Unmerge a previously merged flavor particle.
+        The id is the index of the merged particle to unmerge.
+        The associated interactions will be unmerged back to standard ones.
+        """
+        if not self['merged_particles']:
+            return #nothing to unmerge
+
+        for inter in self.get('interactions')[:]:
+            #misc.sprint("check inter", [p.get('pdg_code') for p in inter.get('particles')])
+            for pdg, ids in self['merged_particles'].items():
+                if any(abs(p.get('pdg_code')) == pdg for p in inter.get('particles')):
+                    self.get('interactions').remove(inter)
+                    #misc.sprint("remove", [p.get('pdg_code') for p in inter.get('particles')])
+                    break
+
+        self.get('interactions').__iadd__(self['unmerged_interactions'])
+
+        for pdg in self['merged_particles'].keys():
+            merged_part = self.get_particle(pdg)
+            self.get('particles').remove(merged_part)
+            del self["particle_dict"][pdg]
+            del self["particle_dict"][-pdg]
+        self['merged_particles'] = {}
+        del self['unmerged_interactions']
+
+    def merge_part_antipart(self, id):
+        """Merge a particle with its anti-particle into a single
+        self-conjugate particle. but with a flavor index.
+         associated interaction will be merged and will have coupling with three indices
+        (lorentz, color, flavor).
+        The ids is the list of index of the particles to merge, 
+        the associated flavor index will start at one
+        """
+
+        new_part = self.define_merged_part_antipart(id)
+
+        # Update the model
+        self.get('particles').append(new_part)
+        self["particle_dict"][new_part.get('pdg_code')] = new_part
+        self["particle_dict"][-new_part.get('pdg_code')] = new_part
+
+        # loop over the interaction and replace the associated particles by the new one
+        # and replace the coupling key by a three index key with last index being (I,J,K)
+        # where 0 means no flavor index and 1 is the particles and 2 the anti-particle
+        # need to track if such interaction already exist and update if it does
+        # Note that we need to support both the case where the interation did not had any flavor index before
+        # and the case where it had one from a previous merge 
+        new_interactions = {} #key is the tuple of the particle
+        ids = [id, -id] 
+        for inter in self.get('interactions')[:]:
+            if any(p.get('pdg_code')in ids for p in inter.get('particles')):
+                key = self.get_get_merge_key(inter, ids, new_part, force_delta=0)
+
+                if key in new_interactions:
+                    new_interactions[key].update_flavor(inter, ids, new_part, new_part)
+                    self.get('interactions').remove(inter)
+                else:
+                    #inter.pass_interaction_to_flavor_mode(ids, new_part, anti_part)
+                    new_interactions[key] = inter
+                    inter.pass_interaction_to_flavor_mode(ids, new_part, new_part)
+                
+        # for vertex which preserve flavor and has identical couplings. Move it back
+        # to previous mode
+        for inter in new_interactions.values():
+            coups = list(inter.get('couplings').values())
+            if all([len(set(fc.get('flavors').values()))==1 for fc in coups]):
+                for key in inter.get('couplings'):
+                    old_coup = inter.get('couplings')[key]
+                    if len(old_coup.get('flavors')) == len(ids):
+                        for fkey, new_coup in old_coup.get('flavors').items():
+                            if len([k for k in fkey if k]) == 2:
+                                inter.get('couplings')[key] = new_coup
+                            break
+
+
+    def define_merged_part_antipart(self, id):
+        """ this is an helper function for the merge_part_antipart function. It will
+        return the self conjugate particle that is replacing the pair.
+        """
+        
+        nb_merged = 1 + len(self['merged_particles']) 
+        particle = self.get_particle(id)
+        if particle.get('self_antipart'):
+            raise Exception("Particle with PDG code %s is self-conjugate." % str(id))
+    
+        # create the new particle
+        new_part = Particle()
+        if id == 24:
+            name = '_wboson'
+            pdg_code = 84
+        else:
+            name = '_merged%d' % nb_merged
+            pdg_code = 90 + nb_merged
+
+        new_part['name'] = name
+        new_part['antiname'] = name 
+        new_part['pdg_code'] = pdg_code
+        new_part['charge'] = particle.get('charge') # will not be the same 
+        if particle.get('charge') != 0:
+            self['conserved_charge'].discard('charge')
+        new_part['self_antipart'] = True
+        # handle all parameter that have to be the same
+        iden_param = ['mass', 'spin', 'color', 'width', 'line', 'propagator', 'is_part', 'type', 'counterterm']
+        for param in iden_param:
+            new_part[param] = particle.get(param)
+
+        self['merged_particles'][pdg_code] = [id, -id]
+        return new_part
 
 
     def create_name2part(self):
@@ -1685,7 +1846,8 @@ class Model(PhysicsObject):
         """returns the number of light quark flavours in the model."""
         return len([p for p in self.get('particles') \
                 if p['spin'] == 2 and p['is_part'] and \
-                p ['color'] != 1 and p['mass'].lower() == 'zero'])
+                p ['color'] != 1 and p['mass'].lower() == 'zero' and \
+                p['pdg_code'] not in self.merged_particles])
 
 
     def get_quark_pdgs(self):
@@ -1707,7 +1869,8 @@ class Model(PhysicsObject):
         return len([p for p in self.get('particles') \
                 if p['spin'] == 2 and p['is_part'] and \
                 p['color'] == 1 and \
-                p['charge'] != 0. and p['mass'].lower() == 'zero'])
+                p['charge'] != 0. and p['mass'].lower() == 'zero' and \
+                p['pdg_code'] not in self.merged_particles])
 
 
     def get_lepton_pdgs(self):
@@ -2004,6 +2167,13 @@ class Model(PhysicsObject):
                 for coup in self['couplings'][key]:
                     coup.expr = rep_pattern.sub(replace, coup.expr)
 
+            # change WF CT coupling expressions if present (loop models)
+            if dict.get(self, 'wf_ct_coupling_exprs'):
+                self['wf_ct_coupling_exprs'] = {
+                    name: rep_pattern.sub(replace, expr)
+                    for name, expr in self['wf_ct_coupling_exprs'].items()
+                }
+
             # change form-factor
             ff = [l.formfactors for l in self['lorentz'] if hasattr(l, 'formfactors')]
             ff = set(sum(ff,[])) # here we have the list of ff used in the model
@@ -2042,7 +2212,7 @@ class Model(PhysicsObject):
         
         import models.write_param_card as writer
         if not filepath:
-            out = StringIO.StringIO() # it's suppose to be written in a file
+            out = io.StringIO() # it's suppose to be written in a file
         else:
             out = filepath
         param = writer.ParamCardWriter(self, filepath=out)
@@ -2416,7 +2586,7 @@ class FLV_Coupling(PhysicsObject):
     
     def get_one_coupling(self):
         """return one coupling"""
-        return next(iter(self['flavors']))
+        return next(iter(self['flavors'].values()))
     
     def get_all_couplings(self):
         """return all couplings"""
@@ -2443,6 +2613,11 @@ class FLV_Coupling(PhysicsObject):
 class Leg(PhysicsObject):
     """Leg object: id (Particle), number, I/F state, flag from_group
     """
+
+    # List of allowed helicity polarizations for a fermion or vector boson.
+    # See [arXiv:1912.01725] for definitions (fermions,vectors) and
+    # [arXiv:2512.10015] for extensions (vectors)
+    list_of_allowed_polarizations = [-1, 1, 2,-2, 3,-3, 0, 4, 5, 6, 7, 9, 99]
 
     def default_setup(self):
         """Default values for all properties"""
@@ -2493,7 +2668,7 @@ class Leg(PhysicsObject):
                 raise self.PhysicsObjectError( \
                         "%s is not a valid list" % str(value))
             for i in value:
-                if i not in [-1, 1, 2,-2, 3,-3, 0, 99]:
+                if i not in self.list_of_allowed_polarizations:
                     raise self.PhysicsObjectError( \
                           "%s is not a valid polarization" % str(value))
                                                                     
@@ -2692,7 +2867,7 @@ class MultiLeg(PhysicsObject):
                 raise self.PhysicsObjectError( \
                         "%s is not a valid list" % str(value))
             for i in value:
-                if i not in [-1, 1,  2, -2, 3, -3, 0, 99]:
+                if i not in Leg.list_of_allowed_polarizations:
                     raise self.PhysicsObjectError( \
                           "%s is not a valid polarization" % str(value))
 
@@ -3782,7 +3957,20 @@ class Process(PhysicsObject):
                    and leg['state'] == True:
                 # Separate initial and final legs by ">"
                 mystr = mystr + '> '
-            mystr = mystr + mypart.get_name() 
+            if abs(leg.get('id')) in self['model'].get('merged_particles'):
+                if len(leg['flavor']) == 1:
+                    pdg = abs(leg['flavor'][0]) * leg.get('id')/abs(leg.get('id'))
+                    onepart = self['model'].get_particle(pdg)
+                    mystr += onepart.get_name()
+                elif leg.get('id') in [81,82,83, -81, -82, -83]:
+                    mystr += {81:'Q', -81:'Qx', 82:'L', -82:'Lx', 83:'N', -83:'Nx'}[leg.get('id')]    
+                elif leg.get('id')>0:
+                    mystr += 'm%s'% leg.get('id')
+                else:
+                    mystr += 'm%sx'% abs(leg.get('id'))
+            else:
+                mystr = mystr + mypart.get_name() 
+                
             if leg.get('polarization'):
                 if leg.get('polarization') in [[-1,1],[1,-1]]:
                     mystr = mystr + '{T} '
@@ -3833,7 +4021,19 @@ class Process(PhysicsObject):
                                                 for req_id in id_list]) \
                                     for id_list in self['required_s_channels']])
                     mystr = mystr + '_'
-            if mypart['is_part']:
+
+            if abs(leg.get('id')) in self['model'].get('merged_particles'):
+                if len(leg['flavor']) == 1:
+                    single_pdg = abs(leg['flavor'][0]) * leg.get('id')/abs(leg.get('id'))
+                    onepart = self['model'].get_particle(single_pdg)
+                    mystr += onepart.get_name()
+                elif leg.get('id') in [81,82,83, -81, -82, -83]:
+                    mystr += {81:'Q', -81:'Qx', 82:'L', -82:'Lx', 83:'N', -83:'Nx'}[leg.get('id')]    
+                elif leg.get('id')>0:
+                    mystr += 'm%s'% leg.get('id')
+                else:
+                    mystr += 'm%sx'% abs(leg.get('id'))
+            elif mypart['is_part']:
                 mystr = mystr + mypart['name']
             else:
                 mystr = mystr + mypart['antiname']
@@ -3984,7 +4184,10 @@ class Process(PhysicsObject):
         if not legs:
             return None
         else:
-            return legs[0].get('flavor')
+            if legs[0].get('id')>0:
+                return [abs(f) for f in legs[0].get('flavor')]
+            else:
+                return [-1*abs(f) for f in legs[0].get('flavor')]
         
     def get_initial_final_ids(self):
         """return a tuple of two tuple containing the id of the initial/final

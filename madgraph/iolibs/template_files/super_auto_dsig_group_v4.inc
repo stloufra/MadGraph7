@@ -310,6 +310,8 @@ C     To be able to control when the matrix<i> subroutine can add entries to the
       DATA ALLOW_HELICITY_GRID_ENTRIES/.True./
       COMMON/TO_ALLOW_HELICITY_GRID_ENTRIES/ALLOW_HELICITY_GRID_ENTRIES
 
+      include 'nexternal.inc'
+      INTEGER FLAVOR_VEC(NEXTERNAL, VECSIZE_MEMMAX)
 
        grouped_MC_grid_status = DS_get_dim_status('grouped_processes')
        IMIRROR_GLOBAL = IMIRROR_VEC(1)
@@ -319,9 +321,17 @@ c       DO I=1,MAXSPROC
 c               SUBDIAG(I) = CONFSUB(I,SYMCONF(ICONF_VEC(1)))
 c       ENDDO
 
-c     set the running scale 
+c     Build flavor_vec from iflav_vec using the per-process get_flavor dispatch
+      NB_WARP_USED = VECSIZE_USED / WARP_SIZE
+      DO CURR_WARP = 1, NB_WARP_USED
+        DO I = (CURR_WARP-1)*WARP_SIZE+1, CURR_WARP*WARP_SIZE
+          CALL GET_FLAVOR(IFLAV_VEC(CURR_WARP), IPROC, FLAVOR_VEC(1,I))
+        ENDDO
+      ENDDO
+
+c     set the running scale
 c     and update the couplings accordingly
-      call update_scale_coupling_vec(all_p, all_wgt, all_q2fact, VECSIZE_USED)
+      call update_scale_coupling_vec(all_p, all_wgt, all_q2fact, VECSIZE_USED, FLAVOR_VEC)
 
       IF(grouped_MC_grid_status.eq.0) then
 C       If we were in the initialization phase of the grid for MC over grouped processes, we must instruct the matrix<i> subroutine not to add again an entry in the grid for this PS point at the call DSIGPROC just below.
@@ -365,7 +375,7 @@ C     Update summed weight and number of events
       RETURN
       END
 
-DOUBLE PRECISION FUNCTION DSIG(PP,WGT,IMODE)
+DOUBLE PRECISION FUNCTION DSIG(PP, DUMMYFLAV,WGT,IMODE)
 C ****************************************************
 C
 %(info_lines)s
@@ -398,7 +408,9 @@ C
 C ARGUMENTS 
 C  
       DOUBLE PRECISION PP(0:3,NEXTERNAL), WGT
-      INTEGER IMODE
+      INTEGER IMODE, DUMMYFLAV
+      ! FLAVOR INDEX is selected differently so dummyflav
+      ! should be zero
 C   
 C LOCAL VARIABLES 
 C  
@@ -484,6 +496,7 @@ C ----------
 C BEGIN CODE
 C ----------
       DSIG=0D0
+
 
 C     Make sure cuts are evaluated for first subprocess
 C      CUTSDONE=.FALSE.
@@ -774,7 +787,7 @@ C     FOR A PROCESS
 C     Input:
 C     pp    4 momentum of external particles
 C     wgt   weight from Monte Carlo
-C     imode 0 run, 1 init, 2 reweight, 3 finalize
+C     imode 0 run, 1 init, 2 reweight, 3 finalize, 4: PDF only, 5: ME only
 C     Output:
 C     Amplitude squared and summed
 C     ****************************************************
@@ -828,6 +841,7 @@ C
       INTEGER PERMS(NEXTERNAL,LMAXCONFIGS)
       INCLUDE 'symperms.inc'
       SAVE P1,JC
+      INTEGER FLAVOR(NEXTERNAL)
 
       if (LAST_ICONF.eq.-1.or.LAST_ICONF.ne.ICONF) then
 
@@ -871,10 +885,11 @@ c     IF (.not.PASSCUTS(P1)) THEN
 c       stop 1
 c     endif
 
-c     set the running scale 
-c     and update the couplings accordingly
-      IF (VECSIZE_MEMMAX.LE.1) THEN ! no-vector (NB not VECSIZE_USED!)
-      call update_scale_coupling(pp, wgt)
+c     set the running scale
+c     and update the couplings accordingly (but deactivate for discrete sampler(imode=5) and
+      IF (VECSIZE_MEMMAX.LE.1.and.imode.ne.5) THEN ! no-vector (NB not VECSIZE_USED!)
+            CALL GET_FLAVOR(IFLAV, IPROC, FLAVOR)
+            call update_scale_coupling(pp, flavor,  wgt)
       endif
 
 
@@ -1154,7 +1169,7 @@ C
       end
 
 
-    subroutine select_color(rcol, jamp2, iconfig, iproc, icol)
+    subroutine select_color(rcol, jamp2, iconfig, iproc, icol, ivec)
     implicit none
     include 'nexternal.inc'
     include 'maxamps.inc' ! for the definition of maxflow
@@ -1165,28 +1180,40 @@ C
 c    
 c   argument IN
 c
-    double precision rcol ! random number
-    double precision jamp2(0:maxflow)
-    integer iconfig ! amplitude selected
-    integer iproc ! matrix element selected
-c   
+	double precision rcol ! random number
+	double precision jamp2(0:maxflow)
+	integer iconfig ! amplitude selected
+	integer iproc ! matrix element selected
+    integer ivec
+c	
 c   argument OUT
 c
        integer icol
+	   integer igraph(VECSIZE_MEMMAX)
+	   common/vec_igraph/igraph       
 c
 c    local
 c
-    integer nc ! number of assigned color in jamp2
-    logical is_LC
-    integer maxcolor
-    double precision targetamp(0:maxflow)
-    integer i,j
-    double precision xtarget
+	integer nc ! number of assigned color in jamp2
+	logical is_LC
+    integer cconfig 
+	integer maxcolor
+	double precision targetamp(0:maxflow)
+	integer i,j
+	double precision xtarget
 
+    cconfig = iconfig
     if (ickkw.gt.0) then
-        iconfig = igraphs(1)
+        if (VECSIZE_MEMMAX.eq.1.and.igraphs(1).ne.0) then
+            cconfig = igraphs(1)
+        else
+            cconfig = vec_igraph(ivec)
+            if(cconfig.eq.0)then
+              icol =0 
+              return
+            endif
+        endif
     endif   
-
 
       nc = int(jamp2(0))
       is_LC = .true.
@@ -1197,10 +1224,10 @@ c
       return
       endif
       do i=1,nc
-          if(icolamp(i,iconfig,iproc))then
-              targetamp(i) = targetamp(i-1) + jamp2(i)
-          else         
-              targetamp(i) = targetamp(i-1)
+      	  if(icolamp(i,cconfig,iproc))then
+        	  targetamp(i) = targetamp(i-1) + jamp2(i)
+          else	       
+        	  targetamp(i) = targetamp(i-1)
           endif
       enddo   
 
@@ -1231,8 +1258,22 @@ c     all subleading color.
        integer nhel(nexternal)
        integer i
        %(definition_of_local_get_nhel)s
-       
+
        %(call_to_local_get_helicities)s
+
+       return
+       end
+
+
+       subroutine get_flavor(iflav, iproc, flavor)
+C      Returns the flavor array for process iproc and flavor index iflav
+       implicit none
+       include 'nexternal.inc'
+       integer iflav, iproc
+       integer flavor(nexternal)
+       %(definition_of_local_get_flavor)s
+
+       %(call_to_local_get_flavor)s
 
        return
        end

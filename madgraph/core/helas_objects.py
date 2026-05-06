@@ -41,9 +41,6 @@ import madgraph.core.color_algebra as color
 import madgraph.various.misc as misc
 
 from madgraph import InvalidCmd, MadGraph5Error
-import six
-from six.moves import range
-from six.moves import zip
 from functools import reduce
 
 if madgraph.ordering:
@@ -566,8 +563,8 @@ class HelasWavefunction(base_objects.PhysicsObject):
         sizes = {1:1,2:4,3:4,4:16,5:16}
         try:
             return sizes[abs(spin)]
-        except KeyError:
-            raise MadGraph5Error("L-cut particle has spin %d which is not supported."%spin)
+        except KeyError as err:
+            raise MadGraph5Error("L-cut particle has spin %d which is not supported."%spin) from err
 
     def default_setup(self):
         """Default values for all properties"""
@@ -845,7 +842,7 @@ class HelasWavefunction(base_objects.PhysicsObject):
                 raise self.PhysicsObjectError( \
                         "%s is not a valid list" % str(value))
             for i in value:
-                if i not in [-1, 1, 2, -2, 3, -3, 0, 99]:
+                if i not in base_objects.Leg.list_of_allowed_polarizations:
                     raise self.PhysicsObjectError( \
                       "%s is not a valid polarization" % str(value))
 
@@ -930,7 +927,7 @@ class HelasWavefunction(base_objects.PhysicsObject):
                     self.set('antiparticle', model.get('particle_dict')[-value])
                 return True
             else:
-                six.reraise(self.PhysicsObjectError("%s not allowed name for 3-argument set", name))
+                raise self.PhysicsObjectError("%s not allowed name for 3-argument set" % name)
         else:
             return super(HelasWavefunction, self).set(name, value)
 
@@ -1483,7 +1480,7 @@ class HelasWavefunction(base_objects.PhysicsObject):
     def nice_string(self, key=None):
         """Return a nice string representation of the wavefunction"""
         if not key or not hasattr(self, key):
-            value=''
+            value=', %s' % key
         else:
             value = ', %s' % self.get(key)
         if self.get('mothers'):
@@ -1518,7 +1515,10 @@ class HelasWavefunction(base_objects.PhysicsObject):
         if abs(flavor_id[i-1]) == abs(self.get('pdg_code')) or flavor_id[i-1] == 1:
             self[tag_name] = 1
         elif abs(self.get('pdg_code')) in model.get('merged_particles'):
-            self[tag_name] = flavor_id[i-1]
+            merged_id = abs(self.get('pdg_code'))
+            curr_id = abs(flavor_id[i-1])
+            curr_flav_index = model['merged_particles'][merged_id].index(curr_id) 
+            self[tag_name] =  curr_flav_index + 1 
         else:
             raise Exception('Not Implemented')
 
@@ -1597,6 +1597,7 @@ class HelasWavefunction(base_objects.PhysicsObject):
             map = {}
             pdg_in = [w.get_pdg_code() for w in self.get('mothers')]
             flav = [w[tag_name] for w in self.get('mothers')]
+            #misc.sprint(flav, [w['flavor'] for w in self.get('mothers')])
 
             for pdg, flavor in zip(pdg_in,flav):
                 if pdg in map:
@@ -1626,6 +1627,10 @@ class HelasWavefunction(base_objects.PhysicsObject):
 
     def get_coupling_for_flavor(self, model, tag_name='flavortag'):
         """Return the coupling for the given flavor"""
+
+        # interaction_id==0 means external particle (no vertex); no coupling to return.
+        if self.get('interaction_id') in [0, -1]:
+            return None
 
         vertex = model.get('interaction_dict')[self.get('interaction_id')]
         coup = next(iter(vertex.get('couplings').values()))
@@ -1719,7 +1724,7 @@ class HelasWavefunction(base_objects.PhysicsObject):
                 if mother.get('is_loop'):
                     output['WF%d'%i] = 'L(1,%d)'%nb
                 else:
-                    output['WF%d'%i] = '(1,WE(%d)'%nb
+                    output['WF%d'%i] = '(WE(%d)'%nb
             else:
                 if mother.get('is_loop'):
                     output['loop_mother_number']=nb
@@ -1729,7 +1734,7 @@ class HelasWavefunction(base_objects.PhysicsObject):
                     output['WF%d'%i] = 'PL(0,%d)'%nb
                     loop_mother_found=True
                 else:
-                    output['WF%d'%i] = 'W(1,%d'%nb
+                    output['WF%d'%i] = 'W(%d'%nb
             if not mother.get('is_loop'):
                 if specifyHel:
                     output['WF%d'%i]=output['WF%d'%i]+',H)'
@@ -1767,7 +1772,15 @@ class HelasWavefunction(base_objects.PhysicsObject):
               
         output['out'] = self.get('me_id') - flip
         output['M'] = self.get('mass')
+        #if self.get('onshell') is False:
+        #    output['W'] = '%s*BWCUTOFF' % self.get('width')
+        #else:
         output['W'] = self.get('width')
+        if self.get('onshell') is False:
+            output['bwcutoff'] = 'BWCUTOFF,'
+        else:
+            output['bwcutoff'] = ''
+
         output['propa'] = self.get('particle').get('propagator')
 
         if output['propa'] not in ['', None]:
@@ -1777,26 +1790,51 @@ class HelasWavefunction(base_objects.PhysicsObject):
         elif self.get('polarization'):
             if self.get('polarization') == [0]:
                 if self.get('spin') != 3:
-                    raise InvalidCmd( 'polarization not handle for decay particle')
+                    raise InvalidCmd( 'polarization not supported for decay particle')
                 output['propa'] = 'P1L' 
-            elif self.get('polarization') == [1,-1]:
+            elif sorted(self.get('polarization')) == [-1,1]:
                 if self.get('spin') != 3:
-                    raise InvalidCmd( 'polarization not handle for decay particle')
+                    raise InvalidCmd( 'polarization not supported for decay particle')
                 output['propa'] = 'P1T'
             elif self.get('polarization') == [99]:
                 if self.get('spin') != 3:
-                    raise InvalidCmd('polarization not handle for decay particle')
+                    raise InvalidCmd('polarization not supported for decay particle')
                 output['propa'] = 'P1A'
+            elif sorted(self.get('polarization')) == [0,9]:
+                if self.get('spin') != 3:
+                    raise InvalidCmd( 'polarization not supported for decay particle')
+                output['propa'] = 'P1LS'
+            elif self.get('polarization') == [4]:
+                if self.get('spin') != 3:
+                    raise InvalidCmd( 'polarization not supported for decay particle')
+                output['propa'] = 'P1G'
+            elif self.get('polarization') == [5]:
+                if self.get('spin') != 3:
+                    raise InvalidCmd( 'polarization not supported for decay particle')
+                output['propa'] = 'P1H'
+            elif self.get('polarization') == [6]:
+                if self.get('spin') != 3:
+                    raise InvalidCmd( 'polarization not supported for decay particle')
+                output['propa'] = 'P1Q'
+            elif self.get('polarization') == [7]:
+                if self.get('spin') != 3:
+                    raise InvalidCmd( 'polarization not supported for decay particle')
+                output['propa'] = 'P1W'
+            elif self.get('polarization') == [9]:
+                if self.get('spin') != 3:
+                    raise InvalidCmd( 'polarization not supported for decay particle')
+                output['propa'] = 'P1S'
+
             elif self.get('polarization') == [1]:
                 if self.get('spin') != 2:
-                    raise InvalidCmd( 'polarization not handle for decay particle')
+                    raise InvalidCmd( 'polarization not supported for decay particle')
                 output['propa'] = 'P1P'
             elif self.get('polarization') == [-1]:
                 if self.get('spin') != 2:
-                    raise InvalidCmd( 'Left polarization not handle for decay particle for spin (2s+1=%s) particles' % self.get('spin')) 
+                    raise InvalidCmd( 'Left polarization not supported for decay particle for spin (2s+1=%s) particles' % self.get('spin')) 
                 output['propa'] = 'P1M'
             else:            
-                raise InvalidCmd( 'polarization not handle for decay particle')
+                raise InvalidCmd( 'polarization not supported for decay particle')
             
         if flav_mode:
             output['propa'] = 'M%s' % output['propa']
@@ -1885,6 +1923,7 @@ class HelasWavefunction(base_objects.PhysicsObject):
 
         res.append(tuple(self.get('polarization')) )
         res.append(tuple(self.get('flavor')))
+        res.append(self.get('onshell'))
 
         # Check if we need to append a charge conjugation flag
         if self.needs_hermitian_conjugate():
@@ -2018,7 +2057,7 @@ class HelasWavefunction(base_objects.PhysicsObject):
         elif self.get('polarization'):
             if self.get('polarization') == [0]:
                 tags.append('P1L') 
-            elif self.get('polarization') == [1,-1]:
+            elif sorted(self.get('polarization')) == [-1,1]: # = 4+5
                 tags.append('P1T')
             elif self.get('polarization') == [99]:
                 tags.append('P1A')
@@ -2026,11 +2065,29 @@ class HelasWavefunction(base_objects.PhysicsObject):
                 tags.append('P1P')
             elif self.get('polarization') == [-1]:
                 tags.append('P1M')
+            elif sorted(self.get('polarization')) == [0,9]: # = 0+9
+                tags.append('P1LS')
+            elif self.get('polarization') == [4]: # = T-5
+                tags.append('P1G')
+            elif self.get('polarization') == [5]: # = T-4
+                tags.append('P1H')
+            elif self.get('polarization') == [6]: # = 0-5
+                tags.append('P1Q')
+            elif self.get('polarization') == [7]: # = full + width
+                tags.append('P1W')
+            elif self.get('polarization') == [9]: # = 99 + width
+                tags.append('P1S')
+
+
+
             else:
                 raise InvalidCmd( 'polarization not handle for decay particle')
             
         if isinstance(self.get('coupling')[0], base_objects.FLV_Coupling):
             tags.append('M')
+        if self.get('onshell') is False:
+            tags.append('P1D') # D is for DOLLAR
+            #misc.sprint(self.get('onshell'), )
 
         return (tuple(self.get('lorentz')),tuple(tags),self.find_outgoing_number())
 
@@ -2226,9 +2283,9 @@ class HelasWavefunction(base_objects.PhysicsObject):
         try:
             loop_wf_index=\
                        [wf['is_loop'] for wf in self.get('mothers')].index(True)
-        except ValueError:
+        except ValueError as err:
             raise MadGraph5Error("The loop wavefunctions should have exactly"+\
-                                                " one loop wavefunction mother.")
+                                                " one loop wavefunction mother.") from err
 
         if self.find_outgoing_number()-1<=loop_wf_index:
             # If the incoming loop leg is placed after the outgoing one we
@@ -2959,7 +3016,7 @@ class HelasAmplitude(base_objects.PhysicsObject):
                         
                 return True
             else:
-                six.reraise(self.PhysicsObjectError( "%s not allowed name for 3-argument set", name))
+                raise self.PhysicsObjectError("%s not allowed name for 3-argument set" % name)
         else:
             return super(HelasAmplitude, self).set(name, value)
 
@@ -2993,6 +3050,12 @@ class HelasAmplitude(base_objects.PhysicsObject):
                                    wf_number)
 
     def propagate_flavor_tag(self, model, debug=False, fct=None, tag_name='flavortag'):
+
+        # interaction_id==0 means "no interaction" (e.g. loop-induced contact
+        # amplitudes); no vertex look-up needed — treat as valid.
+        if self.get('interaction_id') in [0, -1]:
+            self[tag_name] = 1
+            return True
 
         # pdg and flavor from previous wfct
         pdg_in = [w.get_pdg_code() for w in self.get('mothers')]
@@ -3213,6 +3276,10 @@ class HelasAmplitude(base_objects.PhysicsObject):
         
     def get_coupling_for_flavor(self, model, tag_name='flavortag'):
         """Return the coupling for the given flavor"""
+
+        # interaction_id==0 or -1 means no real interaction vertex; no coupling to return.
+        if self.get('interaction_id') in [0, -1]:
+            return None
 
         valid = self.propagate_flavor_tag(model, tag_name=tag_name)
         if not valid:
@@ -3436,9 +3503,9 @@ class HelasAmplitude(base_objects.PhysicsObject):
                 output['WF%d' % i ] = 'L(1,%d)'%nb
             else:
                 if specifyHel:
-                    output['WF%d' % i ] = '(1,WE(%d),H)'%nb
+                    output['WF%d' % i ] = '(WE(%d),H)'%nb
                 else:
-                    output['WF%d' % i ] = '(1,WE(%d))'%nb                    
+                    output['WF%d' % i ] = '(WE(%d))'%nb                    
                 
         #fixed argument
         output['tags'] = list()
@@ -3465,6 +3532,7 @@ class HelasAmplitude(base_objects.PhysicsObject):
         output['propa'] = ''
         output['tags'] =''.join(output['tags'])
 
+        output['bwcutoff'] = ''
         output.update(opt)
         return output
 
@@ -3625,6 +3693,28 @@ class HelasDiagram(base_objects.PhysicsObject):
             except:
                 pass
 
+        # In decay-chain diagrams, a wavefunction may have external mothers
+        # (wavefunctions with no mothers) that do not appear in
+        # self['wavefunctions'].  Those mothers are never reached by the main
+        # loop below, so they remain un-tagged when propagate_flavor_tag tries
+        # to access them — triggering an AssertionError.
+        # Fix: before the main loop, walk the full ancestor tree of every
+        # wavefunction and tag any external ancestor not already in the list.
+        def _tag_external_ancestors(wf):
+            """Recursively tag external (no-mothers) wavefunctions."""
+            if len(wf.get('mothers')) == 0:
+                wf.tag_external_flavor(flavor_id, model)
+            else:
+                for m in wf.get('mothers'):
+                    _tag_external_ancestors(m)
+
+        wf_in_list = set(id(wfct) for wfct in self['wavefunctions'])
+        for wfct in self['wavefunctions']:
+            if len(wfct.get('mothers')) > 0:
+                for m in wfct.get('mothers'):
+                    if id(m) not in wf_in_list:
+                        _tag_external_ancestors(m)
+
         if debug:misc.sprint(len(self['wavefunctions']), len(self['amplitudes']), [id(w) for w in self['wavefunctions']], [id(w) for w in self['amplitudes']])
         for wfct in self['wavefunctions']:
             if debug: misc.sprint(wfct.nice_string('flavortag'))
@@ -3633,6 +3723,7 @@ class HelasDiagram(base_objects.PhysicsObject):
             else:
                 valid = wfct.propagate_flavor_tag(model, check_valid_input=True)
                 if not valid:
+                    if debug: misc.sprint("Failed at wfct:", wfct.nice_string('flavortag'))
                     # question do we need to compute the flavor of the following wfct? or we do just have to trash the old assigned flavor?
                     return valid
 
@@ -3740,6 +3831,11 @@ class HelasMatrixElement(base_objects.PhysicsObject):
     By default, it will also generate the color information (color
     basis and color matrix) corresponding to the Amplitude.
     """
+
+    class NoFlavorError(Exception):
+        """Exception to be raised when trying to get a coupling for a
+        flavor which is not compatible with the diagram."""
+        pass
 
     def default_setup(self):
         """Default values for all properties"""
@@ -4164,7 +4260,6 @@ class HelasMatrixElement(base_objects.PhysicsObject):
     def reuse_outdated_wavefunctions(self, helas_diagrams):
         """change the wavefunctions id used in the writer to minimize the 
            memory used by the wavefunctions."""
-        
 
         if not self.optimization:
             for diag in helas_diagrams:
@@ -4245,6 +4340,12 @@ class HelasMatrixElement(base_objects.PhysicsObject):
         # First need to reset all legs_with_decays
         for proc in self.get('processes'):
             proc.set('legs_with_decays', base_objects.LegList())
+
+        # The flavor caches were computed for the core process (before decay
+        # insertion).  After inserting decay chains the external-particle
+        # content changes, so the caches are no longer valid.
+        self['allowed_flavors'] = []
+        self['allowed_flavors_with_iden'] = []
             
         # We need to keep track of how the
         # wavefunction numbers change
@@ -4533,140 +4634,150 @@ class HelasMatrixElement(base_objects.PhysicsObject):
                                             [wf.get('number') for wf in \
                                             diag.get('wavefunctions')])]
 
-                # Ignore possibility for unoptimizated generation for now
-                if len(my_diagrams) > 1:
-                    raise self.PhysicsObjectError("Decay chains not yet prepared for GPU")
+                # When old_wf is shared across multiple diagrams (e.g., in
+                # GPU/unoptimized mode where optimization=0, or due to
+                # wavefunction-merging optimizations), process all sharing
+                # diagrams but compute decay wavefunctions only once and call
+                # replace_wavefunctions only once at the end.
+                final_decay_wfs = None
+                decay_diag_wfs = None
 
                 for diagram in my_diagrams:
 
-                    if got_majoranas:
-                        # If there are Majorana particles in any of
-                        # the matrix elements, we need to check for
-                        # fermion flow
+                    if final_decay_wfs is None:
+                        # First (or only) diagram: compute decay wavefunctions.
+                        if got_majoranas:
+                            # If there are Majorana particles in any of
+                            # the matrix elements, we need to check for
+                            # fermion flow
 
-                        # Earlier wavefunctions, will be used for fermion flow
-                        index = [d.get('number') for d in diagrams].\
-                                index(diagram.get('number'))
-                        earlier_wavefunctions = \
-                                      sum([d.get('wavefunctions') for d in \
-                                           diagrams[:index]], [])
+                            # Earlier wavefunctions, will be used for fermion flow
+                            index = [d.get('number') for d in diagrams].\
+                                    index(diagram.get('number'))
+                            earlier_wavefunctions = \
+                                          sum([d.get('wavefunctions') for d in \
+                                               diagrams[:index]], [])
 
-                        # Don't want to affect original decay
-                        # wavefunctions, so need to deepcopy
-                        decay_diag_wfs = copy.deepcopy(\
-                                                decay_diag.get('wavefunctions'))
-                        # Need to replace Particle in all
-                        # wavefunctions to avoid deepcopy
-                        for i, wf in enumerate(decay_diag.get('wavefunctions')):
-                            decay_diag_wfs[i].set('particle', \
-                                                  wf.get('particle'))
-                            decay_diag_wfs[i].set('antiparticle', \
-                                                  wf.get('antiparticle'))
+                            # Don't want to affect original decay
+                            # wavefunctions, so need to deepcopy
+                            decay_diag_wfs = copy.deepcopy(\
+                                                    decay_diag.get('wavefunctions'))
+                            # Need to replace Particle in all
+                            # wavefunctions to avoid deepcopy
+                            for i, wf in enumerate(decay_diag.get('wavefunctions')):
+                                decay_diag_wfs[i].set('particle', \
+                                                      wf.get('particle'))
+                                decay_diag_wfs[i].set('antiparticle', \
+                                                      wf.get('antiparticle'))
 
-                        # Complete decay_diag_wfs with the mother wavefunctions
-                        # to allow for independent fermion flow flips
-                        decay_diag_wfs = decay_diag_wfs.insert_own_mothers()
+                            # Complete decay_diag_wfs with the mother wavefunctions
+                            # to allow for independent fermion flow flips
+                            decay_diag_wfs = decay_diag_wfs.insert_own_mothers()
 
-                        # These are the wavefunctions which directly replace old_wf
-                        final_decay_wfs = [amp.get('mothers')[1] for amp in \
-                                              decay_diag.get('amplitudes')]
+                            # These are the wavefunctions which directly replace old_wf
+                            final_decay_wfs = [amp.get('mothers')[1] for amp in \
+                                                  decay_diag.get('amplitudes')]
 
-                        # Since we made deepcopy, need to syncronize
-                        for i, wf in enumerate(final_decay_wfs):
-                            final_decay_wfs[i] = \
-                                               decay_diag_wfs[decay_diag_wfs.index(wf)]
-                            
-                        # Remove final wavefunctions from decay_diag_wfs,
-                        # since these will be replaced separately by
-                        # replace_wavefunctions
-                        for wf in final_decay_wfs:
-                            decay_diag_wfs.remove(wf)
-
-                        # Check fermion flow direction
-                        if old_wf.is_fermion() and \
-                               old_wf.get_with_flow('state') != \
-                                     final_decay_wfs[0].get_with_flow('state'):
-
-                            # Not same flow state - need to flip flow of wf
-
+                            # Since we made deepcopy, need to syncronize
                             for i, wf in enumerate(final_decay_wfs):
+                                final_decay_wfs[i] = \
+                                                   decay_diag_wfs[decay_diag_wfs.index(wf)]
+                                
+                            # Remove final wavefunctions from decay_diag_wfs,
+                            # since these will be replaced separately by
+                            # replace_wavefunctions
+                            for wf in final_decay_wfs:
+                                decay_diag_wfs.remove(wf)
 
-                                # We use the function
-                                # check_majorana_and_flip_flow, as in the
-                                # helas diagram generation.  Since we have
-                                # different flow, there is already a Majorana
-                                # particle along the fermion line.
+                            # Check fermion flow direction
+                            if old_wf.is_fermion() and \
+                                   old_wf.get_with_flow('state') != \
+                                         final_decay_wfs[0].get_with_flow('state'):
 
-                                final_decay_wfs[i], numbers[0] = \
-                                                wf.check_majorana_and_flip_flow(\
-                                                         True,
-                                                         earlier_wavefunctions,
-                                                         decay_diag_wfs,
-                                                         {},
-                                                         numbers[0])
+                                # Not same flow state - need to flip flow of wf
 
-                        # Remove wavefunctions which are already present in
-                        # earlier_wavefunctions
-                        i = 0
-                        earlier_wavefunctions = \
-                            sum([d.get('wavefunctions') for d in \
-                                 self.get('diagrams')[:diagram.get('number') - 1]], \
-                                [])
-                        earlier_wf_numbers = [wf.get('number') for wf in \
-                                              earlier_wavefunctions]
-                        i = 0
-                        mother_arrays = [w.get('mothers').to_array() for \
-                                         w in final_decay_wfs]
-                        while decay_diag_wfs[i:]:
-                            wf = decay_diag_wfs[i]
-                            try:
-                                new_wf = earlier_wavefunctions[\
-                                    earlier_wf_numbers.index(wf.get('number'))]
-                                # If the wavefunctions are not identical,
-                                # then we should keep this wavefunction,
-                                # and update its number so it is unique
-                                if wf != new_wf:
-                                    numbers[0] = numbers[0] + 1
-                                    wf.set('number', numbers[0])
-                                    continue
-                                decay_diag_wfs.pop(i)
-                                pres_mother_arrays = [w.get('mothers').to_array() for \
-                                                      w in decay_diag_wfs[i:]] + \
-                                                      mother_arrays
-                                self.update_later_mothers(wf, new_wf,
-                                                          decay_diag_wfs[i:] + \
-                                                          final_decay_wfs,
-                                                          pres_mother_arrays)
-                            except ValueError:
-                                i = i + 1
+                                for i, wf in enumerate(final_decay_wfs):
 
-                        # Since we made deepcopy, go through mothers and make
-                        # sure we are using the ones in earlier_wavefunctions
-                        for decay_wf in decay_diag_wfs + final_decay_wfs:
-                            mothers = decay_wf.get('mothers')
-                            for i, wf in enumerate(mothers):
+                                    # We use the function
+                                    # check_majorana_and_flip_flow, as in the
+                                    # helas diagram generation.  Since we have
+                                    # different flow, there is already a Majorana
+                                    # particle along the fermion line.
+
+                                    final_decay_wfs[i], numbers[0] = \
+                                                    wf.check_majorana_and_flip_flow(\
+                                                             True,
+                                                             earlier_wavefunctions,
+                                                             decay_diag_wfs,
+                                                             {},
+                                                             numbers[0])
+
+                            # Remove wavefunctions which are already present in
+                            # earlier_wavefunctions
+                            i = 0
+                            earlier_wavefunctions = \
+                                sum([d.get('wavefunctions') for d in \
+                                     self.get('diagrams')[:diagram.get('number') - 1]], \
+                                    [])
+                            earlier_wf_numbers = [wf.get('number') for wf in \
+                                                  earlier_wavefunctions]
+                            i = 0
+                            mother_arrays = [w.get('mothers').to_array() for \
+                                             w in final_decay_wfs]
+                            while decay_diag_wfs[i:]:
+                                wf = decay_diag_wfs[i]
                                 try:
-                                    mothers[i] = earlier_wavefunctions[\
+                                    new_wf = earlier_wavefunctions[\
                                         earlier_wf_numbers.index(wf.get('number'))]
+                                    # If the wavefunctions are not identical,
+                                    # then we should keep this wavefunction,
+                                    # and update its number so it is unique
+                                    if wf != new_wf:
+                                        numbers[0] = numbers[0] + 1
+                                        wf.set('number', numbers[0])
+                                        continue
+                                    decay_diag_wfs.pop(i)
+                                    pres_mother_arrays = [w.get('mothers').to_array() for \
+                                                          w in decay_diag_wfs[i:]] + \
+                                                          mother_arrays
+                                    self.update_later_mothers(wf, new_wf,
+                                                              decay_diag_wfs[i:] + \
+                                                              final_decay_wfs,
+                                                              pres_mother_arrays)
                                 except ValueError:
-                                    pass
-                    else:
-                        # If there are no Majorana particles, the
-                        # treatment is much simpler
-                        decay_diag_wfs = \
-                                       copy.copy(decay_diag.get('wavefunctions'))
+                                    i = i + 1
 
-                        # These are the wavefunctions which directly
-                        # replace old_wf
-                        final_decay_wfs = [amp.get('mothers')[1] for amp in \
-                                              decay_diag.get('amplitudes')]
+                            # Since we made deepcopy, go through mothers and make
+                            # sure we are using the ones in earlier_wavefunctions
+                            for decay_wf in decay_diag_wfs + final_decay_wfs:
+                                mothers = decay_wf.get('mothers')
+                                for i, wf in enumerate(mothers):
+                                    try:
+                                        mothers[i] = earlier_wavefunctions[\
+                                            earlier_wf_numbers.index(wf.get('number'))]
+                                    except ValueError:
+                                        pass
+                        else:
+                            # If there are no Majorana particles, the
+                            # treatment is much simpler
+                            decay_diag_wfs = \
+                                           copy.copy(decay_diag.get('wavefunctions'))
 
-                        # Remove final wavefunctions from decay_diag_wfs,
-                        # since these will be replaced separately by
-                        # replace_wavefunctions
-                        for wf in final_decay_wfs:
-                            decay_diag_wfs.remove(wf)
+                            # These are the wavefunctions which directly
+                            # replace old_wf
+                            final_decay_wfs = [amp.get('mothers')[1] for amp in \
+                                                  decay_diag.get('amplitudes')]
 
+                            # Remove final wavefunctions from decay_diag_wfs,
+                            # since these will be replaced separately by
+                            # replace_wavefunctions
+                            for wf in final_decay_wfs:
+                                decay_diag_wfs.remove(wf)
+                    # else: reuse decay_diag_wfs and final_decay_wfs computed
+                    # for the first diagram.  The decay wavefunctions depend
+                    # only on decay_diag (fixed for this numdecay iteration)
+                    # and on old_wf, which is the same shared object in all
+                    # diagrams, so the result is identical for every diagram.
 
                     diagram_wfs = diagram.get('wavefunctions')
 
@@ -4689,6 +4800,10 @@ class HelasMatrixElement(base_objects.PhysicsObject):
                     for wf in final_decay_wfs:
                         wf.set('onshell', True)
 
+                # Call replace_wavefunctions once after all sharing diagrams
+                # have been processed.  replace_wavefunctions itself scans
+                # the full diagrams list and handles all occurrences of old_wf.
+                if final_decay_wfs is not None:
                     if len_decay == 1 and len(final_decay_wfs) == 1:
                         # Can use simplified treatment, by just modifying old_wf
                         self.replace_single_wavefunction(old_wf,
@@ -4844,10 +4959,12 @@ class HelasMatrixElement(base_objects.PhysicsObject):
                                  [wf.get('number') for wf in \
                                   diag.get('wavefunctions')]]
 
-            if len(wf_diagrams) > 1:
-                raise self.PhysicsObjectError("Decay chains not yet prepared for GPU")
-
-            for diagram in wf_diagrams:
+            # wf_diagrams may have more than one element when the same
+            # wavefunction is shared across diagrams (e.g., GPU/unoptimized
+            # mode or wavefunction-merging optimization).  The body below does
+            # not depend on the specific diagram, so we only need to execute it
+            # once; replace_wavefunctions handles all diagrams recursively.
+            if wf_diagrams:
 
                 # Now create new wfs with updated mothers
                 replace_daughters = [ copy.copy(wf) for wf in \
@@ -4878,9 +4995,12 @@ class HelasMatrixElement(base_objects.PhysicsObject):
         """Insert decay chain by simply modifying wavefunction. This
         is possible only if there is only one diagram in the decay."""
 
-
+        new_wf_keys = set(dict.keys(new_wf))
         for key in old_wf.keys():
-            old_wf.set(key, new_wf[key])
+            # Skip dynamic attributes (e.g. 'flavortag') that may have been
+            # temporarily added to old_wf but are absent from new_wf.
+            if key in new_wf_keys:
+                old_wf.set(key, new_wf[key])
 
     def identical_decay_chain_factor(self, decay_chains):
         """Calculate the denominator factor from identical decay chains"""
@@ -5148,8 +5268,10 @@ class HelasMatrixElement(base_objects.PhysicsObject):
         external_wfs = sorted([wf for wf in self.get_all_wavefunctions() if len(wf.get('mothers')) == 0],
                               key=lambda w: w['number_external'])
         external_number=1
+        id_to_wf =collections.defaultdict(list)
         for wf in external_wfs:
             if wf.get('number_external')==external_number:
+                id_to_wf[external_number].append(wf)
                 external_number=external_number+1
                 pdgs.append(wf.get('particle').get_pdg_code())
         
@@ -5160,18 +5282,21 @@ class HelasMatrixElement(base_objects.PhysicsObject):
             
         flavor_list = []
         pdg_list = []
-        restricted_flavor = [None]*len(external_wfs)
-        for i,wf in enumerate(external_wfs):
+
+        restricted_flavor = [None]*len(pdgs)
+        for i in range(len(pdgs)):
+            wf = id_to_wf[i+1][0]
             if wf.get('flavor'):
-                if wf.get('state') == 'final':
-                    restricted_flavor[i] = wf.get('flavor') 
-                else:
-                    restricted_flavor[i] = [-f for f in wf.get('flavor')]
+                restricted_flavor[i] = wf.get('flavor') 
 
         # need to avoid to compute for the permutation(?)
         checked = {}
 
-        misc.sprint('need to decide which permutation to keep --only one for the moment--')
+        allow_triming = False
+        if restricted_flavor != [None]*len(external_wfs):
+            allow_triming = True
+            self.reset_has_flavor()
+
         for one_flavor in itertools.product(*[to_map.get(abs(id), [abs(id)]) for id in pdgs]):
             # get the actual pdg code (with the sign)
             pdg = [one_flavor[i] if id > 0 else -one_flavor[i] for i,id in enumerate(pdgs)]
@@ -5184,7 +5309,6 @@ class HelasMatrixElement(base_objects.PhysicsObject):
                         skip = True
                         break
                 if skip:
-                    misc.sprint('  skip flavor:', one_flavor)
                     continue
 
 
@@ -5211,12 +5335,32 @@ class HelasMatrixElement(base_objects.PhysicsObject):
                 ])
                 #misc.sprint('checking flavor:', pdg, one_flavor, True)
                 checked[pdg] = True
+                if allow_triming:
+                    self.check_flavor_for_all_diagrams(one_flavor, model)
             else:
                 #misc.sprint('checking flavor:', pdg, one_flavor, False)
                 checked[pdg] = False
-        
+
+        if allow_triming:
+            self.remove_diagrams_without_flavor()
+            # this should not happen since that error should be raised in the check_flavor function, but just to be sure
+            if len(self.get('diagrams')) == 0:
+                raise self.NoFlavorError("No diagram left after trimming for flavor!")
+             
         self['allowed_flavors'] = flavor_list
         self['allowed_flavors_sign'] = pdg_list
+
+        # Clean up temporary 'flavortag' attributes left on wavefunctions by
+        # the last check_flavor call.  These dynamic dict keys are only valid
+        # during flavor checking; leaving them on the wavefunction objects
+        # breaks replace_single_wavefunction (which iterates old_wf.keys() and
+        # looks up the same key on new_wf).
+        for wfct in self.get_all_wavefunctions() + self.get_all_amplitudes():
+            try:
+                del wfct['flavortag']
+            except Exception:
+                pass
+
         if return_sign:
             return self['allowed_flavors'], self['allowed_flavors_sign']
         else:
@@ -5258,6 +5402,113 @@ class HelasMatrixElement(base_objects.PhysicsObject):
                 return True
         if debug: misc.sprint('no diag for ', real_pdgs)
         return False
+    
+    def reset_has_flavor(self):
+        """reset the has_flavor attribute for all diagrams"""
+        for diag in self.get('diagrams'):
+            diag.has_flavor = False
+    
+    def check_flavor_for_all_diagrams(self, real_pdgs, model, debug=False):
+        """check which feynman diagram is compatible with the pdg codes replaced by the real_pdgs
+           flag those diagrams with has_flavor attribute set to True.
+           Such that all those with has_flavor = False can be trimmed later on.
+        """
+        misc.sprint('checking flavor for all diagrams:', real_pdgs, debug)
+        for i, diag in enumerate(self.get('diagrams')):
+            if not diag.has_flavor:
+                if diag.check_flavor(real_pdgs, model, debug=debug):
+                    diag.has_flavor = True
+                    if debug: misc.sprint('diag', i, 'is ok')
+                else:
+                    if debug: misc.sprint('diag', i, 'not ok')
+            else:
+                if debug: misc.sprint('diag', i, 'already ok')
+
+    def remove_diagrams_without_flavor(self):
+        """remove all diagrams which do not have has_flavor attribute set to True.
+           This is used after check_flavor_for_all_diagrams to trim the ME.
+        """
+
+        # helper functions to recursively store and restore dropped wfcts
+        def store_dropped(wft, def_wfct):
+
+            out = {}
+            out[wft.get('number')] = wft
+            for wf in wft.get('mothers'):
+                if wf.get('number') not in def_wfct:
+                    out.update(store_dropped(wf, def_wfct))
+            return out
+        
+        def restore_dropped(wft, dropped_wfct, def_wfct, diag):
+            """diag is the diagram to which assiciated the wfct 
+               wft is the wfct to check recursively (and be sure that it is not dropped)
+               dropped_wfct is the dict of dropped wfct (key is the wfct number and value the wfct object)
+               def_wfct is the set of currently defined wfct number (so not need to restore it)"""
+
+            for wf in wft.get('mothers')[:]:
+                if wf.get('number') in dropped_wfct:
+                    tmp = diag.get('wavefunctions')
+                    tmp.insert(0,dropped_wfct[wf.get('number')])
+                    del dropped_wfct[wf.get('number')]
+                    def_wfct.add(wf.get('number'))
+                    # start recursion
+                    restore_dropped(wf, dropped_wfct, def_wfct, diag)
+                else:
+                    def_wfct.add(wf.get('number'))
+                    
+
+        debug = False
+
+        # store which diagram
+        dropped_wfct = {}
+        def_wfct = set()
+        for diag in self.get('diagrams')[:]:
+            if debug:
+                misc.sprint('NEXT DIAG -> used wfcts:')
+                for wf in diag['wavefunctions']:
+                    misc.sprint(wf.nice_string(), [wf.get('number') for wf in wf['mothers']], wf.get('number'), wf.get('coupling'))
+                    misc.sprint(wf.get('interaction_id'))
+                    if wf.get('interaction_id'):#wf.get('coupling') is ['none']:
+                        model = self.get('processes')[0].get('model')
+                        vertex = model.get('interaction_dict')[wf.get('interaction_id')]
+                        misc.sprint(vertex['couplings'])      
+   
+                misc.sprint('new amp')
+                for amp in diag['amplitudes']:
+                    misc.sprint(amp.nice_string(), [wf.get('number') for wf in amp['mothers']], amp.get('number'))
+            if not diag.has_flavor:
+                if debug: misc.sprint('dropping diagram')
+                for wf in diag['wavefunctions']:
+                    if debug: misc.sprint('dropping wfct number %d'%(wf.get('number')))
+                    dropped_wfct.update(store_dropped(wf, def_wfct))
+            else:
+                # need to check if the wfct has not been dropped already
+                if debug: misc.sprint('keeping diagram -> check wfcts')
+                for wf in diag['wavefunctions'][:]:
+                    def_wfct.add(wf.get('number'))
+                    restore_dropped(wf, dropped_wfct, def_wfct, diag)
+                for wf in diag['amplitudes'][:]:
+                    def_wfct.add(wf.get('number'))
+                    restore_dropped(wf, dropped_wfct, def_wfct, diag)
+
+        initial_len = len(self.get('diagrams'))
+
+        self['diagrams'] = HelasDiagramList([diag for diag in self.get('diagrams') if diag.has_flavor])
+        final_len = len(self.get('diagrams'))
+        if final_len < initial_len:
+            logger.info('removed %d diagrams which were incompatible with flavor restriction: remain %d'%(initial_len - final_len, final_len))
+
+        # reset wfct numbers for those dropped
+        for i,wfct in enumerate(self.get_all_wavefunctions()):
+            wfct.set('number', i+1)
+        # reset wfct numbers for those dropped
+        for i,amp in enumerate(self.get_all_amplitudes()):
+            amp.set('number', i+1)
+                        
+        
+        if final_len == 0:
+            raise self.NoFlavorError("No diagram left after trimming for flavor!")
+        
     
     def check_helicity(self, helicity):
         """check if any feynman diagram is compatible with the given helicity"""
@@ -6435,6 +6686,10 @@ class HelasMultiProcess(base_objects.PhysicsObject):
                     # Go on to next amplitude
                     continue
             
+            for matrix_element in matrix_element_list:
+                if any(l.get('flavor') for l in matrix_element.get_all_wavefunctions()):
+                    matrix_element.get_external_flavors()
+
             # Deal with newly generated matrix elements
             for matrix_element in copy.copy(matrix_element_list):
                 assert isinstance(matrix_element, HelasMatrixElement), \

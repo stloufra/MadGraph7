@@ -756,14 +756,21 @@ class MadgraphSubprocess:
         self.subproc_id = subproc_id
         self.multi_channel_data = None
 
-        api_path = self.meta["me_path"]
-        #if not os.path.isfile(api_path):
-        #    cwd = os.getcwd()
-        #    api_dir = os.path.dirname(api_path)
-        #    logger.info(f"Compiling subprocess {api_dir}")
-        #    os.chdir(api_dir)
-        #    subprocess.run(["make"])
-        #    os.chdir(cwd)
+        api_path_format = self.meta["me_path"]
+        subproc_path = self.meta["path"]
+        devices = self.process.run_card["run"]["device"]
+        api_paths = []
+        if not isinstance(devices, list):
+            devices = [devices]
+        for device in devices:
+            api_paths.append(api_path_format.format(device=device))
+            if not os.path.isfile(api_paths[-1]):
+                cwd = os.getcwd()
+                subproc_dir = os.path.dirname(subproc_path)
+                logger.info(f"Compiling subprocess {subproc_dir}")
+                os.chdir(subproc_path)
+                subprocess.run(["make", "-j", f"BACKEND={device}", "USEBUILDDIR=1"])
+                os.chdir(cwd)
 
         self.incoming_masses = [
             self.process.get_mass(pid) for pid in clean_pids(self.meta["incoming"])
@@ -807,11 +814,9 @@ class MadgraphSubprocess:
         if self.process.run_card["run"]["dummy_matrix_element"]:
             self.matrix_element = None
         else:
-            for context, device_type in zip(
-                self.process.contexts, self.process.device_types
-            ):
+            for context, api_path in zip(self.process.contexts, api_paths):
                 self.matrix_element = context.load_matrix_element(
-                    api_path.format(device=device_type), self.process.param_card_path
+                    api_path, self.process.param_card_path
                 )
 
     def build_multi_channel_data(self) -> MultiChannelData:

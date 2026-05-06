@@ -27,12 +27,6 @@ import tempfile
 import time
 import subprocess
 from subprocess import Popen, PIPE, STDOUT
-from six.moves import map
-from six.moves import range
-from six.moves import zip
-import six
-
-
 pjoin = os.path.join
 
 import madgraph
@@ -252,6 +246,14 @@ class ReweightInterface(extended_cmd.Cmd):
             # define the list of particles that are needed for the radiation
             pert = fks_common.find_pert_particles_interactions(model,
                                         pert_order = order)['soft_particles']
+            for pdg in pert[:]:
+                if pdg in model.merged_particles:
+                    pert.remove(pdg)
+                    pert += model.merged_particles[pdg]
+                elif -pdg in model.merged_particles:
+                    pert.remove(pdg)
+                    pert += [-i for i in model.merged_particles[-pdg]]
+            pert.sort()                     
             commandline += "define pert_%s = %s;" % (order.replace(' ',''), ' '.join(map(str,pert)) )
             
             # check if we have to increase by one the born order
@@ -2320,26 +2322,14 @@ class ReweightInterface(extended_cmd.Cmd):
                         while '.' in tmp_mod_name:
                             tmp_mod_name = tmp_mod_name.rsplit('.',1)[0]
                             del sys.modules[tmp_mod_name]
-                        if six.PY3:
-                            import importlib
-                            mymod = importlib.import_module(mod_name,)
-                            mymod = importlib.reload(mymod)
-                            #mymod = __import__(mod_name, globals(), locals(), [])
-                        else:
-                            mymod = __import__(mod_name, globals(), locals(), [],-1) 
-                            S = mymod.SubProcesses
-                            mymod = getattr(S, 'all_matrix%spy' % tag)
-                            reload(mymod) 
+                        import importlib
+                        mymod = importlib.import_module(mod_name,)
+                        mymod = importlib.reload(mymod)
+                        #mymod = __import__(mod_name, globals(), locals(), [])
                     else:
-
-                        if six.PY3:
-                            import importlib
-                            mymod = importlib.import_module(mod_name,)
-                            #mymod = __import__(mod_name, globals(), locals(), [])    
-                        else:
-                            mymod = __import__(mod_name, globals(), locals(), [],-1)
-                            S = mymod.SubProcesses
-                            mymod = getattr(S, 'all_matrix%spy' % tag) 
+                        import importlib
+                        mymod = importlib.import_module(mod_name,)
+                        #mymod = __import__(mod_name, globals(), locals(), [])
                     
                 if fprefix != '':
                     fprefix = 'f%i_' % fprefix

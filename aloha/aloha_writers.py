@@ -1,5 +1,4 @@
 from __future__ import absolute_import
-from six.moves import range
 try:
     import madgraph.iolibs.file_writers as writers 
     import madgraph.various.q_polynomial as q_polynomial
@@ -18,7 +17,7 @@ from numbers import Number
 from collections import defaultdict
 from fractions import Fraction
 # fast way to deal with string
-from six import StringIO
+from io import StringIO
 # Look at http://www.skymind.com/~ocrow/python_string/ 
 # For knowing how to deal with long strings efficiently.
 import itertools
@@ -239,6 +238,9 @@ class WriteALOHA:
                 self.declaration.add(('double','M%s' % self.outgoing))                
                 call_arg.append(('double','W%s' % self.outgoing))              
                 self.declaration.add(('double','W%s' % self.outgoing))
+                if 'P1D' in self.tag:
+                    call_arg.append(('double','BWCUTOFF'))              
+                    self.declaration.add(('double','BWCUTOFF'))
         
         assert len(call_arg) == len(set([a[1] for a in call_arg]))
         assert len(self.declaration) == len(set([a[1] for a in self.declaration])), self.declaration
@@ -547,7 +549,8 @@ class ALOHAWriterForFortran(WriteALOHA):
         out = StringIO()
         #to_end = []
         out.write('use aloha_object\n')
-        out.write('use model_object\n')
+        if 'M' in self.tag:
+            out.write('use model_object\n')
         out.write('implicit none\n')
         # Check if we are in formfactor mode
         if self.has_model_parameter:
@@ -580,7 +583,10 @@ class ALOHAWriterForFortran(WriteALOHA):
                 type = type[5:]
                 #determine the size of the list
                 if name[0] in ['F', 'V', 'S', 'T', 'R'] and not aloha.loop_mode:
-                    out.write(' type(aloha) %s\n' % (name))
+                    if name[0] not in ['T', 'R']:
+                        out.write(' type(aloha) %s\n' % (name))
+                    else:
+                        out.write(' type(aloha2d) %s\n' % (name))
                     if name not in argument_var:
                         size=self.get_size(name, -2)
                         #to_end.append("allocate(%s %% W(%s))" % (name,size))
@@ -731,6 +737,10 @@ class ALOHAWriterForFortran(WriteALOHA):
         """Define the coupling constant"""
         
         out = StringIO()
+        # In loop mode, fermion wave functions are plain COMPLEX*16 arrays (no struct),
+        # so flavor checking via %flv_index is not applicable.
+        if aloha.loop_mode:
+            return ''
         if 'M' not in self.tag:
             if self.particles[0] != 'F':
                 return ''
@@ -792,48 +802,25 @@ class ALOHAWriterForFortran(WriteALOHA):
         
         type = self.particles[i-1]
         
-        if aloha.loop_mode:
-            template ='P%(i)d(%(j)d) = %(sign)s%(type)s%(i)d(%(nb)d)\n'
-            nb_print = 4
-        else:
-            #template ='P%(i)d(%(j)d) = %(sign)s%(operator)s(%(type)s%(i)d(%(nb2)d))\n'
-            template = 'P%(i)d(:) = %(sign)s%(type)s%(i)d %% P (:)\n'
-            nb_print = 1
+        # Always use the type(aloha) %P field to extract the tree wavefunction
+        # momentum, regardless of loop_mode. In loop mode the input wavefunctions
+        # are now declared as type(aloha) so we access their momentum via %P.
+        template = 'P%(i)d(:) = %(sign)s%(type)s%(i)d %% P (:)\n'
+        strfile.write(template % {'type': type, 'i': i,
+                                  'sign': self.get_P_sign(i)})
 
-        nb2 = 1
-        for j in range(nb_print):
-            if not aloha.loop_mode:
-                nb = j + 1
-                if j == 0: 
-                    assert not aloha.mp_precision 
-                    operator = 'dble' # not suppose to pass here in mp
-                elif j == 1: 
-                    nb2 += 1
-                elif j == 2:
-                    assert not aloha.mp_precision 
-                    operator = 'dimag' # not suppose to pass here in mp
-                elif j ==3:
-                    nb2 -= 1
-            else:
-                operator =''
-                nb = 1+ j
-                nb2 = 1 + j
-            strfile.write(template % {'j':j,'type': type, 'i': i, 
-                        'nb': nb, 'nb2': nb2, 'operator':operator,
-                        'sign': self.get_P_sign(i)})  
-    
     def shift_indices(self, match):
         """shift the indices for non impulsion object"""
         if match.group('var').startswith('P'):
             shift = 0
             return '%s(%s)' % (match.group('var'), int(match.group('num')) + shift)
-        elif not aloha.loop_mode:
-            return '%s %% W(%s)' % (match.group('var'), int(match.group('num')))        
         else:
-            shift =  self.momentum_size 
-            if aloha.unitary_gauge ==3 and match.group('var').startswith('S'):
-                shift += 4
-            return '%s(%s)' % (match.group('var'), int(match.group('num')) + shift)
+            # Always use the type(aloha) %W field for spin/polarisation
+            # components, regardless of loop_mode.  Previously loop_mode used
+            # a flat integer offset (+momentum_size) into a plain COMPLEX*16
+            # array; now all wavefunctions (including those inside loop ALOHA
+            # routines) are passed as type(aloha) objects.
+            return '%s %% W(%s)' % (match.group('var'), int(match.group('num')))
               
     def change_var_format(self, name): 
         """Formatting the variable name to Fortran format"""
@@ -841,7 +828,7 @@ class ALOHAWriterForFortran(WriteALOHA):
         if isinstance(name, aloha_lib.ExtVariable):
             # external parameter nothing to do but handling model prefix
             self.has_model_parameter = True
-            if name.lower() in ['pi', 'as', 'mu_r', 'aewm1','g']:
+            if name.lower() in ['pi', 'as', 'mu_r', 'aewm1','g','bwcutoff']:
                 return name
             if name.startswith(aloha.aloha_prefix):
                 return name
@@ -850,6 +837,10 @@ class ALOHAWriterForFortran(WriteALOHA):
         if '_' in name:
             vtype = name.type
             decla = name.split('_',1)[0]
+            # P-momentum variables may be cached as complex from a previous loop
+            # computation; override with the type appropriate for the current mode.
+            if decla.startswith('P'):
+                vtype = 'complex' if aloha.loop_mode else 'double'
             self.declaration.add(('list_%s' % vtype, decla))
         else:
             self.declaration.add((name.type, name))
@@ -1257,6 +1248,9 @@ class ALOHAWriterForFortranLoop(ALOHAWriterForFortran):
         """ Prototype for how to write the declaration of variable"""
         
         out = StringIO()
+        # type(aloha) / type(mp_aloha) must be accessible for the tree-level
+        # wavefunction arguments that are now passed as structured types.
+        out.write('use ALOHA_OBJECT\n')
         out.write('implicit none\n')
         # define the complex number CI = 0+1j
         if 'MP' in self.tag:
@@ -1272,23 +1266,23 @@ class ALOHAWriterForFortranLoop(ALOHAWriterForFortran):
                 #determine the size of the list
                 if name.startswith('P'):
                     size='0:3'
+                elif name in argument_var and name[0] in ['F', 'V', 'S']:
+                    # Tree-level wavefunction arguments are now type(aloha) /
+                    # type(mp_aloha) structured objects; they are no longer
+                    # plain COMPLEX arrays and therefore have no size dimension.
+                    if 'MP' in self.tag:
+                        out.write(' type(mp_aloha) %s\n' % name)
+                    else:
+                        out.write(' type(aloha) %s\n' % name)
+                    continue
                 elif name in argument_var:
                     size ='*'
                 elif name[0] in ['F','V']:
-                    if aloha.loop_mode:
-                        size = 8
-                    else:
-                        size = 6
+                    size = 6
                 elif name[0] == 'S':
-                    if aloha.loop_mode:
-                        size = 5
-                    else:
-                        size = 3
+                    size = 3
                 elif name[0] in ['R','T']: 
-                    if aloha.loop_mode:
-                        size = 20
-                    else:
-                        size = 18
+                    size = 18
                 elif name == 'coeff':
                     out.write("include 'coef_specs.inc'\n")
                     size = 'MAXLWFSIZE,0:VERTEXMAXCOEFS-1,MAXLWFSIZE'
@@ -1377,8 +1371,11 @@ class ALOHAWriterForFortranLoop(ALOHAWriterForFortran):
                 size.append(0)
                 continue
             elif self.offshell:
-                p.append('%s%s%s({%s})' % (signs[i],type,i+1,len(size)))
-                size.append(1)
+                # Tree-level wavefunction: extract its 4-momentum via the
+                # %P field (type(aloha) accessor).  '%%P' in Python %
+                # formatting produces the literal '%P' needed for Fortran.
+                p.append('%s%s%s%%P({%s})' % (signs[i],type,i+1,len(size)))
+                size.append(0)
                 
             if self.declaration.is_used('P%s' % (i+1)):
                     self.get_one_momenta_def(i+1, out)
@@ -1452,6 +1449,7 @@ def get_routine_name(name=None, outgoing=None, tag=None, abstract=None):
         tag = list(abstract.tag)
     else:
         tag=list(tag)
+    tag.sort()
 
     if name is None:
         prefix=''
@@ -1565,6 +1563,9 @@ class ALOHAWriterForCPP(WriteALOHA):
     type2def['alohaV'] = 'ALOHAOBJ '
     type2def['alohaR'] = 'ALOHAOBJ ' 
     type2def['alohaT'] = 'ALOHAOBJ '
+    type2def['aloha2'] = 'ALOHAOBJ '
+    type2def['aloha1'] = 'ALOHAOBJ '
+    type2def['aloha3'] = 'ALOHAOBJ2D '
     type2def['pointer_vertex'] = '&' # using complex<double> & vertex)
     type2def['pointer_coup'] = ''
     #variable overwritten by gpu
@@ -1615,6 +1616,9 @@ class ALOHAWriterForCPP(WriteALOHA):
             return '%s[%s]' % (match.group('var'), int(match.group('num')) + shift) 
         else:
             shift =  -1
+            if aloha.unitary_gauge == 3 and match.group('var').startswith('S'):
+                shift += 4 # In FD gauge Scalar indices goes to 4 (not 0)
+                           # to complement the vector 0-3
             return '%s.W[%s]' % (match.group('var'), int(match.group('num')) + shift)
               
     
@@ -1672,11 +1676,14 @@ class ALOHAWriterForCPP(WriteALOHA):
         out = StringIO()
         # define the type of function and argument
         if not 'no_include' in mode:
-            out.write('#include \"Parameters_%s.h\"\n' % self.model_name)
+            model = getattr(self.routine, 'model', None)
+            if model is not None:
+                model_name = model.__name__
+                if '.' in model_name:
+                    model_name = model_name.split('.')[-1]
+                out.write('#include \"Parameters_%s.h\"\n' % model_name)
             out.write('#include \"%s.h\"\n\n' % self.name)
-            #out.write('#include \"Parameters_%s.h\"\n' % self.model_name)
         args = []
-        misc.sprint(couplings, self.tag)
         tmp = [ ]
         for format, argname in self.define_argument_list(couplings):
             if format.startswith('list'):
@@ -1686,7 +1693,6 @@ class ALOHAWriterForCPP(WriteALOHA):
             else:
                 type = self.type2def[format]
                 list_arg = ''
-            misc.sprint(argname,self.tag)
             if argname.startswith('COUP'):
                 point = self.type2def['pointer_coup']
                 if 'M' in self.tag:
@@ -1801,7 +1807,6 @@ class ALOHAWriterForCPP(WriteALOHA):
                 continue
             elif self.offshell:
                 p.append('{0}{1}{2}.p[%(i)s]'.format(signs[i],type,i+1,type))
-                misc.sprint(p[-1])    
                 
             if self.declaration.is_used('P%s' % (i+1)):
                 self.get_one_momenta_def(i+1, out)
@@ -2454,13 +2459,13 @@ class ALOHAWriterForPython(WriteALOHA):
     
     
     def shift_indices(self, match):
-        """shift the indices for non impulsion object"""
+        """shift the indices for non momentum object to use .W attribute"""
         if match.group('var').startswith('P'):
             shift = 0
+            return '%s[%s]' % (match.group('var'), int(match.group('num')) + shift)
         else:
-            shift = -1 + self.momentum_size
-            
-        return '%s[%s]' % (match.group('var'), int(match.group('num')) + shift)
+            # Spin components are accessed via the .W view (0-indexed)
+            return '%s.W[%s]' % (match.group('var'), int(match.group('num')) - 1)
 
     def change_var_format(self, name): 
         """Formatting the variable name to Python format
@@ -2574,11 +2579,125 @@ class ALOHAWriterForPython(WriteALOHA):
                 coeff = 'COUP'
                 
             for ind in numerator.listindices():
-                out.write('    %s[%d]= %s*%s\n' % (self.outname, 
-                                        self.pass_to_HELAS(ind), coeff, 
+                out.write('    %s.W[%d]= %s*%s\n' % (self.outname, 
+                                        self.pass_to_HELAS(ind) - self.momentum_size, coeff, 
                                         self.write_obj(numerator.get_rep(ind))))
         return out.getvalue()
     
+    def get_coupling_def(self):
+        """Generate flavor-checking / coupling-resolution code for Python routines.
+
+        Convention for the ``flavor`` attribute on a wavefunction:
+          -1  non-merged particle (no flavor grouping applies) – flavor checks
+              are skipped so that routines work correctly when the process has
+              non-merged particles mixed with merged ones.
+           0  merged particle whose flavor was never propagated (invalid state).
+          ≥1  merged particle with a known flavor index.
+
+        Non-``M``-tagged routines use a plain scalar coupling but still need to
+        propagate the fermion flavor through the wavefunction for later M-tagged
+        vertices to use.  This mirrors the Fortran behaviour where even non-M
+        routines copy ``F_in % FLV_INDEX`` to ``F_out % FLV_INDEX``.
+        """
+        out = StringIO()
+
+        # Only relevant for routines that involve fermions.
+        if 'F' not in self.particles:
+            return ''
+
+        if 'M' not in self.tag:
+            # ── Non-M routine: scalar coupling, but must propagate flavor ──
+            # Mirrors Fortran get_coupling_def() for non-M case.
+            if self.outgoing == 0 or self.particles[self.outgoing - 1] not in ['F']:
+                # Amplitude or non-fermion off-shell: check F1 and F2 carry the
+                # same flavor (or either is -1, meaning non-merged → skip check).
+                if not self.outgoing:
+                    fail_str = '0j'
+                else:
+                    fail_str = '%s%d' % (self.particles[self.outgoing - 1], self.outgoing)
+                out.write('    flv_index1 = F1.flavor\n')
+                out.write('    flv_index2 = F2.flavor\n')
+                out.write('    if flv_index1 != -1 and flv_index2 != -1 and flv_index1 != flv_index2:\n')
+                out.write('        return %s\n' % fail_str)
+            else:
+                # Off-shell fermion output: copy flavor from incoming fermion.
+                incoming_list = [i + 1 for i in range(len(self.particles))
+                            if i + 1 != self.outgoing
+                            and self.particles[i] == 'F']
+                if not incoming_list:
+                    return out.getvalue()
+                incoming = incoming_list[0]
+                outgoing = self.outgoing
+                out_wf = 'F%d' % outgoing
+                in_wf  = 'F%d' % incoming
+                out.write('    %s.flavor = %s.flavor\n' % (out_wf, in_wf))
+            return out.getvalue()
+
+        # ── M-tagged routine: COUP is a FLV_Coupling_py object ────────────
+        if self.outgoing == 0 or self.particles[self.outgoing - 1] not in ['F']:
+            # Amplitude or non-fermion off-shell output
+            if not self.outgoing:
+                fail_str = '0j'
+            else:
+                fail_str = '%s%d' % (self.particles[self.outgoing - 1], self.outgoing)
+            out.write('    flv_index1 = F1.flavor\n')
+            out.write('    flv_index2 = F2.flavor\n')
+            # flavor==0 means "merged but never propagated" → reject
+            out.write('    if flv_index1 == 0 or flv_index2 == 0:\n')
+            out.write('        return %s\n' % fail_str)
+            # flavor==-1 means "non-merged particle" → skip flavor check
+            out.write('    if flv_index1 == -1 or flv_index2 == -1:\n')
+            out.write('        return %s\n' % fail_str)
+            out.write('    if COUP.partner.get(flv_index1, None) != flv_index2:\n')
+            out.write('        return %s\n' % fail_str)
+            flv_for_coup = 'flv_index1'
+        else:
+            # Off-shell fermion output: propagate flavor to outgoing wavefunction
+            incoming_list = [i + 1 for i in range(len(self.particles))
+                        if i + 1 != self.outgoing
+                        and self.particles[i] == 'F']
+            if not incoming_list:
+                return out.getvalue()
+            incoming = incoming_list[0]
+            outgoing = self.outgoing
+            out_wf = 'F%d' % outgoing
+            if incoming % 2 == 1:
+                # First fermion (F1, F3, …) → use PARTNER
+                out.write('    flv_index%d = F%d.flavor\n' % (incoming, incoming))
+                out.write('    if flv_index%d == 0:\n' % incoming)
+                out.write('        %s.flavor = 0\n' % out_wf)
+                out.write('        return %s\n' % out_wf)
+                out.write('    if flv_index%d == -1:\n' % incoming)
+                out.write('        %s.flavor = -1\n' % out_wf)
+                out.write('        return %s\n' % out_wf)
+                out.write('    flv_index2 = COUP.partner.get(flv_index%d, -1)\n' % incoming)
+                out.write('    if flv_index2 == -1:\n')
+                out.write('        %s.flavor = 0\n' % out_wf)
+                out.write('        return %s\n' % out_wf)
+                out.write('    %s.flavor = flv_index2\n' % out_wf)
+                flv_for_coup = 'flv_index%d' % incoming
+            else:
+                # Second fermion (F2, F4, …) → use PARTNER2
+                out.write('    flv_index%d = F%d.flavor\n' % (incoming, incoming))
+                out.write('    if flv_index%d == 0:\n' % incoming)
+                out.write('        %s.flavor = 0\n' % out_wf)
+                out.write('        return %s\n' % out_wf)
+                out.write('    if flv_index%d == -1:\n' % incoming)
+                out.write('        %s.flavor = -1\n' % out_wf)
+                out.write('        return %s\n' % out_wf)
+                out.write('    flv_index1 = COUP.partner2.get(flv_index%d, -1)\n' % incoming)
+                out.write('    if flv_index1 == -1:\n')
+                out.write('        %s.flavor = 0\n' % out_wf)
+                out.write('        return %s\n' % out_wf)
+                out.write('    %s.flavor = flv_index1\n' % out_wf)
+                flv_for_coup = 'flv_index1'
+
+        # Resolve the actual complex coupling value from the FLV_Coupling_py object
+        for ftype, name in self.declaration:
+            if name.startswith('COUP'):
+                out.write('    %s = COUP.val[%s]\n' % (name, flv_for_coup))
+        return out.getvalue()
+
     def get_foot_txt(self):
         if not self.offshell:
             return '    return vertex\n\n'
@@ -2611,9 +2730,9 @@ class ALOHAWriterForPython(WriteALOHA):
         return out.getvalue()     
 
     def get_momenta_txt(self):
-        """Define the Header of the fortran file. This include
-            - momentum conservation
-            - definition of the impulsion"""
+        """Define the momenta section of the Python ALOHA function.
+        Sets momentum conservation and defines Pn lists from wavefunction
+        `.momenta` attributes."""
              
         out = StringIO()
         
@@ -2630,7 +2749,7 @@ class ALOHAWriterForPython(WriteALOHA):
                 out_size = self.type_to_size[type] 
                 continue
             elif self.offshell:
-                p.append('{0}{1}{2}[%(i)s]'.format(signs[i],type,i+1))  
+                p.append('{0}{1}{2}.momenta[%(i)s]'.format(signs[i],type,i+1))
                 
             if self.declaration.is_used('P%s' % (i+1)):
                 self.get_one_momenta_def(i+1, out)             
@@ -2639,14 +2758,9 @@ class ALOHAWriterForPython(WriteALOHA):
         if self.offshell:
             type = self.particles[self.outgoing-1]
             out.write('    %s%s = wavefunctions.WaveFunction(size=%s)\n' % (type, self.outgoing, out_size))
-            if aloha.loop_mode:
-                size_p = 4
-            else:
-                size_p = 2
-            for i in range(size_p):
-                dict_energy = {'i':i}
-    
-                out.write('    %s%s[%s] = %s\n' % (type,self.outgoing, i, 
+            for i in range(4):
+                dict_energy = {'i': i}
+                out.write('    %s%s.momenta[%s] = %s\n' % (type, self.outgoing, i, 
                                              ''.join(p) % dict_energy))
             
             self.get_one_momenta_def(self.outgoing, out)
@@ -2656,42 +2770,12 @@ class ALOHAWriterForPython(WriteALOHA):
         return out.getvalue()
 
     def get_one_momenta_def(self, i, strfile):
-        """return the string defining the momentum"""
+        """Return the string defining the Pi list from wavefunction momenta."""
 
         type = self.particles[i-1]
-        
-        main = '    P%d = [' % i
-        if aloha.loop_mode:
-            template ='%(sign)s%(type)s%(i)d[%(nb)d]'
-        else:
-            template ='%(sign)scomplex(%(type)s%(i)d[%(nb2)d])%(operator)s'
-
-        nb2 = 0
-        strfile.write(main)
-        data = []
-        for j in range(4):
-            if not aloha.loop_mode:
-                nb = j
-                if j == 0: 
-                    assert not aloha.mp_precision 
-                    operator = '.real' # not suppose to pass here in mp
-                elif j == 1: 
-                    nb2 += 1
-                elif j == 2:
-                    assert not aloha.mp_precision 
-                    operator = '.imag' # not suppose to pass here in mp
-                elif j ==3:
-                    nb2 -= 1
-            else:
-                operator =''
-                nb = j
-                nb2 = j
-            data.append(template % {'j':j,'type': type, 'i': i, 
-                        'nb': nb, 'nb2': nb2, 'operator':operator,
-                        'sign': self.get_P_sign(i)}) 
-            
-        strfile.write(', '.join(data))
-        strfile.write(']\n')
+        sign = self.get_P_sign(i)
+        strfile.write('    P%d = [%s%s%d.momenta[j] for j in range(4)]\n' % (
+                      i, sign, type, i))
 
 
     def define_symmetry(self, new_nb, couplings=None):
@@ -2749,9 +2833,9 @@ class ALOHAWriterForPython(WriteALOHA):
                 if not offshell:
                     text.write( '    vertex += tmp\n')
                 else:
-                    size = self.type_to_size[self.particles[offshell -1]] -2
-                    text.write("    for i in range(%s,%s):\n" % (self.momentum_size, self.momentum_size+size))
-                    text.write("        %(main)s[i] += tmp[i]\n" %{'main': main})
+                    size = self.type_to_size[self.particles[offshell -1]] - 2
+                    text.write("    for i in range(%s):\n" % size)
+                    text.write("        %(main)s.W[i] += tmp.W[i]\n" % {'main': main})
         
         text.write(self.get_foot_txt())
 
@@ -2782,6 +2866,10 @@ class Declaration_list(set):
         return var in self.var_name
     
     def add(self,obj):
+        type, name = obj
+        if name == 'BWCUTOFF':
+            type = 'double'
+            obj = (type, name)
         if __debug__:
             type, name = obj
             samename = [t for t,n in self if n ==name]

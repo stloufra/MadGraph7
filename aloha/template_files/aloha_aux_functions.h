@@ -1,6 +1,7 @@
 #ifndef aloha_aux_functions_guard
 #define aloha_aux_functions_guard
 #include <iostream>
+#include <complex>
 double Sgn(double e,double f);
 
 struct ALOHAOBJ{
@@ -14,6 +15,16 @@ struct ALOHAOBJ{
 };
 //ALOHAOBJ::ALOHAOBJ() {}
 
+struct ALOHAOBJ2D{
+     double p[4];
+     std::complex<double> W[16];
+     int flv_index =1;
+
+     public:
+        //ALOHAOBJ(double p[4], std::complex<double> W[4], int flav):p(p), W(W), flav(flav){};
+        inline ALOHAOBJ2D() {};
+};
+//ALOHAOBJ2D::ALOHAOBJ2D() {}
 
 #endif
 #ifndef i_guard
@@ -32,13 +43,25 @@ void oxxxxx(double p[4],double fmass,int nhel,int nsf, int flv,  ALOHAOBJ &fo);
 #include <complex>
 void sxxxxx(double p[4],int nss, ALOHAOBJ &sc);
 #endif
-#ifndef i_guard
-#define i_guard
+#ifndef t_guard
+#define t_guard
 #include <complex>
-//void txxxxx(double p[4],double tmass,int nhel,int nst,std::complex<double> fi[18]);
+void txxxxx(double p[4],double tmass,int nhel,int nst,ALOHAOBJ2D fi[18]);
 #endif
 #ifndef v_guard
 #define v_guard
 #include <complex>
 void vxxxxx(double p[4],double vmass, int nhel,int nsv, ALOHAOBJ &v);
+ inline std::complex<double> theta_functionr(double cond, double valtrue, double valfalse) noexcept {
+     // Heaviside with Θ(0) = 1, matching Fortran's .ge. 0d0
+     return (cond >= 0.0) ? std::complex<double>(valtrue) : std::complex<double>(valfalse);
+ }
+
+ inline std::complex<double> theta_functionr(std::complex<double> cond, double valtrue, double valfalse) noexcept {
+     // If the condition is carried as complex but is physically real, use the real part.
+     // Optional: assert imag==0 if that should never happen.
+     // If you truly need magnitude semantics, use std::abs(cond) instead of cond.real().
+     return theta_functionr(cond.real(), valtrue, valfalse);
+ }
+
 #endif
