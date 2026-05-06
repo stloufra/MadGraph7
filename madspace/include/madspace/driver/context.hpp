@@ -124,6 +124,7 @@ public:
     );
     Tensor global(const std::string& name);
     bool global_requires_grad(const std::string& name);
+    void set_global_requires_grad(const std::string& name, bool value);
     bool global_exists(const std::string& name);
     std::vector<std::string> global_names() const;
     void delete_global(const std::string& name);

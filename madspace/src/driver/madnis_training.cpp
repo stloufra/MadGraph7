@@ -62,6 +62,12 @@ void MadnisTraining::train_step(std::size_t batch_index) {
         }
         drop_channels();
     }
+    if (batch_index ==
+        static_cast<std::size_t>(
+            (1 - _config.fixed_cwnet_fraction) * _config.batches
+        )) {
+        freeze_cwnet();
+    }
 }
 
 std::vector<std::size_t> MadnisTraining::active_channels() const {
@@ -522,6 +528,16 @@ void MadnisTraining::drop_channels() {
         active_mask_glob.copy_from(active_mask);
     }
     _generator_context->global(_cwnet.value().mask_name()).copy_from(active_mask);
+    build_runtimes_and_optimizer();
+}
+
+void MadnisTraining::freeze_cwnet() {
+    if (!_cwnet) {
+        return;
+    }
+    for (auto& name : _cwnet->mlp().global_names()) {
+        _optimizer_context->set_global_requires_grad(name, false);
+    }
     build_runtimes_and_optimizer();
 }
 

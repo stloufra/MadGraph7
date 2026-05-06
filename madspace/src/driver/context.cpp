@@ -156,6 +156,16 @@ bool Context::global_requires_grad(const std::string& name) {
     }
 }
 
+void Context::set_global_requires_grad(const std::string& name, bool value) {
+    if (auto search = _globals.find(name); search != _globals.end()) {
+        search->second.second = value;
+    } else {
+        throw std::invalid_argument(
+            std::format("Context does not contain a global named {}", name)
+        );
+    }
+}
+
 std::vector<std::string> Context::global_names() const {
     std::vector<std::string> names;
     names.reserve(_globals.size());

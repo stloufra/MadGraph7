@@ -21,6 +21,7 @@ public:
     std::string last_layer_bias_name() const {
         return prefixed_name(_prefix, std::format("layer{}.bias", _layers));
     }
+    std::vector<std::string> global_names() const;
 
 private:
     NamedVector<Value> build_function_impl(

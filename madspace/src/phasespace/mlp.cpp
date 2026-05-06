@@ -143,3 +143,13 @@ void MLP::initialize_globals(ContextPtr context) const {
     }
     initialize_layer(context, dim, _output_dim, _prefix, _layers, rand_gen, true);
 }
+
+std::vector<std::string> MLP::global_names() const {
+    std::vector<std::string> names;
+    names.reserve(2 * _layers);
+    for (std::size_t i = 1; i <= _layers; ++i) {
+        names.push_back(prefixed_name(_prefix, std::format("layer{}.weight", i)));
+        names.push_back(prefixed_name(_prefix, std::format("layer{}.bias", i)));
+    }
+    return names;
+}

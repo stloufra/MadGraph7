@@ -88,6 +88,7 @@ private:
     void
     update_history(const TensorVec& results, const std::vector<std::size_t>& counts);
     void drop_channels();
+    void freeze_cwnet();
 
     ContextPtr _generator_context;
     ContextPtr _optimizer_context;
