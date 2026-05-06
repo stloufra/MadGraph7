@@ -104,11 +104,14 @@ case 130:
     backward_batch_foreach<tensor_foreach<backward_kernel_madnis_abs_weight<GpuTypes>, 3, 2, 1>, 2, 1, 2, 0>(instr, locals, local_grads, {0,1}, {}, device);
     break;
 case 131:
-    backward_batch_foreach<tensor_foreach<backward_kernel_madnis_variance<GpuTypes>, 5, 4, 1>, 4, 1, 4, 0>(instr, locals, local_grads, {0,1,2,3}, {}, device);
+    backward_batch_foreach<tensor_foreach<backward_kernel_madnis_softclip<GpuTypes>, 5, 4, 1>, 4, 1, 4, 0>(instr, locals, local_grads, {0,1,2,3}, {}, device);
     break;
 case 132:
-    backward_batch_foreach<tensor_foreach<backward_kernel_madnis_single_channel_variance<GpuTypes>, 2, 2, 1>, 2, 1, 1, 0>(instr, locals, local_grads, {1}, {}, device);
+    backward_batch_foreach<tensor_foreach<backward_kernel_madnis_variance<GpuTypes>, 5, 4, 1>, 4, 1, 4, 0>(instr, locals, local_grads, {0,1,2,3}, {}, device);
     break;
 case 133:
+    backward_batch_foreach<tensor_foreach<backward_kernel_madnis_single_channel_variance<GpuTypes>, 2, 2, 1>, 2, 1, 1, 0>(instr, locals, local_grads, {1}, {}, device);
+    break;
+case 134:
     backward_batch_foreach<tensor_foreach<backward_kernel_madnis_multi_channel_variance<GpuTypes>, 3, 2, 1>, 2, 1, 2, 0>(instr, locals, local_grads, {0,1}, {}, device);
     break;

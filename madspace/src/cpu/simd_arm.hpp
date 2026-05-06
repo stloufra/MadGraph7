@@ -158,6 +158,7 @@ inline FVec sqrt(FVec arg1) { return Sleef_sqrtd2_u05(arg1); }
 inline FVec sin(FVec arg1) { return Sleef_sind2_u10(arg1); }
 inline FVec cos(FVec arg1) { return Sleef_cosd2_u10(arg1); }
 inline FVec sinh(FVec arg1) { return Sleef_sinhd2_u10(arg1); }
+inline FVec asinh(FVec arg1) { return Sleef_asinhd2_u10(arg1); }
 inline FVec cosh(FVec arg1) { return Sleef_coshd2_u10(arg1); }
 inline FVec atan2(FVec arg1, FVec arg2) { return Sleef_atan2d2_u10(arg1, arg2); }
 inline FVec pow(FVec arg1, FVec arg2) { return Sleef_powd2_u10(arg1, arg2); }

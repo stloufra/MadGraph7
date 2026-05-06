@@ -4,7 +4,8 @@ using namespace madspace;
 
 MadnisLoss::MadnisLoss(
     const std::vector<std::shared_ptr<FunctionGenerator>>& functions,
-    const std::optional<ChannelWeightNetwork>& cwnet
+    const std::optional<ChannelWeightNetwork>& cwnet,
+    double softclip_threshold
 ) :
     FunctionGenerator(
         "MadnisLoss",
@@ -43,7 +44,8 @@ MadnisLoss::MadnisLoss(
          {"variances", single_float_array(functions.size())}}
     ),
     _functions(functions),
-    _cwnet(cwnet) {}
+    _cwnet(cwnet),
+    _softclip_threshold(softclip_threshold) {}
 
 NamedVector<Value> MadnisLoss::build_function_impl(
     FunctionBuilder& fb, const NamedVector<Value>& args
@@ -94,8 +96,12 @@ NamedVector<Value> MadnisLoss::build_function_impl(
             fb.set_current_stream(index + 1);
         }
         Value f = _cwnet ? fb.mul(cw, integrand) : integrand;
-        Value mean = fb.batch_reduce_mean_keepdim(fb.div(f, q));
         Value abs_mean = fb.batch_reduce_mean(fb.madnis_abs_weight(f, q));
+        if (_softclip_threshold != 0.) {
+            f = fb.madnis_softclip(f, q, abs_mean, _softclip_threshold);
+            abs_mean = fb.batch_reduce_mean(fb.madnis_abs_weight(f, q));
+        }
+        Value mean = fb.batch_reduce_mean_keepdim(fb.div(f, q));
         Value variance = fb.batch_reduce_mean(fb.madnis_variance(f, g, q, mean));
         chan_abs_means.push_back(abs_mean);
         chan_variances.push_back(variance);

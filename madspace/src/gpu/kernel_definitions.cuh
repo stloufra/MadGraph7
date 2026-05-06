@@ -38,6 +38,7 @@ inline __device__ double max(double arg1, double arg2) {
 inline __device__ std::size_t single_index(me_int_t arg) { return arg; }
 
 using ::acos;
+using ::asinh;
 using ::atan;
 using ::atan2;
 using ::atanh;

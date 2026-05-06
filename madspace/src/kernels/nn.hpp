@@ -666,6 +666,30 @@ KERNELSPEC void backward_kernel_madnis_abs_weight(
 }
 
 template <typename T>
+KERNELSPEC void kernel_madnis_softclip(
+    FIn<T, 0> f, FIn<T, 0> q, FIn<T, 0> norm, FIn<T, 0> threshold, FOut<T, 0> f_out
+) {
+    auto factor = q * norm * threshold;
+    f_out = factor * asinh(f / factor);
+}
+
+template <typename T>
+KERNELSPEC void backward_kernel_madnis_softclip(
+    FIn<T, 0> f,
+    FIn<T, 0> q,
+    FIn<T, 0> norm,
+    FIn<T, 0> threshold,
+    FIn<T, 0> f_out_grad,
+    FOut<T, 0> f_grad,
+    FOut<T, 0> q_grad,
+    FOut<T, 0> norm_grad,
+    FOut<T, 0> threshold_grad
+) {
+    auto factor = q * norm * threshold;
+    f_grad += f_out_grad / sqrt(f * f / (factor * factor) + 1);
+}
+
+template <typename T>
 KERNELSPEC void kernel_madnis_variance(
     FIn<T, 0> f, FIn<T, 0> g, FIn<T, 0> q, FIn<T, 0> mean, FOut<T, 0> var
 ) {

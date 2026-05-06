@@ -573,6 +573,10 @@ Value madnis_abs_weight(Value f, Value q) {
     return instruction("madnis_abs_weight", {f, q})[0];
 }
 
+Value madnis_softclip(Value f, Value q, Value norm, Value threshold) {
+    return instruction("madnis_softclip", {f, q, norm, threshold})[0];
+}
+
 Value madnis_variance(Value f, Value g, Value q, Value mean) {
     return instruction("madnis_variance", {f, g, q, mean})[0];
 }

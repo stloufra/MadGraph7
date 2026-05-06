@@ -100,7 +100,8 @@ void MadnisTraining::build_runtimes_and_optimizer() {
         functions.push_back(channel.integrand_prob);
         channel.generator_runtime.reset();
     }
-    Function madnis_func = MadnisLoss(functions, _cwnet).function();
+    Function madnis_func =
+        MadnisLoss(functions, _cwnet, _config.softclip_threshold).function();
     if (_optimizer) {
         _optimizer->replace_function(madnis_func);
     } else {

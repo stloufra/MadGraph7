@@ -104,11 +104,14 @@ case 130:
     backward_batch_foreach<tensor_foreach<backward_kernel_madnis_abs_weight<CpuTypes>, backward_kernel_madnis_abs_weight<SimdTypes>, 3, 2, 1, DeviceType>, 2, 1, 2, 0>(instr, locals, local_grads, {0,1}, {}, device);
     break;
 case 131:
-    backward_batch_foreach<tensor_foreach<backward_kernel_madnis_variance<CpuTypes>, backward_kernel_madnis_variance<SimdTypes>, 5, 4, 1, DeviceType>, 4, 1, 4, 0>(instr, locals, local_grads, {0,1,2,3}, {}, device);
+    backward_batch_foreach<tensor_foreach<backward_kernel_madnis_softclip<CpuTypes>, backward_kernel_madnis_softclip<SimdTypes>, 5, 4, 1, DeviceType>, 4, 1, 4, 0>(instr, locals, local_grads, {0,1,2,3}, {}, device);
     break;
 case 132:
-    backward_batch_foreach<tensor_foreach<backward_kernel_madnis_single_channel_variance<CpuTypes>, backward_kernel_madnis_single_channel_variance<SimdTypes>, 2, 2, 1, DeviceType>, 2, 1, 1, 0>(instr, locals, local_grads, {1}, {}, device);
+    backward_batch_foreach<tensor_foreach<backward_kernel_madnis_variance<CpuTypes>, backward_kernel_madnis_variance<SimdTypes>, 5, 4, 1, DeviceType>, 4, 1, 4, 0>(instr, locals, local_grads, {0,1,2,3}, {}, device);
     break;
 case 133:
+    backward_batch_foreach<tensor_foreach<backward_kernel_madnis_single_channel_variance<CpuTypes>, backward_kernel_madnis_single_channel_variance<SimdTypes>, 2, 2, 1, DeviceType>, 2, 1, 1, 0>(instr, locals, local_grads, {1}, {}, device);
+    break;
+case 134:
     backward_batch_foreach<tensor_foreach<backward_kernel_madnis_multi_channel_variance<CpuTypes>, backward_kernel_madnis_multi_channel_variance<SimdTypes>, 3, 2, 1, DeviceType>, 2, 1, 2, 0>(instr, locals, local_grads, {0,1}, {}, device);
     break;

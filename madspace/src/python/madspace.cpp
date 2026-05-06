@@ -1247,9 +1247,11 @@ PYBIND11_MODULE(_madspace_py, m) {
         .def(
             py::init<
                 const std::vector<std::shared_ptr<FunctionGenerator>>&,
-                const std::optional<ChannelWeightNetwork>&>(),
+                const std::optional<ChannelWeightNetwork>&,
+                double>(),
             py::arg("functions"),
-            py::arg("cwnet")
+            py::arg("cwnet"),
+            py::arg("softclip_threshold") = 0.0
         );
 
     add_enum<Verbosity>(
@@ -1318,6 +1320,9 @@ PYBIND11_MODULE(_madspace_py, m) {
         )
         .def_readwrite(
             "fixed_cwnet_fraction", &MadnisTraining::Config::fixed_cwnet_fraction
+        )
+        .def_readwrite(
+            "softclip_threshold", &MadnisTraining::Config::softclip_threshold
         );
 
     py::classh<MadnisTraining>(m, "MadnisTraining")

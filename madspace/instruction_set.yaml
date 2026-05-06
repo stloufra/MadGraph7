@@ -2319,6 +2319,26 @@ madnis_abs_weight:
       desc:
   differentiable: True
 
+madnis_softclip:
+  inputs:
+    - name: f
+      type: [float]
+      desc:
+    - name: q
+      type: [float]
+      desc:
+    - name: norm
+      type: [float]
+      desc:
+    - name: threshold
+      type: [float]
+      desc:
+  outputs:
+    - name: f_clip
+      type: [float]
+      desc:
+  differentiable: True
+
 madnis_variance:
   inputs:
     - name: f

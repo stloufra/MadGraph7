@@ -35,6 +35,7 @@ inline double max(double arg1, double arg2) { return arg1 > arg2 ? arg1 : arg2; 
 inline std::size_t single_index(me_int_t arg) { return arg; }
 
 using std::acos;
+using std::asinh;
 using std::atan;
 using std::atan2;
 using std::atanh;

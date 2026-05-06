@@ -40,6 +40,7 @@ public:
         std::size_t buffered_steps = 0;
         double buffer_unweighting_quantile = 0.99;
         double fixed_cwnet_fraction = 0.33;
+        double softclip_threshold = 0.0;
     };
     MadnisTraining(
         ContextPtr generator_context,

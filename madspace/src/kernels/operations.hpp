@@ -70,9 +70,9 @@ void backward_batch_foreach(
         auto& input_grad = local_grads[input_index];
         if (!input_grad) {
             auto& input = locals[input_index];
-            if (input.size(0) != batch_size && input.dtype() == DataType::dt_float) {
+            /*if (input.size(0) != batch_size && input.dtype() == DataType::dt_float) {
                 throw std::runtime_error("backward not possible for broadcasting args");
-            }
+            }*/
             input_grad = Tensor(
                 input.dtype(),
                 input.shape(),

@@ -395,38 +395,41 @@ case 130:
     batch_foreach<tensor_foreach<kernel_madnis_abs_weight<GpuTypes>, 2, 1, 1>, 2, 1>(instr, locals, device);
     break;
 case 131:
-    batch_foreach<tensor_foreach<kernel_madnis_variance<GpuTypes>, 4, 1, 1>, 4, 1>(instr, locals, device);
+    batch_foreach<tensor_foreach<kernel_madnis_softclip<GpuTypes>, 4, 1, 1>, 4, 1>(instr, locals, device);
     break;
 case 132:
-    batch_foreach<tensor_foreach<kernel_madnis_single_channel_variance<GpuTypes>, 2, 1, 1>, 2, 1>(instr, locals, device);
+    batch_foreach<tensor_foreach<kernel_madnis_variance<GpuTypes>, 4, 1, 1>, 4, 1>(instr, locals, device);
     break;
 case 133:
-    batch_foreach<tensor_foreach<kernel_madnis_multi_channel_variance<GpuTypes>, 2, 1, 1>, 2, 1>(instr, locals, device);
+    batch_foreach<tensor_foreach<kernel_madnis_single_channel_variance<GpuTypes>, 2, 1, 1>, 2, 1>(instr, locals, device);
     break;
 case 134:
-    op_nonzero(instr, locals, device);
+    batch_foreach<tensor_foreach<kernel_madnis_multi_channel_variance<GpuTypes>, 2, 1, 1>, 2, 1>(instr, locals, device);
     break;
 case 135:
-    op_batch_gather(instr, locals, device);
+    op_nonzero(instr, locals, device);
     break;
 case 136:
-    op_batch_scatter(instr, locals, device);
+    op_batch_gather(instr, locals, device);
     break;
 case 137:
-    op_random(instr, locals, device);
+    op_batch_scatter(instr, locals, device);
     break;
 case 138:
-    op_unweight(instr, locals, device);
+    op_random(instr, locals, device);
     break;
 case 139:
-    batch_foreach<tensor_foreach<kernel_vegas_forward<GpuTypes>, 2, 2, 2>, 2, 2>(instr, locals, device);
+    op_unweight(instr, locals, device);
     break;
 case 140:
-    batch_foreach<tensor_foreach<kernel_vegas_inverse<GpuTypes>, 2, 2, 2>, 2, 2>(instr, locals, device);
+    batch_foreach<tensor_foreach<kernel_vegas_forward<GpuTypes>, 2, 2, 2>, 2, 2>(instr, locals, device);
     break;
 case 141:
-    op_vegas_histogram(instr, locals, device);
+    batch_foreach<tensor_foreach<kernel_vegas_inverse<GpuTypes>, 2, 2, 2>, 2, 2>(instr, locals, device);
     break;
 case 142:
+    op_vegas_histogram(instr, locals, device);
+    break;
+case 143:
     op_histogram(instr, locals, device);
     break;

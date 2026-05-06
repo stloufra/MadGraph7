@@ -418,6 +418,12 @@ class MadgraphProcess:
         config.adam_beta1 = madnis_args["adam_beta1"]
         config.adam_beta2 = madnis_args["adam_beta2"]
         config.adam_eps = madnis_args["adam_eps"]
+        config.buffer_capacity = madnis_args["buffer_capacity"]
+        config.minimum_buffer_size = madnis_args["minimum_buffer_size"]
+        config.buffered_steps = madnis_args["buffered_steps"]
+        config.buffer_unweighting_quantile = madnis_args["buffer_unweighting_quantile"]
+        config.fixed_cwnet_fraction = madnis_args["fixed_cwnet_fraction"]
+        config.softclip_threshold = madnis_args["softclip_threshold"]
         madnis_integrand_flags = (
             ms.Integrand.sample
             | ms.Integrand.return_latent
