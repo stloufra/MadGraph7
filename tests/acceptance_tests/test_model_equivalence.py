@@ -129,8 +129,42 @@ class CompareMG4WithUFOModel(unit_tests.TestCase):
             pdg_code_ufo = [abs(part['pdg_code']) for part in ufo_vertex['particles']]
             int_name = [part['name'] for part in ufo_vertex['particles']]
             rep = (pdg_code_ufo, int_name)
-            pdg_code_ufo.sort()
-            ufo_vertices.append(pdg_code_ufo)
+            
+            if any(p in ufo_model.get("merged_particles") for p in pdg_code_ufo):
+                orig_pdg = pdg_code_ufo[:]
+                pdg_code_ufo = list(pdg_code_ufo[:])
+                coupling = next(iter(ufo_vertex.get('couplings').values()))
+                if type(coupling) == str:
+                    # this assume that all merged particle are in diagonal format
+                    merged_pdg = {abs(pdg) for pdg in orig_pdg if pdg in ufo_model.get("merged_particles")}
+                    assert len(merged_pdg) == 1, "This test only support one merged particle per vertex"
+                    merged_pdg = merged_pdg.pop()
+                    for pdg in ufo_model.get("merged_particles")[merged_pdg]:
+                        for i, orig in enumerate(orig_pdg):
+                            if abs(orig) == merged_pdg:
+                                if orig > 0:
+                                    pdg_code_ufo[i] = pdg
+                                else:
+                                    pdg_code_ufo[i] = -pdg
+                        ufo_vertices.append(sorted(pdg_code_ufo))
+                else:   
+
+                    for keys in coupling['flavors'].keys():
+                        # Create a copy for this iteration
+                        pdg_code_ufo_copy = pdg_code_ufo[:]  # or list(pdg_code_ufo)
+                        for i,f in enumerate(keys):
+                            if f:
+                                if orig_pdg[i] in ufo_model.get("merged_particles"):
+                                    pdg_code_ufo_copy[i] = ufo_model.get("merged_particles")[orig_pdg[i]][f-1]
+                                elif -orig_pdg[i] in ufo_model.get("merged_particles"): 
+                                    pdg_code_ufo_copy[i] = -ufo_model.get("merged_particles")[-orig_pdg[i]][f-1]
+                                else:
+                                    raise Exception(orig_pdg[i], ufo_model.get("merged_particles"))
+                        ufo_vertices.append(sorted(pdg_code_ufo_copy))
+            else:
+                pdg_code_ufo.sort()
+                ufo_vertices.append(pdg_code_ufo)
+
         mg4_vertices = []
         for vertex in model['interactions']:
             pdg_code_mg4 = [abs(part['pdg_code']) for part in vertex['particles']]
@@ -412,7 +446,7 @@ class TestModelCreation(unit_tests.TestCase, CheckFileCreate):
         alreadydefine.sort()
         solution = ['as ', 'g ', 'gal(1) ', 'gal(2) ', 'mdl_aew ', 'mdl_ckm3x3 ', 'mdl_complexi ', 'mdl_conjg__ckm1x1 ', 'mdl_conjg__ckm3x3 ', 'mdl_cw ', 'mdl_cw__exp__2 ', 'mdl_ee ', 'mdl_ee__exp__2 ', 'mdl_g1 ', 'mdl_g__exp__2 ', 'mdl_gw ', 'mdl_i1x33 ', 'mdl_i2x33 ', 'mdl_i3x33 ', 'mdl_i4x33 ', 'mdl_lam ', 'mdl_mh__exp__2 ', 'mdl_muh ', 'mdl_mw ', 'mdl_mw__exp__2 ', 'mdl_mz__exp__2 ', 'mdl_mz__exp__4 ', 'mdl_sqrt__2 ', 'mdl_sqrt__aew ', 'mdl_sqrt__as ', 'mdl_sqrt__sw2 ', 'mdl_sw ', 'mdl_sw2 ', 'mdl_sw__exp__2 ', 'mdl_vev ', 'mdl_vev__exp__2 ', 'mdl_yb ', 'mdl_yt ', 'mdl_ytau ']
         self.assertEqual(alreadydefine, solution)
-        
 
 
-      
+
+
