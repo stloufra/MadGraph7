@@ -1466,7 +1466,11 @@ c     Store pdf information for systematics studies (initial)
          if(use_syst)then
             do j=1,2
                 n_pdfrw(j,ivec)=1
-                i_pdgpdf(1,j,ivec)=ipdgcl(j,igraphs(1),iproc)
+                if(abs(ipdgcl(j,igraphs(1),iproc)).eq.81) then
+                   i_pdgpdf(1,j,ivec)=abs(flavor(j))*sign(1,ipdgcl(j,igraphs(1),iproc))
+                else
+                   i_pdgpdf(1,j,ivec)=ipdgcl(j,igraphs(1),iproc)
+                endif
                 s_xpdf(1,j,ivec)=xbk(ib(j))
                 s_qpdf(1,j,ivec)=sqrt(q2fact(j))
             enddo
@@ -1822,9 +1826,15 @@ c     Need to multiply by: initial PDF, alpha_s^n_qcd to get
 c     factor in front of matrix element
          do i=1,2
             if (lpp(IB(i)).ne.0) then
+                if( abs(i_pdgpdf(1,i,ivec)).ne.81)then
                 s_rwfact(ivec)=s_rwfact(ivec)*pdg2pdf(abs(lpp(IB(i))),
      $           i_pdgpdf(1,i,ivec)*sign(1,lpp(IB(i))),IB(i),
      $           s_xpdf(1,i,ivec),s_qpdf(1,i,ivec))
+            else
+                s_rwfact(ivec)=s_rwfact(ivec)*pdg2pdf(abs(lpp(IB(i))),
+     $           abs(flavor(i))*sign(1, i_pdgpdf(1,i,ivec))*sign(1,lpp(IB(i))),IB(i),
+     $           s_xpdf(1,i,ivec),s_qpdf(1,i,ivec))
+            endif
             endif
          enddo
          if (asref.gt.0d0.and.n_qcd(ivec).le.nexternal)then
