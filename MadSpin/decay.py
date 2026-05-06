@@ -157,6 +157,50 @@ class Event:
         final.sort()
 
         return (tuple(initial), tuple(final)), order
+
+    def get_flavor_index(self, flavor_groups, event_map):
+        """Determine the 1-based flavor_index for this event.
+
+        flavor_groups is a list of lists of PDG-code tuples (as returned by
+        get_flavor_data_from_me and stored in all_ME/all_decay as
+        'flavor_groups_prod', 'flavor_groups_full', or 'flavor_groups_decay').
+        Each outer list corresponds to one flavor_index; the inner list contains
+        all PDG-code tuples that share the same coupling structure for that index.
+
+        event_map maps ME particle position (0-based) to event particle position
+        (0-based, same convention as used by loadfortran / give_momenta).
+
+        The matching rule: for ME position j, the event pid (absolute value) is
+        compared to the unsigned group member stored in the flavor tuple at
+        position j.  This works because merged-particle groups are identified by
+        their absolute PDG code; the sign (particle vs anti-particle) is already
+        captured by the process definition and therefore the same within every
+        member of a flavor_groups entry.
+
+        Returns the 1-based flavor_index, or 1 if no match is found (safe
+        fallback for processes without merged particles).
+        """
+        if not flavor_groups:
+            return 1
+
+        # Build the ordered list of absolute event PIDs in ME particle order
+        n_parts = len(self.particle)
+        event_pids = []
+        for me_pos in range(n_parts):
+            evt_pos = event_map.get(me_pos, me_pos)  # evt_pos is 0-based
+            pid = self.particle[evt_pos + 1]['pid']   # particle dict is 1-indexed
+            event_pids.append(abs(pid))
+
+        for group_idx, group_tuples in enumerate(flavor_groups):
+            for flav_tuple in group_tuples:
+                if len(flav_tuple) != len(event_pids):
+                    continue
+                if all(abs(flav_tuple[j]) == event_pids[j]
+                       for j in range(len(event_pids))):
+                    return group_idx + 1  # 1-based
+
+        # No exact match found – fall back to index 1
+        return 1
  
         
     
@@ -2381,6 +2425,9 @@ class decay_all_events(object):
             nb_mc_masses=len(indices_for_mc_masses)
 
             p, p_str=self.curr_event.give_momenta(event_map)
+            # TODO(flavor): replace hardcoded flavor_index=1 with
+            #   self.curr_event.get_flavor_index(
+            #       self.all_ME[production_tag].get('flavor_groups_full', []), event_map)
             stdin_text=' %s %s %s %s %s %s\n' % ('2', self.options['BW_cut'], self.Ecollider, decay_me['max_weight'], self.options['frame_id'], 1)
             stdin_text+=p_str
             # here I also need to specify the Monte Carlo Masses
@@ -2513,6 +2560,9 @@ class decay_all_events(object):
             frameid = self.options['frame_id']
         except KeyError:
             frameid = 6
+        # TODO(flavor): replace hardcoded flavor_index=1 with
+        #   self.curr_event.get_flavor_index(
+        #       self.all_ME[production_tag].get('flavor_groups_full', []), event_map)
         stdin_text=' %s %s %s %s %s %s\n' % ('2', self.options['BW_cut'], self.Ecollider, 1.0, frameid, 1)
         stdin_text+=p_str
         # here I also need to specify the Monte Carlo Masses
@@ -2675,6 +2725,11 @@ class decay_all_events(object):
                 values = {}                
                 for i in range(len(decays)):
                     if any([valid[(i,j)] for j in range(len(decays)) if i !=j]):
+                        # TODO(flavor): pass the actual flavor_index for this
+                        #   decay instead of the default 1. The flavor_index
+                        #   should be obtained from the event (not available
+                        #   here); adapt once Event.get_flavor_index() is
+                        #   wired into this code path.
                         values[i] = self.calculate_matrix_element('decay', 
                                                        decays[i]['path'], p_str)
                     else:
@@ -2862,10 +2917,11 @@ class decay_all_events(object):
         for me in matrix_elements:
             tag = me.get('processes')[0].get_initial_final_ids()
             if tag in self.all_ME:
-                nexternal, flavor_combos, pdg_to_group_pos = \
+                nexternal, flavor_combos, pdg_to_group_pos, flavor_groups = \
                     self.get_flavor_data_from_me(me)
                 self.all_ME[tag]['flavor_combos_prod'] = (
                     nexternal, flavor_combos, pdg_to_group_pos)
+                self.all_ME[tag]['flavor_groups_prod'] = flavor_groups
         
         # 3b. simplify list_branches -------------------------------------------
         # remove decay which are not present in any production ME.
@@ -2950,13 +3006,14 @@ class decay_all_events(object):
                        "P%s" % matrix_element.get('processes')[0].shell_string())
             self.all_ME.add_decay(matrix_element, me_path)
             # Store full ME flavor data for this decay path (point 2)
-            nexternal, flavor_combos, pdg_to_group_pos = \
+            nexternal, flavor_combos, pdg_to_group_pos, flavor_groups = \
                 self.get_flavor_data_from_me(matrix_element)
             tag = matrix_element.get('processes')[0].get_initial_final_ids()
             for dico in self.all_ME[tag]['decays']:
                 if dico['path'] == me_path and 'flavor_combos_full' not in dico:
                     dico['flavor_combos_full'] = (nexternal, flavor_combos,
                                                   pdg_to_group_pos)
+                    dico['flavor_groups_full'] = flavor_groups
                     break
 
         # 5.b import production matrix elements (+ related info) in the full process directory
@@ -3007,12 +3064,18 @@ class decay_all_events(object):
             me = matrix_element.get('processes')[0]
             me_string = me.shell_string()
             dirpath = pjoin(path_me,'decay_me', 'SubProcesses', "P%s" % me_string)
-        #    
+            # Store decay ME flavor data for compile time (point 2)
+            nexternal, flavor_combos, pdg_to_group_pos, flavor_groups = \
+                self.get_flavor_data_from_me(matrix_element)
             self.all_decay[me_string] = {'path': dirpath, 
                                          'dc_branch':dc_branch_from_me(me),
                                          'nbody': len(me.get_final_ids_after_decay()),
                                          'processes': matrix_element.get('processes'),
-                                         'tag': me.shell_string(pdg_order=True)}
+                                         'tag': me.shell_string(pdg_order=True),
+                                         'flavor_combos_decay': (nexternal,
+                                                                  flavor_combos,
+                                                                  pdg_to_group_pos),
+                                         'flavor_groups_decay': flavor_groups}
         #
 #        if __debug__:
 #            #check that all decay matrix element correspond to a decay only
@@ -3118,14 +3181,15 @@ class decay_all_events(object):
         """Write flavor_ms.inc containing GET_FLAVOR_MS_* subroutines.
 
         flavor_data is a dict with keys among 'full', 'prod', 'decay', mapping
-        to a list of (nexternal, flavor_combo_list, pdg_to_group_pos) tuples,
-        where flavor_combo_list is a list of sequences of PDG codes (one sequence
-        per flavor index), and pdg_to_group_pos maps PDG code -> group position.
+        to (nexternal, flavor_combo_list, pdg_to_group_pos) tuples, where
+        flavor_combo_list is a list of PDG-code sequences (one per flavor_index)
+        and pdg_to_group_pos maps PDG code -> position in its merged group.
 
-        Subroutines generated:
+        For each key, a Fortran subroutine is generated:
           - GET_FLAVOR_MS_FULL(IFLAV, FLAVOR_OUT)  for key 'full'
           - GET_FLAVOR_MS_PROD(IFLAV, FLAVOR_OUT)  for key 'prod'
           - GET_FLAVOR_MS(IFLAV, FLAVOR_OUT)        for key 'decay'
+        When no merged particles exist the single entry is all ones (group pos 1).
         """
         name_map = {'full': 'GET_FLAVOR_MS_FULL',
                     'prod': 'GET_FLAVOR_MS_PROD',
@@ -3133,6 +3197,9 @@ class decay_all_events(object):
         lines = []
         for key, (nexternal, flavor_combos, pdg_to_group_pos) in flavor_data.items():
             sub_name = name_map[key]
+            # If no flavor data (no merged particles), create a single all-ones entry
+            if not flavor_combos:
+                flavor_combos = [[1] * nexternal]
             nflavs = len(flavor_combos)
             lines.append('      SUBROUTINE %s(IFLAV, FLAVOR_OUT)' % sub_name)
             lines.append('C     Returns the flavor array for flavor index IFLAV')
@@ -3144,7 +3211,7 @@ class decay_all_events(object):
             lines.append('      INTEGER FLAVOR_OUT(NEXTERNAL_MS)')
             lines.append('      INTEGER FLAVOR_DATA(NEXTERNAL_MS, NFLAVS_MS)')
             for i, flav in enumerate(flavor_combos):
-                positions = [str(pdg_to_group_pos.get(f, 1)) for f in flav]
+                positions = [str(pdg_to_group_pos.get(abs(f), 1)) for f in flav]
                 lines.append('      DATA (FLAVOR_DATA(I, %d), I=1,NEXTERNAL_MS) / %s /'
                              % (i+1, ', '.join(positions)))
             lines.append('      FLAVOR_OUT = FLAVOR_DATA(:, IFLAV)')
@@ -3157,18 +3224,33 @@ class decay_all_events(object):
 
     @staticmethod
     def get_flavor_data_from_me(matrix_element):
-        """Extract (nexternal, flavor_combos, pdg_to_group_pos) from a HelasMatrixElement."""
+        """Extract flavor data from a HelasMatrixElement.
+
+        Returns a tuple (nexternal, flavor_combos, pdg_to_group_pos, flavor_groups)
+        where:
+          - nexternal: number of external particles
+          - flavor_combos: list of PDG-code tuples (first representative per group)
+            written into the Fortran DATA statement, one entry per flavor_index.
+          - pdg_to_group_pos: dict mapping positive PDG code -> position within its
+            merged-particle group (used to convert PDG codes to group positions).
+          - flavor_groups: list of lists; flavor_groups[i] contains ALL PDG-code
+            tuples that share coupling group i (0-based), enabling Python-side
+            matching of a real event to its flavor_index (i+1).
+        """
         (nexternal, _) = matrix_element.get_nexternal_ninitial()
         model = matrix_element.get('processes')[0].get('model')
         pdg_to_group_pos = {}
         for members in model.get('merged_particles').values():
             for pos, pdg in enumerate(members, 1):
                 pdg_to_group_pos[pdg] = pos
+        # get_external_flavors_with_iden returns dict_values of lists of tuples;
+        # each inner list groups flavor tuples that share the same coupling structure.
         all_flav = list(matrix_element.get_external_flavors_with_iden())
-        # each entry in all_flav is a dict_values/list whose first element is
-        # a tuple of PDG codes for that flavor combination
+        # flavor_combos[i]: representative PDG tuple for flavor_index i+1 (Fortran DATA)
         flavor_combos = [list(flv[0]) for flv in all_flav]
-        return nexternal, flavor_combos, pdg_to_group_pos
+        # flavor_groups[i]: all PDG tuples in coupling group i (for Python matching)
+        flavor_groups = [list(flv) for flv in all_flav]
+        return nexternal, flavor_combos, pdg_to_group_pos, flavor_groups
 
     def compile(self):
         logger.info('Compiling code')
@@ -3564,6 +3646,8 @@ class decay_all_events(object):
         """return the max. weight associated with me decay['path']"""
 
         p, p_str=self.curr_event.give_momenta(event_map)
+        # TODO(flavor): replace hardcoded flavor_index=1 with the correct
+        #   event flavor_index derived from self.curr_event.get_flavor_index(...)
         std_in=" %s  %s %s %s %s %s\n" % ("1",BWcut, self.Ecollider, nbpoints, self.options['frame_id'], 1)
         std_in+=p_str
         max_weight = self.loadfortran('maxweight',
@@ -3672,7 +3756,13 @@ class decay_all_events(object):
         return output
     
     def calculate_matrix_element(self, mode, production, stdin_text, flavor_index=1):
-        """routine to return the matrix element"""
+        """routine to return the matrix element
+
+        TODO(flavor): the flavor_index parameter defaults to 1 for all callers
+        in get_max_weight_from_event.  Once Event.get_flavor_index() is wired
+        up, the callers should pass the actual index derived from the event
+        particle content.
+        """
 
         if mode != "decay":
             raise Exception("This function is only secure in mode decay.")
