@@ -3207,6 +3207,7 @@ class decay_all_events(object):
             lines.append('      IMPLICIT NONE')
             lines.append('      INTEGER, PARAMETER :: NEXTERNAL_MS = %d' % nexternal)
             lines.append('      INTEGER, PARAMETER :: NFLAVS_MS = %d' % nflavs)
+            lines.append('      INTEGER  I')
             lines.append('      INTEGER IFLAV')
             lines.append('      INTEGER FLAVOR_OUT(NEXTERNAL_MS)')
             lines.append('      INTEGER FLAVOR_DATA(NEXTERNAL_MS, NFLAVS_MS)')
