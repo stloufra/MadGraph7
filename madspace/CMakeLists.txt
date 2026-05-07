@@ -319,7 +319,7 @@ elseif(APPLE)
     set(SIMD_DEFINES "" "USE_SIMD_NEON=1")
 else()
     set(CPU_TARGETS madspace_cpu madspace_cpu_avx2 madspace_cpu_avx512)
-    set(SIMD_FLAGS "" "-mavx2" "-mavx512f")
+    set(SIMD_FLAGS "" "-mavx2 -mfma" "-mavx512f")
     set(SIMD_DEFINES "" "USE_SIMD_AVX2=1" "USE_SIMD_AVX512=1")
 endif()
 

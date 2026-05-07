@@ -78,7 +78,7 @@ const LoadedBackend& cpu_backend() {
 #ifdef __APPLE__
         supported_vector_sizes.push_back(2);
 #else  // __APPLE__
-        if (__builtin_cpu_supports("avx2")) {
+        if (__builtin_cpu_supports("avx2") && __builtin_cpu_supports("fma")) {
             supported_vector_sizes.push_back(4);
         }
         if (__builtin_cpu_supports("avx512f")) {
