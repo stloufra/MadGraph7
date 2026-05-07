@@ -725,9 +725,7 @@ class ALOHAWriterForFortran(WriteALOHA):
         if self.offshell and aloha.unitary_gauge == 3: # FD gauge
             type = self.particles[self.outgoing-1]
             if type in ["S","V"]: 
-                out.write("      DO I = 3, 7\n")
-                out.write(" %(type)s%(out)s(I) = CZERO \n" % {'type': type, 'out':self.outgoing}) 
-                out.write(" ENDDO\n")      
+                out.write(" %(type)s%(out)s %% W(:) = CZERO \n" % {'type': type, 'out':self.outgoing}) 
 
         # Returning result
         return out.getvalue()
