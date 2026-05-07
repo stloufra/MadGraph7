@@ -1051,7 +1051,7 @@ class AllMatrixElement(dict):
             elif -pid in self.banner.param_card['decay'].decay_table:
                 pid = -pid
                 lhaid=[x if self.model.get_particle(x)['self_antipart'] else -x
-                       for x in lhaid]
+                       for x in lhaid[1:]]
                 lhaid.sort()
                 lhaid = tuple([len(lhaid)] + lhaid)
                 return self.banner.param_card['decay'].decay_table[pid].get(lhaid).value

@@ -1542,7 +1542,7 @@ class HelasWavefunction(base_objects.PhysicsObject):
                 return ans
 
         # check special case for external wavefunction
-        assert( len(self.get('mothers'))!=0)
+        #assert( len(self.get('mothers'))!=0)
         try:
             del self[tag_name]
         except:
@@ -1589,6 +1589,11 @@ class HelasWavefunction(base_objects.PhysicsObject):
                 else:
                     self[tag_name] = 0
                     return return_fct(self, False, model, tag_name)
+        elif self.get('interaction_id') == 0:
+            # this is a case where the current flavor is trivial (the pdg is not a merged one)
+            # and there is no interaction, so no need to check the validity of the input
+            self[tag_name] = 1
+            return return_fct(self, True, model, tag_name)
         elif check_valid_input:
             # this is a case where the current flavor is trivial (the pdg is not a merged one)
             # but the combination of the input might just be impossible
@@ -3712,8 +3717,8 @@ class HelasDiagram(base_objects.PhysicsObject):
         for wfct in self['wavefunctions']:
             if len(wfct.get('mothers')) > 0:
                 for m in wfct.get('mothers'):
-                    if id(m) not in wf_in_list:
-                        _tag_external_ancestors(m)
+                    #if id(m) not in wf_in_list:
+                    _tag_external_ancestors(m)
 
         if debug:misc.sprint(len(self['wavefunctions']), len(self['amplitudes']), [id(w) for w in self['wavefunctions']], [id(w) for w in self['amplitudes']])
         for wfct in self['wavefunctions']:
