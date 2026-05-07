@@ -72,6 +72,7 @@
 #define gpuFree hipFree
 #define gpuFreeAsync hipFreeAsync
 #define gpuMemcpy hipMemcpy
+#define gpuMemset hipMemset
 #define gpuMemcpyDefault hipMemcpyDefault
 #define gpuMemcpyAsync hipMemcpyAsync
 #define gpuMemsetAsync hipMemsetAsync
