@@ -59,6 +59,7 @@ C
     REAL     XRAN1
     EXTERNAL XRAN1
     INTEGER FLAVOR(NEXTERNAL)
+    INTEGER BROKEN_SYM%(proc_id)s
 
 C
 C GLOBAL VARIABLES
@@ -187,7 +188,7 @@ c          WRITE(HEL_BUFF,'(20i5)')(NHEL(II,I),II=1,NEXTERNAL)
             stop 1
         ENDIF
     ENDIF
-    ANS=ANS/DBLE(IDEN)
+    ANS=ANS/DBLE(IDEN)*BROKEN_SYM%(proc_id)s(FLAVOR)
 
     CALL SELECT_COLOR(RCOL, JAMP2, ICONFIG, 1,  SELECTED_COL, IVEC)
 
@@ -324,3 +325,6 @@ endif
     Enddo
 
     END
+
+
+%(broken_sym_function)s

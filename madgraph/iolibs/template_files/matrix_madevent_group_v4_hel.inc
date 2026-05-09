@@ -50,6 +50,7 @@ C
         REAL*8 R,SUMHEL,TS(NCOMB)
         INTEGER I,IDEN
         INTEGER FLAVOR(NEXTERNAL)
+        INTEGER BROKEN_SYM%(proc_id)s
         REAL*8 XTOT
         INTEGER  J, JJ
       double precision get_channel_cut
@@ -152,7 +153,7 @@ c         Set right sign for ANS, based on sign of chosen helicity
 	        stop 1
         ENDIF
     ENDIF
-    ANS=ANS/DBLE(IDEN)
+    ANS=ANS/DBLE(IDEN)*BROKEN_SYM%(proc_id)s(FLAVOR)
 
     call select_color(rcol, jamp2, iconfig,%(proc_id)s,  icol, ivec)
 
@@ -308,3 +309,6 @@ ${jamp_lines}
     	    i =1
     return
     end
+
+
+%(broken_sym_function)s

@@ -203,8 +203,157 @@ class ProcessExporterFortran(VirtualExporter):
         self.proc_characteristic = banner_mod.ProcCharacteristic()
         # call mother class
         super(ProcessExporterFortran,self).__init__(dir_path, opt)
-        
-        
+
+    @staticmethod
+    def _get_broken_symmetry_data(process, ninitial):
+        """Return decay-aware symmetry metadata for broken_sym generation."""
+
+        def sort_decay_chains_by_leg(proc):
+            decay_chains = copy.copy(proc.get('decay_chains'))
+            sorted_decay_chains = []
+            for leg in proc.get_final_legs():
+                init_ids = [d.get('legs')[0].get('id') for d in decay_chains]
+                if leg.get('id') in init_ids:
+                    sorted_decay_chains.append(decay_chains.pop(init_ids.index(leg.get('id'))))
+            return sorted_decay_chains
+
+        def recurse(proc, next_flav_index):
+            components = []
+            current_entries = []
+            decay_chains = sort_decay_chains_by_leg(proc)
+            for leg in proc.get_final_legs():
+                decay = None
+                for i, candidate in enumerate(decay_chains):
+                    if candidate.get('legs')[0].get('id') == leg.get('id'):
+                        decay = decay_chains.pop(i)
+                        break
+                if decay:
+                    start = next_flav_index
+                    child_components, child_fingerprints, next_flav_index = \
+                        recurse(decay, next_flav_index)
+                    end = next_flav_index - 1
+                    components.extend(child_components)
+                    # Fingerprint encodes the entire decay sub-tree so that
+                    # two entries with the same PID but different decay
+                    # products are not counted as identical when computing
+                    # the symmetry factor COMP_OLD.
+                    fingerprint = (leg.get('id'), tuple(child_fingerprints))
+                else:
+                    start = next_flav_index
+                    end = next_flav_index
+                    next_flav_index += 1
+                    fingerprint = (leg.get('id'),)
+                current_entries.append({
+                    'pid': leg.get('id'),
+                    'start': start,
+                    'length': end - start + 1,
+                    'fingerprint': fingerprint,
+                })
+            components.insert(0, current_entries)
+            current_fingerprints = [e['fingerprint'] for e in current_entries]
+            return components, current_fingerprints, next_flav_index
+
+        components, _, _ = recurse(process, ninitial + 1)
+
+        comp_starts = []
+        comp_ends = []
+        comp_old_factors = []
+        pid_list = []
+        block_starts = []
+        block_lengths = []
+        entry_idx = 1
+        for entries in components:
+            comp_starts.append(entry_idx)
+            # Count identical entries by (pid, full-decay-tree fingerprint).
+            # Two entries with the same top-level PID but different decay
+            # sub-trees are NOT identical and must not contribute to the
+            # over-counting factor.  Using only the PID (old behaviour) was
+            # wrong: e.g. two Z bosons decaying to _quark and _lepton were
+            # both counted as PID=23 giving COMP_OLD=2, even though the base
+            # IDEN already treats them as distinguishable.
+            fp_counts = {}
+            old_factor = 1
+            for entry in entries:
+                key = entry['fingerprint']
+                fp_counts[key] = fp_counts.get(key, 0) + 1
+                pid_list.append(entry['pid'])
+                block_starts.append(entry['start'])
+                block_lengths.append(entry['length'])
+                entry_idx += 1
+            for multiplicity in fp_counts.values():
+                old_factor *= math.factorial(multiplicity)
+            comp_old_factors.append(old_factor)
+            comp_ends.append(entry_idx - 1)
+
+        return {
+            'ncomponents': len(components),
+            'nentries': len(pid_list),
+            'component_starts': comp_starts,
+            'component_ends': comp_ends,
+            'component_old_factors': comp_old_factors,
+            'pid_list': pid_list,
+            'block_starts': block_starts,
+            'block_lengths': block_lengths
+        }
+
+    @staticmethod
+    def _fill_broken_sym_replace_dict(replace_dict, sym_data):
+        """Populate *replace_dict* with the eight broken_sym_* Fortran DATA
+        keys that are consumed by the BROKEN_SYM function in every matrix
+        template.  Centralised here so that callers never drift out of sync.
+        Also used by the C++ and Python exporters which keep the individual
+        DATA keys in their own templates.
+        """
+        replace_dict['broken_sym_ncomponents'] = sym_data['ncomponents']
+        replace_dict['broken_sym_nentries'] = sym_data['nentries']
+        replace_dict['broken_sym_component_starts'] = \
+            ",".join(str(v) for v in sym_data['component_starts'])
+        replace_dict['broken_sym_component_ends'] = \
+            ",".join(str(v) for v in sym_data['component_ends'])
+        replace_dict['broken_sym_component_old_factors'] = \
+            ",".join(str(v) for v in sym_data['component_old_factors'])
+        replace_dict['broken_sym_pid_list'] = \
+            ",".join(str(v) for v in sym_data['pid_list'])
+        replace_dict['broken_sym_block_starts'] = \
+            ",".join(str(v) for v in sym_data['block_starts'])
+        replace_dict['broken_sym_block_lengths'] = \
+            ",".join(str(v) for v in sym_data['block_lengths'])
+
+    @staticmethod
+    def _make_broken_sym_fortran_function(func_name, sym_data,
+                                          nexternal_decl='include'):
+        """Return the complete Fortran BROKEN_SYM function as a string.
+
+        This single implementation is shared by all Fortran matrix templates
+        via the %(broken_sym_function)s placeholder, eliminating copy-paste
+        duplication.
+
+        Args:
+            func_name      : full Fortran function name, e.g. 'BROKEN_SYM1'
+                             or 'MYSMATRIX_BROKEN_SYM'.
+            sym_data       : dict returned by _get_broken_symmetry_data.
+            nexternal_decl : 'include' (default) to emit
+                             "include 'nexternal.inc'", or an integer to emit
+                             an explicit PARAMETER (NEXTERNAL=N) declaration
+                             (used by templates that lack the include file).
+        """
+        template_path = pjoin(_file_path, 'iolibs', 'template_files',
+                              'fortran_matrix_broken_sym_fct.inc')
+        template = open(template_path).read()
+
+        if nexternal_decl == 'include':
+            nexternal_lines = "      include 'nexternal.inc'"
+        else:
+            nexternal_lines = ('      INTEGER NEXTERNAL\n'
+                               '      PARAMETER (NEXTERNAL=%d)' % int(nexternal_decl))
+
+        replace_dict = {
+            'func_name': func_name,
+            'nexternal_decl': nexternal_lines,
+        }
+        ProcessExporterFortran._fill_broken_sym_replace_dict(replace_dict, sym_data)
+        return template % replace_dict
+
     #===========================================================================
     # process exporter fortran switch between group and not grouped
     #===========================================================================
@@ -3396,14 +3545,20 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
                 matrix_template = "matrix_standalone_matchbox_splitOrders_v4.inc"
             else:
                 matrix_template = "matrix_standalone_splitOrders_v4.inc"
-        data = matrix_element.get('processes')[0].get_final_ids_after_decay()
-        replace_dict['get_pid'] = ' PID = %s' % (data)
-        replace_dict['get_old_symmmetry_value'] = 1
-        done = []
-        for value in data:
-            if value not in done:
-                done.append(value)
-                replace_dict['get_old_symmmetry_value'] *= math.factorial(data.count(value)) 
+        process = matrix_element.get('processes')[0]
+        sym_data = self._get_broken_symmetry_data(process, ninitial)
+        self._fill_broken_sym_replace_dict(replace_dict, sym_data)
+        if matrix_template == 'matrix_standalone_msP_v4.inc':
+            bs_func_name = 'BROKEN_SYM_PROD'
+            bs_nexternal = replace_dict['nexternal']
+        elif matrix_template == 'matrix_standalone_msF_v4.inc':
+            bs_func_name = 'BROKEN_SYM'
+            bs_nexternal = 'include'
+        else:
+            bs_func_name = replace_dict['proc_prefix'] + 'BROKEN_SYM'
+            bs_nexternal = 'include'
+        replace_dict['broken_sym_function'] = \
+            self._make_broken_sym_fortran_function(bs_func_name, sym_data, bs_nexternal)
 
         replace_dict['template_file'] = pjoin(_file_path, 'iolibs', 'template_files', matrix_template)
         replace_dict['template_file2'] = pjoin(_file_path, \
@@ -4088,6 +4243,16 @@ class ProcessExporterFortranMW(ProcessExporterFortran):
         # Extract JAMP lines
         jamp_lines, nb = self.get_JAMP_lines(matrix_element)
         replace_dict['jamp_lines'] = '\n'.join(jamp_lines)
+
+        process = matrix_element.get('processes')[0]
+        sym_data = self._get_broken_symmetry_data(process, ninitial)
+        self._fill_broken_sym_replace_dict(replace_dict, sym_data)
+        if 'group' in self.matrix_file:
+            bs_func_name = 'BROKEN_SYM' + str(replace_dict['proc_id'])
+        else:
+            bs_func_name = replace_dict.get('proc_prefix', '') + 'BROKEN_SYM'
+        replace_dict['broken_sym_function'] = \
+            self._make_broken_sym_fortran_function(bs_func_name, sym_data)
         
         replace_dict['template_file'] =  os.path.join(_file_path, \
                           'iolibs/template_files/%s' % self.matrix_file)
@@ -5050,6 +5215,7 @@ class ProcessExporterFortranME(ProcessExporterFortran):
 
         # Set proc_id
         replace_dict['proc_id'] = proc_id
+        nexternal, ninitial = matrix_element.get_nexternal_ninitial()
 
         # Extract ncomb
         ncomb = matrix_element.get_helicity_combinations()
@@ -5205,7 +5371,8 @@ class ProcessExporterFortranME(ProcessExporterFortran):
         # into the DATA statement.
         model = matrix_element.get('processes')[0].get('model')
         pdg_to_group_pos = {}
-        for members in model.get('merged_particles').values():
+        merged_particles = model.get('merged_particles') or {}
+        for members in merged_particles.values():
             for pos, pdg in enumerate(members, 1):
                 pdg_to_group_pos[pdg] = pos
 
@@ -5214,8 +5381,12 @@ class ProcessExporterFortranME(ProcessExporterFortran):
             replace_dict['get_flavor_matrix'] += ' DATA (FLAVOR(i,  %d),i=  1, NEXTERNAL) /%s/\n' % (i+1, ', '.join(flav_positions))
         
         # information for computing the correct symmetry factor for each flavor
-        data = matrix_element.get('processes')[0].get_final_ids_after_decay()
-        replace_dict['get_pid'] = ' PID = %s' % (data)
+        process = matrix_element.get('processes')[0]
+        sym_data = self._get_broken_symmetry_data(process, ninitial)
+        self._fill_broken_sym_replace_dict(replace_dict, sym_data)
+        replace_dict['broken_sym_function'] = \
+            self._make_broken_sym_fortran_function(
+                'BROKEN_SYM' + str(proc_id), sym_data)
 
 
 
@@ -5396,7 +5567,9 @@ class ProcessExporterFortranME(ProcessExporterFortran):
         replace_dict['maxflavor'] = len(all_flv)
         replace_dict['get_flavor_matrix'] = ''
         pdg_to_group_pos = {}
-        for members in self.model.get('merged_particles').values():
+        model = self.model or matrix_element.get('processes')[0].get('model')
+        merged_particles = (model.get('merged_particles') or {}) if model else {}
+        for members in merged_particles.values():
             for pos, pdg in enumerate(members, 1):
                 pdg_to_group_pos[pdg] = pos
         for i, flav in enumerate(all_flv):

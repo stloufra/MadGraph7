@@ -28,6 +28,7 @@ import aloha.aloha_writers as aloha_writers
 import aloha.create_aloha as create_aloha
 
 import madgraph.iolibs.export_cpp as export_cpp
+import madgraph.iolibs.export_v4 as export_v4
 import madgraph.iolibs.file_writers as writers
 import madgraph.iolibs.helas_call_writers as helas_call_writer
 import models.import_ufo as import_ufo
@@ -2247,4 +2248,61 @@ class IOExportMatchBox(unittest.TestCase,
         self.assertFileContains('test.cc', goal_string, partial=True)
 
 
+class BrokenSymmetryCPPExportTest(unittest.TestCase):
+    """Ensure C++ exporter receives decay-aware broken symmetry metadata."""
 
+    def _make_process(self, model, initial_ids, final_ids, decays):
+        legs = base_objects.LegList()
+        for i, pid in enumerate(initial_ids + final_ids, 1):
+            legs.append(base_objects.Leg({'id': pid,
+                                          'state': i > len(initial_ids),
+                                          'number': i}))
+        process = base_objects.Process({'legs': legs,
+                                        'model': model,
+                                        'is_decay_chain': bool(decays)})
+        decay_chains = base_objects.ProcessList()
+        for parent_id, decay_finals in decays:
+            decay_legs = base_objects.LegList([base_objects.Leg({'id': parent_id,
+                                                                 'state': False,
+                                                                 'number': 1})])
+            for j, pid in enumerate(decay_finals, 2):
+                decay_legs.append(base_objects.Leg({'id': pid,
+                                                    'state': True,
+                                                    'number': j}))
+            decay_chains.append(base_objects.Process({'legs': decay_legs,
+                                                      'model': model,
+                                                      'is_decay_chain': True}))
+        process.set('decay_chains', decay_chains)
+        return process
+
+    def test_cpp_export_decay_chain_broken_symmetry_metadata(self):
+        model = import_ufo.import_model('sm')
+        decay_process = self._make_process(model, [2, -2], [23, 23],
+                                           [(23, [1, -1]), (23, [4, -4])])
+        sym_data = export_v4.ProcessExporterFortran._get_broken_symmetry_data(decay_process, 2)
+        replace_dict = {
+            'process_lines': '',
+            'model_name': 'sm',
+            'initProc_lines': '',
+            'reset_jamp_lines': '',
+            'sigmaKin_lines': '',
+            'sigmaHat_lines': 'return 0.;',
+            'all_sigmaKin': '',
+            'nexternal': 6,
+            'nincoming': 2,
+            'broken_sym_ncomponents': sym_data['ncomponents'],
+            'broken_sym_nentries': sym_data['nentries'],
+            'broken_sym_component_starts': ",".join(str(v) for v in sym_data['component_starts']),
+            'broken_sym_component_ends': ",".join(str(v) for v in sym_data['component_ends']),
+            'broken_sym_component_old_factors': ",".join(str(v) for v in sym_data['component_old_factors']),
+            'broken_sym_pid_list': ",".join(str(v) for v in sym_data['pid_list']),
+            'broken_sym_block_starts': ",".join(str(v) for v in sym_data['block_starts']),
+            'broken_sym_block_lengths': ",".join(str(v) for v in sym_data['block_lengths'])
+        }
+        template_path = pjoin(MG5DIR, 'madgraph', 'iolibs', 'template_files',
+                              'cpp_process_function_definitions.inc')
+        with open(template_path) as stream:
+            rendered = stream.read() % replace_dict
+        self.assertIn('const int n_components = 3;', rendered)
+        self.assertIn('const int comp_old[n_components] = {1,1,1};', rendered)
+        self.assertIn('const int block_len[n_entries] = {2,2,1,1,1,1};', rendered)

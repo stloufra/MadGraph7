@@ -10195,6 +10195,108 @@ class UFO_model_to_mg4_Test(unittest.TestCase):
             shutil.rmtree(tmpdir)
 
 
+class BrokenSymmetryDecayChainTest(unittest.TestCase):
+    """Validate decay-aware broken symmetry decomposition."""
+
+    def setUp(self):
+        import models.import_ufo
+        self.model = models.import_ufo.import_model('sm')
+
+    def _make_process(self, initial_ids, final_ids, decays):
+        legs = base_objects.LegList()
+        for i, pid in enumerate(initial_ids + final_ids, 1):
+            legs.append(base_objects.Leg({'id': pid,
+                                          'state': i > len(initial_ids),
+                                          'number': i}))
+        process = base_objects.Process({'legs': legs,
+                                        'model': self.model,
+                                        'is_decay_chain': bool(decays)})
+        decay_chains = base_objects.ProcessList()
+        for parent_id, decay_finals in decays:
+            decay_legs = base_objects.LegList([base_objects.Leg({'id': parent_id,
+                                                                 'state': False,
+                                                                 'number': 1})])
+            for j, pid in enumerate(decay_finals, 2):
+                decay_legs.append(base_objects.Leg({'id': pid,
+                                                    'state': True,
+                                                    'number': j}))
+            decay_chains.append(base_objects.Process({'legs': decay_legs,
+                                                      'model': self.model,
+                                                      'is_decay_chain': True}))
+        process.set('decay_chains', decay_chains)
+        return process
+
+    @staticmethod
+    def _evaluate_broken_symmetry(sym_data, flavor):
+        pid_work = list(sym_data['pid_list'])
+        total = 1
+        for icomp in range(sym_data['ncomponents']):
+            old_factor = sym_data['component_old_factors'][icomp]
+            start = sym_data['component_starts'][icomp] - 1
+            end = sym_data['component_ends'][icomp] - 1
+            if old_factor > 1:
+                for i in range(start, end + 1):
+                    if pid_work[i] == 0:
+                        continue
+                    n_tot = 1
+                    for j in range(i + 1, end + 1):
+                        if pid_work[i] != pid_work[j]:
+                            continue
+                        same = sym_data['block_lengths'][i] == sym_data['block_lengths'][j]
+                        for k in range(sym_data['block_lengths'][i]):
+                            if flavor[sym_data['block_starts'][i] - 1 + k] != \
+                               flavor[sym_data['block_starts'][j] - 1 + k]:
+                                same = False
+                                break
+                        if same:
+                            pid_work[j] = 0
+                            n_tot += 1
+                            old_factor //= n_tot
+            total *= old_factor
+        return total
+
+    def test_broken_symmetry_decomposes_each_decay_component(self):
+        process = self._make_process([2, -1], [24, 23],
+                                     [(24, [2, -1]), (23, [4, -4])])
+        sym_data = export_v4.ProcessExporterFortran._get_broken_symmetry_data(process, 2)
+        self.assertEqual(sym_data['ncomponents'], 3)
+        self.assertEqual(sym_data['component_old_factors'], [1, 1, 1])
+        self.assertEqual(self._evaluate_broken_symmetry(sym_data, [2, -1, 2, -1, 4, -4]), 1)
+
+    def test_broken_symmetry_distinguishes_identical_parent_with_different_decays(self):
+        proc_diff = self._make_process([2, -2], [23, 23],
+                                       [(23, [1, -1]), (23, [4, -4])])
+        proc_same = self._make_process([2, -2], [23, 23],
+                                       [(23, [1, -1]), (23, [1, -1])])
+        sym_diff = export_v4.ProcessExporterFortran._get_broken_symmetry_data(proc_diff, 2)
+        sym_same = export_v4.ProcessExporterFortran._get_broken_symmetry_data(proc_same, 2)
+        # proc_diff: two Z bosons decay to *different* specific particles (d vs c).
+        # Their decay sub-tree fingerprints differ, so COMP_OLD[0]=1 and
+        # no runtime correction is applied -> BROKEN_SYM = 1.
+        self.assertEqual(sym_diff['component_old_factors'][0], 1)
+        self.assertEqual(self._evaluate_broken_symmetry(sym_diff, [2, -2, 1, -1, 4, -4]), 1)
+        # proc_same: both Z bosons decay identically -> COMP_OLD[0]=2.
+        # Runtime check: same block -> old_factor reduces to 1 -> BROKEN_SYM = 1.
+        self.assertEqual(sym_same['component_old_factors'][0], 2)
+        self.assertEqual(self._evaluate_broken_symmetry(sym_same, [2, -2, 1, -1, 1, -1]), 1)
+
+    def test_madevent_template_uses_decay_aware_broken_symmetry_metadata(self):
+        # After centralisation the Fortran templates delegate the BROKEN_SYM
+        # function body to a Python generator; the templates themselves must
+        # contain the %(broken_sym_function)s placeholder and the 'BROKEN_SYM'
+        # identifier (used for the forward declaration before the main SMATRIX
+        # subroutine).
+        for template_name in ('matrix_madevent_group_v4.inc',
+                              'matrix_madevent_v4.inc',
+                              'matrix_madevent_group_v4_hel.inc',
+                              'matrix_madweight_group_v4.inc'):
+            with open(pjoin(MG5DIR, 'madgraph', 'iolibs', 'template_files',
+                            template_name)) as stream:
+                template = stream.read()
+            self.assertIn('BROKEN_SYM', template)
+            self.assertIn('%(broken_sym_function)s', template)
+
+
 if __name__ == '__main__':
         """Write out pkl file with helas diagram for test_configs_8fs
         """

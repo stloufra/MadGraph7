@@ -130,33 +130,4 @@ C ----------
       END
 
 
-      INTEGER FUNCTION BROKEN_SYM_PROD(FLAV)
-
-      INTEGER    NEXTERNAL
-      PARAMETER (NEXTERNAL=%(nexternal)d)
-      INTEGER    NINCOMING
-      PARAMETER (NINCOMING=%(nincoming)d)
-      INTEGER FLAV(NEXTERNAL)
-      INTEGER PID(NINCOMING+1:NEXTERNAL)
-      INTEGER I,J
-      INTEGER N_BROK, N_TOT
-      INTEGER OLD_FACTOR
-
-      OLD_FACTOR = %(get_old_symmmetry_value)s
-
-      %(get_pid)s
-c     get new symmetry factor
-      do I=NINCOMING+1, NEXTERNAL
-         if (PID(I).eq.0) cycle
-         N_TOT=1
-         do J = I+1,NEXTERNAL
-            if (PID(I).eq.PID(J).and.FLAV(I).EQ.FLAV(J))then
-               PID(J) = 0
-               N_TOT = N_TOT + 1
-               OLD_FACTOR = OLD_FACTOR/N_TOT
-            endif
-        enddo
-    enddo
-   BROKEN_SYM_PROD = OLD_FACTOR
-   return
-   end
+%(broken_sym_function)s

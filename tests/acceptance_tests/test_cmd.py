@@ -290,8 +290,7 @@ class TestCmdShell2(unittest.TestCase,
     join_path = TestCmdShell1.join_path
 
     def do(self, line, force=False):
-        """ exec a line in the cmd under te
-        st """
+        """ exec a line in the cmd under test """
         if force:        
             self.cmd.exec_cmd(line, force=force)
         else:   
@@ -1752,7 +1751,158 @@ P1_qq_wp_wp_lvl
         self.assertNotIn('P0_ll_zzh_z_ll_z_ll_h_bbx',  Pdir)
 
 
+    def run_standalone(self,commands):
 
+        for command in commands:
+            self.do(command)
+        self.do('output standalone %s -f' % self.out_dir)
+        Pdir = None
+        for pdir in misc.glob('P*', pjoin(self.out_dir, 'SubProcesses')):
+            Pdir = pdir
+            break 
+        subprocess.call(['make', 'check'], cwd=Pdir, stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL)
+        stdout = subprocess.Popen(['./check'], cwd=Pdir,
+                            stdout=subprocess.PIPE).communicate()[0].decode('utf8')
+        value = None
+        for line in stdout.split('\n'):
+            if 'Matrix element' in line:
+                value = line.split('=')[1]
+                value = float(value.split('GeV')[0])
+        return value
+
+    def test_decay_chain_symmetry_factor(self):
+        """ check that flavor symmetry factor matches the unflavor case """
+
+        cmd = ['set apply_flavor_grouping False',
+               'import model sm ',
+               'generate e+ e- > z z, z > e+ e-, z > e+ e-']
+        flavor_value = self.run_standalone(cmd)
+        cmd[0] = 'set apply_flavor_grouping True'
+        unflavor_value = self.run_standalone(cmd)
+        self.assertAlmostEqual(flavor_value/unflavor_value, 1.0, places=5)
+        # Absolute value check (apply_flavor_grouping=False reference)
+        self.assertAlmostEqual(flavor_value/1.4452059645560334e-15, 1.0, places=5)
+
+        #######################################################################
+        cmd[0] = 'set apply_flavor_grouping False' 
+        cmd[2] = 'generate e+ e- > z z, z > mu+ mu-, z > e+ e-'
+        flavor_value = self.run_standalone(cmd)
+        cmd[0] = 'set apply_flavor_grouping True'
+        unflavor_value = self.run_standalone(cmd)
+        self.assertAlmostEqual(flavor_value/unflavor_value, 1.0, places=5)
+        self.assertAlmostEqual(flavor_value/2.8904119291120669e-15, 1.0, places=5)
+
+        #######################################################################
+        # Two Z bosons decaying to different quark/lepton species: tests that
+        # the decay-tree fingerprint fix correctly sets COMP_OLD=1 for the
+        # no-grouping case (preventing a spurious factor of 2).
+        cmd[0] = 'set apply_flavor_grouping False'
+        cmd[2] = 'generate e+ e- > z z, z > u u~, z > e+ e-'
+        flavor_value = self.run_standalone(cmd)
+        cmd[0] = 'set apply_flavor_grouping True'
+        unflavor_value = self.run_standalone(cmd)
+        self.assertAlmostEqual(flavor_value/unflavor_value, 1.0, places=5)
+        self.assertAlmostEqual(flavor_value/1.3222299076541260e-14, 1.0, places=5)
+
+        #######################################################################
+        # Two Z bosons decaying to different quarks (both merge to _quark):
+        # tests that no-grouping COMP_OLD=1 while grouping COMP_OLD=2 with
+        # runtime correction, giving the same physical result.
+        cmd[0] = 'set apply_flavor_grouping False'
+        cmd[2] = 'generate e+ e- > z z, z > d d~, z > s s~'
+        flavor_value = self.run_standalone(cmd)
+        cmd[0] = 'set apply_flavor_grouping True'
+        unflavor_value = self.run_standalone(cmd)
+        self.assertAlmostEqual(flavor_value/unflavor_value, 1.0, places=5)
+        self.assertAlmostEqual(flavor_value/1.5703482894659815e-14, 1.0, places=5)
+
+        #######################################################################
+        # Two Z bosons decaying to identical quarks (COMP_OLD=2 in both cases).
+        cmd[0] = 'set apply_flavor_grouping False'
+        cmd[2] = 'generate e+ e- > z z, z > u u~, z > u u~'
+        flavor_value = self.run_standalone(cmd)
+        cmd[0] = 'set apply_flavor_grouping True'
+        unflavor_value = self.run_standalone(cmd)
+        self.assertAlmostEqual(flavor_value/unflavor_value, 1.0, places=5)
+        self.assertAlmostEqual(flavor_value/1.0543959064905002e-14, 1.0, places=5)
+
+        #######################################################################
+        cmd[0] = 'set apply_flavor_grouping False'
+        cmd[2] = 'generate e+ e- > z a, z > e+ e-, a > e+ e-'
+        flavor_value = self.run_standalone(cmd)
+        cmd[0] = 'set apply_flavor_grouping True'
+        unflavor_value = self.run_standalone(cmd)
+        self.assertAlmostEqual(flavor_value/unflavor_value, 1.0, places=5)
+        self.assertAlmostEqual(flavor_value/1.9524089070808569e-14, 1.0, places=5)
+
+        #######################################################################
+        cmd[0] = 'set apply_flavor_grouping False'
+        cmd[2] = 'generate e+ e- > z a, z > mu+ mu-, a > e+ e-'
+        flavor_value = self.run_standalone(cmd)
+        cmd[0] = 'set apply_flavor_grouping True'
+        unflavor_value = self.run_standalone(cmd)
+        self.assertAlmostEqual(flavor_value/unflavor_value, 1.0, places=5)
+        self.assertAlmostEqual(flavor_value/1.9524089070808569e-14, 1.0, places=5)
+        #######################################################################
+        cmd[0] = 'set apply_flavor_grouping False'
+        cmd[2] = 'generate e+ e- > z a, z > mu+ mu-, a > u u~'
+        flavor_value = self.run_standalone(cmd)
+        cmd[0] = 'set apply_flavor_grouping True'
+        unflavor_value = self.run_standalone(cmd)
+        self.assertAlmostEqual(flavor_value/unflavor_value, 1.0, places=5)
+        self.assertAlmostEqual(flavor_value/2.6032118761078096e-14, 1.0, places=5)
+        #######################################################################
+        cmd[0] = 'set apply_flavor_grouping False'
+        cmd[2] = 'generate e+ e- > z a, z > mu+ mu-, a > t t~'
+        flavor_value = self.run_standalone(cmd)
+        cmd[0] = 'set apply_flavor_grouping True'
+        unflavor_value = self.run_standalone(cmd)
+        self.assertAlmostEqual(flavor_value/unflavor_value, 1.0, places=5)
+        self.assertAlmostEqual(flavor_value/3.9704302268721535e-14, 1.0, places=5)
+        ######################################################################
+        cmd[0] = 'set apply_flavor_grouping False'
+        cmd[2] = 'generate e+ e- > z z h, z > u u~, z > e+ e-, h > b b~'
+        flavor_value = self.run_standalone(cmd)
+        cmd[0] = 'set apply_flavor_grouping True'   
+        unflavor_value = self.run_standalone(cmd)
+
+        self.assertAlmostEqual(flavor_value/unflavor_value, 1.0, places=5)
+        self.assertAlmostEqual(flavor_value/2.1127915184144537e-27, 1.0, places=5)
+        ######################################################################
+        cmd[0] = 'set apply_flavor_grouping False'
+        cmd[2] = 'generate e+ e- > z z h, h > b b~, z > u u~, z > e+ e-'
+        flavor_value = self.run_standalone(cmd)
+        cmd[0] = 'set apply_flavor_grouping True'
+        unflavor_value = self.run_standalone(cmd)
+
+        self.assertAlmostEqual(flavor_value/unflavor_value, 1.0, places=5)
+        self.assertAlmostEqual(flavor_value/2.1127915184144537e-27, 1.0, places=5)
+        
+        ######################################################################
+        cmd[0] = 'set apply_flavor_grouping False'
+        cmd[2] = 'generate e+ e- > t t~ z, z > e+ e-, (t > z t, z > e+ e- ), (t~ > t~ z, z > e+ e- )'
+        flavor_value = self.run_standalone(cmd)
+        cmd[0] = 'set apply_flavor_grouping True'
+        unflavor_value = self.run_standalone(cmd)
+        
+        self.assertAlmostEqual(flavor_value/unflavor_value, 1.0, places=5)
+        ######################################################################
+        cmd[0] = 'set apply_flavor_grouping False'
+        cmd[2] = 'generate e+ e- > t t~ z, z > e+ e-, (t > z t, z > e+ e- ), (t~ > t~ z, z > mu+ mu- )'
+        flavor_value = self.run_standalone(cmd)
+        cmd[0] = 'set apply_flavor_grouping True'
+        unflavor_value = self.run_standalone(cmd)
+
+        self.assertAlmostEqual(flavor_value/unflavor_value, 1.0, places=5)
+        ######################################################################
+        cmd[0] = 'set apply_flavor_grouping False'
+        cmd[2] = 'generate e+ e- > t t~ z, z > d d~, (t > z t, z > e+ e- ), (t~ > t~ z, z > mu+ mu- )'
+        flavor_value = self.run_standalone(cmd)
+        cmd[0] = 'set apply_flavor_grouping True'
+        unflavor_value = self.run_standalone(cmd)
+
+        self.assertAlmostEqual(flavor_value/unflavor_value, 1.0, places=5)
 
 
     def test_save_load(self):
