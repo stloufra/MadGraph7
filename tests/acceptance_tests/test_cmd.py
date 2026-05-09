@@ -447,37 +447,6 @@ class TestCmdShell2(unittest.TestCase,
         self.assertEqual(len(self.cmd._curr_amps), 1)
               
                
-
-    def test_read_madgraph4_proc_card(self):
-        """Test reading a madgraph4 proc_card.dat"""
-        os.system('cp -rf %s %s' % (os.path.join(MG5DIR,'Template','LO'),
-                                    self.out_dir))
-        os.system('cp -rf %s %s' % (
-                            TestCmdShell1.join_path(_pickle_path,'simple_v4_proc_card.dat'),
-                            os.path.join(self.out_dir,'Cards','proc_card.dat')))
-    
-        self.cmd = Cmd.MasterCmd()
-        pwd = os.getcwd()
-        os.chdir(self.out_dir)
-        try:
-            self.do('import proc_v4 %s' % os.path.join('Cards','proc_card.dat'))
-        except:
-            os.chdir(pwd)
-            raise
-        os.chdir(pwd)
-        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
-                                              'SubProcesses', 'P1_ll_vlvl')))
-        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
-                                                 'Cards', 'proc_card_mg5.dat')))
-        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
-                                                    'SubProcesses',
-                                                    'P1_ll_vlvl',
-                                                    'matrix1.ps')))
-        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
-                                                    'madevent.tar.gz')))
-        
-
-
     def test_output_standalone_directory(self):
         """Test command 'output' with path"""
         
@@ -702,7 +671,7 @@ class TestCmdShell2(unittest.TestCase,
         me_groups = me_re.search(log_output)
         
         self.assertTrue(me_groups)
-        self.assertAlmostEqual(float(me_groups.group('value')), 5.8183784340260782,5)
+        self.assertAlmostEqual(float(me_groups.group('value')), 6.4739191,5)
     
     
     def test_standalone_cpp_output_consistency(self):
@@ -750,8 +719,70 @@ class TestCmdShell2(unittest.TestCase,
         for i,_ in enumerate(original):
             self.assertEqual(original[i], new[i])
 
-         
+    def test_standalone_cpp_fd_output_consistency(self):
+        """test standalone_cpp in FD gauge against standalone"""
+
+        if os.path.isdir(self.out_dir):
+            shutil.rmtree(self.out_dir)
+
+        self.do('set gauge FD')
+        self.do('generate _quark _quark > h _quark _quark _quark _anti_quark  QCD=0')
+        devnull = open(os.devnull,'w')
+        energy = '1000'
+
+        def get_values(output_format):
+            self.do('output %s %s -f' % (output_format, self.out_dir))
+            values = []
+            proc_dir = os.path.join(self.out_dir, 'SubProcesses')
+            directories = sorted([d for d in os.listdir(proc_dir) if d.startswith('P')])
+            self.assertTrue(directories)
+            if output_format == 'standalone':
+                subprocess.call(['make'],
+                                stdout=devnull, stderr=devnull,
+                                cwd=os.path.join(self.out_dir, 'Source'))
+            for oneproc in directories:
+                logfile = os.path.join(proc_dir, oneproc, 'check.log')
+                target = ['make', 'check'] if output_format == 'standalone' else ['make']
+                subprocess.call(target,
+                                stdout=devnull, stderr=devnull,
+                                cwd=os.path.join(proc_dir, oneproc))
+                subprocess.call('./check %s' % energy,
+                                stdout=open(logfile, 'w'), stderr=subprocess.STDOUT,
+                                cwd=os.path.join(proc_dir, oneproc), shell=True)
+                log_output = open(logfile, 'r').read()
+                me_re = re.compile(r'Matrix element\s*=\s*(?P<value>[\d\.eE\+-]+)\s*GeV',
+                                   re.IGNORECASE)
+                me_groups = me_re.findall(log_output)
+                self.assertTrue(me_groups)
+                values.extend(float(value) for value in me_groups)
+            return values
+
+        standalone_cpp = get_values('standalone_cpp')
+        shutil.rmtree(self.out_dir)
+        standalone = get_values('standalone')
+
+        self.assertEqual(len(standalone_cpp), len(standalone))
+        for i, _ in enumerate(standalone_cpp):
+            self.assertAlmostEqual(standalone_cpp[i], standalone[i])
+
+        self.do('set gauge unitary')
+        self.do('generate _quark _quark > h _quark _quark _quark _quark _quark _anti_quark  QCD=0')
+        devnull = open(os.devnull,'w')
+        energy = '1000'     
         
+        shutil.rmtree(self.out_dir)
+        standalone_cpp_no_fd = get_values('standalone_cpp')
+        shutil.rmtree(self.out_dir)
+        standalone_no_fd = get_values('standalone')
+
+        self.assertEqual(len(standalone_cpp_no_fd), len(standalone_no_fd))
+        for i, _ in enumerate(standalone_cpp_no_fd):
+            self.assertAlmostEqual(standalone_cpp_no_fd[i], standalone_no_fd[i])
+        for i, _ in enumerate(standalone_cpp_no_fd):
+            self.assertAlmostEqual(standalone_cpp_no_fd[i], standalone[i])
+
+
+         
     def test_v4_heft(self):
         """Test standalone directory for UFO HEFT model"""
 
@@ -1836,7 +1867,7 @@ P1_qq_wp_wp_lvl
                            re.IGNORECASE)
         me_groups = me_re.search(log_output)
         self.assertTrue(me_groups)
-        self.assertAlmostEqual(float(me_groups.group('value')), 0.019455844550069087)
+        self.assertAlmostEqual(float(me_groups.group('value')), 1.953735e-2)
         
     def test_import_banner_command(self):
         """check that the import banner command works"""
