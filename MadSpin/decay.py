@@ -3795,9 +3795,10 @@ class decay_all_events(object):
                 # and as a safe fallback).
                 base_max_weight = max(base_mw_per_flavor.values())
                 best_j = max(base_mw_per_flavor, key=base_mw_per_flavor.get)
-                weights_best = [ev_data[decay_tag].get(best_j, 0)
-                                for ev_data in probe_weight[decaying]
-                                if decay_tag in ev_data and ev_data[decay_tag].get(best_j, 0) > 0]
+                weights_best = [w for ev_data in probe_weight[decaying]
+                                if decay_tag in ev_data
+                                for w in [ev_data[decay_tag].get(best_j, 0)]
+                                if w > 0]
                 weights_best.sort(reverse=True)
 
                 for associated_decay, ratio in decay_mapping[decay_tag]:
@@ -3907,6 +3908,13 @@ class decay_all_events(object):
                                                  flavor_index_prod, flavor_index_full)
         std_in += p_str
         # Pass the number of compatible flavor groups and their (index, rel_br) pairs.
+        # Must not exceed MAX_COMPAT_FLAVS=500 defined in driver.f.
+        if len(compatible_indices) > 500:
+            logger.warning('Number of compatible flavor groups (%d) exceeds the '
+                           'Fortran limit of 500; truncating.' % len(compatible_indices))
+            compatible_indices = compatible_indices[:500]
+            total = sum(rel_brs[:500])
+            rel_brs = [br / total for br in rel_brs[:500]]
         std_in += "%d\n" % len(compatible_indices)
         for idx, br in zip(compatible_indices, rel_brs):
             std_in += "%d %.15e\n" % (idx, br)

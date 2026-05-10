@@ -48,9 +48,12 @@ c      integer mapconfig(0:lmaxconfigs)
       double precision values_mc_masses(nexternal)
 
 c     Variables for the per-flavor maxweight loop (mode=1)
+c     MAX_COMPAT_FLAVS must match the Python-side guard in get_max_weight_from_fortran.
+      integer MAX_COMPAT_FLAVS
+      parameter (MAX_COMPAT_FLAVS=500)
       integer nflavs_compat
-      integer compat_flav_idx(100)
-      double precision rel_brs_compat(100)
+      integer compat_flav_idx(MAX_COMPAT_FLAVS)
+      double precision rel_brs_compat(MAX_COMPAT_FLAVS)
       integer FLAVOR_TMP(NEXTERNAL)
       double precision M_full_tmp, weight_tmp
 
