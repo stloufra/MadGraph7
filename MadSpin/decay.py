@@ -2501,7 +2501,11 @@ class decay_all_events(object):
                 self.all_ME[production_tag].get('flavor_groups_prod', []), event_map)
             flavor_index_full = self.get_full_flavor_index(
                 production_tag, decay_me, event_map)
-            stdin_text=' %s %s %s %s %s %s %s\n' % ('2', self.options['BW_cut'], self.Ecollider, decay_me['max_weight'], self.options['frame_id'], flavor_index_prod, flavor_index_full)
+            # Use the per-flavor maxweight when available; fall back to the
+            # global value for flavors not seen during the maxweight probing.
+            mw_for_event = decay_me.get('max_weight_per_flavor', {}).get(
+                flavor_index_full, decay_me['max_weight'])
+            stdin_text=' %s %s %s %s %s %s %s\n' % ('2', self.options['BW_cut'], self.Ecollider, mw_for_event, self.options['frame_id'], flavor_index_prod, flavor_index_full)
             stdin_text+=p_str
             # here I also need to specify the Monte Carlo Masses
             stdin_text+=" %s \n" % nb_mc_masses
@@ -2538,14 +2542,17 @@ class decay_all_events(object):
                 logger.debug('Got a production event with %s failures for the phase-space generation generation ' % failed)
 
             # Treat the case that we ge too many overweight.
-            if weight > decay_me['max_weight']:
+            # Use the per-flavor maxweight consistent with what was passed to Fortran.
+            decay_mw_for_event = decay.get('max_weight_per_flavor', {}).get(
+                flavor_index_full, decay['max_weight'])
+            if weight > mw_for_event:
                 report['over_weight'] += 1
                 report['%s_f' % (decay['decay_tag'],)] +=1
                 if __debug__:               
                     misc.sprint('''over_weight: %s %s, occurence: %s%%, occurence_channel: %s%%
                     production_tag:%s [%s], decay:%s [%s], BW_cut: %1g\n
                     ''' %\
-                    (weight/decay['max_weight'], decay['decay_tag'], 
+                    (weight/decay_mw_for_event, decay['decay_tag'], 
                     100 * report['over_weight']/event_nb,
                     100 * report['%s_f' % (decay['decay_tag'],)] / report[decay['decay_tag']],
                     os.path.basename(self.all_ME[production_tag]['path']),
@@ -2554,12 +2561,12 @@ class decay_all_events(object):
                     decay['decay_tag'],BWvalue))
                         
                 
-                if weight > 10.0 * decay['max_weight']:
+                if weight > 10.0 * decay_mw_for_event:
                     error = """Found a weight MUCH larger than the computed max_weight (ratio: %s). 
     This usually means that the Narrow width approximation reaches it's limit on part of the Phase-Space.
     Do not trust too much the tale of the distribution and/or relaunch the code with smaller BW_cut.
     This is for channel %s with current BW_value at : %g'""" \
-                    % (weight/decay['max_weight'], decay['decay_tag'], BWvalue)  
+                    % (weight/decay_mw_for_event, decay['decay_tag'], BWvalue)  
                     logger.error(error)
                 elif report['over_weight'] > max(0.005*event_nb,3):
                     error = """Found too many weight larger than the computed max_weight (%s/%s = %s%%). 
@@ -3386,6 +3393,62 @@ class decay_all_events(object):
         # No exact match – fall back to index 1
         return 1
 
+    def get_compatible_flavor_data(self, production_tag, decay_me, event_map):
+        """Return (compatible_indices, rel_brs) for full-ME flavor groups
+        that are compatible with the current event's production particles.
+
+        A group is *compatible* when all production-leg positions (given by
+        ``prod2full``) match the actual PDG codes found in the current event.
+        The relative BRs are proportional to the number of PDG tuples in each
+        compatible group (i.e. equal weighting per individual flavor
+        combination), so they are a valid approximation when all merged-group
+        members have the same couplings (SM case).
+
+        Returns:
+            compatible_indices : list of 1-based group indices
+            rel_brs            : list of relative BRs summing to 1.0
+        """
+        flavor_groups_full = decay_me.get('flavor_groups_full', [])
+        if not flavor_groups_full:
+            # No merged-particle flavor data – single group
+            flavor_index_full = self.get_full_flavor_index(
+                production_tag, decay_me, event_map)
+            return [flavor_index_full], [1.0]
+
+        prod2full = decay_me.get('prod2full', [])
+
+        # Build mapping: 0-based full-ME position -> abs(PID) from the event
+        pos_to_pid = {}
+        if prod2full:
+            for prod_pos, full_pos in enumerate(prod2full):
+                if full_pos > 0:  # external particle in the full ME
+                    evt_pos = event_map.get(prod_pos, prod_pos)
+                    pid = self.curr_event.particle[evt_pos + 1]['pid']
+                    pos_to_pid[full_pos - 1] = abs(pid)  # 0-based
+
+        # Find all groups whose production-position PDGs match the event
+        compatible = []
+        for group_idx, group_tuples in enumerate(flavor_groups_full):
+            for flav_tuple in group_tuples:
+                if (not pos_to_pid or
+                        all(abs(flav_tuple[pos]) == actual_pid
+                            for pos, actual_pid in pos_to_pid.items()
+                            if pos < len(flav_tuple))):
+                    compatible.append(group_idx + 1)  # 1-based
+                    break  # found a match in this group
+
+        if not compatible:
+            # No match found – fall back to the single best-match group
+            flavor_index_full = self.get_full_flavor_index(
+                production_tag, decay_me, event_map)
+            return [flavor_index_full], [1.0]
+
+        # Relative BRs proportional to the number of PDG tuples per group
+        sizes = [len(flavor_groups_full[j - 1]) for j in compatible]
+        total = sum(sizes)
+        rel_brs = [s / total for s in sizes]
+        return compatible, rel_brs
+
     def compile(self):
         logger.info('Compiling code')
         self.compile_fortran(self.path_me, mode="full_me")
@@ -3648,16 +3711,18 @@ class decay_all_events(object):
                 if not tag:
                     continue # No decay for this process
                 atleastonedecay = True
-                weight = self.get_max_weight_from_fortran(
+                weight_dict = self.get_max_weight_from_fortran(
                     decay['path'], event_map, numberps, self.options['BW_cut'],
                     production_tag=production_tag, decay_me=decay)
                     #weight=mg5_me_full*BW_weight_prod*BW_weight_decay/mg5_me_prod
                 if tag in max_decay:
-                    max_decay[tag] = max([max_decay[tag], weight])
+                    for j, w in weight_dict.items():
+                        if j in max_decay[tag]:
+                            max_decay[tag][j] = max(max_decay[tag][j], w)
+                        else:
+                            max_decay[tag][j] = w
                 else:
-                    max_decay[tag] = weight
-                    #print weight, max_decay[name]
-                    #raise Exception 
+                    max_decay[tag] = dict(weight_dict)
                       
             if not atleastonedecay:
                 # NO decay [one possibility is all decay are identical to their particle]
@@ -3686,50 +3751,82 @@ class decay_all_events(object):
                 continue
             #me_linked = [me for me in self.all_ME.values() if me['decaying'] == decaying]
             for decay_tag in probe_weight[decaying][0].keys():
-                weights=[]
-                for ev in range(numberev):
-                    try:
-                        weights.append(probe_weight[decaying][ev][decay_tag])
-                    except:
-                        continue
-                if not weights:
-                    logger.warning( 'no events for %s' % decay_tag)
+                # Collect all flavor indices observed across events
+                all_flavor_j = set()
+                for ev_data in probe_weight[decaying]:
+                    if decay_tag in ev_data:
+                        all_flavor_j.update(ev_data[decay_tag].keys())
+
+                if not all_flavor_j:
+                    logger.warning('no events for %s' % str(decay_tag))
                     continue
-                weights.sort(reverse=True)
-                assert len(weights) == 1 or weights[0] >= weights[1]
-                ave_weight, std_weight = decay_tools.get_mean_sd(weights)
-                base_max_weight = 1.05 * (ave_weight+self.options['nb_sigma']*std_weight)
 
-                for i in [20, 30, 40, 50]:
-                    if len(weights) < i:
-                        break
-                    ave_weight, std_weight = decay_tools.get_mean_sd(weights[:i])
-                    base_max_weight = max(base_max_weight, 1.05 * (ave_weight+self.options['nb_sigma']*std_weight))
-                    
-                if weights[0] > base_max_weight:
-                    base_max_weight = 1.05 * weights[0]
-              
+                # Compute base_max_weight per flavor using the same estimator
+                # formula as the original single-weight code.
+                base_mw_per_flavor = {}
+                for j in sorted(all_flavor_j):
+                    weights_j = []
+                    for ev_data in probe_weight[decaying]:
+                        try:
+                            w = ev_data[decay_tag].get(j, 0)
+                            if w > 0:
+                                weights_j.append(w)
+                        except Exception:
+                            continue
+                    if not weights_j:
+                        continue
+                    weights_j.sort(reverse=True)
+                    ave_weight, std_weight = decay_tools.get_mean_sd(weights_j)
+                    base_j = 1.05 * (ave_weight + self.options['nb_sigma'] * std_weight)
+                    for i in [20, 30, 40, 50]:
+                        if len(weights_j) < i:
+                            break
+                        ave_weight, std_weight = decay_tools.get_mean_sd(weights_j[:i])
+                        base_j = max(base_j, 1.05 * (ave_weight + self.options['nb_sigma'] * std_weight))
+                    if weights_j[0] > base_j:
+                        base_j = 1.05 * weights_j[0]
+                    base_mw_per_flavor[j] = base_j
+
+                if not base_mw_per_flavor:
+                    logger.warning('no events for %s' % str(decay_tag))
+                    continue
+
+                # Global base_max_weight = max over all flavors (used for logging
+                # and as a safe fallback).
+                base_max_weight = max(base_mw_per_flavor.values())
+                best_j = max(base_mw_per_flavor, key=base_mw_per_flavor.get)
+                weights_best = [ev_data[decay_tag].get(best_j, 0)
+                                for ev_data in probe_weight[decaying]
+                                if decay_tag in ev_data and ev_data[decay_tag].get(best_j, 0) > 0]
+                weights_best.sort(reverse=True)
+
                 for associated_decay, ratio in decay_mapping[decay_tag]:
-                    max_weight= ratio * base_max_weight
-                    if ratio != 1:
-                        max_weight *= 1.1 #security
+                    # Per-flavor maxweights (apply ratio and security factor)
+                    mw_per_flavor = {}
+                    for j, base_j in base_mw_per_flavor.items():
+                        mw_j = ratio * base_j
+                        if ratio != 1:
+                            mw_j *= 1.1  # security
+                        mw_per_flavor[j] = mw_j
+                    max_weight = max(mw_per_flavor.values())
 
-                    br = 0                   
+                    br = 0
                     #assign the value to the associated decays
-                    for k,m in self.all_ME.items():
+                    for k, m in self.all_ME.items():
                         for mi in m['decays']:
-
                             if mi['decay_tag'] == associated_decay:
                                 mi['max_weight'] = max_weight
+                                mi['max_weight_per_flavor'] = dict(mw_per_flavor)
                                 br = mi['br']
                                 nb_finals = len(mi['finals'])
 
-                    if decay_tag == associated_decay:                
+                    if decay_tag == associated_decay:
                         logger.debug('Decay channel %s :Using maximum weight %s [%s] (BR: %s)' % \
-                               (','.join(decay_tag), base_max_weight, max(weights), br/nb_finals))
-                    else:  
+                               (','.join(decay_tag), base_max_weight,
+                                max(weights_best) if weights_best else 0, br/nb_finals))
+                    else:
                         logger.debug('Decay channel %s :Using maximum weight %s (BR: %s)' % \
-                                    (','.join(associated_decay), max_weight, br/nb_finals)) 
+                                    (','.join(associated_decay), max_weight, br/nb_finals))
 
 #        if __debug__: 
         # check that all decay have a max_weight and fix it if not the case.
@@ -3780,27 +3877,45 @@ class decay_all_events(object):
     
     def get_max_weight_from_fortran(self, path, event_map, nbpoints, BWcut,
                                     production_tag=None, decay_me=None):
-        """return the max. weight associated with me decay['path']"""
+        """Return per-flavor max weights as dict {flavor_index_full: maxweight}.
 
-        p, p_str=self.curr_event.give_momenta(event_map)
+        Passes to Fortran (mode=1) the list of full-ME flavor groups that are
+        compatible with the current production event together with their
+        relative BRs.  Fortran computes:
+            G = max_{j in compatible, PS points} M_full(j)*jac/M_prod / rel_br(j)
+        and returns G.  Python then reconstructs per-flavor maxweights:
+            maxweight_j = G * rel_br(j)
+        ensuring maxweight_j >= max_PS[M_full(j)*jac/M_prod] for every j.
+        """
+        p, p_str = self.curr_event.give_momenta(event_map)
         if production_tag and decay_me:
             flavor_index_prod = self.curr_event.get_flavor_index(
                 self.all_ME[production_tag].get('flavor_groups_prod', []), event_map)
-            flavor_index_full = self.get_full_flavor_index(
+            compatible_indices, rel_brs = self.get_compatible_flavor_data(
                 production_tag, decay_me, event_map)
+            # Use the first compatible index as the header field (Fortran ignores
+            # it in mode=1 when it reads the explicit compatible-flavor list).
+            flavor_index_full = compatible_indices[0]
         else:
-            # TODO(flavor): production_tag/decay_me not passed; using flavor_index=1 as
-            #   fallback. Update the caller to supply these when available.
             flavor_index_prod = 1
             flavor_index_full = 1
-        std_in=" %s  %s %s %s %s %s %s\n" % ("1", BWcut, self.Ecollider, nbpoints,
-                                              self.options['frame_id'],
-                                              flavor_index_prod, flavor_index_full)
-        std_in+=p_str
-        max_weight = self.loadfortran('maxweight',
-                               path, std_in)
+            compatible_indices = [1]
+            rel_brs = [1.0]
 
-        return max_weight
+        std_in = " %s  %s %s %s %s %s %s\n" % ("1", BWcut, self.Ecollider, nbpoints,
+                                                 self.options['frame_id'],
+                                                 flavor_index_prod, flavor_index_full)
+        std_in += p_str
+        # Pass the number of compatible flavor groups and their (index, rel_br) pairs.
+        std_in += "%d\n" % len(compatible_indices)
+        for idx, br in zip(compatible_indices, rel_brs):
+            std_in += "%d %.15e\n" % (idx, br)
+
+        # G = max_{j,PS} M_full(j)*jac/M_prod / rel_br(j)
+        G = self.loadfortran('maxweight', path, std_in)
+
+        # Remap: per-flavor maxweight_j = G * rel_br(j)
+        return {j: G * br for j, br in zip(compatible_indices, rel_brs)}
     
     nb_load = 0
     def loadfortran(self, mode, path, stdin_text, first=True):

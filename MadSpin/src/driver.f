@@ -47,6 +47,13 @@ c      integer mapconfig(0:lmaxconfigs)
       integer nb_mc_masses, indices_mc_masses(nexternal)
       double precision values_mc_masses(nexternal)
 
+c     Variables for the per-flavor maxweight loop (mode=1)
+      integer nflavs_compat
+      integer compat_flav_idx(100)
+      double precision rel_brs_compat(100)
+      integer FLAVOR_TMP(NEXTERNAL)
+      double precision M_full_tmp, weight_tmp
+
       ! variables to keep track of the vegas numbers for the production part
       logical keep_inv(-nexternal:-1),no_gen
       integer ivar
@@ -222,6 +229,13 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c        max_m=0d0
 c        max_jac=0d0
 
+c       Read compatible full-ME flavor groups and their relative BRs from Python.
+c       Python sends: nflavs_compat lines of (flavor_index, rel_br).
+        read(*,*) nflavs_compat
+        do k=1, nflavs_compat
+           read(*,*) compat_flav_idx(k), rel_brs_compat(k)
+        enddo
+
         counter2=0
         counter3=0
         do i=1,nbpoints
@@ -267,58 +281,27 @@ c           enddo
            cycle
            endif
           
-           call  boost_to_frame(pfull, frame_id, P2)
-           call SMATRIX(P2,FLAVOR,M_full)
-
+c          Compute M_prod from boosted production momenta.
            call  boost_to_frame_prod(pprod, frame_id,nexternal_prod, P2)
            call SMATRIX_PROD(P2,FLAVOR_PROD,M_prod)
 
+c          Boost the full-event momenta, then loop over all compatible
+c          full-ME flavor groups.  For each group j:
+c            weight_tmp = M_full(j) * jac / M_prod / rel_br(j)
+c          The global maximum G is returned; Python then recovers the
+c          per-flavor maxweight as G * rel_br(j).
+           call  boost_to_frame(pfull, frame_id, P2)
+           do k=1, nflavs_compat
+              call GET_FLAVOR_MS_FULL(compat_flav_idx(k), FLAVOR_TMP)
+              call SMATRIX(P2,FLAVOR_TMP,M_full_tmp)
+              weight_tmp=M_full_tmp*jac/M_prod/rel_brs_compat(k)
+              if (weight_tmp.gt.maxweight) then
+                maxweight=weight_tmp
+              endif
+           enddo
 
-
-           weight=M_full*jac/M_prod
-           if (weight.gt.maxweight) then
-            maxweight=weight
-c            max_m=M_full
-c            max_jac=jac
-c            do k =1,nexternal
-c            do j=0,3
-c            max_mom(j,k)=pfull(j,k)
-c            enddo
-c            enddo
-           endif
-c           mean=mean+weight
-c           variance=variance+weight**2
         enddo
-c        mean=mean/real(nbpoints)   
-c        variance=variance/real(nbpoints)-mean**2
-c        std=sqrt(variance)
-        write (*,*) maxweight   ! ,mean,std  
-c        write (*,*) 'max_m',max_m 
-c        write (*,*) 'max_jac', jac
-c        write (*,*) 'Extrenal masses'
-c        do k=1,nexternal
-c        write(*,*) dot(max_mom(0,k), max_mom(0,k))
-c        enddo
-c        do j=0,3
-c          pw1(j)=max_mom(j,4)+max_mom(j,5)
-c          pt1(j)=pw1(j)+max_mom(j,3)
-c          pw2(j)=max_mom(j,7)+max_mom(j,8)
-c          pt2(j)=pw2(j)+max_mom(j,6)
-c          pt2g(j)=pt2(j)+max_mom(j,9)
-c        enddo
- 
-c        write (*,*) 'm45', sqrt(2D0*dot(max_mom(0,4),max_mom(0,5))) 
-c        write (*,*) 'm78', sqrt(2d0*dot(max_mom(0,7),max_mom(0,8))) 
-c        write (*,*) 'mt1', sqrt(dot(pt1,pt1)) 
-c        write (*,*) 'mt2', sqrt(dot(pt2,pt2)) 
-c        write (*,*) 'mt2g', sqrt(dot(pt2g,pt2g)) 
-c        write (*,*) 'm9', sqrt(dot(max_mom(0,9),max_mom(0,9))) 
-c        write (*,*) 'shat', sqrt(2D0*dot(max_mom(0,2),max_mom(0,1))) 
-c        write(*,*)  (max_mom(j,1), j=0,3)
-c        write(*,*)  (max_mom(j,2), j=0,3)
-c        write(*,*)  (pt1(j), j=0,3)
-c        write(*,*)  (pt2(j), j=0,3)
-c        write(*,*)  (max_mom(j,9), j=0,3)
+        write (*,*) maxweight
         call flush()
         goto 1
       endif
