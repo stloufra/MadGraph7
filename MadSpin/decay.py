@@ -68,6 +68,8 @@ from madgraph import MG5DIR, MadGraph5Error
 import madgraph.various.misc as misc
 #import time
 
+MAX_COMPAT_FLAVS = 500
+
 
 class MadSpinError(MadGraph5Error):
     pass
@@ -3399,10 +3401,9 @@ class decay_all_events(object):
 
         A group is *compatible* when all production-leg positions (given by
         ``prod2full``) match the actual PDG codes found in the current event.
-        The relative BRs are proportional to the number of PDG tuples in each
-        compatible group (i.e. equal weighting per individual flavor
-        combination), so they are a valid approximation when all merged-group
-        members have the same couplings (SM case).
+        The relative BRs are extracted from the already-computed decay partial
+        widths / branching tables (same source used to pick decay channels),
+        not from a simple flavor-multiplicity proxy.
 
         Returns:
             compatible_indices : list of 1-based group indices
@@ -3443,7 +3444,97 @@ class decay_all_events(object):
                 production_tag, decay_me, event_map)
             return [flavor_index_full], [1.0]
 
-        # Relative BRs proportional to the number of PDG tuples per group
+        # Build a map (part, res) -> (me_d1, me_d2) from generate_configs_file
+        # data. This allows reading tuple-specific daughter flavors directly
+        # from flav_tuple at the exact full-ME external positions.
+        def build_me_daughters_map():
+            out = {}
+            for part, dc in decay_me.get('decay_struct', {}).items():
+                tree = dc.get('tree', {})
+                mg_tree = dc.get('mg_tree', [])
+                nb_res = len(tree)
+                if nb_res and len(mg_tree) == nb_res:
+                    for i, res in enumerate(range(-1, -nb_res - 1, -1)):
+                        _, me_d1, me_d2 = mg_tree[i]
+                        out[(part, res)] = (me_d1, me_d2)
+            return out
+
+        # Read BR(parent -> d1 d2) from the param card / decay table.
+        def get_two_body_br(parent_pid, d1_pid, d2_pid):
+            decay_table = self.banner.param_card['decay'].decay_table
+            lhaid = tuple([2] + sorted([d1_pid, d2_pid]))
+            if parent_pid in decay_table:
+                try:
+                    return decay_table[parent_pid].get(lhaid).value
+                except (KeyError, TypeError, AttributeError):
+                    return 0.0
+            if -parent_pid in decay_table:
+                pid = -parent_pid
+                mapped = []
+                for x in lhaid[1:]:
+                    part = self.model.get_particle(x)
+                    if part and part['self_antipart']:
+                        mapped.append(x)
+                    else:
+                        mapped.append(-x)
+                mapped.sort()
+                lhaid2 = tuple([2] + mapped)
+                try:
+                    return decay_table[pid].get(lhaid2).value
+                except (KeyError, TypeError, AttributeError):
+                    return 0.0
+            return 0.0
+
+        # Compute tuple BR from the same partial-width information used for
+        # decay-channel selection.
+        me_daughters = build_me_daughters_map()
+
+        missing_map_warned = [False]
+
+        def tuple_br(flav_tuple):
+            br = 1.0
+            for part, dc in decay_me.get('decay_struct', {}).items():
+                tree = dc.get('tree', {})
+                nb_res = len(tree)
+                if not nb_res:
+                    continue
+                for res in range(-1, -nb_res - 1, -1):
+                    parent_pid = tree[res]['label']
+                    me_d1, me_d2 = me_daughters.get((part, res), (None, None))
+                    if me_d1 is None:
+                        if not missing_map_warned[0]:
+                            logger.warning(
+                                'Missing mg_tree mapping for decay part %s, res %s in %s; '
+                                'falling back to multiplicity-based relative BRs.',
+                                part, res, decay_me.get('path', 'unknown'))
+                            missing_map_warned[0] = True
+                        return 0.0
+                    idx_d1 = tree[res]['d1']['index']
+                    idx_d2 = tree[res]['d2']['index']
+                    if idx_d1 > 0:
+                        d1_pid = flav_tuple[me_d1 - 1]
+                    else:
+                        d1_pid = tree[idx_d1]['label']
+                    if idx_d2 > 0:
+                        d2_pid = flav_tuple[me_d2 - 1]
+                    else:
+                        d2_pid = tree[idx_d2]['label']
+                    br *= get_two_body_br(parent_pid, d1_pid, d2_pid)
+                    if br == 0.0:
+                        return 0.0
+            return br
+
+        # Relative BRs for compatible flavor groups from partial widths.
+        group_brs = []
+        for j in compatible:
+            group = flavor_groups_full[j - 1]
+            group_brs.append(sum(tuple_br(flav) for flav in group))
+        total = sum(group_brs)
+        if total > 0:
+            rel_brs = [b / total for b in group_brs]
+            return compatible, rel_brs
+
+        # Robust fallback: if BR reconstruction failed, keep previous behavior.
         sizes = [len(flavor_groups_full[j - 1]) for j in compatible]
         total = sum(sizes)
         rel_brs = [s / total for s in sizes]
@@ -3908,13 +3999,14 @@ class decay_all_events(object):
                                                  flavor_index_prod, flavor_index_full)
         std_in += p_str
         # Pass the number of compatible flavor groups and their (index, rel_br) pairs.
-        # Must not exceed MAX_COMPAT_FLAVS=500 defined in driver.f.
-        if len(compatible_indices) > 500:
+        # Must not exceed MAX_COMPAT_FLAVS defined in driver.f.
+        if len(compatible_indices) > MAX_COMPAT_FLAVS:
             logger.warning('Number of compatible flavor groups (%d) exceeds the '
-                           'Fortran limit of 500; truncating.' % len(compatible_indices))
-            compatible_indices = compatible_indices[:500]
-            total = sum(rel_brs[:500])
-            rel_brs = [br / total for br in rel_brs[:500]]
+                           'Fortran limit of %d; truncating.'
+                           % (len(compatible_indices), MAX_COMPAT_FLAVS))
+            compatible_indices = compatible_indices[:MAX_COMPAT_FLAVS]
+            total = sum(rel_brs[:MAX_COMPAT_FLAVS])
+            rel_brs = [br / total for br in rel_brs[:MAX_COMPAT_FLAVS]]
         std_in += "%d\n" % len(compatible_indices)
         for idx, br in zip(compatible_indices, rel_brs):
             std_in += "%d %.15e\n" % (idx, br)
