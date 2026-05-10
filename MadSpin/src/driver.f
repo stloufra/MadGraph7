@@ -232,8 +232,8 @@ ccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
 c        max_m=0d0
 c        max_jac=0d0
 
-c       Read compatible full-ME flavor groups and their relative BRs from Python.
-c       Python sends: nflavs_compat lines of (flavor_index, rel_br).
+c       Read compatible full-ME flavor groups and their BR factors from Python.
+c       Python sends: nflavs_compat lines of (flavor_index, br_factor).
         read(*,*) nflavs_compat
         do k=1, nflavs_compat
            read(*,*) compat_flav_idx(k), rel_brs_compat(k)
@@ -290,9 +290,9 @@ c          Compute M_prod from boosted production momenta.
 
 c          Boost the full-event momenta, then loop over all compatible
 c          full-ME flavor groups.  For each group j:
-c            weight_tmp = M_full(j) * jac / M_prod / rel_br(j)
+c            weight_tmp = M_full(j) * jac / M_prod / br_factor(j)
 c          The global maximum G is returned; Python then recovers the
-c          per-flavor maxweight as G * rel_br(j).
+c          per-flavor maxweight as G * br_factor(j).
            call  boost_to_frame(pfull, frame_id, P2)
            do k=1, nflavs_compat
               call GET_FLAVOR_MS_FULL(compat_flav_idx(k), FLAVOR_TMP)
@@ -2047,7 +2047,6 @@ c         write(*,*) 'cluster.f: uncompressed code ',i,' is ',ids(i)
 
       return
       end
-
 
 
 
