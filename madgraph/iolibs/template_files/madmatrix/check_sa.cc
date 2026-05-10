@@ -250,6 +250,46 @@ int main( int argc, char** argv )
     rambtime += timermap.stop();
     timermap.start( "2b RamboFin" );
     prsk->getMomentaFinal();
+
+// HARDCODED MOMENTA FOR REPRODUCIBILITY UNCOMMMENT AND SET TO DESIRABLE
+/*constexpr fptype fixedMomenta[CPPProcess::npar][4] = {
+  { 5.00000000000000000e+02,  0.00000000000000000e+00,  0.00000000000000000e+00,  5.00000000000000000e+02 },
+  { 5.00000000000000000e+02,  0.00000000000000000e+00,  0.00000000000000000e+00, -5.00000000000000000e+02 },
+  { 1.48659511984701965e+02, -1.41759229004224707e+01,  3.50671576461468604e+01, -7.10210403195511617e+01 },
+  { 2.61015718768703039e+02, -7.74573847394504043e+01, -2.45254854257569406e+02,  4.44928697294952826e+01 },
+  { 1.18826220061214102e+02, -8.42809323311964818e+01, -7.75060213187374387e+01,  3.17680921485658274e+01 },
+  { 3.85888758674269582e+02,  2.16314560882611602e+02,  3.10062481231316838e+02, -7.73265966793502173e+01 },
+  { 8.56097905111112709e+01, -4.04003209115422379e+01, -2.23687633011569602e+01,  7.20866751208402832e+01 }
+};
+
+for( unsigned int ievt = 0; ievt < nevt; ++ievt )
+{
+  for( int ipar = 0; ipar < CPPProcess::npar; ipar++ )
+  {
+    MemoryAccessMomenta::ieventAccessIp4Ipar( hstMomenta.data(), ievt, 0, ipar ) = fixedMomenta[ipar][0];
+    MemoryAccessMomenta::ieventAccessIp4Ipar( hstMomenta.data(), ievt, 1, ipar ) = fixedMomenta[ipar][1];
+    MemoryAccessMomenta::ieventAccessIp4Ipar( hstMomenta.data(), ievt, 2, ipar ) = fixedMomenta[ipar][2];
+    MemoryAccessMomenta::ieventAccessIp4Ipar( hstMomenta.data(), ievt, 3, ipar ) = fixedMomenta[ipar][3];
+  }
+  if( verbose )
+  {
+    std::cout << "Momenta (fixed) for event: " << ievt << std::endl;
+    for( int ipar = 0; ipar < CPPProcess::npar; ipar++ )
+    {
+      const int ndigits = std::numeric_limits<double>::digits10;
+      std::cout << std::scientific
+                << std::setprecision( ndigits )
+                << std::setw( 4 ) << ipar + 1
+                << std::setw( ndigits + 8 ) << fixedMomenta[ipar][0]
+                << std::setw( ndigits + 8 ) << fixedMomenta[ipar][1]
+                << std::setw( ndigits + 8 ) << fixedMomenta[ipar][2]
+                << std::setw( ndigits + 8 ) << fixedMomenta[ipar][3]
+                << std::endl;
+    }
+    std::cout << std::string( SEP79, '-' ) << std::endl;
+  }
+}*/
+    // *** STOP THE OLD-STYLE TIMER FOR RAMBO ***
     rambtime += timermap.stop();
 
     // Step 2c - convert AOSOA -> UMAMI [ip4][ipar][ievt] layout.
