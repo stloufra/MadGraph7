@@ -567,7 +567,8 @@ KERNELSPEC void kernel_two_to_three_particle_scattering(
     auto p1_com = scatter_out.first;
     auto gram4 = bk_gram4<T>(m0_2, ma_2, mb_2, m1_2, m2_2, m3_2, t1_abs, t2, s12, s23);
     auto det_2to3 = 1 / (8 * sqrt(max(-gram4, EPS2)));
-    auto p1_rot = rotate<T>(p1_com, pa_com);
+    auto p3_p12 = boost<T>(load_mom<T>(p3), p_12, -1.);
+    auto p1_rot = rotate_two_ref<T>(p1_com, pa_com, p3_p12);
     auto p1_lab = boost<T>(p1_rot, p_12, 1.);
     store_mom<T>(p1, p1_lab);
     for (int i = 0; i < 4; ++i) {
@@ -605,7 +606,8 @@ KERNELSPEC void kernel_two_to_three_particle_scattering_inverse(
 
     auto pa_com = boost<T>(load_mom<T>(pa), p_12, -1.);
     auto p1_com = boost<T>(load_mom<T>(p1), p_12, -1.);
-    auto p1_rot = rotate_inverse<T>(p1_com, pa_com);
+    auto p3_p12 = boost<T>(load_mom<T>(p3), p_12, -1.);
+    auto p1_rot = rotate_two_ref_inverse<T>(p1_com, pa_com, p3_p12);
 
     auto m1_2 = lsquare<T>(load_mom<T>(p1));
     auto m2_2 = lsquare<T>(load_mom<T>(p2));

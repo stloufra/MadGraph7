@@ -198,6 +198,77 @@ KERNELSPEC FourMom<T> rotate_inverse(FourMom<T> p, FourMom<T> q) {
 }
 
 template <typename T>
+KERNELSPEC FourMom<T>
+rotate_two_ref(FourMom<T> p, FourMom<T> q_z, FourMom<T> q_x) {
+    // Forward rotation: take p from a canonical frame
+    //   (e_z along q_z, e_x in the plane spanned by q_z and q_x with positive
+    //    component along q_x's perpendicular part)
+    // into the world frame. Energy unchanged.
+    //
+    // Used by kernel_two_to_three_particle_scattering: q_z = pa_com,
+    // q_x = p3 boosted into the p_12 rest frame. Picks a unique azimuth
+    // so that the (q_z, q_x) plane is the phi=0 half-plane.
+
+    // z_hat = q_z / |q_z|
+    auto qz_n2 = q_z[1]*q_z[1] + q_z[2]*q_z[2] + q_z[3]*q_z[3];
+    auto qz_n = sqrt(max(qz_n2, EPS2));
+    auto zx = q_z[1] / qz_n, zy = q_z[2] / qz_n, zz = q_z[3] / qz_n;
+
+    // x_hat = (q_x perp to z_hat) / |...|
+    auto qx_dot_z = q_x[1]*zx + q_x[2]*zy + q_x[3]*zz;
+    auto rx = q_x[1] - qx_dot_z*zx;
+    auto ry = q_x[2] - qx_dot_z*zy;
+    auto rz = q_x[3] - qx_dot_z*zz;
+    auto rn2 = rx*rx + ry*ry + rz*rz;
+    auto rn = sqrt(max(rn2, EPS2));
+    auto xx = rx / rn, xy = ry / rn, xz = rz / rn;
+
+    // y_hat = z_hat x x_hat
+    auto yx = zy*xz - zz*xy;
+    auto yy = zz*xx - zx*xz;
+    auto yz = zx*xy - zy*xx;
+
+    // world spatial = p[1]*x_hat + p[2]*y_hat + p[3]*z_hat
+    return FourMom<T>{
+        p[0],
+        p[1]*xx + p[2]*yx + p[3]*zx,
+        p[1]*xy + p[2]*yy + p[3]*zy,
+        p[1]*xz + p[2]*yz + p[3]*zz,
+    };
+}
+
+template <typename T>
+KERNELSPEC FourMom<T>
+rotate_two_ref_inverse(FourMom<T> p, FourMom<T> q_z, FourMom<T> q_x) {
+    // Inverse of rotate_two_ref: take a vector p from the world frame into the
+    // canonical frame defined by (q_z, q_x). Energy unchanged.
+
+    auto qz_n2 = q_z[1]*q_z[1] + q_z[2]*q_z[2] + q_z[3]*q_z[3];
+    auto qz_n = sqrt(max(qz_n2, EPS2));
+    auto zx = q_z[1] / qz_n, zy = q_z[2] / qz_n, zz = q_z[3] / qz_n;
+
+    auto qx_dot_z = q_x[1]*zx + q_x[2]*zy + q_x[3]*zz;
+    auto rx = q_x[1] - qx_dot_z*zx;
+    auto ry = q_x[2] - qx_dot_z*zy;
+    auto rz = q_x[3] - qx_dot_z*zz;
+    auto rn2 = rx*rx + ry*ry + rz*rz;
+    auto rn = sqrt(max(rn2, EPS2));
+    auto xx = rx / rn, xy = ry / rn, xz = rz / rn;
+
+    auto yx = zy*xz - zz*xy;
+    auto yy = zz*xx - zx*xz;
+    auto yz = zx*xy - zy*xx;
+
+    // canonical components = world spatial . (x_hat, y_hat, z_hat)
+    return FourMom<T>{
+        p[0],
+        p[1]*xx + p[2]*xy + p[3]*xz,
+        p[1]*yx + p[2]*yy + p[3]*yz,
+        p[1]*zx + p[2]*zy + p[3]*zz,
+    };
+}
+
+template <typename T>
 KERNELSPEC FourMom<T> boost(FourMom<T> k, FourMom<T> p_boost, FVal<T> sign) {
     // Perform the boost
     // This is in fact a numerically more stable implementation than often used
