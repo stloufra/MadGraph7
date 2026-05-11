@@ -64,14 +64,13 @@ namespace
   int usage( const char* argv0, int ret = 1 )
   {
     std::cout << "Usage: " << argv0
-              << " [--verbose|-v] [--debug|-d] [--performance|-p] [--json|-j]"
+              << " [--verbose|-v] [--debug|-d] [--performance|-p] [--json|-j] [--flavor|-f <int>]"
               << " [#blocksPerGrid #threadsPerBlock] #iterations" << std::endl
               << std::endl
               << "Number of events per iteration = #blocksPerGrid * #threadsPerBlock" << std::endl
               << "(in CPU/C++ code only the product matters)." << std::endl;
     return ret;
   }
-
   // AOSOA -> UMAMI SoA single-event helper. Layout reminder:
   //   AOSOA: aosoa[i_page * npar*4*neppM + ipar*4*neppM + ip4*neppM + i_vector]
   //   UMAMI: soa[ip4 * npar*nevt + ipar*nevt + ievt]
@@ -123,8 +122,10 @@ int main( int argc, char** argv )
   unsigned int gputhreads = 32;
   unsigned int jsondate = 0;
   unsigned int jsonrun = 0;
+  unsigned int flavorID = 0; // default flavor index
   unsigned int numvec[5] = { 0, 0, 0, 0, 0 };
   int nnum = 0;
+  constexpr unsigned int UmamiInKeyNum = 2;
 
   for( int argn = 1; argn < argc; ++argn )
   {
@@ -133,6 +134,8 @@ int main( int argc, char** argv )
     else if( arg == "--debug" || arg == "-d" ) debug = true;
     else if( arg == "--performance" || arg == "-p" ) perf = true;
     else if( arg == "--json" || arg == "-j" ) json = true;
+    else if( ( arg == "--flavor" || arg == "-f" ) && argn + 1 < argc && is_number( argv[argn + 1] ) )
+      flavorID = strtoul( argv[++argn], nullptr, 0 );
     else if( is_number( argv[argn] ) && nnum < 5 )
       numvec[nnum++] = strtoul( argv[argn], nullptr, 0 );
     else
@@ -183,6 +186,7 @@ int main( int argc, char** argv )
   // SoA buffers for UMAMI live entirely on the device.
   DeviceBufferBase<double> devUmamiMomenta( (std::size_t)4 * CPPProcess::npar * nevt );
   DeviceBufferBase<double> devUmamiMEs( nevt );
+  DeviceBufferBase<unsigned int> devFlv( nevt );
   std::vector<double> hstUmamiMEs( nevt );
 #else
   HostBufferRndNumMomenta hstRndmom( nevt );
@@ -304,19 +308,26 @@ for( unsigned int ievt = 0; ievt < nevt; ++ievt )
     rambtime += timermap.stop();
 
     // Step 3 - matrix elements via UMAMI.
+
     double wavetime = 0;
+
+    std::vector<unsigned int> FlvVec(nevt, flavorID);
+#ifdef MGONGPUCPP_GPUIMPL
+    gpuMemcpy( devFlv.data(), FlvVec.data(), nevt * sizeof( unsigned int ), gpuMemcpyHostToDevice );
+#endif
+
     timermap.start( "3a SigmaKin" );
-    UmamiInputKey in_keys[1] = { UMAMI_IN_MOMENTA };
+    UmamiInputKey in_keys[UmamiInKeyNum] = { UMAMI_IN_MOMENTA, UMAMI_IN_FLAVOR_INDEX };
     UmamiOutputKey out_keys[1] = { UMAMI_OUT_MATRIX_ELEMENT };
 #ifdef MGONGPUCPP_GPUIMPL
-    const void* inputs[1] = { devUmamiMomenta.data() };
+    const void* inputs[UmamiInKeyNum] = { devUmamiMomenta.data(), devFlvVec.data() };
     void* outputs[1] = { devUmamiMEs.data() };
 #else
-    const void* inputs[1] = { umamiMomenta.data() };
+    const void* inputs[UmamiInKeyNum] = { umamiMomenta.data(), FlvVec.data() };
     void* outputs[1] = { umamiMEs.data() };
 #endif
     UmamiStatus st = umami_matrix_element(
-      umami_handle, nevt, nevt, 0, 1, in_keys, inputs, 1, out_keys, outputs );
+      umami_handle, nevt, nevt, 0, UmamiInKeyNum, in_keys, inputs, 1, out_keys, outputs );
     if( st != UMAMI_SUCCESS )
     {
       std::cerr << "ERROR! umami_matrix_element failed (status=" << st << ")" << std::endl;
