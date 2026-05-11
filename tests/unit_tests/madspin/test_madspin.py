@@ -368,3 +368,281 @@ class TestEvent(unittest.TestCase):
 #        os.environ['GFORTRAN_UNBUFFERED_ALL']='n'
 
         
+class TestGetCompatibleFlavorData(unittest.TestCase):
+    """Tests for decay_all_events.get_compatible_flavor_data.
+
+    The method should return (compatible_indices, rel_brs) where
+    compatible_indices lists every flavor_index whose tuple's
+    production-particle positions match the current event, and
+    rel_brs carries one BR factor per compatible index.
+
+    For p p > w+ w- (w+ > j j, w- > j j) a production event with
+    u d~ initial state should yield 4 compatible entries when each
+    of the four decay-product combinations (ud~/ud~, ud~/cs~,
+    cs~/ud~, cs~/cs~) occupies its own flavor_groups_full entry.
+    """
+
+    # ---------- helpers ---------------------------------------------------- #
+
+    def _make_event(self, pid_list):
+        """Return a minimal Event whose .particle dict contains the given PIDs.
+
+        pid_list: sequence of PDG codes in event order (1-indexed internally).
+        """
+        ev = madspin.Event()
+        for i, pid in enumerate(pid_list, 1):
+            ev.particle[i] = {'pid': pid}
+        return ev
+
+    def _make_handler(self, curr_event):
+        """Return a bare decay_all_events instance with only curr_event set."""
+        obj = madspin.decay_all_events.__new__(madspin.decay_all_events)
+        object.__setattr__(obj, 'curr_event', curr_event)
+        object.__setattr__(obj, 'all_ME', {})
+        return obj
+
+    # ---------- individual tests ------------------------------------------- #
+
+    def test_no_flavor_groups_returns_single_entry(self):
+        """Without flavor_groups_full the function falls back to a length-1 result."""
+        ev = self._make_event([2, -1])      # u, d~
+        handler = self._make_handler(ev)
+
+        # decay_me with no flavor group data
+        decay_me = {'br': 0.15, 'prod2full': [1, 2]}
+        event_map = {0: 0, 1: 1}
+
+        indices, brs = handler.get_compatible_flavor_data(
+            None, decay_me, event_map)
+
+        # Must return exactly one entry (the fallback)
+        self.assertEqual(len(indices), 1)
+        self.assertEqual(len(brs), 1)
+        # BR must be preserved unchanged
+        self.assertAlmostEqual(brs[0], 0.15)
+
+    def test_single_matching_group(self):
+        """With one matching group the function returns exactly that group."""
+        ev = self._make_event([2, -1])      # u, d~ in the event
+        handler = self._make_handler(ev)
+
+        # Full ME for u d~ > u d~ u~ d  (positions 0,1 = initial state)
+        # prod2full: initial u->1, initial d~->2, W+ decays, W- decays
+        prod2full = [1, 2, -2, -4]
+        flavor_groups_full = [
+            [(2, -1, 2, -1, -2, 1)],   # u d~ initial, W+->ud~, W-->u~d
+        ]
+        decay_me = {'br': 0.10, 'prod2full': prod2full,
+                    'flavor_groups_full': flavor_groups_full}
+        event_map = {0: 0, 1: 1}
+
+        indices, brs = handler.get_compatible_flavor_data(
+            None, decay_me, event_map)
+
+        self.assertEqual(indices, [1])
+        self.assertEqual(len(brs), 1)
+        self.assertAlmostEqual(brs[0], 0.10)
+
+    def test_pp_ww_jj_jj_four_compatible_groups(self):
+        """Core regression test for p p > w+ w- (w+ > j j, w- > j j).
+
+        With u/d initial state there are four decay-product combinations:
+          group 1: W+ -> u d~,  W- -> u~ d
+          group 2: W+ -> u d~,  W- -> c~ s
+          group 3: W+ -> c s~,  W- -> u~ d
+          group 4: W+ -> c s~,  W- -> c~ s
+
+        All four share the same production-level initial state (u, d~),
+        so all four must appear in the returned indices.
+
+        A d u~ event is incompatible with any of these groups and must
+        NOT appear.
+        """
+        # Production event: u (pid=2) in slot 0, d~ (pid=-1) in slot 1
+        ev_ud = self._make_event([2, -1])
+        handler = self._make_handler(ev_ud)
+
+        # prod2full: production particles 0,1 are initial-state (at full-ME
+        # positions 1,2); particles 2,3 (W+,W-) decay (negative entries).
+        prod2full = [1, 2, -2, -4]
+
+        # Four separate flavor groups – one per decay-product combination.
+        # Tuple layout: (init1, init2, decay1_d1, decay1_d2, decay2_d1, decay2_d2)
+        # positions 0,1 = initial state  (checked against pos_to_pid)
+        # positions 2,3,4,5 = decay products (not constrained by production event)
+        flavor_groups_full = [
+            [(2, -1,  2, -1, -2,  1)],   # W+ -> u d~,  W- -> u~ d
+            [(2, -1,  2, -1, -4,  3)],   # W+ -> u d~,  W- -> c~ s
+            [(2, -1,  4, -3, -2,  1)],   # W+ -> c s~,  W- -> u~ d
+            [(2, -1,  4, -3, -4,  3)],   # W+ -> c s~,  W- -> c~ s
+            [(1, -2,  1, -2, -1,  2)],   # d u~ initial (incompatible)
+        ]
+
+        decay_me = {'br': 0.12, 'prod2full': prod2full,
+                    'flavor_groups_full': flavor_groups_full}
+        event_map = {0: 0, 1: 1}
+
+        indices, brs = handler.get_compatible_flavor_data(
+            None, decay_me, event_map)
+
+        # Must find exactly 4 compatible groups (groups 1-4; group 5 is d u~)
+        self.assertEqual(sorted(indices), [1, 2, 3, 4],
+            msg="Expected 4 compatible flavor groups for u d~ event, got %s" % indices)
+        self.assertEqual(len(brs), 4)
+        for br in brs:
+            self.assertAlmostEqual(br, 0.12)
+
+    def test_pp_ww_incompatible_initial_state_excluded(self):
+        """Groups whose initial-state PDGs mismatch the event are excluded."""
+        # Production event: d (pid=1) in slot 0, u~ (pid=-2) in slot 1
+        ev_du = self._make_event([1, -2])
+        handler = self._make_handler(ev_du)
+
+        prod2full = [1, 2, -2, -4]
+        flavor_groups_full = [
+            [(2, -1,  2, -1, -2,  1)],   # u d~ initial (incompatible with d u~)
+            [(2, -1,  2, -1, -4,  3)],
+            [(2, -1,  4, -3, -2,  1)],
+            [(2, -1,  4, -3, -4,  3)],
+            [(1, -2,  1, -2, -1,  2)],   # d u~ initial (compatible)
+        ]
+        decay_me = {'br': 0.12, 'prod2full': prod2full,
+                    'flavor_groups_full': flavor_groups_full}
+        event_map = {0: 0, 1: 1}
+
+        indices, brs = handler.get_compatible_flavor_data(
+            None, decay_me, event_map)
+
+        # Only group 5 (d u~ initial state) is compatible
+        self.assertEqual(indices, [5])
+        self.assertEqual(len(brs), 1)
+
+    def test_old_grouped_structure_returns_length_one(self):
+        """Document pre-fix behaviour: when decay combinations are lumped into
+        a single flavor group (as get_external_flavors_with_iden used to do),
+        get_compatible_flavor_data returns only 1 entry for a u d~ event.
+
+        This test captures the former behaviour so the regression is visible.
+        After the fix (using individual tuples as separate groups) the test
+        test_pp_ww_jj_jj_four_compatible_groups replaces this case.
+        """
+        ev_ud = self._make_event([2, -1])
+        handler = self._make_handler(ev_ud)
+
+        prod2full = [1, 2, -2, -4]
+        # Old behaviour: all four decay combinations in ONE group
+        flavor_groups_full = [
+            [
+                (2, -1,  2, -1, -2,  1),
+                (2, -1,  2, -1, -4,  3),
+                (2, -1,  4, -3, -2,  1),
+                (2, -1,  4, -3, -4,  3),
+            ],  # group 1 – all u d~ initial variants lumped together
+            [
+                (1, -2,  1, -2, -1,  2),
+            ],  # group 2 – d u~ initial state
+        ]
+        decay_me = {'br': 0.12, 'prod2full': prod2full,
+                    'flavor_groups_full': flavor_groups_full}
+        event_map = {0: 0, 1: 1}
+
+        indices, brs = handler.get_compatible_flavor_data(
+            None, decay_me, event_map)
+
+        # With the old grouped structure only 1 group is returned –
+        # this is the bug: we cannot distinguish the 4 decay combinations.
+        self.assertEqual(len(indices), 1,
+            msg="Old grouped structure returns 1 (bug: cannot distinguish "
+                "decay combinations). With per-tuple groups this would be 4.")
+
+    def test_br_preserved_and_not_normalized(self):
+        """rel_brs must equal decay_me['br'] without normalisation."""
+        ev = self._make_event([2, -1])
+        handler = self._make_handler(ev)
+
+        prod2full = [1, 2, -2, -4]
+        # Two compatible groups for u d~ initial state
+        flavor_groups_full = [
+            [(2, -1, 2, -1, -2, 1)],
+            [(2, -1, 4, -3, -2, 1)],
+        ]
+        br_value = 0.347
+        decay_me = {'br': br_value, 'prod2full': prod2full,
+                    'flavor_groups_full': flavor_groups_full}
+        event_map = {0: 0, 1: 1}
+
+        _, brs = handler.get_compatible_flavor_data(
+            None, decay_me, event_map)
+
+        self.assertEqual(len(brs), 2)
+        for br in brs:
+            self.assertAlmostEqual(br, br_value,
+                msg="BR must not be normalised; expected %s, got %s"
+                    % (br_value, br))
+
+    def test_get_flavor_data_from_me_produces_per_tuple_groups(self):
+        """get_flavor_data_from_me must assign one flavor_index per flavor tuple.
+
+        This is the key requirement for get_compatible_flavor_data to return
+        length 4 for p p > w+ w- (w+ > j j, w- > j j):
+        each decay-product combination must be a separate Fortran entry.
+
+        We mock the matrix element with four flavor tuples that all share the
+        same coupling structure (as get_external_flavors_with_iden would group
+        them together) but must be split into four separate flavor_groups entries.
+        """
+        # Minimal mock of a HelasMatrixElement
+        class MockModel:
+            def get(self, key):
+                return {}  # no merged particles
+
+        class MockProcess:
+            def get(self, key):
+                if key == 'model':
+                    return MockModel()
+                return None
+
+        # Four distinct flavor tuples, all with the same coupling in the old scheme
+        # (representing the four w+ > j j / w- > j j combinations for u d~ initial)
+        flavor_tuples = [
+            (2, -1,  2, -1, -2,  1),   # W+ -> u d~,  W- -> u~ d
+            (2, -1,  2, -1, -4,  3),   # W+ -> u d~,  W- -> c~ s
+            (2, -1,  4, -3, -2,  1),   # W+ -> c s~,  W- -> u~ d
+            (2, -1,  4, -3, -4,  3),   # W+ -> c s~,  W- -> c~ s
+        ]
+
+        # Single coupling key – simulates the old behaviour where all four
+        # tuples would be placed in the same group
+        common_coupling = ('coupling_A',)
+
+        class MockME:
+            def get_nexternal_ninitial(self):
+                return (6, 2)
+
+            def get(self, key):
+                if key == 'processes':
+                    return [MockProcess()]
+                return None
+
+            def get_external_flavors(self):
+                return list(flavor_tuples)
+
+            def get_external_flavors_with_iden(self):
+                # All four tuples share the same coupling – old code would put
+                # them all in one group
+                return {common_coupling: list(flavor_tuples)}.values()
+
+        nexternal, flavor_combos, _, flavor_groups = \
+            madspin.decay_all_events.get_flavor_data_from_me(MockME())
+
+        # Each group must contain exactly one tuple (no coupling-based merging)
+        self.assertEqual(len(flavor_groups), len(flavor_tuples),
+            msg="Expected one group per flavor tuple (%d tuples), got %d groups"
+                % (len(flavor_tuples), len(flavor_groups)))
+        for i, grp in enumerate(flavor_groups):
+            self.assertEqual(len(grp), 1,
+                msg="flavor_groups[%d] has %d tuples; expected exactly 1" % (i, len(grp)))
+
+        # flavor_combos must also be one entry per tuple
+        self.assertEqual(len(flavor_combos), len(flavor_tuples))
+

@@ -3322,13 +3322,19 @@ class decay_all_events(object):
         Returns a tuple (nexternal, flavor_combos, pdg_to_group_pos, flavor_groups)
         where:
           - nexternal: number of external particles
-          - flavor_combos: list of PDG-code tuples (first representative per group)
-            written into the Fortran DATA statement, one entry per flavor_index.
+          - flavor_combos: list of PDG-code tuples, one per flavor_index, written
+            into the Fortran DATA statement for GET_FLAVOR_MS_FULL.
           - pdg_to_group_pos: dict mapping positive PDG code -> position within its
             merged-particle group (used to convert PDG codes to group positions).
-          - flavor_groups: list of lists; flavor_groups[i] contains ALL PDG-code
-            tuples that share coupling group i (0-based), enabling Python-side
-            matching of a real event to its flavor_index (i+1).
+          - flavor_groups: list of single-element lists; flavor_groups[i] contains
+            the one PDG-code tuple for flavor_index i+1, enabling Python-side
+            matching of a real event to its flavor_index.
+
+        Each valid external flavor tuple is given its own flavor_index so that
+        distinct decay-product combinations (e.g. W+ -> u d~ vs W+ -> c s~) are
+        accessible as separate Fortran indices. This is what allows
+        get_compatible_flavor_data to return multiple compatible entries (one per
+        decay combination) for a given production-level event.
         """
         (nexternal, _) = matrix_element.get_nexternal_ninitial()
         model = matrix_element.get('processes')[0].get('model')
@@ -3336,13 +3342,16 @@ class decay_all_events(object):
         for members in model.get('merged_particles').values():
             for pos, pdg in enumerate(members, 1):
                 pdg_to_group_pos[pdg] = pos
-        # get_external_flavors_with_iden returns dict_values of lists of tuples;
-        # each inner list groups flavor tuples that share the same coupling structure.
-        all_flav = list(matrix_element.get_external_flavors_with_iden())
-        # flavor_combos[i]: representative PDG tuple for flavor_index i+1 (Fortran DATA)
-        flavor_combos = [list(flv[0]) for flv in all_flav]
-        # flavor_groups[i]: all PDG tuples in coupling group i (for Python matching)
-        flavor_groups = [list(flv) for flv in all_flav]
+        # get_external_flavors returns one tuple per valid flavor combination.
+        # Using individual tuples (rather than coupling-based groups) ensures
+        # that different decay-product flavor combinations each get a distinct
+        # Fortran flavor index, which is required for correct BR-weighted
+        # maxweight computation across all compatible channels.
+        all_flav_flat = matrix_element.get_external_flavors()
+        # flavor_combos[i]: PDG tuple for Fortran flavor index i+1
+        flavor_combos = [list(flv) for flv in all_flav_flat]
+        # flavor_groups[i]: single-element list so Python matching still works
+        flavor_groups = [[list(flv)] for flv in all_flav_flat]
         return nexternal, flavor_combos, pdg_to_group_pos, flavor_groups
 
     def get_full_flavor_index(self, production_tag, decay_me, event_map):
