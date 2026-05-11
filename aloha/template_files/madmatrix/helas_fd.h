@@ -500,7 +500,7 @@
     fptype_sv n[5];
     fptype_sv nk;
     const fptype_sv zero{0.};
-    const fptype_sv one{0.};
+    const fptype_sv one{1.};
 
     if( vmass != 0. )
     {
