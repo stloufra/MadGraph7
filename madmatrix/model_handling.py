@@ -1395,7 +1395,7 @@ class MadMatrixUFOModelConverter(export_cpp.UFOModelConverterGPU):
         file_h = '\n'.join( file_h_lines[:-3]) # skip the trailing '//---'
         file_h += file_cc # append the contents of HelAmps_sm.cc directly to HelAmps_sm.h!
         file_h = file_h[:-1] # skip the trailing empty line
-        writers.CPPWriter(model_h_file).writelines(file_h)
+        writers.CPPWriter(model_h_file).writelines(file_h, formatting=False)
         logger.info('Created file %s in directory %s' \
                     % (os.path.split(model_h_file)[-1], os.path.split(model_h_file)[0] ) )
 
