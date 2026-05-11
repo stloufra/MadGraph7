@@ -225,11 +225,25 @@ class Event:
         if not flavor_groups:
             return 1
 
-        # Build the ordered list of absolute event PIDs in ME particle order
-        n_parts = len(self.particle)
+        # Build absolute event PIDs in ME order, limited to the flavor tuple
+        # length.  The event can contain extra particles (already-decayed
+        # daughters, radiation, etc.) that do not belong to this ME flavor map.
+        # Using len(self.particle) would then overrun the tuple length and force
+        # a fallback to flavor index 1.
+        sample_tuple = None
+        for group_tuples in flavor_groups:
+            if group_tuples:
+                sample_tuple = group_tuples[0]
+                break
+        if sample_tuple is None:
+            return 1
+        n_parts = len(sample_tuple)
+
         event_pids = []
         for me_pos in range(n_parts):
-            evt_pos = event_map.get(me_pos, me_pos)  # evt_pos is 0-based
+            evt_pos = event_map.get(me_pos)
+            if evt_pos is None:
+                return 1
             pid = self.particle[evt_pos + 1]['pid']   # particle dict is 1-indexed
             event_pids.append(abs(pid))
 
@@ -4056,14 +4070,11 @@ class decay_all_events(object):
         ensuring maxweight_j >= max_PS[M_full(j)*jac/M_prod] for every j.
         """
         p, p_str = self.curr_event.give_momenta(event_map)
-        misc.sprint(production_tag)
         if production_tag and decay_me:
             flavor_index_prod = self.curr_event.get_flavor_index(
                 self.all_ME[production_tag].get('flavor_groups_prod', []), event_map)
             compatible_indices, rel_brs = self.get_compatible_flavor_data(
                 production_tag, decay_me, event_map)
-            misc.sprint(('Compatible flavor groups for production tag %s: %s' %
-                         (flavor_index_prod, compatible_indices)))
             # Use the first compatible index as the header field (Fortran ignores
             # it in mode=1 when it reads the explicit compatible-flavor list).
             flavor_index_full = compatible_indices[0]

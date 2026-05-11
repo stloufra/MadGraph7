@@ -391,6 +391,34 @@ def _make_handler(curr_event):
     return obj
 
 
+class TestEventGetFlavorIndex(unittest.TestCase):
+    """Tests for Event.get_flavor_index."""
+
+    def test_production_flavor_index_with_extra_event_particles(self):
+        """Extra particles in the event record must not force flavor index 1."""
+        ev = madspin.Event()
+        ev.particle = {
+            1: {'pid': 2},     # initial
+            2: {'pid': -2},    # initial
+            3: {'pid': 24},    # production resonance
+            4: {'pid': -24},   # production resonance
+            5: {'pid': 2},     # decay daughter (extra for production map)
+            6: {'pid': -1},    # decay daughter
+            7: {'pid': -2},    # decay daughter
+            8: {'pid': 1},     # decay daughter
+        }
+        event_map = {0: 0, 1: 1, 2: 2, 3: 3}
+        flavor_groups_prod = [
+            [(1, -1, 24, -24)],
+            [(2, -2, 24, -24)],
+            [(3, -3, 24, -24)],
+            [(4, -4, 24, -24)],
+        ]
+
+        flavor_index = ev.get_flavor_index(flavor_groups_prod, event_map)
+        self.assertEqual(flavor_index, 2)
+
+
 # Shared flavor-group fixture used by several tests.
 # Models p p > W+ W- with W+ > j j, W- > j j (j = u d s c).
 # prod2full: production particles 0,1 are initial-state (at full-ME positions
