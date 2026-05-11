@@ -3404,28 +3404,54 @@ class decay_all_events(object):
         # No exact match – fall back to index 1
         return 1
 
-    def get_compatible_flavor_data(self, production_tag, decay_me, event_map):
-        """Return (compatible_indices, rel_brs) for full-ME flavor groups
-        that are compatible with the current event's production particles.
+    def get_compatible_flavor_indices(self, decay_me, event_map,
+                                       production_tag=None):
+        """Return 1-based flavor-group indices compatible with the current event.
 
-        A group is *compatible* when all production-leg positions (given by
-        ``prod2full``) match the actual PDG codes found in the current event.
-        The BR factor attached to each compatible group is the already-computed
-        BR stored on the decay channel itself (`decay_me['br']`). This is the
-        same BR information used when assigning maxweights to the associated
-        decays, and it should not be normalized to 1 within the compatible set.
+        This is the pure *flavor-mapping* step: it checks which entries in
+        ``decay_me['flavor_groups_full']`` match the production-particle PDGs
+        seen in the current event.  No branching-ratio information is touched.
+
+        A flavor group is *compatible* when every production-leg position
+        (those entries in ``prod2full`` that are positive, i.e. that appear
+        as external particles in the full ME) has an absolute PDG code equal
+        to the corresponding particle in the event.
+
+        Design note on per-directory flavor files
+        ------------------------------------------
+        For a process such as ``p p > W+ W-, W+ > j j, W- > j j`` MadSpin
+        generates one full-ME subprocess directory per distinct decay-product
+        combination (e.g. W+→ud~+W-→u~d lives in its own directory, as does
+        W+→ud~+W-→c~s, etc.).  Each directory's ``flavor_ms.inc`` contains
+        NFLAVS entries equal to the number of valid initial-state variants for
+        *that one specific decay combination* (typically 4 for ``p p`` → 4
+        initial-quark combinations).  A single call to this method therefore
+        returns one matching index from that directory's flavor list.
+
+        The caller (``get_max_weight_from_fortran``) iterates over *all* decay
+        dicos for the production topology, so the complete set of compatible
+        decay combinations is covered across all calls.
+
+        Args:
+            decay_me       : the decay channel dico (keys: 'flavor_groups_full',
+                             'prod2full', ...).
+            event_map      : mapping from 0-based production position to
+                             0-based event particle index.
+            production_tag : optional; used only as fallback when
+                             ``flavor_groups_full`` is absent, forwarded to
+                             ``get_full_flavor_index``.
 
         Returns:
-            compatible_indices : list of 1-based group indices
-            rel_brs            : list of BR factors, one per compatible group
+            List of 1-based integer flavor-group indices that are compatible
+            with the current event.  Never empty: falls back to [1] when no
+            flavor-group data is available.
         """
         flavor_groups_full = decay_me.get('flavor_groups_full', [])
-        decay_br = decay_me.get('br', 1.0)
         if not flavor_groups_full:
-            # No merged-particle flavor data – single group
+            # No merged-particle flavor data – single group; use legacy helper
             flavor_index_full = self.get_full_flavor_index(
                 production_tag, decay_me, event_map)
-            return [flavor_index_full], [decay_br]
+            return [flavor_index_full]
 
         prod2full = decay_me.get('prod2full', [])
 
@@ -3433,7 +3459,7 @@ class decay_all_events(object):
         pos_to_pid = {}
         if prod2full:
             for prod_pos, full_pos in enumerate(prod2full):
-                if full_pos > 0:  # external particle in the full ME
+                if full_pos > 0:  # positive entry = external particle
                     evt_pos = event_map.get(prod_pos, prod_pos)
                     pid = self.curr_event.particle[evt_pos + 1]['pid']
                     pos_to_pid[full_pos - 1] = abs(pid)  # 0-based
@@ -3447,14 +3473,36 @@ class decay_all_events(object):
                             for pos, actual_pid in pos_to_pid.items()
                             if pos < len(flav_tuple))):
                     compatible.append(group_idx + 1)  # 1-based
-                    break  # found a match in this group
+                    break  # one match per group is sufficient
 
         if not compatible:
-            # No match found – fall back to the single best-match group
+            # No match – fall back to the legacy single best-match index
             flavor_index_full = self.get_full_flavor_index(
                 production_tag, decay_me, event_map)
-            return [flavor_index_full], [decay_br]
+            return [flavor_index_full]
 
+        return compatible
+
+    def get_compatible_flavor_data(self, production_tag, decay_me, event_map):
+        """Return (compatible_indices, rel_brs) for full-ME flavor groups
+        compatible with the current event's production particles.
+
+        This is a thin wrapper around :meth:`get_compatible_flavor_indices`
+        that attaches the per-channel branching ratio.  The two concerns are
+        kept separate so that the pure flavor-matching logic can be unit-tested
+        independently.
+
+        The BR factor is the already-computed value stored on the decay channel
+        (``decay_me['br']``).  It is *not* normalised within the compatible set
+        so that each maxweight entry can be correctly scaled.
+
+        Returns:
+            compatible_indices : list of 1-based group indices
+            rel_brs            : list of BR factors, one per compatible group
+        """
+        decay_br = decay_me.get('br', 1.0)
+        compatible = self.get_compatible_flavor_indices(
+            decay_me, event_map, production_tag=production_tag)
         return compatible, [decay_br] * len(compatible)
 
     def compile(self):
