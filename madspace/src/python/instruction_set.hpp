@@ -74,12 +74,18 @@ void add_instructions(py::classh<FunctionBuilder>& fb) {
     fb.def("two_to_two_particle_scattering_inverse", &FunctionBuilder::two_to_two_particle_scattering_inverse, py::arg("p1"), py::arg("p2"), py::arg("pa"), py::arg("pb"));
     fb.def("two_to_three_particle_scattering", &FunctionBuilder::two_to_three_particle_scattering, py::arg("phi_choice"), py::arg("pa"), py::arg("pb"), py::arg("p3"), py::arg("s23"), py::arg("t1_abs"), py::arg("m1"), py::arg("m2"));
     fb.def("two_to_three_particle_scattering_inverse", &FunctionBuilder::two_to_three_particle_scattering_inverse, py::arg("p1"), py::arg("p2"), py::arg("p3"), py::arg("pa"), py::arg("pb"), py::arg("t1_abs"), py::arg("s23"));
+    fb.def("double_t_scattering", &FunctionBuilder::double_t_scattering, py::arg("r_phi"), py::arg("pa"), py::arg("pb"), py::arg("t1_abs"), py::arg("t2_abs"), py::arg("m1"));
+    fb.def("double_t_scattering_inverse", &FunctionBuilder::double_t_scattering_inverse, py::arg("p1"), py::arg("p2"), py::arg("pa"), py::arg("pb"));
     fb.def("three_body_decay_com", &FunctionBuilder::three_body_decay_com, py::arg("r_e1"), py::arg("r_e2"), py::arg("r_phi"), py::arg("r_cos_theta"), py::arg("r_beta"), py::arg("m0"), py::arg("m1"), py::arg("m2"), py::arg("m3"));
     fb.def("three_body_decay_com_inverse", &FunctionBuilder::three_body_decay_com_inverse, py::arg("p1"), py::arg("p2"), py::arg("p3"));
     fb.def("three_body_decay", &FunctionBuilder::three_body_decay, py::arg("r_e1"), py::arg("r_e2"), py::arg("r_phi"), py::arg("r_cos_theta"), py::arg("r_beta"), py::arg("m0"), py::arg("m1"), py::arg("m2"), py::arg("m3"), py::arg("p0"));
     fb.def("three_body_decay_inverse", &FunctionBuilder::three_body_decay_inverse, py::arg("p1"), py::arg("p2"), py::arg("p3"));
     fb.def("t_inv_min_max", &FunctionBuilder::t_inv_min_max, py::arg("pa"), py::arg("pb"), py::arg("m1"), py::arg("m2"));
     fb.def("t_inv_value_and_min_max", &FunctionBuilder::t_inv_value_and_min_max, py::arg("pa"), py::arg("pb"), py::arg("p1"), py::arg("p2"));
+    fb.def("t1_inv_min_max_doublet", &FunctionBuilder::t1_inv_min_max_doublet, py::arg("pa"), py::arg("pb"), py::arg("m1"), py::arg("mir_min"));
+    fb.def("t1_inv_value_and_min_max_doublet", &FunctionBuilder::t1_inv_value_and_min_max_doublet, py::arg("pa"), py::arg("pb"), py::arg("p1"), py::arg("mir_min"));
+    fb.def("t2_inv_min_max_doublet", &FunctionBuilder::t2_inv_min_max_doublet, py::arg("pa"), py::arg("pb"), py::arg("m1"), py::arg("mir_min"), py::arg("t1_abs"));
+    fb.def("t2_inv_value_and_min_max_doublet", &FunctionBuilder::t2_inv_value_and_min_max_doublet, py::arg("pa"), py::arg("pb"), py::arg("p1"), py::arg("mir_min"), py::arg("t1_abs"));
     fb.def("s23_min_max", &FunctionBuilder::s23_min_max, py::arg("pa"), py::arg("pb"), py::arg("p3"), py::arg("t1_abs"), py::arg("m1"), py::arg("m2"));
     fb.def("s23_value_and_min_max", &FunctionBuilder::s23_value_and_min_max, py::arg("pa"), py::arg("pb"), py::arg("p3"), py::arg("t1_abs"), py::arg("p1"), py::arg("p2"));
     fb.def("invariants_from_momenta", &FunctionBuilder::invariants_from_momenta, py::arg("p_ext"), py::arg("factors"));

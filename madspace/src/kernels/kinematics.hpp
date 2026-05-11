@@ -107,6 +107,31 @@ t_inv_min_max(FVal<T> s, FVal<T> ma_2, FVal<T> mb_2, FVal<T> m1_2, FVal<T> m2_2)
 }
 
 template <typename T>
+KERNELSPEC Pair<FVal<T>, FVal<T>>
+t1_inv_min_max_doublet(FVal<T> s, FVal<T> m1_2, FVal<T> mir_min_2) {
+    // |t1| bounds for pa+pb -> p_i + p_ir with massless pa,pb, fixed m_i,
+    // and m_ir >= mir_min. Same shape as standard t bounds with
+    // ma=mb=0, m2=mir_min.
+    return t_inv_min_max<T>(s, 0., 0., m1_2, mir_min_2);
+}
+
+template <typename T>
+KERNELSPEC Pair<FVal<T>, FVal<T>>
+t2_inv_min_max_doublet(FVal<T> s, FVal<T> m1_2, FVal<T> mir_min_2, FVal<T> t1_abs) {
+    // |t2| bounds given fixed s, m_i, mir_min, |t1|.
+    // Derivation (abs-value convention): from the signed-t formulas in the
+    // Fortran double_t, flip both signs.
+    //   t2_min_abs = m_i^2 * (s - t1_abs - m_i^2) / (m_i^2 + t1_abs)
+    //   t2_max_abs = s - t1_abs - m_i^2 - mir_min^2
+    auto denom = m1_2 + t1_abs + EPS;
+    auto t2_min_raw = m1_2 * (s - t1_abs - m1_2) / denom;
+    auto t2_max_raw = s - t1_abs - m1_2 - mir_min_2;
+    auto t2_min = max(t2_min_raw, 0.);
+    auto t2_max = where(t2_max_raw > t2_min, t2_max_raw, t2_min + EPS);
+    return {t2_min, t2_max};
+}
+
+template <typename T>
 KERNELSPEC FVal<T> lsquare(FourMom<T> p) {
     return p[0] * p[0] - p[1] * p[1] - p[2] * p[2] - p[3] * p[3];
 }
@@ -482,6 +507,93 @@ KERNELSPEC void kernel_invariants_from_momenta(
         }
         invariants[i] = lsquare<T>(p_sum);
     }
+}
+
+template <typename T>
+KERNELSPEC void kernel_t1_inv_min_max_doublet(
+    FIn<T, 1> pa,
+    FIn<T, 1> pb,
+    FIn<T, 0> m1,
+    FIn<T, 0> mir_min,
+    FOut<T, 0> t_min,
+    FOut<T, 0> t_max
+) {
+    FourMom<T> p_tot;
+    for (int i = 0; i < 4; ++i) {
+        p_tot[i] = pa[i] + pb[i];
+    }
+    auto s = lsquare<T>(p_tot);
+    auto bounds = t1_inv_min_max_doublet<T>(s, m1 * m1, mir_min * mir_min);
+    t_min = bounds.first;
+    t_max = bounds.second;
+}
+
+template <typename T>
+KERNELSPEC void kernel_t1_inv_value_and_min_max_doublet(
+    FIn<T, 1> pa,
+    FIn<T, 1> pb,
+    FIn<T, 1> p1,
+    FIn<T, 0> mir_min,
+    FOut<T, 0> t_abs,
+    FOut<T, 0> t_min,
+    FOut<T, 0> t_max
+) {
+    FourMom<T> pa1, p_tot;
+    for (int i = 0; i < 4; ++i) {
+        pa1[i] = pa[i] - p1[i];
+        p_tot[i] = pa[i] + pb[i];
+    }
+    auto s = lsquare<T>(p_tot);
+    auto m1_2 = lsquare<T>(load_mom<T>(p1));
+    auto bounds = t1_inv_min_max_doublet<T>(s, m1_2, mir_min * mir_min);
+    t_min = bounds.first;
+    t_max = bounds.second;
+    t_abs = -lsquare<T>(pa1);
+}
+
+template <typename T>
+KERNELSPEC void kernel_t2_inv_min_max_doublet(
+    FIn<T, 1> pa,
+    FIn<T, 1> pb,
+    FIn<T, 0> m1,
+    FIn<T, 0> mir_min,
+    FIn<T, 0> t1_abs,
+    FOut<T, 0> t_min,
+    FOut<T, 0> t_max
+) {
+    FourMom<T> p_tot;
+    for (int i = 0; i < 4; ++i) {
+        p_tot[i] = pa[i] + pb[i];
+    }
+    auto s = lsquare<T>(p_tot);
+    auto bounds =
+        t2_inv_min_max_doublet<T>(s, m1 * m1, mir_min * mir_min, t1_abs);
+    t_min = bounds.first;
+    t_max = bounds.second;
+}
+
+template <typename T>
+KERNELSPEC void kernel_t2_inv_value_and_min_max_doublet(
+    FIn<T, 1> pa,
+    FIn<T, 1> pb,
+    FIn<T, 1> p1,
+    FIn<T, 0> mir_min,
+    FIn<T, 0> t1_abs,
+    FOut<T, 0> t_abs,
+    FOut<T, 0> t_min,
+    FOut<T, 0> t_max
+) {
+    FourMom<T> pb1, p_tot;
+    for (int i = 0; i < 4; ++i) {
+        pb1[i] = pb[i] - p1[i];
+        p_tot[i] = pa[i] + pb[i];
+    }
+    auto s = lsquare<T>(p_tot);
+    auto m1_2 = lsquare<T>(load_mom<T>(p1));
+    auto bounds = t2_inv_min_max_doublet<T>(s, m1_2, mir_min * mir_min, t1_abs);
+    t_min = bounds.first;
+    t_max = bounds.second;
+    t_abs = -lsquare<T>(pb1);
 }
 
 template <typename T>

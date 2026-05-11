@@ -438,6 +438,17 @@ PYBIND11_MODULE(_madspace_py, m) {
             py::arg("width") = 0.
         );
 
+    py::classh<DoubleT, Mapping>(m, "DoubleT")
+        .def(
+            py::init<double, double, double, double, double, double>(),
+            py::arg("t1_invariant_power") = 0.,
+            py::arg("t1_mass") = 0.,
+            py::arg("t1_width") = 0.,
+            py::arg("t2_invariant_power") = 0.,
+            py::arg("t2_mass") = 0.,
+            py::arg("t2_width") = 0.
+        );
+
     py::classh<ThreeBodyDecay, Mapping>(m, "ThreeBodyDecay")
         .def(py::init<bool>(), py::arg("com"));
 
