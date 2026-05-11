@@ -4056,11 +4056,14 @@ class decay_all_events(object):
         ensuring maxweight_j >= max_PS[M_full(j)*jac/M_prod] for every j.
         """
         p, p_str = self.curr_event.give_momenta(event_map)
+        misc.sprint(production_tag)
         if production_tag and decay_me:
             flavor_index_prod = self.curr_event.get_flavor_index(
                 self.all_ME[production_tag].get('flavor_groups_prod', []), event_map)
             compatible_indices, rel_brs = self.get_compatible_flavor_data(
                 production_tag, decay_me, event_map)
+            misc.sprint(('Compatible flavor groups for production tag %s: %s' %
+                         (flavor_index_prod, compatible_indices)))
             # Use the first compatible index as the header field (Fortran ignores
             # it in mode=1 when it reads the explicit compatible-flavor list).
             flavor_index_full = compatible_indices[0]
