@@ -188,7 +188,7 @@ case 61:
     batch_foreach<tensor_foreach<kernel_double_t_scattering<GpuTypes>, 6, 3, 1>, 6, 3>(instr, locals, device);
     break;
 case 62:
-    batch_foreach<tensor_foreach<kernel_double_t_scattering_inverse<GpuTypes>, 4, 3, 1>, 4, 3>(instr, locals, device);
+    batch_foreach<tensor_foreach<kernel_double_t_scattering_inverse<GpuTypes>, 4, 2, 1>, 4, 2>(instr, locals, device);
     break;
 case 63:
     batch_foreach<tensor_foreach<kernel_three_body_decay_com<GpuTypes>, 9, 4, 1>, 9, 4>(instr, locals, device);
@@ -212,13 +212,13 @@ case 69:
     batch_foreach<tensor_foreach<kernel_t1_inv_min_max_doublet<GpuTypes>, 4, 2, 1>, 4, 2>(instr, locals, device);
     break;
 case 70:
-    batch_foreach<tensor_foreach<kernel_t1_inv_value_and_min_max_doublet<GpuTypes>, 4, 3, 1>, 4, 3>(instr, locals, device);
+    batch_foreach<tensor_foreach<kernel_t1_inv_value_and_min_max_doublet<GpuTypes>, 5, 3, 1>, 5, 3>(instr, locals, device);
     break;
 case 71:
     batch_foreach<tensor_foreach<kernel_t2_inv_min_max_doublet<GpuTypes>, 5, 2, 1>, 5, 2>(instr, locals, device);
     break;
 case 72:
-    batch_foreach<tensor_foreach<kernel_t2_inv_value_and_min_max_doublet<GpuTypes>, 5, 3, 1>, 5, 3>(instr, locals, device);
+    batch_foreach<tensor_foreach<kernel_t2_inv_value_and_min_max_doublet<GpuTypes>, 6, 3, 1>, 6, 3>(instr, locals, device);
     break;
 case 73:
     batch_foreach<tensor_foreach<kernel_s23_min_max<GpuTypes>, 6, 2, 1>, 6, 2>(instr, locals, device);

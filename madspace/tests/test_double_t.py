@@ -72,7 +72,7 @@ def input_points(rng, request):
 
     # m1: the fixed single-particle mass
     # mir_min: lower bound on recoil mass (e.g. sum of constituent masses).
-    # Pick mir_min well below the sqrt(s) so there's room for the recoil.
+    # Pick mir_min well below the sqrt(s) so there\'s room for the recoil.
     m1 = rng.uniform(1.0, 50.0, N)
     mir_min = rng.uniform(50.0, 200.0, N)
 
@@ -124,9 +124,13 @@ def test_momentum_conservation(input_points):
         input_points.r_phi,
         input_points.r_t1,
         input_points.r_t2,
-        input_points.m1,
     ]
-    conditions = [input_points.pa, input_points.pb, input_points.mir_min]
+    conditions = [
+        input_points.pa,
+        input_points.pb,
+        input_points.m1,
+        input_points.mir_min,
+    ]
 
     p1, p2, det = mapping.map_forward(inputs, conditions)
     assert p1 + p2 == approx(input_points.pa + input_points.pb)
@@ -139,9 +143,13 @@ def test_on_shell_mass(input_points):
         input_points.r_phi,
         input_points.r_t1,
         input_points.r_t2,
-        input_points.m1,
     ]
-    conditions = [input_points.pa, input_points.pb, input_points.mir_min]
+    conditions = [
+        input_points.pa,
+        input_points.pb,
+        input_points.m1,
+        input_points.mir_min,
+    ]
 
     p1, p2, det = mapping.map_forward(inputs, conditions)
     assert mass(p1) == approx(input_points.m1)
@@ -156,9 +164,13 @@ def test_recoil_mass_minimum(input_points):
         input_points.r_phi,
         input_points.r_t1,
         input_points.r_t2,
-        input_points.m1,
     ]
-    conditions = [input_points.pa, input_points.pb, input_points.mir_min]
+    conditions = [
+        input_points.pa,
+        input_points.pb,
+        input_points.m1,
+        input_points.mir_min,
+    ]
 
     p1, p2, det = mapping.map_forward(inputs, conditions)
     m_ir = mass(p2)
@@ -173,9 +185,13 @@ def test_inverse(input_points):
         input_points.r_phi,
         input_points.r_t1,
         input_points.r_t2,
-        input_points.m1,
     ]
-    conditions = [input_points.pa, input_points.pb, input_points.mir_min]
+    conditions = [
+        input_points.pa,
+        input_points.pb,
+        input_points.m1,
+        input_points.mir_min,
+    ]
 
     p1, p2, det = mapping.map_forward(inputs, conditions)
     *inv_inputs, inv_det = mapping.map_inverse([p1, p2], conditions)
@@ -186,40 +202,64 @@ def test_inverse(input_points):
         assert inp == approx(inv_inp), f"mismatch in input index {i}"
 
 
-def test_phase_space_volume(fixed_input_points):
-    """For massless beams and the double-t parameterization, the phase-space
-    volume over all (t1, t2, phi) at fixed (s, m1, mir_min) should match the
-    analytic 2-body phase-space volume integrated against the constraint
-    that m_ir >= mir_min.
+def test_phase_space_volume_analytic(fixed_input_points):
+    """The integral of DoubleT\'s det over (r_phi, r_t1, r_t2) should equal
+    the 2-body phase-space volume integrated over m_ir^2 in [mir_min^2,
+    (sqrt(s)-m1)^2]:
 
-    Simpler check: the integral of the det over the (r_phi, r_t1, r_t2)
-    cube should be independent of how we parameterize, i.e. equal the
-    same fixed kinematic volume. We compare it to the standard 2->2 volume
-    pi/(2s) * sqrt(lambda(s, m1^2, mir_min^2)) ... but the recoil mass is
-    NOT fixed in double_t, so this comparison is approximate.
+        V = int_{mir_min^2}^{(sqrt(s)-m1)^2} dm_ir^2 * (pi/(2s)) * sqrt(lambda(s, m1^2, mir^2))
 
-    Instead: just check the determinant has a finite, frame-independent mean
-    with the expected scaling. The mean should be positive and finite."""
+    This matches the 2->2 volume convention (no (2pi)^n factors).
+    """
+    from scipy.integrate import quad
+
     mapping = ms.DoubleT()
-
     inputs = [
         fixed_input_points.r_phi,
         fixed_input_points.r_t1,
         fixed_input_points.r_t2,
-        fixed_input_points.m1,
     ]
     conditions = [
         fixed_input_points.pa,
         fixed_input_points.pb,
+        fixed_input_points.m1,
         fixed_input_points.mir_min,
     ]
     p1, p2, det = mapping.map_forward(inputs, conditions)
 
-    assert np.all(np.isfinite(det))
-    assert np.all(det > 0)
-    # variance should be finite and well below the mean (sanity check on numerics)
-    std_error = np.std(det) / np.sqrt(N)
-    assert std_error < np.mean(det)
+    # All entries of fixed_input_points have the same s, m1, mir_min by construction.
+    pa = fixed_input_points.pa[0]
+    pb = fixed_input_points.pb[0]
+    s = (pa[0] + pb[0]) ** 2 - np.sum((pa[1:] + pb[1:]) ** 2)
+    m1_val = fixed_input_points.m1[0]
+    mir_min_val = fixed_input_points.mir_min[0]
+
+    def lam(s, m1_sq, m2_sq):
+        return (s - m1_sq - m2_sq) ** 2 - 4 * m1_sq * m2_sq
+
+    def integrand(mir_sq):
+        l = lam(s, m1_val ** 2, mir_sq)
+        if l <= 0:
+            return 0.0
+        return np.pi / (2 * s) * np.sqrt(l)
+
+    analytic_volume, _ = quad(
+        integrand,
+        mir_min_val ** 2,
+        (np.sqrt(s) - m1_val) ** 2,
+    )
+
+    mc_volume = np.mean(det)
+    mc_err = np.std(det) / np.sqrt(N)
+
+    # 5-sigma agreement
+    diff = abs(mc_volume - analytic_volume)
+    assert diff < 5 * mc_err, (
+        f"DoubleT volume mismatch: MC = {mc_volume:.6e} +/- {mc_err:.6e}, "
+        f"analytic = {analytic_volume:.6e}, "
+        f"diff = {diff:.4e} ({diff/mc_err:.2f} sigma), "
+        f"ratio MC/analytic = {mc_volume/analytic_volume:.4f}"
+    )
 
 
 def test_inverse_lab_specifically(rng):
@@ -245,13 +285,127 @@ def test_inverse_lab_specifically(rng):
     r_t1 = rng.random(N)
     r_t2 = rng.random(N)
 
-    inputs = [r_phi, r_t1, r_t2, m1]
-    conditions = [pa, pb, mir_min]
+    inputs = [r_phi, r_t1, r_t2]
+    conditions = [pa, pb, m1, mir_min]
 
     p1, p2, det = mapping.map_forward(inputs, conditions)
     *inv_inputs, inv_det = mapping.map_inverse([p1, p2], conditions)
 
-    names = ["r_phi", "r_t1", "r_t2", "m1"]
+    names = ["r_phi", "r_t1", "r_t2"]
     for name, inp, inv_inp in zip(names, inputs, inv_inputs):
         assert inp == approx(inv_inp), f"LAB mismatch in {name}"
     assert inv_det == approx(1 / det, rel=1e-5)
+
+
+# ----------------------------
+# Massless m1 stress tests (regression for the t-bound precision issue)
+# ----------------------------
+
+
+@pytest.fixture(
+    params=[
+        ("m1=0",       0.0),
+        ("m1=1e-9",    1e-9),
+        ("m1=1e-6",    1e-6),
+        ("m1=1e-3",    1e-3),
+    ],
+    ids=["m1=0", "m1=1e-9", "m1=1e-6", "m1=1e-3"],
+)
+def massless_input_points(rng, request):
+    """Near-massless m1 stresses the inverse: lsquare(p1) suffers
+    catastrophic cancellation when m1 is recovered from it. With m1 as a
+    condition (Option B fix), this should round-trip cleanly."""
+    _, m1_val = request.param
+
+    pz = np.full(N, 6500.0)  # 13 TeV
+    pa = np.stack([pz, np.zeros(N), np.zeros(N), +pz], axis=1)
+    pb = np.stack([pz, np.zeros(N), np.zeros(N), -pz], axis=1)
+
+    m1 = np.full(N, m1_val)
+    mir_min = np.full(N, 50.0)
+
+    r_phi = rng.random(N)
+    r_t1 = rng.random(N)
+    r_t2 = rng.random(N)
+
+    return InputPoint(r_phi, r_t1, r_t2, m1, mir_min, pa, pb)
+
+
+def test_inverse_massless(massless_input_points):
+    """The DoubleT inverse must round-trip even for m1 ~= 0."""
+    mapping = ms.DoubleT()
+
+    inputs = [
+        massless_input_points.r_phi,
+        massless_input_points.r_t1,
+        massless_input_points.r_t2,
+    ]
+    conditions = [
+        massless_input_points.pa,
+        massless_input_points.pb,
+        massless_input_points.m1,
+        massless_input_points.mir_min,
+    ]
+
+    p1, p2, det = mapping.map_forward(inputs, conditions)
+    *inv_inputs, inv_det = mapping.map_inverse([p1, p2], conditions)
+
+    # det round-trip
+    assert inv_det == approx(1 / det, rel=1e-5)
+
+    # random round-trip; r_t2 used to be the most sensitive (its bounds
+    # depend on t1_abs which depended on the lossy m1^2 recompute).
+    for i, (inp, inv_inp) in enumerate(zip(inputs, inv_inputs)):
+        assert inp == approx(inv_inp, rel=1e-5, abs=1e-8), \
+            f"mismatch in input index {i}"
+
+
+def test_phase_space_volume_massless(rng):
+    """Volume integral should still match analytic for massless m1."""
+    from scipy.integrate import quad
+
+    m1_val = 0.0
+    mir_min_val = 80.0
+    s_val = 13000.0 ** 2
+
+    pa = np.tile([6500.0, 0, 0, 6500.0], (N, 1))
+    pb = np.tile([6500.0, 0, 0, -6500.0], (N, 1))
+
+    m1 = np.full(N, m1_val)
+    mir_min = np.full(N, mir_min_val)
+
+    r_phi = rng.random(N)
+    r_t1 = rng.random(N)
+    r_t2 = rng.random(N)
+
+    mapping = ms.DoubleT()
+    p1, p2, det = mapping.map_forward(
+        [r_phi, r_t1, r_t2],
+        [pa, pb, m1, mir_min],
+    )
+
+    def lam(s, m1_sq, m2_sq):
+        return (s - m1_sq - m2_sq) ** 2 - 4 * m1_sq * m2_sq
+
+    def integrand(mir_sq):
+        l = lam(s_val, m1_val ** 2, mir_sq)
+        if l <= 0:
+            return 0.0
+        return np.pi / (2 * s_val) * np.sqrt(l)
+
+    analytic_volume, _ = quad(
+        integrand,
+        mir_min_val ** 2,
+        (np.sqrt(s_val) - m1_val) ** 2,
+    )
+
+    mc_volume = np.mean(det)
+    mc_err = np.std(det) / np.sqrt(N)
+
+    diff = abs(mc_volume - analytic_volume)
+    assert diff < 5 * mc_err, (
+        f"DoubleT massless volume mismatch: MC = {mc_volume:.6e} +/- "
+        f"{mc_err:.6e}, analytic = {analytic_volume:.6e}, "
+        f"diff = {diff:.4e} ({diff/mc_err:.2f} sigma), "
+        f"ratio MC/analytic = {mc_volume/analytic_volume:.4f}"
+    )

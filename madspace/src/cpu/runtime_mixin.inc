@@ -188,7 +188,7 @@ case 61:
     batch_foreach<tensor_foreach<kernel_double_t_scattering<CpuTypes>, kernel_double_t_scattering<SimdTypes>, 6, 3, 1, DeviceType>, 6, 3>(instr, locals, device);
     break;
 case 62:
-    batch_foreach<tensor_foreach<kernel_double_t_scattering_inverse<CpuTypes>, kernel_double_t_scattering_inverse<SimdTypes>, 4, 3, 1, DeviceType>, 4, 3>(instr, locals, device);
+    batch_foreach<tensor_foreach<kernel_double_t_scattering_inverse<CpuTypes>, kernel_double_t_scattering_inverse<SimdTypes>, 4, 2, 1, DeviceType>, 4, 2>(instr, locals, device);
     break;
 case 63:
     batch_foreach<tensor_foreach<kernel_three_body_decay_com<CpuTypes>, kernel_three_body_decay_com<SimdTypes>, 9, 4, 1, DeviceType>, 9, 4>(instr, locals, device);
@@ -212,13 +212,13 @@ case 69:
     batch_foreach<tensor_foreach<kernel_t1_inv_min_max_doublet<CpuTypes>, kernel_t1_inv_min_max_doublet<SimdTypes>, 4, 2, 1, DeviceType>, 4, 2>(instr, locals, device);
     break;
 case 70:
-    batch_foreach<tensor_foreach<kernel_t1_inv_value_and_min_max_doublet<CpuTypes>, kernel_t1_inv_value_and_min_max_doublet<SimdTypes>, 4, 3, 1, DeviceType>, 4, 3>(instr, locals, device);
+    batch_foreach<tensor_foreach<kernel_t1_inv_value_and_min_max_doublet<CpuTypes>, kernel_t1_inv_value_and_min_max_doublet<SimdTypes>, 5, 3, 1, DeviceType>, 5, 3>(instr, locals, device);
     break;
 case 71:
     batch_foreach<tensor_foreach<kernel_t2_inv_min_max_doublet<CpuTypes>, kernel_t2_inv_min_max_doublet<SimdTypes>, 5, 2, 1, DeviceType>, 5, 2>(instr, locals, device);
     break;
 case 72:
-    batch_foreach<tensor_foreach<kernel_t2_inv_value_and_min_max_doublet<CpuTypes>, kernel_t2_inv_value_and_min_max_doublet<SimdTypes>, 5, 3, 1, DeviceType>, 5, 3>(instr, locals, device);
+    batch_foreach<tensor_foreach<kernel_t2_inv_value_and_min_max_doublet<CpuTypes>, kernel_t2_inv_value_and_min_max_doublet<SimdTypes>, 6, 3, 1, DeviceType>, 6, 3>(instr, locals, device);
     break;
 case 73:
     batch_foreach<tensor_foreach<kernel_s23_min_max<CpuTypes>, kernel_s23_min_max<SimdTypes>, 6, 2, 1, DeviceType>, 6, 2>(instr, locals, device);

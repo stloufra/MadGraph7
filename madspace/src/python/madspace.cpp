@@ -485,7 +485,17 @@ PYBIND11_MODULE(_madspace_py, m) {
             py::init<std::vector<std::size_t>, double>(),
             py::arg("integration_order"),
             py::arg("invariant_power") = 0.
-        );
+        )
+        .def("random_dim", &TPropagatorMapping::random_dim);
+
+    py::classh<TPropagatorMapping23, Mapping>(m, "TPropagatorMapping23")
+        .def(
+            py::init<std::vector<std::size_t>, double, double>(),
+            py::arg("colour_order"),
+            py::arg("t_invariant_power") = 0.8,
+            py::arg("s_invariant_power") = 0.8
+        )
+        .def("random_dim", &TPropagatorMapping23::random_dim);
 
     py::classh<VegasHistogram, FunctionGenerator>(m, "VegasHistogram")
         .def(

@@ -321,14 +321,7 @@ KERNELSPEC void kernel_double_t_scattering(
         p2[i] = p_tot[i] - p1_lab[i];
     }
 
-    // Jacobian: 1 / (4 sqrt(lambda(s_ir, 0, 0))) with pa, pb massless.
-    // λ(s_ir, 0, 0) = s_ir^2, so √λ = s_ir.
-    FourMom<T> p_ir;
-    for (int i = 0; i < 4; ++i) {
-        p_ir[i] = p_tot[i] - p1_lab[i];
-    }
-    auto s_ir = lsquare<T>(p_ir);
-    det = 1. / (4. * max(s_ir, EPS));
+    det = PI / (2. * max(s, EPS));
 }
 
 template <typename T>
@@ -338,7 +331,6 @@ KERNELSPEC void kernel_double_t_scattering_inverse(
     FIn<T, 1> pa,
     FIn<T, 1> pb,
     FOut<T, 0> r_phi,
-    FOut<T, 0> m1,
     FOut<T, 0> det
 ) {
     FourMom<T> p_tot;
@@ -350,9 +342,8 @@ KERNELSPEC void kernel_double_t_scattering_inverse(
     auto p1_canon = rotate_inverse<T>(p1_com, pa_com);
     auto phi = atan2(p1_canon[2], p1_canon[1]);
     r_phi = phi / PI / 2. + 0.5;
-    m1 = sqrt(max(EPS2, lsquare<T>(load_mom<T>(p1))));
-    auto s_ir = lsquare<T>(load_mom<T>(p2));
-    det = 4. * s_ir;
+    auto s = lsquare(p_tot);
+    det = 2. * max(s, EPS) / PI;
 }
 
 } // namespace kernels

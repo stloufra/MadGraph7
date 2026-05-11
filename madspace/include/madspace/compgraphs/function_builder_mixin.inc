@@ -265,9 +265,9 @@ std::array<Value, 3> double_t_scattering(Value r_phi, Value pa, Value pb, Value 
     return {output_vector[0], output_vector[1], output_vector[2]};
 }
 
-std::array<Value, 3> double_t_scattering_inverse(Value p1, Value p2, Value pa, Value pb) {
+std::array<Value, 2> double_t_scattering_inverse(Value p1, Value p2, Value pa, Value pb) {
     auto output_vector = instruction("double_t_scattering_inverse", {p1, p2, pa, pb});
-    return {output_vector[0], output_vector[1], output_vector[2]};
+    return {output_vector[0], output_vector[1]};
 }
 
 std::array<Value, 4> three_body_decay_com(Value r_e1, Value r_e2, Value r_phi, Value r_cos_theta, Value r_beta, Value m0, Value m1, Value m2, Value m3) {
@@ -305,8 +305,8 @@ std::array<Value, 2> t1_inv_min_max_doublet(Value pa, Value pb, Value m1, Value 
     return {output_vector[0], output_vector[1]};
 }
 
-std::array<Value, 3> t1_inv_value_and_min_max_doublet(Value pa, Value pb, Value p1, Value mir_min) {
-    auto output_vector = instruction("t1_inv_value_and_min_max_doublet", {pa, pb, p1, mir_min});
+std::array<Value, 3> t1_inv_value_and_min_max_doublet(Value pa, Value pb, Value p1, Value m1, Value mir_min) {
+    auto output_vector = instruction("t1_inv_value_and_min_max_doublet", {pa, pb, p1, m1, mir_min});
     return {output_vector[0], output_vector[1], output_vector[2]};
 }
 
@@ -315,8 +315,8 @@ std::array<Value, 2> t2_inv_min_max_doublet(Value pa, Value pb, Value m1, Value 
     return {output_vector[0], output_vector[1]};
 }
 
-std::array<Value, 3> t2_inv_value_and_min_max_doublet(Value pa, Value pb, Value p1, Value mir_min, Value t1_abs) {
-    auto output_vector = instruction("t2_inv_value_and_min_max_doublet", {pa, pb, p1, mir_min, t1_abs});
+std::array<Value, 3> t2_inv_value_and_min_max_doublet(Value pa, Value pb, Value p1, Value m1, Value mir_min, Value t1_abs) {
+    auto output_vector = instruction("t2_inv_value_and_min_max_doublet", {pa, pb, p1, m1, mir_min, t1_abs});
     return {output_vector[0], output_vector[1], output_vector[2]};
 }
 

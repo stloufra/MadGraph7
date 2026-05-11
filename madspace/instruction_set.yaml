@@ -1013,9 +1013,6 @@ double_t_scattering_inverse:
     - name: r_phi
       type: [float]
       desc:
-    - name: m1
-      type: [float]
-      desc:
     - name: det
       type: [float]
       desc:
@@ -1278,6 +1275,9 @@ t1_inv_value_and_min_max_doublet:
     - name: p1
       type: [float, 4]
       desc:
+    - name: m1
+      type: [float]
+      desc:
     - name: mir_min
       type: [float]
       desc:
@@ -1327,6 +1327,9 @@ t2_inv_value_and_min_max_doublet:
       desc:
     - name: p1
       type: [float, 4]
+      desc:
+    - name: m1
+      type: [float]
       desc:
     - name: mir_min
       type: [float]

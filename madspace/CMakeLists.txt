@@ -137,6 +137,7 @@ add_library(
     src/phasespace/luminosity.cpp
     src/phasespace/topology.cpp
     src/phasespace/t_propagator_mapping.cpp
+    src/phasespace/t_propagator_mapping_23.cpp
     src/phasespace/phasespace.cpp
     src/phasespace/multichannel.cpp
     src/phasespace/madnis.cpp
@@ -189,6 +190,7 @@ add_library(
     include/madspace/phasespace/luminosity.hpp
     include/madspace/phasespace/topology.hpp
     include/madspace/phasespace/t_propagator_mapping.hpp
+    include/madspace/phasespace/t_propagator_mapping_23.hpp
     include/madspace/phasespace/phasespace.hpp
     include/madspace/phasespace/multichannel.hpp
     include/madspace/phasespace/madnis.hpp

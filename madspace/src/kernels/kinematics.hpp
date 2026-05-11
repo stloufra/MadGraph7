@@ -533,6 +533,7 @@ KERNELSPEC void kernel_t1_inv_value_and_min_max_doublet(
     FIn<T, 1> pa,
     FIn<T, 1> pb,
     FIn<T, 1> p1,
+    FIn<T, 0> m1,
     FIn<T, 0> mir_min,
     FOut<T, 0> t_abs,
     FOut<T, 0> t_min,
@@ -544,8 +545,7 @@ KERNELSPEC void kernel_t1_inv_value_and_min_max_doublet(
         p_tot[i] = pa[i] + pb[i];
     }
     auto s = lsquare<T>(p_tot);
-    auto m1_2 = lsquare<T>(load_mom<T>(p1));
-    auto bounds = t1_inv_min_max_doublet<T>(s, m1_2, mir_min * mir_min);
+    auto bounds = t1_inv_min_max_doublet<T>(s, m1 * m1, mir_min * mir_min);
     t_min = bounds.first;
     t_max = bounds.second;
     t_abs = -lsquare<T>(pa1);
@@ -577,6 +577,7 @@ KERNELSPEC void kernel_t2_inv_value_and_min_max_doublet(
     FIn<T, 1> pa,
     FIn<T, 1> pb,
     FIn<T, 1> p1,
+    FIn<T, 0> m1,   
     FIn<T, 0> mir_min,
     FIn<T, 0> t1_abs,
     FOut<T, 0> t_abs,
@@ -589,8 +590,7 @@ KERNELSPEC void kernel_t2_inv_value_and_min_max_doublet(
         p_tot[i] = pa[i] + pb[i];
     }
     auto s = lsquare<T>(p_tot);
-    auto m1_2 = lsquare<T>(load_mom<T>(p1));
-    auto bounds = t2_inv_min_max_doublet<T>(s, m1_2, mir_min * mir_min, t1_abs);
+    auto bounds = t2_inv_min_max_doublet<T>(s, m1 * m1, mir_min * mir_min, t1_abs);
     t_min = bounds.first;
     t_max = bounds.second;
     t_abs = -lsquare<T>(pb1);

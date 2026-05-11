@@ -83,9 +83,9 @@ void add_instructions(py::classh<FunctionBuilder>& fb) {
     fb.def("t_inv_min_max", &FunctionBuilder::t_inv_min_max, py::arg("pa"), py::arg("pb"), py::arg("m1"), py::arg("m2"));
     fb.def("t_inv_value_and_min_max", &FunctionBuilder::t_inv_value_and_min_max, py::arg("pa"), py::arg("pb"), py::arg("p1"), py::arg("p2"));
     fb.def("t1_inv_min_max_doublet", &FunctionBuilder::t1_inv_min_max_doublet, py::arg("pa"), py::arg("pb"), py::arg("m1"), py::arg("mir_min"));
-    fb.def("t1_inv_value_and_min_max_doublet", &FunctionBuilder::t1_inv_value_and_min_max_doublet, py::arg("pa"), py::arg("pb"), py::arg("p1"), py::arg("mir_min"));
+    fb.def("t1_inv_value_and_min_max_doublet", &FunctionBuilder::t1_inv_value_and_min_max_doublet, py::arg("pa"), py::arg("pb"), py::arg("p1"), py::arg("m1"), py::arg("mir_min"));
     fb.def("t2_inv_min_max_doublet", &FunctionBuilder::t2_inv_min_max_doublet, py::arg("pa"), py::arg("pb"), py::arg("m1"), py::arg("mir_min"), py::arg("t1_abs"));
-    fb.def("t2_inv_value_and_min_max_doublet", &FunctionBuilder::t2_inv_value_and_min_max_doublet, py::arg("pa"), py::arg("pb"), py::arg("p1"), py::arg("mir_min"), py::arg("t1_abs"));
+    fb.def("t2_inv_value_and_min_max_doublet", &FunctionBuilder::t2_inv_value_and_min_max_doublet, py::arg("pa"), py::arg("pb"), py::arg("p1"), py::arg("m1"), py::arg("mir_min"), py::arg("t1_abs"));
     fb.def("s23_min_max", &FunctionBuilder::s23_min_max, py::arg("pa"), py::arg("pb"), py::arg("p3"), py::arg("t1_abs"), py::arg("m1"), py::arg("m2"));
     fb.def("s23_value_and_min_max", &FunctionBuilder::s23_value_and_min_max, py::arg("pa"), py::arg("pb"), py::arg("p3"), py::arg("t1_abs"), py::arg("p1"), py::arg("p2"));
     fb.def("invariants_from_momenta", &FunctionBuilder::invariants_from_momenta, py::arg("p_ext"), py::arg("factors"));

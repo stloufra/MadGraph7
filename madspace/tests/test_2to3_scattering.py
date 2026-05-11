@@ -41,7 +41,7 @@ def boost(k: np.ndarray, p_boost: np.ndarray, inverse: bool = False) -> np.ndarr
 # ----------------------------
 
 # N = 50_000  # keep this moderate for CI speed; bump locally for tighter stats
-N = 10_000  # keep this moderate for CI speed; bump locally for tighter stats
+N = 100_000  # keep this moderate for CI speed; bump locally for tighter stats
 
 InputPoint = namedtuple(
     "InputPoint",
