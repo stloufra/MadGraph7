@@ -3168,6 +3168,22 @@ class decay_all_events(object):
                                                                   flavor_combos,
                                                                   pdg_to_group_pos),
                                          'flavor_groups_decay': flavor_groups}
+        # Rebuild full-ME flavor data from the production flavor tuples and the
+        # decay-only flavor tuples.  This preserves the full cross product of
+        # compatible decay channels (e.g. 4 x 4 = 16 entries for WW -> 4j)
+        # instead of the canonical subset returned directly by the grouped full
+        # matrix element.
+        for production_tag, prod_data in self.all_ME.items():
+            for decay_dico in prod_data['decays']:
+                full_fdata = self.build_full_flavor_data(
+                    production_tag, decay_dico['matrix_element'])
+                if full_fdata is None:
+                    continue
+                nexternal, flavor_combos, pdg_to_group_pos, flavor_groups = \
+                    full_fdata
+                decay_dico['flavor_combos_full'] = (nexternal, flavor_combos,
+                                                    pdg_to_group_pos)
+                decay_dico['flavor_groups_full'] = flavor_groups
         #
 #        if __debug__:
 #            #check that all decay matrix element correspond to a decay only
@@ -3354,6 +3370,107 @@ class decay_all_events(object):
         flavor_groups = [[list(flv)] for flv in all_flav_flat]
         return nexternal, flavor_combos, pdg_to_group_pos, flavor_groups
 
+    @staticmethod
+    def _strip_process_number(shell_string):
+        """Remove the leading process-number prefix from a shell string."""
+        if '_' in shell_string:
+            prefix, suffix = shell_string.split('_', 1)
+            if prefix.isdigit():
+                return suffix
+        return shell_string
+
+    def _get_decay_flavor_entry(self, decay_process):
+        """Return the decay-only flavor-data entry matching ``decay_process``."""
+        shell_string = decay_process.shell_string()
+        shell_string_pdg = decay_process.shell_string(pdg_order=True)
+        stripped_shell = self._strip_process_number(shell_string)
+        stripped_shell_pdg = self._strip_process_number(shell_string_pdg)
+
+        for key, decay_info in self.all_decay.items():
+            stripped_key = self._strip_process_number(key)
+            stripped_tag = self._strip_process_number(decay_info.get('tag', ''))
+            if (stripped_key == stripped_shell or stripped_key == stripped_shell_pdg or
+                    stripped_tag == stripped_shell or stripped_tag == stripped_shell_pdg):
+                return decay_info
+        return None
+
+    def build_full_flavor_data(self, production_tag, decay_process):
+        """Build full-ME flavor data from production and decay flavor blocks.
+
+        The full subprocess generated for a decay-chain process such as
+        ``p p > W+ W-, W+ > j j, W- > j j`` is a *single* matrix element whose
+        external legs still carry merged-particle IDs.  Relying on
+        ``matrix_element.get_external_flavors()`` only returns the canonical
+        flavor assignments kept by the grouped ME, which misses the cross
+        product of all compatible decay-flavor combinations.  For WW -> 4j
+        this collapses the expected 16 full entries down to 4.
+
+        To recover the full list we combine:
+          - the production flavor tuples already stored for ``production_tag``,
+          - the decay-only flavor tuples of each decay chain stored in
+            ``self.all_decay``.
+
+        For each production tuple we replace every decaying production leg by
+        the child flavor positions coming from the matching decay-only tuples,
+        keeping the production leg order used by ``process.get_legs()``.  The
+        resulting full tuples follow the external-leg order of
+        ``process.get_legs_with_decays()``.
+
+        Returns a tuple ``(nexternal, flavor_combos, pdg_to_group_pos,
+        flavor_groups)`` in the same format as :meth:`get_flavor_data_from_me`.
+        """
+        prod_data = self.all_ME[production_tag].get('flavor_combos_prod')
+        if prod_data is None:
+            return None
+
+        proc = decay_process
+        prod_nexternal, prod_combos, pdg_to_group_pos = prod_data
+        if not prod_combos:
+            prod_combos = [[1] * prod_nexternal]
+
+        decay_combo_blocks = []
+        combined_pdg_to_group_pos = dict(pdg_to_group_pos)
+        for dproc in proc.get('decay_chains'):
+            decay_info = self._get_decay_flavor_entry(dproc)
+            if decay_info is None:
+                return None
+            decay_nexternal, decay_combos, decay_pdg_to_group_pos = \
+                decay_info['flavor_combos_decay']
+            if not decay_combos:
+                decay_combos = [[1] * decay_nexternal]
+            decay_combo_blocks.append((dproc, decay_combos))
+            combined_pdg_to_group_pos.update(decay_pdg_to_group_pos)
+
+        if not decay_combo_blocks:
+            flavor_combos = [list(flv) for flv in prod_combos]
+            flavor_groups = [[list(flv)] for flv in flavor_combos]
+            return (prod_nexternal, flavor_combos,
+                    combined_pdg_to_group_pos, flavor_groups)
+
+        full_combos = []
+        for prod_combo in prod_combos:
+            decay_choices = [combos for _, combos in decay_combo_blocks]
+            for selected_decays in itertools.product(*decay_choices):
+                decay_by_pid = collections.defaultdict(list)
+                for (dproc, _), decay_combo in zip(decay_combo_blocks,
+                                                  selected_decays):
+                    decay_by_pid[dproc.get('legs')[0].get('id')].append(decay_combo)
+
+                full_combo = []
+                prod_index = 0
+                for leg in proc.get('legs'):
+                    if leg.get('state') and decay_by_pid[leg.get('id')]:
+                        decay_combo = decay_by_pid[leg.get('id')].pop(0)
+                        full_combo.extend(decay_combo[1:])
+                    else:
+                        full_combo.append(prod_combo[prod_index])
+                    prod_index += 1
+                full_combos.append(full_combo)
+
+        nexternal = len(proc.get_legs_with_decays())
+        flavor_groups = [[list(flv)] for flv in full_combos]
+        return nexternal, full_combos, combined_pdg_to_group_pos, flavor_groups
+
     def get_full_flavor_index(self, production_tag, decay_me, event_map):
         """Determine the 1-based flavor_index_full for the full (production+decay) ME.
 
@@ -3417,20 +3534,14 @@ class decay_all_events(object):
         as external particles in the full ME) has an absolute PDG code equal
         to the corresponding particle in the event.
 
-        Design note on per-directory flavor files
-        ------------------------------------------
-        For a process such as ``p p > W+ W-, W+ > j j, W- > j j`` MadSpin
-        generates one full-ME subprocess directory per distinct decay-product
-        combination (e.g. W+→ud~+W-→u~d lives in its own directory, as does
-        W+→ud~+W-→c~s, etc.).  Each directory's ``flavor_ms.inc`` contains
-        NFLAVS entries equal to the number of valid initial-state variants for
-        *that one specific decay combination* (typically 4 for ``p p`` → 4
-        initial-quark combinations).  A single call to this method therefore
-        returns one matching index from that directory's flavor list.
-
-        The caller (``get_max_weight_from_fortran``) iterates over *all* decay
-        dicos for the production topology, so the complete set of compatible
-        decay combinations is covered across all calls.
+        Design note on full flavor files
+        --------------------------------
+        For a process such as ``p p > W+ W-, W+ > j j, W- > j j`` the full
+        flavor file now contains the full production x decay cross product:
+        4 production entries times 4 compatible decay combinations gives
+        16 full entries.  For a fixed production event (for example u d~)
+        this method therefore returns 4 compatible indices: one per allowed
+        decay-product combination.
 
         Args:
             decay_me       : the decay channel dico (keys: 'flavor_groups_full',

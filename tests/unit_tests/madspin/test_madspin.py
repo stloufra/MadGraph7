@@ -412,6 +412,33 @@ _FLAVOR_GROUPS_WW = [
 _PDG_TO_POS_J = {1: 1, 2: 2, 3: 3, 4: 4}
 
 
+def _get_ww_prod_position_combos():
+    """Return the 4 production position tuples for p p > W+ W-."""
+    return [
+        [1, 1, 1, 1],
+        [2, 2, 1, 1],
+        [3, 3, 1, 1],
+        [4, 4, 1, 1],
+    ]
+
+
+def _get_ww_full_position_combos():
+    """Return the 16 full WW -> jjjj position tuples.
+
+    The ordering follows the flattened full external-leg order:
+      (init1, init2, W+ child1, W+ child2, W- child1, W- child2)
+
+    with W+ children taking one of (2,1) or (4,3), and W- children taking
+    one of (1,2) or (3,4).
+    """
+    full = []
+    for init in (1, 2, 3, 4):
+        for wp_children in ((2, 1), (4, 3)):
+            for wm_children in ((1, 2), (3, 4)):
+                full.append([init, init] + list(wp_children) + list(wm_children))
+    return full
+
+
 # --------------------------------------------------------------------------- #
 #  TestGetCompatibleFlavorIndices – pure flavor-mapping (no BR)               #
 # --------------------------------------------------------------------------- #
@@ -424,19 +451,11 @@ class TestGetCompatibleFlavorIndices(unittest.TestCase):
     production-particle positions match the current event.  No branching-ratio
     information is involved.
 
-    Design note on per-directory flavor files
-    ------------------------------------------
-    For a process such as ``p p > W+ W-, W+ > j j, W- > j j``, MadSpin
-    generates one full-ME subprocess directory per distinct decay-product
-    combination.  Each directory's ``flavor_ms.inc`` contains NFLAVS entries
-    equal to the number of valid initial-state variants for *that one specific
-    decay combination* (typically 4 for ``p p``).  A single call to this
-    method therefore returns one matching index from that file.
-
-    The caller (``get_max_weight_from_fortran``) iterates over *all* decay
-    dicos for the production topology, so the complete set of compatible decay
-    combinations is covered across all calls.  See TestWriteFlavorMsInc for
-    tests that verify the Fortran file content directly.
+    For ``p p > W+ W-, W+ > j j, W- > j j`` the full flavor file now contains
+    the full production x decay cross product: 4 production entries times
+    4 decay combinations = 16 full entries.  For a fixed production event
+    such as u d~, exactly 4 of those full entries are compatible, one per
+    decay-product combination.
     """
 
     def test_no_flavor_groups_returns_single_entry(self):
@@ -694,6 +713,87 @@ class TestGetFlavorDataFromME(unittest.TestCase):
 
 
 # --------------------------------------------------------------------------- #
+#  TestBuildFullFlavorData – combine prod and decay flavor blocks             #
+# --------------------------------------------------------------------------- #
+
+class TestBuildFullFlavorData(unittest.TestCase):
+    """Tests for decay_all_events.build_full_flavor_data."""
+
+    def setUp(self):
+        import tempfile
+        self.tmpdirs = []
+        self.cmd = Cmd.MasterCmd()
+        self.cmd.exec_cmd('import model sm', precmd=True)
+        self.cmd.exec_cmd('define p = g u c d s u~ c~ d~ s~', precmd=True)
+        self.cmd.exec_cmd('define j = u c d s u~ c~ d~ s~', precmd=True)
+        self.cmd.exec_cmd('set group_subprocesses False', precmd=True)
+
+    def tearDown(self):
+        for path in self.tmpdirs:
+            if os.path.isdir(path):
+                shutil.rmtree(path)
+
+    def _new_output_dir(self):
+        import tempfile
+        base = tempfile.mkdtemp(prefix='madspin_test_')
+        self.tmpdirs.append(base)
+        return pjoin(base, 'out')
+
+    def test_ww_jjjj_full_flavor_data_has_16_entries(self):
+        """WW -> jjjj full flavor data must contain 16 entries."""
+
+        # Production ME: 4 entries
+        prod_out = self._new_output_dir()
+        self.cmd.exec_cmd('generate p p > w+ w-', precmd=True)
+        self.cmd.exec_cmd('output standalone_msP %s w+' % prod_out, precmd=True)
+        prod_me = self.cmd._curr_matrix_elements.get_matrix_elements()[0]
+        prod_tag = prod_me.get('processes')[0].get_initial_final_ids()
+        prod_nexternal, prod_flavor_combos, prod_pdg_to_group_pos, _ = \
+            madspin.decay_all_events.get_flavor_data_from_me(prod_me)
+        prod_fdata = (prod_nexternal, prod_flavor_combos,
+                      prod_pdg_to_group_pos)
+
+        # Full ME process object
+        full_out = self._new_output_dir()
+        self.cmd.exec_cmd('generate p p > w+ w-, w+ > j j, w- > j j', precmd=True)
+        self.cmd.exec_cmd('output standalone_msF %s w+' % full_out, precmd=True)
+        full_me = self.cmd._curr_matrix_elements.get_matrix_elements()[0]
+        full_proc = full_me.get('processes')[0]
+
+        # Decay-only MEs for W+ and W-
+        decay_out = self._new_output_dir()
+        self.cmd.exec_cmd('generate w+ > j j', precmd=True)
+        self.cmd.exec_cmd('add process w- > j j', precmd=True)
+        self.cmd.exec_cmd('output standalone_msF %s' % decay_out, precmd=True)
+
+        handler = madspin.decay_all_events.__new__(madspin.decay_all_events)
+        object.__setattr__(handler, 'all_ME', {
+            prod_tag: {'flavor_combos_prod': prod_fdata}
+        })
+        all_decay = {}
+        for decay_me in self.cmd._curr_matrix_elements.get_matrix_elements():
+            decay_proc = decay_me.get('processes')[0]
+            nexternal, flavor_combos, pdg_to_group_pos, flavor_groups = \
+                madspin.decay_all_events.get_flavor_data_from_me(decay_me)
+            all_decay[decay_proc.shell_string()] = {
+                'tag': decay_proc.shell_string(pdg_order=True),
+                'flavor_combos_decay': (nexternal, flavor_combos,
+                                        pdg_to_group_pos),
+                'flavor_groups_decay': flavor_groups,
+            }
+        object.__setattr__(handler, 'all_decay', all_decay)
+
+        nexternal, flavor_combos, _, flavor_groups = \
+            handler.build_full_flavor_data(prod_tag, full_proc)
+
+        self.assertEqual(nexternal, 6)
+        self.assertEqual(len(flavor_combos), 16)
+        self.assertEqual(len(flavor_groups), 16)
+        self.assertEqual(set(tuple(row) for row in flavor_combos),
+                         set(tuple(row) for row in _get_ww_full_position_combos()))
+
+
+# --------------------------------------------------------------------------- #
 #  TestWriteFlavorMsInc – Fortran file content                                #
 # --------------------------------------------------------------------------- #
 
@@ -707,19 +807,10 @@ class TestWriteFlavorMsInc(unittest.TestCase):
     This allows strong, self-contained verification of the flavor-file
     content without requiring a full MadGraph run.
 
-    About the multi-directory design
-    ----------------------------------
-    For ``p p > W+ W-, W+ > j j, W- > j j`` with j = {d, u, s, c}, MadSpin
-    creates one full-ME subprocess directory per distinct (W+, W-) decay
-    combination.  Each directory's flavor_ms.inc has NFLAVS equal to the
-    number of valid initial-state combinations for *that one specific* decay
-    (typically 4 for the four qq~ pairs).  The ``GET_FLAVOR_MS_PROD`` file in
-    each directory contains the same 4 production-level entries.
-
-    Together the four directories cover all 4 x 4 = 16 (initial x decay)
-    combinations.  A single directory file intentionally showing only 4 entries
-    (and NOT 16) is correct by design; the other 3 decay combinations live in
-    their sister directories.
+    For ``p p > W+ W-, W+ > j j, W- > j j`` the expected file layout is now:
+      - ``GET_FLAVOR_MS_PROD``: 4 production entries
+      - ``GET_FLAVOR_MS_FULL``: 16 full entries = 4 production entries times
+        the 4 allowed decay combinations.
     """
 
     def setUp(self):
@@ -759,14 +850,7 @@ class TestWriteFlavorMsInc(unittest.TestCase):
 
     def test_prod_file_nflavs_and_nexternal(self):
         """NFLAVS_MS and NEXTERNAL_MS are written correctly for PROD."""
-        # PROD: 4 initial-state combos for p p -> W+ W-
-        # j = {d, u, s, c}: d=pos1, u=pos2, s=pos3, c=pos4
-        prod_combos = [
-            [1, -1, 24, -24],   # d d~ -> W+ W-
-            [2, -2, 24, -24],   # u u~ -> W+ W-
-            [3, -3, 24, -24],   # s s~ -> W+ W-
-            [4, -4, 24, -24],   # c c~ -> W+ W-
-        ]
+        prod_combos = _get_ww_prod_position_combos()
         flavor_data = {'prod': (4, prod_combos, _PDG_TO_POS_J)}
         content = self._write_and_read(flavor_data)
 
@@ -788,12 +872,7 @@ class TestWriteFlavorMsInc(unittest.TestCase):
         "diagonal" in the sense that both quarks of the same flavour share
         the same group index.
         """
-        prod_combos = [
-            [1, -1, 24, -24],
-            [2, -2, 24, -24],
-            [3, -3, 24, -24],
-            [4, -4, 24, -24],
-        ]
+        prod_combos = _get_ww_prod_position_combos()
         flavor_data = {'prod': (4, prod_combos, _PDG_TO_POS_J)}
         content = self._write_and_read(flavor_data)
 
@@ -808,78 +887,28 @@ class TestWriteFlavorMsInc(unittest.TestCase):
         self.assertEqual(rows[3], [4, 4, 1, 1],
             msg="c c~ initial: expected [4,4,1,1], got %s" % rows[3])
 
-    def test_full_file_single_decay_combination(self):
-        """FULL file for one specific decay has NFLAVS=4 (one entry per
-        initial-state variant, fixed decay products).
-
-        This is the by-design behaviour: each Fortran subprocess directory
-        handles exactly ONE decay-product combination.  For
-        W+ -> u d~, W- -> u~ d, the decay positions in j are:
-          u=pos2, d~->abs(-1)=1->pos1  =>  [2, 1]   for W+ products
-          u~->abs(-2)=2->pos2, d=pos1  =>  [2, 1]   for W- products
-
-        Full layout (6 external particles: init1, init2, j1, j2, j3, j4):
-          d d~  init: [1, 1, 2, 1, 2, 1]
-          u u~  init: [2, 2, 2, 1, 2, 1]
-          s s~  init: [3, 3, 2, 1, 2, 1]
-          c c~  init: [4, 4, 2, 1, 2, 1]
-
-        Note: other directories handle the other three decay combinations
-        (W+ -> u d~ / W- -> c~ s, etc.).
-        """
-        # One specific decay: W+ -> u d~, W- -> u~ d
-        full_combos = [
-            [1, -1,  2, -1, -2,  1],    # d d~  init, W+->u d~, W-->u~ d
-            [2, -2,  2, -1, -2,  1],    # u u~  init
-            [3, -3,  2, -1, -2,  1],    # s s~  init
-            [4, -4,  2, -1, -2,  1],    # c c~  init
-        ]
+    def test_full_file_has_16_entries_for_ww_jjjj(self):
+        """FULL WW -> jjjj file must contain the full 16-entry cross product."""
+        full_combos = _get_ww_full_position_combos()
         flavor_data = {'full': (6, full_combos, _PDG_TO_POS_J)}
         content = self._write_and_read(flavor_data)
 
         self.assertIn('SUBROUTINE GET_FLAVOR_MS_FULL', content)
-        self.assertIn('INTEGER, PARAMETER :: NFLAVS_MS = 4', content)
+        self.assertIn('INTEGER, PARAMETER :: NFLAVS_MS = 16', content)
         self.assertIn('INTEGER, PARAMETER :: NEXTERNAL_MS = 6', content)
 
         rows = self._extract_data_rows(content, 'GET_FLAVOR_MS_FULL')
-        self.assertEqual(len(rows), 4,
-            msg="Expected 4 DATA rows (4 initial-state variants for one "
+        self.assertEqual(len(rows), 16,
+            msg="Expected 16 DATA rows (4 initial-state variants times 4 "
                 "decay combination); got %d" % len(rows))
 
-        # Initial-state positions must match the PROD ordering
-        self.assertEqual(rows[0][:2], [1, 1], msg="d d~ initial")
-        self.assertEqual(rows[1][:2], [2, 2], msg="u u~ initial")
-        self.assertEqual(rows[2][:2], [3, 3], msg="s s~ initial")
-        self.assertEqual(rows[3][:2], [4, 4], msg="c c~ initial")
-
-        # Decay positions must be the same for all entries (one fixed decay)
-        decay_positions = rows[0][2:]
-        for i, row in enumerate(rows):
-            self.assertEqual(row[2:], decay_positions,
-                msg="Decay positions differ between initial-state entries "
-                    "(row %d: %s vs expected %s)" % (i, row[2:], decay_positions))
+        self.assertEqual(set(tuple(row) for row in rows),
+                         set(tuple(row) for row in full_combos))
 
     def test_prod_and_full_initial_positions_consistent(self):
-        """PROD and FULL initial-state group positions must agree for each entry.
-
-        For every flavor index k, FULL[k][0:2] == PROD[k][0:2] (the group
-        positions of the two initial-state quarks are the same in both files).
-        This is the key consistency check: the same event that selects PROD
-        flavor k should also match FULL flavor k (for the appropriate decay).
-        """
-        prod_combos = [
-            [1, -1, 24, -24],
-            [2, -2, 24, -24],
-            [3, -3, 24, -24],
-            [4, -4, 24, -24],
-        ]
-        # One specific decay: W+ -> u d~, W- -> u~ d (all four initial states)
-        full_combos = [
-            [1, -1,  2, -1, -2,  1],
-            [2, -2,  2, -1, -2,  1],
-            [3, -3,  2, -1, -2,  1],
-            [4, -4,  2, -1, -2,  1],
-        ]
+        """Each FULL row must start with one of the 4 PROD initial-state pairs."""
+        prod_combos = _get_ww_prod_position_combos()
+        full_combos = _get_ww_full_position_combos()
         flavor_data = {
             'prod': (4, prod_combos, _PDG_TO_POS_J),
             'full': (6, full_combos, _PDG_TO_POS_J),
@@ -890,10 +919,13 @@ class TestWriteFlavorMsInc(unittest.TestCase):
         full_rows = self._extract_data_rows(content, 'GET_FLAVOR_MS_FULL')
 
         self.assertEqual(len(prod_rows), 4)
-        self.assertEqual(len(full_rows), 4)
+        self.assertEqual(len(full_rows), 16)
 
-        for k in range(4):
-            self.assertEqual(prod_rows[k][:2], full_rows[k][:2],
-                msg="Initial-state positions differ at index %d: "
-                    "PROD=%s, FULL=%s" % (k, prod_rows[k], full_rows[k]))
-
+        prod_initial_pairs = [tuple(row[:2]) for row in prod_rows]
+        full_initial_pairs = [tuple(row[:2]) for row in full_rows]
+        self.assertEqual(set(full_initial_pairs), set(prod_initial_pairs))
+        for pair in prod_initial_pairs:
+            self.assertEqual(full_initial_pairs.count(pair), 4,
+                msg="Expected production initial-state pair %s to appear 4 "
+                    "times in FULL rows, got %d" %
+                    (pair, full_initial_pairs.count(pair)))
