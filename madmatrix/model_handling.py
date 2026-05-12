@@ -1787,27 +1787,27 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
     // ** NB: to have large memory structurs for wavefunctions/amplitudes in all events (no kernel splitting yet)!
     //MemoryBufferWavefunctions w_buffer[nwf]{ neppV };
     // Create memory for both momenta and wavefunctions separately, and later wrap them in ALOHAOBJ
-    fptype_sv pvec_sv[nwf][np4];
-    cxtype_sv w_sv[nwf][nw6]; // particle wavefunctions within Feynman diagrams (nw6 is 4: spin wavefunctions, momenta are no more included, see before)
-    cxtype_sv amp_sv[1];      // invariant amplitude for one given Feynman diagram
+    fptype_momenta_sv pvec_sv[nwf][np4];
+    cxtype_vertex_sv w_sv[nwf][nw6]; // particle wavefunctions within Feynman diagrams (nw6 is 4: spin wavefunctions, momenta are no more included, see before)
+    cxtype_amp_sv amp_sv[1];      // invariant amplitude for one given Feynman diagram
 
     // Wrap the memory into ALOHAOBJ
     ALOHAOBJ aloha_obj[nwf];
     for( int iwf = 0; iwf < nwf; iwf++ ) aloha_obj[iwf] = ALOHAOBJ{pvec_sv[iwf], w_sv[iwf]};
-    fptype* amp_fp;
-    amp_fp = reinterpret_cast<fptype*>( amp_sv );""")
+    fptype_amp* amp_fp;
+    amp_fp = reinterpret_cast<fptype_amp*>( amp_sv );""")
             if fd_gauge:
                 ret_lines.append("""
     // special temporary ALOHAOBJ to hold F/Vtmp values in the combined vertex functions while using the FD gauge
-    fptype_sv pvec_sv_tmp[1][np4];
-    cxtype_sv w_sv_tmp[1][nw6]; 
+    fptype_momenta_sv pvec_sv_tmp[1][np4];
+    cxtype_vertex_sv w_sv_tmp[1][nw6]; 
     ALOHAOBJ aloha_obj_tmp[1];
     aloha_obj_tmp[0] = ALOHAOBJ{pvec_sv_tmp[0], w_sv_tmp[0]};
     
     // special one value to hold tmp vertex value inside the combined vertex functions while using the FD gauge
-    cxtype_sv amp_tmp_sv[1]; //to ensure proper aligment for vector instructions
-    fptype* amp_tmp_fp;
-    amp_tmp_fp = reinterpret_cast<fptype*>( amp_tmp_sv );
+    cxtype_amp_sv amp_tmp_sv[1]; //to ensure proper aligment for vector instructions
+    fptype_amp* amp_tmp_fp;
+    amp_tmp_fp = reinterpret_cast<fptype_amp*>( amp_tmp_sv );
     """)
             ret_lines.append("""
     // Local variables for the given CUDA event (ievt) or C++ event page (ipagV)
