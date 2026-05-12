@@ -4,6 +4,7 @@
 # Further modified by: S. Hageboeck, O. Mattelaer, S. Roiser, J. Teig, A. Valassi, Z. Wettersten (2021-2024).
 # Integrated with the MadGraph7 project in Feb 2026.
 
+import shutil
 import os
 import sys
 import subprocess
@@ -138,6 +139,11 @@ class ProcessExporterMadMatrix(export_cpp.ProcessExporterMG7):
     def copy_template(self, model):
         misc.sprint('Entering ProcessExporterMadMatrix.copy_template (initialise the directory)')
         super().copy_template(model)
+        # Rename Makefile to makefile
+        if self.template_src_make:
+            shutil.move(os.path.join(self.dir_path, "src", "Makefile"), os.path.join(self.dir_path, "src", "makefile"))
+        if self.template_Sub_make:
+            shutil.move(os.path.join(self.dir_path, "SubProcesses", "Makefile"), os.path.join(self.dir_path, "SubProcesses", "makefile"))
 
     # AV - add debug printouts (in addition to the default one from OM's tutorial)
     def generate_subprocess_directory(self, matrix_element, cpp_helas_call_writer, proc_number=None):

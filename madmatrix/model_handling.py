@@ -1862,7 +1862,7 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
         super().generate_process_files()
         # NB: symlink of cudacpp.mk to makefile is overwritten by madevent makefile if this exists (#480)
         # NB: this relies on the assumption that cudacpp code is generated before madevent code
-        files.ln(pjoin(self.path, "..", "Makefile"), self.path, "Makefile")
+        files.ln(pjoin(self.path, "..", "makefile"), self.path, "makefile")
 
     # AV - replace the export_cpp.OneProcessExporterCPP method (add debug printouts and multichannel handling #473) 
     def edit_mgonGPU(self):
