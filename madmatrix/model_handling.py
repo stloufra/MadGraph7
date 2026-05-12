@@ -2086,7 +2086,9 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
 
     def get_flavor_matrix(self, matrix_element):
         """Return the flavor matrix definition lines for this matrix element"""
-        flavor_line = '    static constexpr short flavors[nmaxflavor][npar] = {\n      '; # (this is tFlavors)
+        # Emitted at namespace scope (file-local linkage), so the host-side table
+        # is visible to both the CPPProcess constructor and CPPProcess::flavorPDG.
+        flavor_line = '  static constexpr short flavors[nmaxflavor][npar] = {\n    '; # (this is tFlavors)
         flavor_line_list = []
         for flavors in matrix_element.get_external_flavors_with_iden():
             # get only the index 0 one because the other ones have same matrix element
@@ -2094,7 +2096,7 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
             # so we need to subtract 1 because FORTRAN indices starts from 1, and C++ from zero
             cpp_flavors = list(map(lambda f: f-1, flavors[0]))
             flavor_line_list.append( '{ ' + ', '.join(['%d'] * len(cpp_flavors)) % tuple(cpp_flavors) + ' }' )
-        return flavor_line + ',\n      '.join(flavor_line_list) + ' };'
+        return flavor_line + ',\n    '.join(flavor_line_list) + ' };'
 
     def get_reset_jamp_lines(self, color_amplitudes):
         """Get lines to reset jamps"""
