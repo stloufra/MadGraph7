@@ -1,11 +1,20 @@
 [run]
 run_name = "run"
-device = "cppnone" # cuda, hip, cpp, cppnone, cppsse4, cppavx2, cpp512y, cpp512z, cppauto
+# options: cuda, hip, cpp, cppnone, cppsse4, cppavx2, cpp512y, cpp512z, cppauto
+devices = ["cppnone"] 
+# options:
+#   -1 to choose automatically
+#   on x86: 1, 4, 8
+#   on Apple silicon: 1, 2
 simd_vector_size = -1
-thread_pool_size = -1 # -1 sets count automatically based on number of CPUs
+# pool sizes: -1 sets count automatically based on number of CPUs
+cpu_thread_pool_size = -1
+gpu_thread_pool_size = 1
+combine_thread_pool_size = -1
 output_format = "compact_npy" # options: compact_npy, lhe_npy, lhe
 verbosity = "pretty" # options: silent, pretty, log
 dummy_matrix_element = false
+save_gridpack = false
 
 [beam]
 e_cm = 13000.0
@@ -20,10 +29,11 @@ fact_scale2 = 91.188
 dynamical_scale_choice = "half_transverse_mass"
 
 [generation]
-events = 10000
+events = 100000
 max_overweight_truncation = 0.01
 freeze_max_weight_after = 10000
-batch_size = 1000
+cpu_batch_size = 1000
+gpu_batch_size = 64000
 survey_min_iters = 3
 survey_max_iters = 3
 survey_target_precision = 0.1
@@ -101,20 +111,27 @@ train_batches = 1000
 log_interval = 100
 batch_size_offset = 512
 batch_size_per_channel = 128
+generator_target_size_factor = 32
+gpu_generator_batch_granularity = 1000
 lr = 1e-3
 lr_decay = 0.01
 lr_max = 3e-3
-lr_scheduler = "cosine" # options: exponential, inverse, onecycle, cosine, none
+lr_scheduler = "cosine" # options: none, cosine
+adam_beta1 = 0.9
+adam_beta2 = 0.999
+adam_eps = 1e-8
 train_mcw = true
 buffer_capacity = 0
 minimum_buffer_size = 50000
 buffered_steps = 0
+buffer_unweighting_quantile = 0.99
 uniform_channel_ratio = 0.1
-integration_history_length = 1000
+integration_history_length = 100
 max_stored_channel_weights = 100
-channel_dropping_threshold = 0.001
-channel_dropping_interval = 300
+channel_dropping_threshold = 0.01
+channel_dropping_interval = 100
 drop_zero_integrands = true
 batch_size_threshold = 0.5
 channel_grouping_mode = "uniform" # options: none, uniform, learned
 fixed_cwnet_fraction = 0.33
+softclip_threshold = 30.0

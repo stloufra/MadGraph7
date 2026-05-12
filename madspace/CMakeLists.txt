@@ -36,6 +36,8 @@ if (CMAKE_BUILD_TYPE STREQUAL "Release")
     endif()
 endif()
 
+add_compile_options(-fno-omit-frame-pointer)
+
 ########################################################################################
 # Load dependencies                                                                    #
 ########################################################################################
@@ -64,6 +66,7 @@ if(COMPILE_HIP)
     find_package(rocblas REQUIRED)
     find_package(rocrand REQUIRED)
     find_package(rocthrust REQUIRED)
+    find_package(hipcub REQUIRED)
 endif()
 
 if(USE_SIMD)
@@ -108,21 +111,25 @@ find_package(BLAS REQUIRED)
 add_library(
     madspace
     SHARED
-    src/runtime/format.cpp
-    src/runtime/tensor.cpp
-    src/runtime/context.cpp
-    src/runtime/event_generator.cpp
-    src/runtime/thread_pool.cpp
-    src/runtime/io.cpp
-    src/runtime/vegas_optimizer.cpp
-    src/runtime/discrete_optimizer.cpp
-    src/runtime/runtime_base.cpp
-    src/runtime/lhe_output.cpp
-    src/madcode/type.cpp
-    src/madcode/function.cpp
-    src/madcode/instruction.cpp
-    src/madcode/optimizer.cpp
-    src/madcode/instruction_set_mixin.h
+    src/driver/adam_optimizer.cpp
+    src/driver/format.cpp
+    src/driver/tensor.cpp
+    src/driver/context.cpp
+    src/driver/event_generator.cpp
+    src/driver/channel_generator.cpp
+    src/driver/generator_data.cpp
+    src/driver/thread_pool.cpp
+    src/driver/io.cpp
+    src/driver/vegas_optimizer.cpp
+    src/driver/discrete_optimizer.cpp
+    src/driver/backend.cpp
+    src/driver/lhe_output.cpp
+    src/driver/madnis_training.cpp
+    src/compgraphs/type.cpp
+    src/compgraphs/function.cpp
+    src/compgraphs/instruction.cpp
+    src/compgraphs/optimizer.cpp
+    src/compgraphs/instruction_set_mixin.inc
     src/phasespace/base.cpp
     src/phasespace/invariants.cpp
     src/phasespace/two_particle.cpp
@@ -132,6 +139,7 @@ add_library(
     src/phasespace/t_propagator_mapping.cpp
     src/phasespace/phasespace.cpp
     src/phasespace/multichannel.cpp
+    src/phasespace/madnis.cpp
     src/phasespace/rambo.cpp
     src/phasespace/cuts.cpp
     src/phasespace/observable.cpp
@@ -149,53 +157,58 @@ add_library(
     src/phasespace/matrix_element.cpp
     src/phasespace/cross_section.cpp
     src/phasespace/scale.cpp
-    include/madspace/util.h
-    include/madspace/runtime.h
-    include/madspace/runtime/format.h
-    include/madspace/runtime/tensor.h
-    include/madspace/runtime/context.h
-    include/madspace/runtime/thread_pool.h
-    include/madspace/runtime/event_generator.h
-    include/madspace/runtime/io.h
-    include/madspace/runtime/vegas_optimizer.h
-    include/madspace/runtime/discrete_optimizer.h
-    include/madspace/runtime/runtime_base.h
-    include/madspace/runtime/lhe_output.h
-    include/madspace/runtime/logger.h
-    include/madspace/madcode.h
-    include/madspace/madcode/type.h
-    include/madspace/madcode/function.h
-    include/madspace/madcode/function_builder_mixin.h
-    include/madspace/madcode/opcode_mixin.h
-    include/madspace/madcode/instruction.h
-    include/madspace/madcode/optimizer.h
-    include/madspace/phasespace.h
-    include/madspace/phasespace/base.h
-    include/madspace/phasespace/invariants.h
-    include/madspace/phasespace/two_particle.h
-    include/madspace/phasespace/three_particle.h
-    include/madspace/phasespace/luminosity.h
-    include/madspace/phasespace/topology.h
-    include/madspace/phasespace/t_propagator_mapping.h
-    include/madspace/phasespace/phasespace.h
-    include/madspace/phasespace/multichannel.h
-    include/madspace/phasespace/rambo.h
-    include/madspace/phasespace/cuts.h
-    include/madspace/phasespace/observable.h
-    include/madspace/phasespace/histograms.h
-    include/madspace/phasespace/chili.h
-    include/madspace/phasespace/integrand.h
-    include/madspace/phasespace/vegas.h
-    include/madspace/phasespace/mlp.h
-    include/madspace/phasespace/flow.h
-    include/madspace/phasespace/discrete_flow.h
-    include/madspace/phasespace/discrete_sampler.h
-    include/madspace/phasespace/channel_weights.h
-    include/madspace/phasespace/channel_weight_network.h
-    include/madspace/phasespace/pdf.h
-    include/madspace/phasespace/matrix_element.h
-    include/madspace/phasespace/cross_section.h
-    include/madspace/phasespace/scale.h
+    include/madspace/util.hpp
+    include/madspace/driver.hpp
+    include/madspace/driver/adam_optimizer.hpp
+    include/madspace/driver/format.hpp
+    include/madspace/driver/tensor.hpp
+    include/madspace/driver/context.hpp
+    include/madspace/driver/thread_pool.hpp
+    include/madspace/driver/event_generator.hpp
+    include/madspace/driver/channel_generator.hpp
+    include/madspace/driver/generator_data.hpp
+    include/madspace/driver/io.hpp
+    include/madspace/driver/vegas_optimizer.hpp
+    include/madspace/driver/discrete_optimizer.hpp
+    include/madspace/driver/backend.hpp
+    include/madspace/driver/lhe_output.hpp
+    include/madspace/driver/logger.hpp
+    include/madspace/driver/madnis_training.hpp
+    include/madspace/compgraphs.hpp
+    include/madspace/compgraphs/type.hpp
+    include/madspace/compgraphs/function.hpp
+    include/madspace/compgraphs/function_builder_mixin.inc
+    include/madspace/compgraphs/opcode_mixin.inc
+    include/madspace/compgraphs/instruction.hpp
+    include/madspace/compgraphs/optimizer.hpp
+    include/madspace/phasespace.hpp
+    include/madspace/phasespace/base.hpp
+    include/madspace/phasespace/invariants.hpp
+    include/madspace/phasespace/two_particle.hpp
+    include/madspace/phasespace/three_particle.hpp
+    include/madspace/phasespace/luminosity.hpp
+    include/madspace/phasespace/topology.hpp
+    include/madspace/phasespace/t_propagator_mapping.hpp
+    include/madspace/phasespace/phasespace.hpp
+    include/madspace/phasespace/multichannel.hpp
+    include/madspace/phasespace/madnis.hpp
+    include/madspace/phasespace/rambo.hpp
+    include/madspace/phasespace/cuts.hpp
+    include/madspace/phasespace/observable.hpp
+    include/madspace/phasespace/histograms.hpp
+    include/madspace/phasespace/chili.hpp
+    include/madspace/phasespace/integrand.hpp
+    include/madspace/phasespace/vegas.hpp
+    include/madspace/phasespace/mlp.hpp
+    include/madspace/phasespace/flow.hpp
+    include/madspace/phasespace/discrete_flow.hpp
+    include/madspace/phasespace/discrete_sampler.hpp
+    include/madspace/phasespace/channel_weights.hpp
+    include/madspace/phasespace/channel_weight_network.hpp
+    include/madspace/phasespace/pdf.hpp
+    include/madspace/phasespace/matrix_element.hpp
+    include/madspace/phasespace/cross_section.hpp
+    include/madspace/phasespace/scale.hpp
 )
 
 #target_compile_options(madspace PRIVATE -Wall -Wextra -Wpedantic -Werror)
@@ -210,7 +223,7 @@ install(TARGETS madspace DESTINATION madspace/lib)
 install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/"
     DESTINATION "madspace/include"
-    FILES_MATCHING PATTERN "*.h*"
+    FILES_MATCHING PATTERN "*.hpp*"
 )
 
 
@@ -220,29 +233,29 @@ install(
 
 set(
     KERNEL_SRC
-    src/kernels/invariants.h
-    src/kernels/kernels.h
-    src/kernels/kinematics.h
-    src/kernels/multichannel.h
-    src/kernels/math.h
-    src/kernels/rambo.h
-    src/kernels/cuts.h
-    src/kernels/chili.h
-    src/kernels/nn.h
-    src/kernels/observables.h
-    src/kernels/discrete.h
-    src/kernels/vegas.h
-    src/kernels/util.h
-    src/kernels/definitions.h
-    src/kernels/twoparticle.h
-    src/kernels/threeparticle.h
-    src/kernels/multichannel.h
-    src/kernels/operations.h
+    src/kernels/invariants.hpp
+    src/kernels/kernels.hpp
+    src/kernels/kinematics.hpp
+    src/kernels/multichannel.hpp
+    src/kernels/math.hpp
+    src/kernels/rambo.hpp
+    src/kernels/cuts.hpp
+    src/kernels/chili.hpp
+    src/kernels/nn.hpp
+    src/kernels/observables.hpp
+    src/kernels/discrete.hpp
+    src/kernels/vegas.hpp
+    src/kernels/util.hpp
+    src/kernels/definitions.hpp
+    src/kernels/twoparticle.hpp
+    src/kernels/threeparticle.hpp
+    src/kernels/multichannel.hpp
+    src/kernels/operations.hpp
 )
 
 
 ########################################################################################
-# GPU runtimes                                                                         #
+# GPU backends                                                                         #
 ########################################################################################
 
 if(COMPILE_CUDA)
@@ -251,11 +264,11 @@ if(COMPILE_CUDA)
         SHARED
         src/gpu/runtime.cu
         src/gpu/device.cu
-        src/gpu/kernel_definitions.h
-        src/gpu/runtime.h
-        src/gpu/tensor.h
-        src/gpu/device.h
-        src/gpu/gpu_abstraction.h
+        src/gpu/kernel_definitions.cuh
+        src/gpu/runtime.hpp
+        src/gpu/tensor.cuh
+        src/gpu/device.hpp
+        src/gpu/gpu_abstraction.cuh
         ${KERNEL_SRC}
     )
     target_include_directories(madspace_cuda PUBLIC include)
@@ -272,11 +285,11 @@ if(COMPILE_HIP)
         SHARED
         src/gpu/runtime.hip
         src/gpu/device.hip
-        src/gpu/kernel_definitions.h
-        src/gpu/runtime.h
-        src/gpu/tensor.h
-        src/gpu/device.h
-        src/gpu/gpu_abstraction.h
+        src/gpu/kernel_definitions.cuh
+        src/gpu/runtime.hpp
+        src/gpu/tensor.cuh
+        src/gpu/device.hpp
+        src/gpu/gpu_abstraction.cuh
         ${KERNEL_SRC}
     )
     target_include_directories(madspace_hip PUBLIC include)
@@ -287,12 +300,13 @@ if(COMPILE_HIP)
     target_link_libraries(madspace_hip PRIVATE roc::rocblas)
     target_link_libraries(madspace_hip PRIVATE roc::rocrand)
     target_link_libraries(madspace_hip PRIVATE roc::rocthrust)
+    target_link_libraries(madspace_hip PRIVATE hip::hipcub)
     install(TARGETS madspace_hip DESTINATION madspace/lib)
 endif()
 
 
 ########################################################################################
-# CPU runtime                                                                          #
+# CPU backend                                                                          #
 ########################################################################################
 
 if(NOT USE_SIMD)
@@ -305,7 +319,7 @@ elseif(APPLE)
     set(SIMD_DEFINES "" "USE_SIMD_NEON=1")
 else()
     set(CPU_TARGETS madspace_cpu madspace_cpu_avx2 madspace_cpu_avx512)
-    set(SIMD_FLAGS "" "-mavx2" "-mavx512f")
+    set(SIMD_FLAGS "" "-mavx2 -mfma" "-mavx512f")
     set(SIMD_DEFINES "" "USE_SIMD_AVX2=1" "USE_SIMD_AVX512=1")
 endif()
 
@@ -316,16 +330,16 @@ foreach(
     add_library(
         ${cpu_target}
         SHARED
-        src/cpu/runtime.h
-        src/cpu/device.h
+        src/cpu/runtime.hpp
+        src/cpu/device.hpp
         src/cpu/runtime.cpp
         src/cpu/device.cpp
-        src/cpu/kernel_definitions.h
-        src/cpu/runtime_mixin.h
-        src/cpu/tensor.h
-        src/cpu/simd.h
-        src/cpu/simd_arm.h
-        src/cpu/simd_x86_256.h
+        src/cpu/kernel_definitions.hpp
+        src/cpu/runtime_mixin.inc
+        src/cpu/tensor.hpp
+        src/cpu/simd.hpp
+        src/cpu/simd_arm.hpp
+        src/cpu/simd_x86_256.hpp
         ${KERNEL_SRC}
     )
     target_include_directories(${cpu_target} PUBLIC include)
@@ -335,6 +349,7 @@ foreach(
     if(NOT cpu_target STREQUAL "madspace_cpu")
         target_link_libraries(${cpu_target} PRIVATE sleef::sleef)
         target_compile_definitions(${cpu_target} PRIVATE ${simd_define})
+        separate_arguments(simd_flag UNIX_COMMAND ${simd_flag})
         target_compile_options(${cpu_target} PRIVATE ${simd_flag})
         target_compile_definitions(${cpu_target} PRIVATE USE_SIMD=1)
     endif()
@@ -350,9 +365,9 @@ python_add_library(
     _madspace_py
     MODULE
     src/python/madspace.cpp
-    src/python/instruction_set.h
+    src/python/instruction_set.hpp
     src/python/function_runtime.cpp
-    src/python/function_runtime.h
+    src/python/function_runtime.hpp
     WITH_SOABI
 )
 target_link_libraries(_madspace_py PRIVATE pybind11::headers)

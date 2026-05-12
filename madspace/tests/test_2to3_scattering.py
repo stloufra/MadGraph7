@@ -95,7 +95,7 @@ def fixed_input_points(rng, request):
     map_22 = ms.TwoToTwoParticleScattering(com=False)
     r1 = rng.random(N)
     r2 = rng.random(N)
-    (p12, p3), det_22 = map_22.map_forward([r1, r2, m12, m3], [pA, pB])
+    p12, p3, det_22 = map_22.map_forward([r1, r2, m12, m3], [pA, pB])
 
     # Randoms for the 2->3 mapper
     r_choice = rng.random(N)
@@ -148,7 +148,7 @@ def input_points(rng, request):
     map_22 = ms.TwoToTwoParticleScattering(com=com)
     r1 = rng.random(N)
     r2 = rng.random(N)
-    (p12, p3), det_22 = map_22.map_forward([r1, r2, m12, m3], [pa, pb])
+    p12, p3, det_22 = map_22.map_forward([r1, r2, m12, m3], [pa, pb])
 
     # Randoms for the 2->3 mapper
     r_choice = rng.random(N)  # decide branch (emitter choice)
@@ -179,7 +179,7 @@ def test_momentum_conservation(input_points):
     conditions = [input_points.pa, input_points.pb, input_points.p3]
 
     m3 = mass(input_points.p3)
-    (p1, p2), det = mapping.map_forward(inputs, conditions)
+    p1, p2, det = mapping.map_forward(inputs, conditions)
     p_sum = p1 + p2 + input_points.p3
 
     assert p_sum == approx(input_points.p0)
@@ -199,7 +199,7 @@ def test_momentum_conservation(input_points):
 #     ]
 #     conditions = [input_points.pa, input_points.pb, input_points.p3]
 
-#     (p1, p2), det = mapping.map_forward(inputs, conditions)
+#     p1, p2, det = mapping.map_forward(inputs, conditions)
 #     inv_inputs, inv_det = mapping.map_inverse([p1, p2], conditions)
 #     # r = inv_det * det
 #     # print("r stats:", np.min(r), np.median(r), np.max(r))
@@ -224,7 +224,7 @@ def test_on_shell_masses(input_points):
     ]
     conditions = [input_points.pa, input_points.pb, input_points.p3]
 
-    (p1, p2), det = mapping.map_forward(inputs, conditions)
+    p1, p2, det = mapping.map_forward(inputs, conditions)
 
     # Outgoing masses must match m1, m2; spectator stays whatever it was.
     assert mass(p1 + p2) == approx(input_points.m12)
@@ -254,8 +254,8 @@ def test_phase_space_compare(rng, input_points):
     conditions = [input_points.pa, input_points.pb, input_points.p3]
     conditions22 = [input_points.pa, input_points.pb - input_points.p3]
 
-    (p1, p2), det23 = mapping23.map_forward(inputs, conditions)
-    (p1s, p2s), det22 = mapping22.map_forward(inputs22, conditions22)
+    p1, p2, det23 = mapping23.map_forward(inputs, conditions)
+    p1s, p2s, det22 = mapping22.map_forward(inputs22, conditions22)
 
     # Outgoing masses must match m1, m2; spectator stays whatever it was.
     std_error_23 = np.std(det23) / np.sqrt(N)
@@ -275,7 +275,7 @@ def test_phase_space_volume(fixed_input_points):
 
     conditions = [fixed_input_points.pa, fixed_input_points.pb, fixed_input_points.p3]
 
-    (p1, p2), det = mapping23.map_forward(inputs, conditions)
+    p1, p2, det = mapping23.map_forward(inputs, conditions)
 
     s = fixed_input_points.m12**2
     m1_2 = fixed_input_points.m1**2

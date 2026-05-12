@@ -1,4 +1,4 @@
-#include "madspace/phasespace/cross_section.h"
+#include "madspace/phasespace/cross_section.hpp"
 
 #include <set>
 
@@ -20,20 +20,22 @@ DifferentialCrossSection::DifferentialCrossSection(
     FunctionGenerator(
         "DifferentialCrossSection",
         [&] {
-            TypeVec arg_types;
-            for (auto [arg_type, input] :
-                 zip(matrix_element.arg_types(), matrix_element.external_inputs())) {
+            NamedVector<Type> arg_types;
+            for (auto [arg_type, arg_name, input] :
+                 zip(matrix_element.arg_types(),
+                     matrix_element.arg_types().keys(),
+                     matrix_element.external_inputs())) {
                 if (input != MatrixElement::alpha_s_in) {
-                    arg_types.push_back(arg_type);
+                    arg_types.push_back(arg_name, arg_type);
                 }
             }
             if (input_momentum_fraction) {
-                arg_types.push_back(batch_float); // x1
-                arg_types.push_back(batch_float); // x2
+                arg_types.push_back("x1", batch_float);
+                arg_types.push_back("x2", batch_float);
             }
-            arg_types.push_back(batch_int); // pdf_id
+            arg_types.push_back("pdf_id", batch_int);
             if (has_mirror) {
-                arg_types.push_back(batch_int); // mirror
+                arg_types.push_back("mirror", batch_int);
             }
             bool uses_cached_pdf = false;
             auto add_pdf_args = [&](auto& pdf_grid, bool has_pdf, int index) {
@@ -42,14 +44,17 @@ DifferentialCrossSection::DifferentialCrossSection(
                     for (auto& option : pid_options) {
                         pids.insert(option.at(index));
                     }
-                    arg_types.push_back(batch_float_array(pids.size())); // pdf cache
+                    arg_types.push_back(
+                        std::format("pdf_cache_{}", index + 1),
+                        batch_float_array(pids.size())
+                    );
                     uses_cached_pdf = true;
                 }
             };
             add_pdf_args(pdf_grid1, has_pdf1, 0);
             add_pdf_args(pdf_grid2, has_pdf2, 1);
             if (uses_cached_pdf) {
-                arg_types.push_back(batch_float); // renormalization scale
+                arg_types.push_back("ren_scale", batch_float);
             }
             return arg_types;
         }(),
@@ -87,8 +92,8 @@ DifferentialCrossSection::DifferentialCrossSection(
     init_pdf(pdf_grid2, has_pdf2, 1);
 }
 
-ValueVec DifferentialCrossSection::build_function_impl(
-    FunctionBuilder& fb, const ValueVec& args
+NamedVector<Value> DifferentialCrossSection::build_function_impl(
+    FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
     std::size_t arg_index = 0;
     int alpha_s_index = -1;
@@ -118,7 +123,7 @@ ValueVec DifferentialCrossSection::build_function_impl(
         Value mirror_id = args.at(arg_index++);
     }
     // TODO: need to use mirror_id if we have two different PDFs
-    ValueVec scales;
+    NamedVector<Value> scales;
     Value ren_scale;
     bool use_cached_pdf =
         _pdf_indices.at(0).size() > 0 || _pdf_indices.at(1).size() > 0;
@@ -128,12 +133,14 @@ ValueVec DifferentialCrossSection::build_function_impl(
     }
 
     std::array<Value, 2> pdf_outputs{1., 1.};
-    for (std::size_t i = 0; auto [pdf_output, pdf, x, pdf_indices] :
-                            zip(pdf_outputs, _pdfs, x1x2, _pdf_indices)) {
+    for (std::size_t i = 0;
+         auto [pdf_output, pdf, x, pdf_indices] :
+         zip(pdf_outputs, _pdfs, x1x2, _pdf_indices)) {
         if (pdf) {
-            pdf_output = pdf.value()
-                             .build_function(fb, {x, scales.at(i + 1), pdf_flavor_id})
-                             .at(0);
+            pdf_output =
+                pdf.value()
+                    .build_function(fb, {x, scales.at(i + 1), pdf_flavor_id})
+                    .at(0);
         } else if (pdf_indices.size() > 0) {
             pdf_output = fb.gather(
                 fb.gather_int(pdf_flavor_id, pdf_indices), args.at(arg_index++)

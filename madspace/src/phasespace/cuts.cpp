@@ -1,17 +1,24 @@
-#include "madspace/phasespace/cuts.h"
+#include "madspace/phasespace/cuts.hpp"
 
-#include "madspace/madcode/type.h"
+#include "madspace/compgraphs/type.hpp"
 
 using namespace madspace;
 
 Cuts::Cuts(const std::vector<CutItem>& cut_data) :
-    FunctionGenerator("Cuts", cut_data.at(0).observable.arg_types(), {batch_float}),
+    FunctionGenerator(
+        "Cuts", cut_data.at(0).observable.arg_types(), {{"mask", batch_float}}
+    ),
     _cut_data(cut_data) {}
 
 Cuts::Cuts(std::size_t particle_count) :
-    FunctionGenerator("Cuts", {batch_four_vec_array(particle_count)}, {batch_float}) {}
+    FunctionGenerator(
+        "Cuts",
+        {{"momenta", batch_four_vec_array(particle_count)}},
+        {{"mask", batch_float}}
+    ) {}
 
-ValueVec Cuts::build_function_impl(FunctionBuilder& fb, const ValueVec& args) const {
+NamedVector<Value>
+Cuts::build_function_impl(FunctionBuilder& fb, const NamedVector<Value>& args) const {
     ValueVec weights;
     for (auto& item : _cut_data) {
         if (item.observable.not_found()) {
@@ -26,7 +33,7 @@ ValueVec Cuts::build_function_impl(FunctionBuilder& fb, const ValueVec& args) co
             weights.push_back(fb.cut_any(obs, item.min, item.max));
         }
     }
-    return {fb.product(weights)};
+    return {{"mask", fb.product(weights)}};
 }
 
 double Cuts::sqrt_s_min() const {

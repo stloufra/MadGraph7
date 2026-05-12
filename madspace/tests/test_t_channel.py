@@ -67,7 +67,7 @@ CM_ENERGY = 13000.0
 def test_t_channel_masses(masses, rng, mode):
     mapping = ms.PhaseSpaceMapping(masses, CM_ENERGY, mode=mode)
     r = rng.random((BATCH_SIZE, mapping.random_dim()))
-    (p_ext, x1, x2), det = mapping.map_forward([r])
+    p_ext, x1, x2, det = mapping.map_forward([r])
 
     batch_phys = BATCH_SIZE
     if mode == ms.PhaseSpaceMapping.chili:
@@ -85,7 +85,7 @@ def test_t_channel_masses(masses, rng, mode):
 def test_t_channel_incoming(masses, rng, mode):
     mapping = ms.PhaseSpaceMapping(masses, CM_ENERGY, mode=mode)
     r = rng.random((BATCH_SIZE, mapping.random_dim()))
-    (p_ext, x1, x2), det = mapping.map_forward([r])
+    p_ext, x1, x2, det = mapping.map_forward([r])
 
     batch_phys = BATCH_SIZE
     if mode == ms.PhaseSpaceMapping.chili:
@@ -112,7 +112,7 @@ def test_t_channel_incoming(masses, rng, mode):
 def test_t_channel_momentum_conservation(masses, rng, mode):
     mapping = ms.PhaseSpaceMapping(masses, CM_ENERGY, mode=mode)
     r = rng.random((BATCH_SIZE, mapping.random_dim()))
-    (p_ext, x1, x2), det = mapping.map_forward([r])
+    p_ext, x1, x2, det = mapping.map_forward([r])
 
     if mode == ms.PhaseSpaceMapping.chili:
         physical_mask = det != 0.0
@@ -127,7 +127,7 @@ def test_t_channel_momentum_conservation(masses, rng, mode):
 def test_t_channel_inverse(masses, rng, mode):
     mapping = ms.PhaseSpaceMapping(masses, CM_ENERGY, mode=mode, invariant_power=0.3)
     r = rng.random((BATCH_SIZE, mapping.random_dim()))
-    (p_ext, x1, x2), det = mapping.map_forward([r])
+    p_ext, x1, x2, det = mapping.map_forward([r])
 
     if mode == ms.PhaseSpaceMapping.chili:
         physical_mask = det != 0.0
@@ -137,7 +137,7 @@ def test_t_channel_inverse(masses, rng, mode):
         r = r[physical_mask]
         det = det[physical_mask]
 
-    (r_inv,), det_inv = mapping.map_inverse((p_ext, x1, x2))
+    r_inv, det_inv = mapping.map_inverse((p_ext, x1, x2))
     one_batch = np.ones_like(det)
     assert r_inv == approx(r, abs=1e-3, rel=1e-3)
     assert det * det_inv == approx(one_batch, rel=1e-5)
@@ -162,7 +162,7 @@ def test_t_channel_phase_space_volume(particle_count, energy, rng, mode):
         )
     sample_count = 100000
     r = rng.random((sample_count, mapping.random_dim()))
-    _, det = mapping.map_forward([r])
+    *rest, det = mapping.map_forward([r])
     ps_volume = (
         (2 * math.pi) ** (4 - 3 * particle_count)
         * (math.pi / 2.0) ** (particle_count - 1)

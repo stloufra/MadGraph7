@@ -22,6 +22,14 @@ unstack:
   custom_op: True
   differentiable: True
 
+stack_sizes:
+  inputs: any
+  outputs:
+    - name: sizes
+  desc:
+  class: StackSizesInstruction
+  custom_op: True
+
 unstack_sizes:
   inputs:
     - name: in1
@@ -130,6 +138,17 @@ unsqueeze:
   custom_op: True
   differentiable: True
 
+accept_norm:
+  inputs:
+    - name: accepted_batch
+      desc:
+    - name: full_batch
+      desc:
+  outputs:
+    - name: norm
+  class: AcceptNormInstruction
+  custom_op: True
+
 ---
 title: Math
 
@@ -146,6 +165,7 @@ add:
       type: [float, ...]
       desc: sum of the two inputs
   desc: Computes the sum of the two inputs.
+  differentiable: True
   dims: 0
 
 add_int:
@@ -176,6 +196,7 @@ sub:
       type: [float, ...]
       desc: difference of the two inputs
   desc: Computes the difference of the two inputs.
+  differentiable: True
   dims: 0
 
 mul:
@@ -191,6 +212,22 @@ mul:
       type: [float, ...]
       desc: product of the two inputs
   desc: Computes the product of the two inputs.
+  differentiable: True
+  dims: 0
+
+div:
+  inputs:
+    - name: in1
+      type: [float, ...]
+      desc: first input to division
+    - name: in2
+      type: [float, ...]
+      desc: second input to division
+  outputs:
+    - name: out
+      type: [float, ...]
+      desc: quotient of the two inputs
+  desc: Computes the quotient of the two inputs.
   differentiable: True
   dims: 0
 
@@ -216,6 +253,30 @@ reduce_sum_vector:
       desc:
   dims: 0
 
+batch_reduce_mean:
+  inputs:
+    - name: in
+      type: [float]
+      desc:
+  outputs:
+    - name: out
+      type: [float, single]
+      desc:
+  differentiable: True
+  custom_op: True
+
+batch_reduce_mean_keepdim:
+  inputs:
+    - name: in
+      type: [float]
+      desc:
+  outputs:
+    - name: out
+      type: [float]
+      desc:
+  differentiable: True
+  custom_op: True
+
 reduce_product:
   inputs:
     - name: in1
@@ -230,22 +291,26 @@ reduce_product:
 sqrt:
   inputs:
     - name: in1
-      type: [float]
+      type: [float, ...]
       desc:
   outputs:
     - name: out
-      type: [float]
+      type: [float, ...]
       desc:
+  differentiable: True
+  dims: 0
 
 square:
   inputs:
     - name: in1
-      type: [float]
+      type: [float, ...]
       desc:
   outputs:
     - name: out
-      type: [float]
+      type: [float, ...]
       desc:
+  differentiable: True
+  dims: 0
 
 min:
   inputs:
@@ -2151,6 +2216,7 @@ gather:
     - name: index
       type: [int]
       desc:
+      backward_arg: True
     - name: choices
       type: [float, n]
       desc:
@@ -2158,6 +2224,7 @@ gather:
     - name: output
       type: [float]
       desc:
+  differentiable: True
 
 gather_int:
   inputs:
@@ -2237,6 +2304,89 @@ one_hot:
     - name: output
       type: [float, n]
       desc:
+
+madnis_abs_weight:
+  inputs:
+    - name: f
+      type: [float]
+      desc:
+    - name: q
+      type: [float]
+      desc:
+  outputs:
+    - name: w
+      type: [float]
+      desc:
+  differentiable: True
+
+madnis_softclip:
+  inputs:
+    - name: f
+      type: [float]
+      desc:
+    - name: q
+      type: [float]
+      desc:
+    - name: norm
+      type: [float]
+      desc:
+    - name: threshold
+      type: [float]
+      desc:
+  outputs:
+    - name: f_clip
+      type: [float]
+      desc:
+  differentiable: True
+
+madnis_variance:
+  inputs:
+    - name: f
+      type: [float]
+      desc:
+    - name: g
+      type: [float]
+      desc:
+    - name: q
+      type: [float]
+      desc:
+    - name: mean
+      type: [float]
+      desc:
+  outputs:
+    - name: w
+      type: [float]
+      desc:
+  differentiable: True
+
+madnis_single_channel_variance:
+  inputs:
+    - name: var
+      type: [float]
+      desc:
+    - name: abs_mean
+      type: [float]
+      desc:
+      backward_arg: True
+  outputs:
+    - name: loss
+      type: [float]
+      desc:
+  differentiable: True
+
+madnis_multi_channel_variance:
+  inputs:
+    - name: vars
+      type: [float, c]
+      desc:
+    - name: abs_means
+      type: [float, c]
+      desc:
+  outputs:
+    - name: loss
+      type: [float]
+      desc:
+  differentiable: True
 
 ---
 title: Indexing

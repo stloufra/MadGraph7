@@ -3,16 +3,13 @@ import os
 import time
 from datetime import timedelta
 import glob
+import shutil
 import json
 import subprocess
 import logging
 from dataclasses import dataclass
 from typing import Literal, NamedTuple
-try:
-    import tomllib
-except ModuleNotFoundError:
-    # for versions before 3.11
-    import pip._vendor.tomli as tomllib
+import tomllib
 
 if "LHAPDF_DATA_PATH" in os.environ:
     PDF_PATH = os.environ["LHAPDF_DATA_PATH"]
@@ -53,6 +50,7 @@ class Channel:
     channel_weight_indices: list[int] | None
     name: str
     active_flavors: list[int]
+    event_generator: ms.ChannelEventGenerator | None = None
 
 
 @dataclass
@@ -115,22 +113,51 @@ class MadgraphProcess:
 
     def init_backend(self) -> None:
         ms.set_simd_vector_size(self.run_card["run"]["simd_vector_size"])
-        ms.set_thread_count(self.run_card["run"]["thread_pool_size"])
 
     def init_event_dir(self) -> None:
         run_name = self.run_card["run"]["run_name"]
         os.makedirs("Events", exist_ok=True)
-        existing_run_dirs = glob.glob(f"Events/{run_name}_*")
+        run_dir_prefix = os.path.join("Events", f"{run_name}_")
+        existing_run_dirs = glob.glob(f"{run_dir_prefix}*")
         run_index = 1
-        while f"Events/{run_name}_{run_index:02d}" in existing_run_dirs:
-            run_index += 1
+        for run_dir in existing_run_dirs:
+            run_index_str = run_dir[len(run_dir_prefix):]
+            if run_index_str.isnumeric():
+                run_index = max(run_index, int(run_index_str) + 1)
         while True:
             try:
-                self.run_path = f"Events/{run_name}_{run_index:02d}"
+                self.run_path = f"{run_dir_prefix}{run_index:02d}"
                 os.mkdir(self.run_path)
                 break
             except FileExistsError:
                 run_index += 1
+
+    def init_context(self) -> None:
+        device_names = self.run_card["run"]["devices"]
+        self.contexts = []
+        self.device_types = []
+        self.devices = []
+        self.pool_sizes = []
+        for i, device_name in enumerate(device_names):
+            if ":" in device_name:
+                device_type, device_index_str = device_name.split(":")
+                device_index = int(device_index_str)
+            else:
+                device_type = device_name
+                device_index = 0
+            self.device_types.append(device_type)
+            if device_type == "cuda":
+                device = ms.cuda_device(device_index)
+                pool_size = self.run_card["run"]["gpu_thread_pool_size"]
+            elif device_type == "hip":
+                device = ms.hip_device(device_index)
+                pool_size = self.run_card["run"]["gpu_thread_pool_size"]
+            else:
+                device = ms.cpu_device()
+                pool_size = self.run_card["run"]["cpu_thread_pool_size"]
+            self.devices.append(device)
+            self.pool_sizes.append(pool_size)
+            self.contexts.append(ms.Context(device=device, thread_count=pool_size))
 
     def parse_observable(self, name: str, order_observable: str) -> dict:
         parts = name.split("-")
@@ -236,16 +263,17 @@ class MadgraphProcess:
 
         pdf_set = beam_args["pdf"]
         self.pdf_grid = ms.PdfGrid(os.path.join(PDF_PATH, pdf_set, f"{pdf_set}_0000.dat"))
-        self.pdf_grid.initialize_globals(self.context)
         self.alphas_grid = ms.AlphaSGrid(os.path.join(PDF_PATH, pdf_set, f"{pdf_set}.info"))
-        self.alphas_grid.initialize_globals(self.context)
+        for context in self.contexts:
+            self.pdf_grid.initialize_globals(context)
+            self.alphas_grid.initialize_globals(context)
         self.running_coupling = ms.RunningCoupling(self.alphas_grid)
 
     def init_generator_config(self) -> None:
         run_args = self.run_card["run"]
         gen_args = self.run_card["generation"]
         vegas_args = self.run_card["vegas"]
-        cfg = ms.EventGeneratorConfig()
+        cfg = ms.GeneratorConfig()
         cfg.target_count = gen_args["events"]
         cfg.vegas_damping = vegas_args["damping"]
         cfg.max_overweight_truncation = gen_args["max_overweight_truncation"]
@@ -257,67 +285,57 @@ class MadgraphProcess:
         cfg.survey_target_precision = gen_args["survey_target_precision"]
         cfg.optimization_patience = vegas_args["optimization_patience"]
         cfg.optimization_threshold = vegas_args["optimization_threshold"]
-        cfg.batch_size = gen_args["batch_size"]
+        cfg.cpu_batch_size = gen_args["cpu_batch_size"]
+        cfg.gpu_batch_size = gen_args["gpu_batch_size"]
         cfg.verbosity = run_args["verbosity"]
         self.event_generator_config = cfg
         self.event_generator = None
-
-    def init_context(self) -> None:
-        device_name = self.run_card["run"]["device"]
-        if device_name in ["cppauto", "cppnone", "cppsse4", "cppavx2", "cpp512y", "cpp512z"]:
-            device = ms.cpu_device()
-        elif device_name == "cuda":
-            device = ms.cuda_device()
-        elif device_name == "hip":
-            device = ms.hip_device()
-        else:
-            raise ValueError("Unknown device")
-        self.context = ms.Context(device)
 
     def init_subprocesses(self) -> None:
         self.subprocesses = []
         for subproc_id, meta in enumerate(self.subprocess_data):
             self.subprocesses.append(MadgraphSubprocess(self, meta, subproc_id))
 
-    def build_event_generator(
-        self, phasespaces: list[PhaseSpace], file: str
-    ) -> ms.EventGenerator:
-        integrands = []
-        subproc_ids = []
-        channel_names = []
-        channel_hists = []
+    def build_event_generator(self, phasespaces: list[PhaseSpace]) -> ms.EventGenerator:
+        channel_generators = []
         for i, (subproc, phasespace) in enumerate(zip(self.subprocesses, phasespaces)):
-            subproc_integrands = subproc.build_integrands(phasespace)
-            integrands.extend(subproc.build_integrands(phasespace))
-            subproc_ids.extend([i] * len(phasespace.channels))
-            channel_names.extend([f"{i}.{chan.name}" for chan in phasespace.channels])
-            if subproc.histograms is not None:
-                channel_hists.extend([subproc.histograms] * len(phasespace.channels))
-        #print(integrands[0].function())
-        #integrands[0].function().save("test.json")
-        #integrands[0] = ms.Function.load("test.json")
-        return ms.EventGenerator(
-            context=self.context,
-            channels=integrands,
-            temp_file_prefix=os.path.join(self.run_path, file),
+            for integrand, channel in zip(
+                subproc.build_integrands(phasespace), phasespace.channels
+            ):
+                if channel.event_generator is None:
+                    channel.event_generator = ms.ChannelEventGenerator(
+                        contexts=self.contexts,
+                        integrand=integrand,
+                        event_file=os.path.join(self.run_path, f"events.{i}.{channel.name}.npy"),
+                        weight_file=os.path.join(self.run_path, f"weights.{i}.{channel.name}.npy"),
+                        config=self.event_generator_config,
+                        subprocess_index=i,
+                        name=f"{i}.{channel.name}",
+                        histograms=subproc.histograms
+                    )
+                channel_generators.append(channel.event_generator)
+
+        event_generator = ms.EventGenerator(
+            contexts=self.contexts,
+            channels=channel_generators,
             status_file=os.path.join(self.run_path, "info.json"),
             config=self.event_generator_config,
-            channel_subprocesses=subproc_ids,
-            channel_names=channel_names,
-            channel_histograms=channel_hists,
         )
+        unused_globals = (
+            set(self.contexts[0].global_names()) - event_generator.used_globals()
+        )
+        for context in self.contexts:
+            for global_name in unused_globals:
+                context.delete_global(global_name)
+        return event_generator
 
     def survey_phasespaces(
-        self, phasespaces: list[PhaseSpace | None], mode: str | None = None
+        self, phasespaces: list[PhaseSpace | None]
     ) -> ms.EventGenerator | None:
         ps_filtered = [ps for ps in phasespaces if ps is not None]
         if len(ps_filtered) == 0:
             return None
-
-        event_generator = self.build_event_generator(
-            ps_filtered, "events" if mode is None else f"events_{mode}"
-        )
-
+        event_generator = self.build_event_generator(ps_filtered)
         event_generator.survey()
         return event_generator
 
@@ -341,7 +359,7 @@ class MadgraphProcess:
                 subproc.build_multichannel_phasespace()
                 for subproc in self.subprocesses
             ]
-            evgen_multi = self.survey_phasespaces(phasespaces_multi, "multichannel")
+            evgen_multi = self.survey_phasespaces(phasespaces_multi)
 
             phasespaces_flat = [
                 subproc.build_flat_phasespace()
@@ -349,7 +367,7 @@ class MadgraphProcess:
                 None
                 for subproc in self.subprocesses
             ]
-            evgen_flat = self.survey_phasespaces(phasespaces_flat, "flat")
+            #evgen_flat = self.survey_phasespaces(phasespaces_flat, "flat")
 
             channel_status = evgen_multi.channel_status()
             cross_sections = []
@@ -370,15 +388,90 @@ class MadgraphProcess:
                     self.subprocesses, phasespaces_multi, phasespaces_flat, cross_sections
                 )
             ]
-
-            if not self.run_card["madnis"]["enable"]:
-                self.event_generator = self.build_event_generator(self.phasespaces, "events")
-                #TODO: avoid to run survey again
-                self.event_generator.survey()
+            self.event_generator = self.survey_phasespaces(self.phasespaces)
         else:
             raise ValueError("Unknown phasespace mode")
 
     def train_madnis(self) -> None:
+        madnis_args = self.run_card["madnis"]
+        gen_args = self.run_card["generation"]
+        run_args = self.run_card["run"]
+        if madnis_args.get("old", False):
+            self.train_madnis_old()
+            return
+
+        config = ms.MadnisConfig()
+        config.verbosity = run_args["verbosity"]
+        config.learning_rate = madnis_args["lr"]
+        config.batches = madnis_args["train_batches"]
+        config.log_interval = madnis_args["log_interval"]
+        config.integration_history_length = madnis_args["integration_history_length"]
+        config.channel_dropping_interval = madnis_args["channel_dropping_interval"]
+        config.channel_dropping_threshold = madnis_args["channel_dropping_threshold"]
+        config.cpu_generator_batch_size = gen_args["cpu_batch_size"]
+        config.gpu_generator_batch_size = gen_args["gpu_batch_size"]
+        config.gpu_generator_batch_granularity = madnis_args["gpu_generator_batch_granularity"]
+        config.generator_target_size_factor = madnis_args["generator_target_size_factor"]
+        config.batch_size_offset = madnis_args["batch_size_offset"]
+        config.batch_size_per_channel = madnis_args["batch_size_per_channel"]
+        config.uniform_channel_ratio = madnis_args["uniform_channel_ratio"]
+        config.lr_schedule = madnis_args["lr_scheduler"]
+        config.adam_beta1 = madnis_args["adam_beta1"]
+        config.adam_beta2 = madnis_args["adam_beta2"]
+        config.adam_eps = madnis_args["adam_eps"]
+        config.buffer_capacity = madnis_args["buffer_capacity"]
+        config.minimum_buffer_size = madnis_args["minimum_buffer_size"]
+        config.buffered_steps = madnis_args["buffered_steps"]
+        config.buffer_unweighting_quantile = madnis_args["buffer_unweighting_quantile"]
+        config.fixed_cwnet_fraction = madnis_args["fixed_cwnet_fraction"]
+        config.softclip_threshold = madnis_args["softclip_threshold"]
+        madnis_integrand_flags = (
+            ms.Integrand.sample
+            | ms.Integrand.return_latent
+            | ms.Integrand.return_channel
+            | ms.Integrand.return_chan_weights
+            | ms.Integrand.return_cwnet_input
+            | ms.Integrand.return_discrete_latent
+            | ms.Integrand.exclude_adaptive_and_chan_weight
+        )
+        if madnis_args["drop_zero_integrands"]:
+            madnis_integrand_flags |= ms.Integrand.drop_cuts_and_rescale
+
+        madnis_phasespaces = []
+        integrands = []
+        cwnets = []
+        for subproc, phasespace in zip(self.subprocesses, self.phasespaces):
+            phasespace = subproc.build_madnis(phasespace)
+            madnis_phasespaces.append(phasespace)
+            integrands.append(subproc.build_integrands(phasespace, madnis_integrand_flags))
+            cwnets.append(phasespace.cwnet)
+
+        gen_context = self.contexts[0]
+        opt_context = ms.Context(
+            device=self.devices[0], thread_count=self.pool_sizes[0]
+        )
+        opt_context.copy_globals_from(gen_context)
+
+        madnis_training = ms.MultiMadnisTraining(
+            generator_context=gen_context,
+            optimizer_context=opt_context,
+            config=config,
+            integrands=integrands,
+            cwnets=cwnets,
+        )
+        madnis_training.train()
+        for phasespace, active_channels in zip(
+            madnis_phasespaces, madnis_training.active_channels()
+        ):
+            phasespace.channels = [
+                phasespace.channels[index] for index in active_channels
+            ]
+        self.phasespaces = madnis_phasespaces
+        for context in self.contexts[1:]:
+            context.copy_globals_from(self.contexts[0])
+        self.event_generator = self.build_event_generator(madnis_phasespaces)
+
+    def train_madnis_old(self) -> None:
         madnis_args = self.run_card["madnis"]
         if not madnis_args["enable"]:
             return
@@ -417,8 +510,9 @@ class MadgraphProcess:
             subproc.train_madnis(phasespace, status_func)
             madnis_phasespaces.append(phasespace)
         self.phasespaces = madnis_phasespaces
-        self.event_generator = self.build_event_generator(madnis_phasespaces, "events")
-        self.event_generator.survey() #TODO: avoid
+        for context in self.contexts[1:]:
+            context.copy_globals_from(self.contexts[0])
+        self.event_generator = self.build_event_generator(madnis_phasespaces)
 
     def update_madnis_status_single(
         self, batch: int, batch_target: int, loss: float, lr: float, channel_count: int
@@ -507,22 +601,23 @@ class MadgraphProcess:
         self.event_generator.generate()
         output_format = self.run_card["run"]["output_format"]
         if output_format == "compact_npy":
+            self.lhe_completer = None
             self.event_generator.combine_to_compact_npy(
                 os.path.join(self.run_path, "events.npy")
             )
         elif output_format == "lhe_npy":
-            lhe_completer = self.build_lhe_completer()
+            self.lhe_completer = self.build_lhe_completer()
             self.event_generator.combine_to_lhe_npy(
-                os.path.join(self.run_path, "events.npy"), lhe_completer
+                os.path.join(self.run_path, "events.npy"), self.lhe_completer
             )
         elif output_format == "lhe":
-            lhe_completer = self.build_lhe_completer()
+            self.lhe_completer = self.build_lhe_completer()
             self.event_generator.combine_to_lhe(
-                os.path.join(self.run_path, "events.lhe"), lhe_completer
+                os.path.join(self.run_path, "events.lhe"), self.lhe_completer
             )
         else:
             raise ValueError("Unknown output format")
-        #self.save_gridpack()
+        self.save_gridpack()
 
     def build_lhe_completer(self):
         subproc_args = []
@@ -561,9 +656,80 @@ class MadgraphProcess:
         )
 
     def save_gridpack(self) -> None:
+        if not self.run_card["run"]["save_gridpack"]:
+            return
+
         gridpack_path = os.path.join(self.run_path, "gridpack")
+        data_path = os.path.join(gridpack_path, "data")
+        events_path = os.path.join(gridpack_path, "Events")
         os.mkdir(gridpack_path)
-        self.context.save(os.path.join(gridpack_path, "context.json"))
+        os.mkdir(data_path)
+        os.mkdir(events_path)
+        self.contexts[0].save_globals(os.path.join(data_path, "globals"))
+
+        channel_path = os.path.join(data_path, "channels")
+        os.mkdir(channel_path)
+        channel_files = {}
+        for channel in self.event_generator.channels():
+            name = channel.status().name
+            file = f"channel{name}.json"
+            channel_files[name] = file
+            channel.save(os.path.join(channel_path, file))
+
+        lib_path = os.path.join(gridpack_path, "lib")
+        os.mkdir(lib_path)
+        matrix_elements = []
+        for subproc in self.subprocess_data:
+            me_path = subproc["me_path"]
+            shutil.copy(me_path, lib_path)
+            matrix_elements.append(me_path)
+
+        cards_path = os.path.join(gridpack_path, "Cards")
+        os.mkdir(cards_path)
+        shutil.copy(os.path.join("Cards", "param_card.dat"), cards_path)
+        device_list = ",".join(f'"{device}"' for device in self.run_card["run"]["devices"])
+        with open(os.path.join(cards_path, "run_card.toml"), "w") as f:
+            f.write(f"""[run]
+run_name = "{self.run_card["run"]["run_name"]}"
+devices = [{device_list}] # options: cpu, cuda
+# options:
+#   -1 to choose automatically
+#   on x86: 1, 4, 8
+#   on Apple silicon: 1, 2
+simd_vector_size = {self.run_card["run"]["simd_vector_size"]}
+# pool sizes: -1 sets count automatically based on number of CPUs
+cpu_thread_pool_size = {self.run_card["run"]["cpu_thread_pool_size"]}
+gpu_thread_pool_size = {self.run_card["run"]["gpu_thread_pool_size"]}
+combine_thread_pool_size = {self.run_card["run"]["combine_thread_pool_size"]}
+output_format = "{self.run_card["run"]["output_format"]}" # options: compact_npy, lhe_npy, lhe
+verbosity = "{self.run_card["run"]["verbosity"]}" # options: silent, pretty, log
+
+[generation]
+events = {self.run_card["generation"]["events"]}
+max_overweight_truncation = {self.run_card["generation"]["max_overweight_truncation"]}
+freeze_max_weight_after = {self.run_card["generation"]["freeze_max_weight_after"]}
+cpu_batch_size = {self.run_card["generation"]["cpu_batch_size"]}
+gpu_batch_size = {self.run_card["generation"]["gpu_batch_size"]}
+""")
+
+        bin_path = os.path.join(gridpack_path, "bin")
+        os.mkdir(bin_path)
+        gen_events_file = os.path.join(bin_path, "generate_events")
+        shutil.copy(
+            os.path.join(os.path.dirname(__file__), "gridpack.py"), gen_events_file
+        )
+        os.chmod(gen_events_file, 0o755)
+
+        data = {
+            "channels": channel_files,
+            "matrix_elements": matrix_elements,
+        }
+        with open(os.path.join(data_path, "data.json"), "w") as f:
+            json.dump(data, f)
+
+        if self.lhe_completer is None:
+            self.lhe_completer = self.build_lhe_completer()
+        self.lhe_completer.save(os.path.join(data_path, "lhe.json"))
 
     def get_mass(self, pid: int) -> float:
         return self.param_card.get_value("mass", pid)
@@ -593,19 +759,16 @@ class MadgraphSubprocess:
 
         api_path_format = self.meta["me_path"]
         subproc_path = self.meta["path"]
-        devices = self.process.run_card["run"]["device"]
+        devices = self.process.run_card["run"]["devices"]
         api_paths = []
         if not isinstance(devices, list):
-            devices = [ devices ]
+            devices = [devices]
         for device in devices:
             api_paths.append(api_path_format.format(device=device))
             if not os.path.isfile(api_paths[-1]):
                 subproc_dir = os.path.dirname(subproc_path)
-                print(f"Compiling subprocess {subproc_dir}, for device '{device}'")
                 logger.info(f"Compiling subprocess {subproc_dir}, for device '{device}'")
                 misc.compile(arg = [f"BACKEND={device}", "USEBUILDDIR=1"], cwd = subproc_path)
-        # temporary fix before we will have multiple devices (will change in the future)
-        api_path = api_paths[0]
 
         self.incoming_masses = [
             self.process.get_mass(pid) for pid in clean_pids(self.meta["incoming"])
@@ -648,10 +811,11 @@ class MadgraphSubprocess:
 
         if self.process.run_card["run"]["dummy_matrix_element"]:
             self.matrix_element = None
-        else: 
-            self.matrix_element = self.process.context.load_matrix_element(
-                api_path, self.process.param_card_path
-            )
+        else:
+            for context, api_path in zip(self.process.contexts, api_paths):
+                self.matrix_element = context.load_matrix_element(
+                    api_path, self.process.param_card_path
+                )
 
     def build_multi_channel_data(self) -> MultiChannelData:
         if self.multi_channel_data is not None:
@@ -883,6 +1047,7 @@ class MadgraphSubprocess:
                 )),
                 name = channel.name,
                 active_flavors = channel.active_flavors,
+                event_generator = channel.event_generator,
             ))
 
         flat_channel = flat_phasespace.channels[0]
@@ -936,10 +1101,10 @@ class MadgraphSubprocess:
                 invert_spline=madnis_args["flow_invert_spline"],
             )
             if channel.adaptive_mapping is None:
-                flow.initialize_globals(self.process.context)
+                flow.initialize_globals(self.process.contexts[0])
             else:
                 flow.initialize_from_vegas(
-                    self.process.context, channel.adaptive_mapping.grid_name()
+                    self.process.contexts[0], channel.adaptive_mapping.grid_name()
                 )
             #cond_dim += flow_dim
 
@@ -954,7 +1119,7 @@ class MadgraphSubprocess:
                     subnet_layers=madnis_args["discrete_layers"],
                     subnet_activation=self.activation(madnis_args["discrete_activation"]),
                 )
-                discrete_after.initialize_globals(self.process.context)
+                discrete_after.initialize_globals(self.process.contexts[0])
 
             channels.append(Channel(
                 phasespace_mapping = channel.phasespace_mapping,
@@ -985,7 +1150,8 @@ class MadgraphSubprocess:
             self.process.run_card["vegas"]["bins"],
             prefix,
         )
-        vegas.initialize_globals(self.process.context)
+        for context in self.process.contexts:
+            vegas.initialize_globals(context)
         return vegas
 
     def build_discrete(
@@ -1005,7 +1171,8 @@ class MadgraphSubprocess:
             discrete_after = ms.DiscreteSampler(
                 [flavor_count], f"{prefix}.discrete_after", [0]
             )
-            discrete_after.initialize_globals(self.process.context)
+            for context in self.process.contexts:
+                discrete_after.initialize_globals(context)
         else:
             discrete_after = None
 
@@ -1021,7 +1188,7 @@ class MadgraphSubprocess:
             activation=self.activation(madnis_args["cwnet_activation"]),
             prefix=f"subproc{self.subproc_id}.cwnet",
         )
-        cwnet.initialize_globals(self.process.context)
+        cwnet.initialize_globals(self.process.contexts[0])
         return cwnet
 
     def t_channel_mode(self, name: str) -> ms.PhaseSpaceMapping.TChannelMode:
@@ -1052,7 +1219,7 @@ class MadgraphSubprocess:
     def build_integrands(
         self,
         phasespace: PhaseSpace,
-        flags: int = ms.EventGenerator.integrand_flags
+        flags: int = ms.ChannelEventGenerator.integrand_flags
     ) -> list[ms.Integrand]:
         flavors = []
         flavor_remap = []
@@ -1128,7 +1295,7 @@ class MadgraphSubprocess:
             self.build_integrands(phasespace, MADNIS_INTEGRAND_FLAGS),
             phasespace,
             self.process.run_card["madnis"],
-            self.process.context,
+            self.process.contexts[0],
             status_func
         )
 

@@ -1,30 +1,31 @@
-#include "madspace/phasespace/integrand.h"
+#include "madspace/phasespace/integrand.hpp"
 
-#include "madspace/util.h"
+#include "madspace/util.hpp"
 
 #include <set>
 
 using namespace madspace;
 
-Unweighter::Unweighter(const TypeVec& types) :
+Unweighter::Unweighter(const NamedVector<Type>& types) :
     FunctionGenerator(
         "Unweighter",
         [&] {
-            auto arg_types = types;
-            arg_types.push_back(single_float);
+            NamedVector<Type> arg_types = types;
+            arg_types.push_back("max_weight", single_float);
             return arg_types;
         }(),
         types
     ) {}
 
-ValueVec
-Unweighter::build_function_impl(FunctionBuilder& fb, const ValueVec& args) const {
+NamedVector<Value> Unweighter::build_function_impl(
+    FunctionBuilder& fb, const NamedVector<Value>& args
+) const {
     auto [uw_indices, uw_weights] = fb.unweight(args.at(0), args.back());
     ValueVec output{uw_weights};
     for (auto arg : std::span(args.begin() + 1, args.end() - 1)) {
         output.push_back(fb.batch_gather(uw_indices, arg));
     }
-    return output;
+    return {return_types().keys(), output};
 }
 
 Integrand::Integrand(
@@ -49,39 +50,45 @@ Integrand::Integrand(
     FunctionGenerator(
         "Integrand",
         [&] {
-            TypeVec arg_types;
+            NamedVector<Type> arg_types;
             if (flags & sample) {
-                arg_types.push_back(Type({batch_size}));
+                arg_types.push_back("batch_size", Type({batch_size}));
             } else {
-                arg_types.push_back(batch_float_array(
-                    mapping.random_dim() +               // phasespace
-                    (mapping.channel_count() > 1) +      // symmetric channel
-                    (diff_xs.pid_options().size() > 1) + // flavor
-                    diff_xs.has_mirror()                 // flipped initial state
-                ));
+                arg_types.push_back(
+                    "random",
+                    batch_float_array(
+                        mapping.random_dim() +               // phasespace
+                        (mapping.channel_count() > 1) +      // symmetric channel
+                        (diff_xs.pid_options().size() > 1) + // flavor
+                        diff_xs.has_mirror()                 // flipped initial state
+                    )
+                );
             }
             if (flags & unweight) {
-                arg_types.push_back(single_float);
+                arg_types.push_back("max_weight", single_float);
             }
             return arg_types;
         }(),
         [&] {
-            TypeVec ret_types{batch_float};
+            NamedVector<Type> ret_types;
+            ret_types.push_back("weight", batch_float);
             if (flags & return_momenta) {
-                ret_types.push_back(batch_four_vec_array(mapping.particle_count()));
+                ret_types.push_back(
+                    "momenta", batch_four_vec_array(mapping.particle_count())
+                );
             }
             if (flags & return_x1_x2) {
-                ret_types.push_back(batch_float);
-                ret_types.push_back(batch_float);
+                ret_types.push_back("x1", batch_float);
+                ret_types.push_back("x2", batch_float);
             }
             if (flags & return_indices) {
-                ret_types.push_back(batch_int);
-                ret_types.push_back(batch_int);
-                ret_types.push_back(batch_int);
-                ret_types.push_back(batch_int);
+                ret_types.push_back("color_index", batch_int);
+                ret_types.push_back("helicity_index", batch_int);
+                ret_types.push_back("diagram_index", batch_int);
+                ret_types.push_back("flavor_index", batch_int);
             }
             if (flags & return_random) {
-                ret_types.push_back(batch_float_array(mapping.random_dim()));
+                ret_types.push_back("random", batch_float_array(mapping.random_dim()));
             }
             if (flags & return_latent) {
                 if (std::holds_alternative<std::monostate>(adaptive_map)) {
@@ -90,43 +97,48 @@ Integrand::Integrand(
                         "present"
                     );
                 }
-                ret_types.push_back(batch_float_array(mapping.random_dim()));
-                ret_types.push_back(batch_float);
+                ret_types.push_back("latent", batch_float_array(mapping.random_dim()));
+                ret_types.push_back("adaptive_prob", batch_float);
             }
             if (flags & return_channel) {
-                ret_types.push_back(batch_int);
+                ret_types.push_back("channel_index", batch_int);
             }
             if (flags & return_chan_weights) {
-                ret_types.push_back(batch_float_array(
-                    chan_weight_remap.size() > 0 ? remapped_chan_count
-                        : subchan_weights        ? subchan_weights->channel_count()
-                                          : diff_xs.matrix_element().diagram_count()
-                ));
-                ret_types.push_back(batch_float);
+                ret_types.push_back(
+                    "channel_weights",
+                    batch_float_array(
+                        chan_weight_remap.size() > 0 ? remapped_chan_count
+                            : subchan_weights        ? subchan_weights->channel_count()
+                                              : diff_xs.matrix_element().diagram_count()
+                    )
+                );
             }
             if (flags & return_cwnet_input) {
-                ret_types.push_back(batch_float_array(
-                    chan_weight_net.value().preprocessing().output_dim()
-                ));
+                ret_types.push_back(
+                    "cwnet_input",
+                    batch_float_array(
+                        chan_weight_net.value().preprocessing().output_dim()
+                    )
+                );
             }
             auto flav_count = diff_xs.pid_options().size();
             if (flags & return_discrete) {
                 if (mapping.channel_count() > 1 &&
                     !std::holds_alternative<std::monostate>(discrete_before)) {
-                    ret_types.push_back(batch_int);
+                    ret_types.push_back("channel_index_in_group", batch_int);
                 }
                 if (flav_count > 1 &&
                     !std::holds_alternative<std::monostate>(discrete_after)) {
-                    ret_types.push_back(batch_int);
+                    ret_types.push_back("flavor_index", batch_int);
                 }
             }
             if (flags & return_discrete_latent) {
-                ret_types.push_back(batch_int);
+                ret_types.push_back("channel_index_in_group", batch_int);
                 if (flav_count > 1 &&
                     !std::holds_alternative<std::monostate>(discrete_after)) {
-                    ret_types.push_back(batch_int);
+                    ret_types.push_back("flavor_index", batch_int);
                     if (pdf_grid && energy_scale) {
-                        ret_types.push_back(batch_float_array(flav_count));
+                        ret_types.push_back("pdf_prior", batch_float_array(flav_count));
                     }
                 }
             }
@@ -194,8 +206,9 @@ std::tuple<std::vector<std::size_t>, std::vector<bool>> Integrand::latent_dims()
     return {dims, is_float};
 }
 
-ValueVec
-Integrand::build_function_impl(FunctionBuilder& fb, const ValueVec& args) const {
+NamedVector<Value> Integrand::build_function_impl(
+    FunctionBuilder& fb, const NamedVector<Value>& args
+) const {
     bool has_multi_flavor = _diff_xs.pid_options().size() > 1;
     ChannelArgs channel_args{
         .r = _flags & sample ? fb.random(args.at(0), _random_dim) : args.at(0),
@@ -252,11 +265,13 @@ Integrand::ChannelResult Integrand::build_channel_part(
                     weights_before_cuts.push_back(chan_det);
                 },
                 [&](auto discrete_before) {
-                    auto [index_vec, chan_det] =
+                    auto discrete_result =
                         discrete_before.build_forward(fb, {chan_random}, {});
-                    result.chan_index_in_group() = index_vec.at(0);
-                    weights_before_cuts.push_back(chan_det);
-                    adaptive_probs.push_back(chan_det);
+                    result.chan_index_in_group() = discrete_result.at(0);
+                    if (!(_flags & exclude_adaptive_and_chan_weight)) {
+                        weights_before_cuts.push_back(discrete_result["det"]);
+                    }
+                    adaptive_probs.push_back(discrete_result["det"]);
                 }
             },
             _discrete_before
@@ -287,10 +302,12 @@ Integrand::ChannelResult Integrand::build_channel_part(
                         cond.push_back(fb.cat(flow_conditions));
                     }
                 }
-                auto [rs, r_det] = admap.build_forward(fb, {result.r()}, cond);
-                result.latent() = rs.at(0);
-                adaptive_probs.push_back(r_det);
-                weights_before_cuts.push_back(r_det);
+                auto admap_result = admap.build_forward(fb, {result.r()}, cond);
+                result.latent() = admap_result["data"];
+                adaptive_probs.push_back(admap_result["det"]);
+                if (!(_flags & exclude_adaptive_and_chan_weight)) {
+                    weights_before_cuts.push_back(admap_result["det"]);
+                }
                 flow_conditions.push_back(result.latent());
             }
         },
@@ -298,12 +315,12 @@ Integrand::ChannelResult Integrand::build_channel_part(
     );
 
     // apply phase space mapping
-    auto [momenta_x1_x2, det] =
+    auto mapping_result =
         _mapping.build_forward(fb, {result.latent()}, mapping_conditions);
-    weights_before_cuts.push_back(det);
-    result.momenta() = momenta_x1_x2.at(0);
-    result.x(0) = momenta_x1_x2.at(1);
-    result.x(1) = momenta_x1_x2.at(2);
+    weights_before_cuts.push_back(mapping_result["det"]);
+    result.momenta() = mapping_result["momenta"];
+    result.x(0) = mapping_result["x1"];
+    result.x(1) = mapping_result["x2"];
 
     if (args.has_mirror) {
         auto [index, mirror_det] =
@@ -333,10 +350,11 @@ Integrand::ChannelResult Integrand::build_channel_part(
         ValueVec pdf_priors;
         for (std::size_t i = 0; i < 2; ++i) {
             if (_diff_xs.has_pdf(i)) {
-                auto pdf = _pdfs.at(i)
-                               .value()
-                               .build_function(fb, {result.x_acc(i), scales.at(i + 1)})
-                               .at(0);
+                auto pdf =
+                    _pdfs.at(i)
+                        .value()
+                        .build_function(fb, {result.x_acc(i), scales.at(i + 1)})
+                        .at(0);
                 result.pdf_cache(i) = pdf;
                 pdf_priors.push_back(fb.select(pdf, _pdf_indices.at(i)));
             }
@@ -385,15 +403,17 @@ Integrand::ChannelResult Integrand::build_channel_part(
                     if (args.has_pdf_prior) {
                         discrete_condition.push_back(result.pdf_prior());
                     }
-                    auto [index_vec, flavor_det] = discrete_after.build_forward(
+                    auto discrete_result = discrete_after.build_forward(
                         fb, {flavor_random_acc}, discrete_condition
                     );
-                    result.flavor_id() = index_vec.at(0);
-                    weights_after_cuts.push_back(flavor_det);
+                    result.flavor_id() = discrete_result.at(0);
+                    if (!(_flags & exclude_adaptive_and_chan_weight)) {
+                        weights_after_cuts.push_back(discrete_result["det"]);
+                    }
                     auto ones = fb.full({1., args.batch_size});
-                    adaptive_probs.push_back(
-                        fb.batch_scatter(result.indices_acc(), ones, flavor_det)
-                    );
+                    adaptive_probs.push_back(fb.batch_scatter(
+                        result.indices_acc(), ones, discrete_result["det"]
+                    ));
                 }
             },
             _discrete_after
@@ -402,12 +422,33 @@ Integrand::ChannelResult Integrand::build_channel_part(
     result.weight_after_cuts() = weights_after_cuts.size() == 0
         ? fb.full({1., batch_size_acc})
         : fb.product(weights_after_cuts);
-    result.adaptive_prob() = adaptive_probs.size() == 0 ? fb.full({1., args.batch_size})
-                                                        : fb.product(adaptive_probs);
+    result.adaptive_prob() = adaptive_probs.size() == 0
+        ? fb.full({1., args.batch_size})
+        : fb.product(adaptive_probs);
     return result;
 }
 
-ValueVec Integrand::build_common_part(
+Value Integrand::scatter_or_drop(
+    FunctionBuilder& fb, ChannelResult& result, Value default_value, Value value
+) const {
+    if (_flags & drop_cuts_and_rescale) {
+        return value;
+    } else {
+        return fb.batch_scatter(result.indices_acc(), default_value, value);
+    }
+}
+
+Value Integrand::optional_cut(
+    FunctionBuilder& fb, ChannelResult& result, Value value
+) const {
+    if (_flags & drop_cuts_and_rescale) {
+        return fb.batch_gather(result.indices_acc(), value);
+    } else {
+        return value;
+    }
+}
+
+NamedVector<Value> Integrand::build_common_part(
     FunctionBuilder& fb,
     const Integrand::ChannelArgs& args,
     Integrand::ChannelResult& result
@@ -416,8 +457,9 @@ ValueVec Integrand::build_common_part(
     // on denominators of propagators
     Value chan_weights_acc;
     std::size_t channel_count = _chan_weight_remap.size() > 0 ? _remapped_chan_count
-        : _subchan_weights ? _subchan_weights->channel_count()
-                           : _diff_xs.matrix_element().diagram_count();
+        : _subchan_weights
+        ? _subchan_weights->channel_count()
+        : _diff_xs.matrix_element().diagram_count();
     if (channel_count > 1 && _prop_chan_weights) {
         chan_weights_acc =
             _prop_chan_weights->build_function(fb, {result.momenta_acc()}).at(0);
@@ -426,8 +468,9 @@ ValueVec Integrand::build_common_part(
     // evaluate differential cross section
     ValueVec xs_args{
         result.momenta_acc(),
-        _flavor_remap.size() > 0 ? fb.gather_int(result.flavor_id(), _flavor_remap)
-                                 : result.flavor_id(),
+        _flavor_remap.size() > 0
+            ? fb.gather_int(result.flavor_id(), _flavor_remap)
+            : result.flavor_id(),
     };
     for (std::size_t i = 0; i < 2; ++i) {
         xs_args.push_back(result.x_acc(i));
@@ -469,26 +512,24 @@ ValueVec Integrand::build_common_part(
     // if given, apply channel weight network
     auto prior_chan_weights_acc = chan_weights_acc;
     if (_chan_weight_net) {
-        chan_weights_acc = _chan_weight_net.value()
-                               .build_function(
-                                   fb,
-                                   {result.momenta_acc(),
-                                    result.x_acc(0),
-                                    result.x_acc(1),
-                                    chan_weights_acc}
-                               )
-                               .at(0);
+        auto& preproc = _chan_weight_net.value().preprocessing();
+        auto cw_preproc_acc =
+            preproc
+                .build_function(
+                    fb, {result.momenta_acc(), result.x_acc(0), result.x_acc(1)}
+                )
+                .at(0);
+        chan_weights_acc =
+            _chan_weight_net.value()
+                .build_function(fb, {cw_preproc_acc, chan_weights_acc})
+                .at(0);
     }
 
     // compute full phase-space weight
-    Value selected_chan_weight_acc;
-    if (channel_count > 1) {
+    if (channel_count > 1 && !(_flags & exclude_adaptive_and_chan_weight)) {
         Value chan_index_acc =
             fb.batch_gather(result.indices_acc(), result.chan_index());
-        selected_chan_weight_acc = fb.gather(chan_index_acc, chan_weights_acc);
-        weights_after_cuts.push_back(selected_chan_weight_acc);
-    } else {
-        selected_chan_weight_acc = 1.;
+        weights_after_cuts.push_back(fb.gather(chan_index_acc, chan_weights_acc));
     }
     auto weight = fb.mul(
         result.weight_before_cuts(),
@@ -500,48 +541,76 @@ ValueVec Integrand::build_common_part(
     );
 
     // return results based on _flags
-    ValueVec outputs{weight};
+    NamedVector<Value> outputs;
+    outputs.push_back("weight", optional_cut(fb, result, weight));
     if (_flags & return_momenta) {
-        outputs.push_back(args.has_mirror ? result.momenta_mirror() : result.momenta());
+        outputs.push_back(
+            "momenta",
+            optional_cut(
+                fb, result, args.has_mirror ? result.momenta_mirror() : result.momenta()
+            )
+        );
     }
     if (_flags & return_x1_x2) {
-        outputs.push_back(result.x(0));
-        outputs.push_back(result.x(1));
+        if (_flags & drop_cuts_and_rescale) {
+            outputs.push_back("x1", result.x_acc(0));
+            outputs.push_back("x2", result.x_acc(1));
+        } else {
+            outputs.push_back("x1", result.x(0));
+            outputs.push_back("x2", result.x(1));
+        }
     }
     if (_flags & return_indices) {
         auto zeros = fb.full({static_cast<me_int_t>(0), args.batch_size});
-        outputs.push_back(fb.batch_scatter(result.indices_acc(), zeros, dxs_vec.at(2)));
-        outputs.push_back(fb.batch_scatter(result.indices_acc(), zeros, dxs_vec.at(3)));
-        outputs.push_back(fb.batch_scatter(result.indices_acc(), zeros, dxs_vec.at(4)));
         outputs.push_back(
-            fb.batch_scatter(result.indices_acc(), zeros, result.flavor_id())
+            "color_index", scatter_or_drop(fb, result, zeros, dxs_vec.at(2))
+        );
+        outputs.push_back(
+            "helicity_index", scatter_or_drop(fb, result, zeros, dxs_vec.at(3))
+        );
+        outputs.push_back(
+            "diagram_index", scatter_or_drop(fb, result, zeros, dxs_vec.at(4))
+        );
+        outputs.push_back(
+            "flavor_index", scatter_or_drop(fb, result, zeros, result.flavor_id())
         );
     }
     if (_flags & return_random) {
-        outputs.push_back(result.r());
+        outputs.push_back("random", optional_cut(fb, result, result.r()));
     }
     if (_flags & return_latent) {
-        outputs.push_back(result.latent());
-        outputs.push_back(result.adaptive_prob());
+        outputs.push_back("latent", optional_cut(fb, result, result.latent()));
+        Value norm = _flags & drop_cuts_and_rescale
+            ? fb.accept_norm(result.indices_acc(), result.adaptive_prob())
+            : Value(1.);
+        outputs.push_back(
+            "adaptive_prob",
+            fb.div(norm, optional_cut(fb, result, result.adaptive_prob()))
+        );
     }
     if (_flags & return_channel) {
-        outputs.push_back(result.chan_index());
+        outputs.push_back(
+            "channel_index", optional_cut(fb, result, result.chan_index())
+        );
     }
     if (_flags & return_chan_weights) {
-        auto cw_flat = fb.full(
-            {1. / channel_count, args.batch_size, static_cast<me_int_t>(channel_count)}
-        );
-        auto ones = fb.full({1., args.batch_size});
         if (channel_count > 1) {
-            outputs.push_back(
-                fb.batch_scatter(result.indices_acc(), cw_flat, prior_chan_weights_acc)
+            auto cw_flat = fb.full(
+                {1. / channel_count,
+                 args.batch_size,
+                 static_cast<me_int_t>(channel_count)}
             );
             outputs.push_back(
-                fb.batch_scatter(result.indices_acc(), ones, selected_chan_weight_acc)
+                "channel_weights",
+                scatter_or_drop(fb, result, cw_flat, prior_chan_weights_acc)
             );
         } else {
-            outputs.push_back(cw_flat);
-            outputs.push_back(ones);
+            auto cw_flat = fb.full(
+                {1. / channel_count,
+                 fb.batch_size({outputs.at(0)}),
+                 static_cast<me_int_t>(channel_count)}
+            );
+            outputs.push_back("channel_weights", cw_flat);
         }
     }
     if (_flags & return_cwnet_input) {
@@ -555,30 +624,36 @@ ValueVec Integrand::build_common_part(
         auto zeros =
             fb.full({0., args.batch_size, static_cast<me_int_t>(preproc.output_dim())});
         outputs.push_back(
-            fb.batch_scatter(result.indices_acc(), zeros, cw_preproc_acc)
+            "cwnet_inputs", scatter_or_drop(fb, result, zeros, cw_preproc_acc)
         );
     }
     if (_flags & return_discrete) {
         if (args.has_permutations &&
             !std::holds_alternative<std::monostate>(_discrete_before)) {
             // TODO: probably doesn't work for multichannel integrand
-            outputs.push_back(result.chan_index_in_group());
+            outputs.push_back(
+                "channel_index_in_group",
+                optional_cut(fb, result, result.chan_index_in_group())
+            );
         }
         if (args.has_multi_flavor &&
             !std::holds_alternative<std::monostate>(_discrete_after)) {
             auto zeros = fb.full({static_cast<me_int_t>(0), args.batch_size});
             outputs.push_back(
-                fb.batch_scatter(result.indices_acc(), zeros, result.flavor_id())
+                "flavor_index", scatter_or_drop(fb, result, zeros, result.flavor_id())
             );
         }
     }
     if (_flags & return_discrete_latent) {
-        outputs.push_back(result.chan_index_in_group());
+        outputs.push_back(
+            "channel_index_in_group",
+            optional_cut(fb, result, result.chan_index_in_group())
+        );
         if (args.has_multi_flavor &&
             !std::holds_alternative<std::monostate>(_discrete_after)) {
             auto zeros = fb.full({static_cast<me_int_t>(0), args.batch_size});
             outputs.push_back(
-                fb.batch_scatter(result.indices_acc(), zeros, result.flavor_id())
+                "flavor_index", scatter_or_drop(fb, result, zeros, result.flavor_id())
             );
             if (args.has_pdf_prior) {
                 auto flav_count = _diff_xs.pid_options().size();
@@ -588,7 +663,7 @@ ValueVec Integrand::build_common_part(
                      static_cast<me_int_t>(flav_count)}
                 );
                 outputs.push_back(
-                    fb.batch_scatter(result.indices_acc(), norm, result.pdf_prior())
+                    "pdf_prior", scatter_or_drop(fb, result, norm, result.pdf_prior())
                 );
             }
         }
@@ -596,8 +671,8 @@ ValueVec Integrand::build_common_part(
 
     if (_flags & unweight) {
         Unweighter unweighter(return_types());
-        ValueVec unweighter_args = outputs;
-        unweighter_args.push_back(args.max_weight);
+        NamedVector<Value> unweighter_args = outputs;
+        unweighter_args.push_back("max_weight", args.max_weight);
         outputs = unweighter.build_function(fb, unweighter_args);
     }
 
@@ -605,20 +680,31 @@ ValueVec Integrand::build_common_part(
 }
 
 MultiChannelIntegrand::MultiChannelIntegrand(
-    const std::vector<std::shared_ptr<Integrand>>& integrands
+    const std::vector<std::shared_ptr<Integrand>>& integrands, bool return_sizes
 ) :
     FunctionGenerator(
         "MultiChannelIntegrand",
         [&] {
-            TypeVec arg_types{multichannel_batch_size(integrands.size())};
+            NamedVector<Type> arg_types{
+                {"batch_sizes", multichannel_batch_size(integrands.size())}
+            };
             if (integrands.at(0)->_flags & Integrand::unweight) {
-                arg_types.push_back(single_float);
+                arg_types.push_back("max_weight", single_float);
             }
             return arg_types;
         }(),
-        integrands.at(0)->return_types()
+        [&] {
+            NamedVector<Type> ret_types = integrands.at(0)->return_types();
+            if (return_sizes) {
+                ret_types.push_back(
+                    "return_batch_sizes", multichannel_batch_size(integrands.size())
+                );
+            }
+            return ret_types;
+        }()
     ),
-    _integrands(integrands) {
+    _integrands(integrands),
+    _return_sizes(return_sizes) {
     auto& first_function = integrands.at(0);
     std::size_t arg_count = first_function->arg_types().size();
     std::size_t return_count = first_function->return_types().size();
@@ -632,8 +718,8 @@ MultiChannelIntegrand::MultiChannelIntegrand(
     }
 }
 
-ValueVec MultiChannelIntegrand::build_function_impl(
-    FunctionBuilder& fb, const ValueVec& args
+NamedVector<Value> MultiChannelIntegrand::build_function_impl(
+    FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
     auto& first_integrand = _integrands.at(0);
     bool has_multi_flavor = first_integrand->_diff_xs.pid_options().size() > 1;
@@ -651,13 +737,21 @@ ValueVec MultiChannelIntegrand::build_function_impl(
         common_args.max_weight = args.at(1);
     }
     std::vector<Integrand::ChannelResult> results;
-    for (auto [integrand, chan_size] : zip(_integrands, all_batch_sizes)) {
+    ValueVec ret_batch_sizes;
+    for (std::size_t index = 0;
+         auto [integrand, chan_size] : zip(_integrands, all_batch_sizes)) {
+        fb.set_current_stream(index + 1);
         auto channel_args = common_args;
         channel_args.r = fb.random(chan_size, integrand->_random_dim);
         channel_args.batch_size = chan_size;
         channel_args.has_permutations = integrand->_mapping.channel_count() > 1;
         results.push_back(integrand->build_channel_part(fb, channel_args));
+        if (_return_sizes) {
+            ret_batch_sizes.push_back(fb.batch_size({results.back().indices_acc()}));
+        }
+        ++index;
     }
+    fb.set_current_stream(0);
 
     Integrand::ChannelResult common_results;
     for (std::size_t i = 0; i < common_results.values.size(); ++i) {
@@ -683,28 +777,33 @@ ValueVec MultiChannelIntegrand::build_function_impl(
         }
     }
     common_args.batch_size = fb.batch_size({common_results.momenta()});
-    return _integrands.at(0)->build_common_part(fb, common_args, common_results);
+    auto output = _integrands.at(0)->build_common_part(fb, common_args, common_results);
+    if (_return_sizes) {
+        output.push_back("return_batch_sizes", fb.stack_sizes(ret_batch_sizes));
+    }
+    return output;
 }
 
 IntegrandProbability::IntegrandProbability(const Integrand& integrand) :
     FunctionGenerator(
         "IntegrandProbability",
         [&] {
-            TypeVec arg_types{
-                batch_float_array(integrand._mapping.random_dim()), batch_int
+            NamedVector<Type> arg_types{
+                {"latent", batch_float_array(integrand._mapping.random_dim())},
+                {"channel_index_in_group", batch_int}
             };
             auto flavor_count = integrand._diff_xs.pid_options().size();
             if (flavor_count > 1 &&
                 !std::holds_alternative<std::monostate>(integrand._discrete_after)) {
-                arg_types.push_back(batch_int);
+                arg_types.push_back("flavor_index", batch_int);
                 if ((integrand._pdfs.at(0) || integrand._pdfs.at(1)) &&
                     integrand._energy_scale) {
-                    arg_types.push_back(batch_float_array(flavor_count));
+                    arg_types.push_back("pdf_prior", batch_float_array(flavor_count));
                 }
             }
             return arg_types;
         }(),
-        {batch_float}
+        {{"prob", batch_float}}
     ),
     _adaptive_map(integrand._adaptive_map),
     _discrete_before(integrand._discrete_before),
@@ -715,8 +814,8 @@ IntegrandProbability::IntegrandProbability(const Integrand& integrand) :
         (integrand._pdfs.at(0) || integrand._pdfs.at(1)) && integrand._energy_scale
     ) {}
 
-ValueVec IntegrandProbability::build_function_impl(
-    FunctionBuilder& fb, const ValueVec& args
+NamedVector<Value> IntegrandProbability::build_function_impl(
+    FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
     ValueVec probs, flow_conditions;
     if (_permutation_count > 1) {
@@ -728,9 +827,9 @@ ValueVec IntegrandProbability::build_function_impl(
             Overloaded{
                 [](std::monostate) {},
                 [&](auto discrete_before) {
-                    auto [r, chan_det] =
+                    auto discrete_result =
                         discrete_before.build_inverse(fb, {chan_index}, {});
-                    probs.push_back(chan_det);
+                    probs.push_back(discrete_result["det"]);
                 }
             },
             _discrete_before
@@ -751,8 +850,8 @@ ValueVec IntegrandProbability::build_function_impl(
                         cond.push_back(fb.cat(flow_conditions));
                     }
                 }
-                auto [r, r_det] = admap.build_inverse(fb, {latent}, cond);
-                probs.push_back(r_det);
+                auto admap_result = admap.build_inverse(fb, {latent}, cond);
+                probs.push_back(admap_result["det"]);
                 flow_conditions.push_back(latent);
             }
         },
@@ -781,14 +880,14 @@ ValueVec IntegrandProbability::build_function_impl(
                         ++arg_index;
                         discrete_condition.push_back(pdf_prior);
                     }
-                    auto [r_flavor, flavor_det] =
+                    auto discrete_result =
                         discrete_after.build_inverse(fb, {flavor}, discrete_condition);
-                    probs.push_back(flavor_det);
+                    probs.push_back(discrete_result["det"]);
                 }
             },
             _discrete_after
         );
     }
 
-    return {fb.product(probs)};
+    return {{"prob", fb.product(probs)}};
 }
