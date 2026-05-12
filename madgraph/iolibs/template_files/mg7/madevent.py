@@ -26,6 +26,7 @@ else:
 
 import madspace as ms
 from models.check_param_card import ParamCard
+from madgraph.various import misc
 
 logger = logging.getLogger("madevent7")
 
@@ -599,12 +600,10 @@ class MadgraphSubprocess:
         for device in devices:
             api_paths.append(api_path_format.format(device=device))
             if not os.path.isfile(api_paths[-1]):
-                cwd = os.getcwd()
                 subproc_dir = os.path.dirname(subproc_path)
-                logger.info(f"Compiling subprocess {subproc_dir}")
-                os.chdir(subproc_path)
-                subprocess.run(["make", "-j", f"BACKEND={device}", "USEBUILDDIR=1"])
-                os.chdir(cwd)
+                print(f"Compiling subprocess {subproc_dir}, for device '{device}'")
+                logger.info(f"Compiling subprocess {subproc_dir}, for device '{device}'")
+                misc.compile(arg = [f"BACKEND={device}", "USEBUILDDIR=1"], cwd = subproc_path)
         # temporary fix before we will have multiple devices (will change in the future)
         api_path = api_paths[0]
 
