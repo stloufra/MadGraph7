@@ -1812,7 +1812,7 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
             ret_lines.append("""
     // Local variables for the given CUDA event (ievt) or C++ event page (ipagV)
     // [jamp: sum (for one event or event page) of the invariant amplitudes for all Feynman diagrams in a given color combination]
-    cxtype_sv jamp_sv[ncolor] = {}; // all zeros (NB: vector cxtype_v IS initialized to 0, but scalar cxtype is NOT, if "= {}" is missing!)
+    cxtype_amp_sv jamp_sv[ncolor] = {}; // all zeros (NB: vector cxtype_v IS initialized to 0, but scalar cxtype is NOT, if "= {}" is missing!)
 
     // === Calculate wavefunctions and amplitudes for all diagrams in all processes         ===
     // === (for one event in CUDA, for one - or two in mixed mode - SIMD event pages in C++ ===
@@ -1875,7 +1875,10 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
         replace_dict['noutcoming'] = nexternal - nincoming
         replace_dict['nbhel'] = self.matrix_elements[0].get_helicity_combinations() # number of helicity combinations
         ###replace_dict['nwavefunc'] = self.matrix_elements[0].get_number_of_wavefunctions() # this is the correct P1-specific nwf, now in CPPProcess.h (#644)
-        replace_dict['wavefuncsize'] = 6
+        if fd_gauge:
+            replace_dict['wavefuncsize'] = 4
+        else:
+            replace_dict['wavefuncsize'] = 5
         ff = open(pjoin(self.path, '..','..','src','mgOnGpuConfig.h'),'w')
         ff.write(template % replace_dict)
         ff.close()
@@ -2040,18 +2043,18 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
         """Return the color matrix definition lines for this matrix element. Split rows in chunks of size n."""
         import madgraph.core.color_algebra as color
         if not matrix_element.get('color_matrix'):
-            return '\n'.join(['  static constexpr fptype2 colorDenom[1] = {1.};', 'static const fptype2 cf[1][1] = {1.};'])
+            return '\n'.join(['  static constexpr fptype_colour colorDenom[1] = {1.};', 'static const fptype_colour cf[1][1] = {1.};'])
         else:
             color_denominators = matrix_element.get('color_matrix').\
                                                  get_line_denominators()
-            denom_string = '  static constexpr fptype2 colorDenom[ncolor] = { %s }; // 1-D array[%i]' \
+            denom_string = '  static constexpr fptype_colour colorDenom[ncolor] = { %s }; // 1-D array[%i]' \
                            % ( ', '.join(['%i' % denom for denom in color_denominators]), len(color_denominators) )
             matrix_strings = []
             for index, denominator in enumerate(color_denominators):
                 # Then write the numerators for the matrix elements
                 num_list = matrix_element.get('color_matrix').get_line_numerators(index, denominator)
                 matrix_strings.append('{ %s }' % ', '.join(['%d' % i for i in num_list]))
-            matrix_string = '  static constexpr fptype2 colorMatrix[ncolor][ncolor] = '
+            matrix_string = '  static constexpr fptype_colour colorMatrix[ncolor][ncolor] = '
             if len( matrix_strings ) > 1:
                 matrix_string += '{\n    ' + ',\n    '.join(matrix_strings) + ' };'
             else:
@@ -2310,7 +2313,7 @@ class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
       FLV_COUPLING_ARRAY<nIPF, nMF> flvCOUPs{ cIPF_partner1, cIPF_partner2, cIPF_value };
 
       // Reset color flows (reset jamp_sv) at the beginning of a new event or event page
-      for( int i = 0; i < ncolor; i++ ) { jamp_sv[i] = cxzero_sv(); }
+      for( int i = 0; i < ncolor; i++ ) { jamp_sv[i] = cxzero_sv<cxtype_amp>(); }
 
       // Numerators and denominators for the current event (CUDA) or SIMD event page (C++)
       fptype_sv* numerators_sv = NUM_ACCESS::kernelAccessP( numerators );
