@@ -817,6 +817,35 @@ namespace mg5amcCpu
     return out;
   }
 
+  // The cxtype_amp_ref class: same as cxtype_ref but for fptype_amp buffers
+  class cxtype_amp_ref
+  {
+  public:
+    cxtype_amp_ref() = delete;
+    cxtype_amp_ref( const cxtype_amp_ref& ) = delete;
+    cxtype_amp_ref( cxtype_amp_ref&& ) = default;
+    __host__ __device__ cxtype_amp_ref( fptype_amp& r, fptype_amp& i )
+      : m_preal( &r ), m_pimag( &i ) {}
+    cxtype_amp_ref& operator=( const cxtype_amp_ref& ) = delete;
+    __host__ __device__ cxtype_amp_ref& operator=( const cxtype_amp& c )
+    {
+      *m_preal = cxreal( c );
+      *m_pimag = cximag( c );
+      return *this;
+    }
+    __host__ __device__ operator cxtype_amp() const { return cxmake( *m_preal, *m_pimag ); }
+  private:
+    fptype_amp* const m_preal;
+    fptype_amp* const m_pimag;
+  };
+
+  inline __host__ __device__ std::ostream&
+  operator<<( std::ostream& out, const cxtype_amp_ref& c )
+  {
+    out << (cxtype_amp)c;
+    return out;
+  }
+
 } // end namespace mg5amcGpu/mg5amcCpu
 
 //==========================================================================
