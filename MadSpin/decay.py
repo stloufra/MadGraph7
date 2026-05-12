@@ -246,7 +246,7 @@ class Event:
                 flav = self.model.get('merged_particles')[abs(self._pdg_to_merged[pid])].index(abs(pid)) + 1
             event_flav.append(flav)
 
-        # note that that falvor group can have more than one tuple (not sure when this happens)
+        # note that that flavor group can have more than one tuple (not sure when this happens)
         # so not using a simple index search here. (or one should change flavor_groups to be a dict of tuple:flavor_index)
         for group_idx, groupflav_tuples in enumerate(flavor_groups):
             for flav_tuple in groupflav_tuples:
@@ -3936,55 +3936,44 @@ class decay_all_events(object):
                     logger.warning('no events for %s' % str(decay_tag))
                     continue
 
-                # Compute base_max_weight per flavor using the same estimator
-                # formula as the original single-weight code.
-                base_mw_per_flavor = {}
-                for j in sorted(all_flavor_j):
-                    weights_j = []
-                    for ev_data in probe_weight[decaying]:
-                        try:
-                            w = ev_data[decay_tag].get(j, 0)
-                            if w > 0:
-                                weights_j.append(w)
-                        except Exception:
-                            continue
-                    if not weights_j:
+                # 3.x-style sharing: for a given decay channel, build one common
+                # base maxweight from the per-event envelope across compatible
+                # flavors, then reuse it across production modes.
+                shared_weights = []
+                for ev_data in probe_weight[decaying]:
+                    try:
+                        weights_by_flavor = ev_data[decay_tag]
+                    except Exception:
                         continue
-                    weights_j.sort(reverse=True)
-                    ave_weight, std_weight = decay_tools.get_mean_sd(weights_j)
-                    base_j = 1.05 * (ave_weight + self.options['nb_sigma'] * std_weight)
-                    for i in [20, 30, 40, 50]:
-                        if len(weights_j) < i:
-                            break
-                        ave_weight, std_weight = decay_tools.get_mean_sd(weights_j[:i])
-                        base_j = max(base_j, 1.05 * (ave_weight + self.options['nb_sigma'] * std_weight))
-                    if weights_j[0] > base_j:
-                        base_j = 1.05 * weights_j[0]
-                    base_mw_per_flavor[j] = base_j
+                    if not weights_by_flavor:
+                        continue
+                    w = max(weights_by_flavor.values())
+                    if w > 0:
+                        shared_weights.append(w)
 
-                if not base_mw_per_flavor:
+                if not shared_weights:
                     logger.warning('no events for %s' % str(decay_tag))
                     continue
 
-                # Global base_max_weight = max over all flavors (used for logging
-                # and as a safe fallback).
-                base_max_weight = max(base_mw_per_flavor.values())
-                best_j = max(base_mw_per_flavor, key=base_mw_per_flavor.get)
-                weights_best = [w for ev_data in probe_weight[decaying]
-                                if decay_tag in ev_data
-                                for w in [ev_data[decay_tag].get(best_j, 0)]
-                                if w > 0]
-                weights_best.sort(reverse=True)
+                shared_weights.sort(reverse=True)
+                ave_weight, std_weight = decay_tools.get_mean_sd(shared_weights)
+                base_max_weight = 1.05 * (ave_weight + self.options['nb_sigma'] * std_weight)
+                for i in [20, 30, 40, 50]:
+                    if len(shared_weights) < i:
+                        break
+                    ave_weight, std_weight = decay_tools.get_mean_sd(shared_weights[:i])
+                    base_max_weight = max(base_max_weight,
+                                          1.05 * (ave_weight + self.options['nb_sigma'] * std_weight))
+                if shared_weights[0] > base_max_weight:
+                    base_max_weight = 1.05 * shared_weights[0]
 
                 for associated_decay, ratio in decay_mapping[decay_tag]:
-                    # Per-flavor maxweights (apply ratio and security factor)
-                    mw_per_flavor = {}
-                    for j, base_j in base_mw_per_flavor.items():
-                        mw_j = ratio * base_j
-                        if ratio != 1:
-                            mw_j *= 1.1  # security
-                        mw_per_flavor[j] = mw_j
-                    max_weight = max(mw_per_flavor.values())
+                    max_weight = ratio * base_max_weight
+                    if ratio != 1:
+                        max_weight *= 1.1  # security
+                    # Keep per-flavor lookup compatibility while sharing one
+                    # common value across production/flavor configurations.
+                    mw_per_flavor = dict((j, max_weight) for j in all_flavor_j)
 
                     br = 0
                     #assign the value to the associated decays
@@ -3999,7 +3988,7 @@ class decay_all_events(object):
                     if decay_tag == associated_decay:
                         logger.debug('Decay channel %s :Using maximum weight %s [%s] (BR: %s)' % \
                                (','.join(decay_tag), base_max_weight,
-                                max(weights_best) if weights_best else 0, br/nb_finals))
+                                shared_weights[0] if shared_weights else 0, br/nb_finals))
                     else:
                         logger.debug('Decay channel %s :Using maximum weight %s (BR: %s)' % \
                                     (','.join(associated_decay), max_weight, br/nb_finals))
