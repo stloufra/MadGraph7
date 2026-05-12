@@ -79,7 +79,7 @@
 ////#define MGONGPU_INLINE_HELAMPS 1
 
 // Choose whether to hardcode the cIPD physics parameters rather than reading them from user cards
-// This optimization can gain 20%% in CUDA in eemumu (issue #39)
+// This optimization can gain 20% in CUDA in eemumu (issue #39)
 // By default, do not hardcode, but allow this macro to be set from outside with e.g. -DMGONGPU_HARDCODE_PARAM
 // ** NB: The option to use hardcoded cIPD physics parameters is supported again even now when alphas is running (#373)
 // ** NB: Note however that it now only refers to cIPD parameters (cIPC parameters are always accessed through global memory)
@@ -178,6 +178,58 @@ namespace mgOnGpu
   typedef float fptype2; // single precision (4 bytes, fp32)
 #endif
 
+  // --- Multi-precision stage-specific types ---
+  // Each type can be independently controlled via its own macro.
+  // Defaults are based on fptype/fptype2 for backward compatibility.
+
+  // fptype_momenta: for momenta storage and polarization vector inputs
+#if defined MGONGPU_FPTYPE_MOMENTA_DOUBLE
+  typedef double fptype_momenta;
+#elif defined MGONGPU_FPTYPE_MOMENTA_FLOAT
+  typedef float fptype_momenta;
+#else
+  typedef fptype fptype_momenta;
+#endif
+
+  // fptype_polarization: for wavefunction/polarization outputs
+#if defined MGONGPU_FPTYPE_POLARIZATION_DOUBLE
+  typedef double fptype_polarization;
+#elif defined MGONGPU_FPTYPE_POLARIZATION_FLOAT
+  typedef float fptype_polarization;
+#else
+  typedef fptype fptype_polarization;
+#endif
+
+  // fptype_vertex: for VVF vertex function (FFV1_0, FFV1P0_3) internal computation
+#if defined MGONGPU_FPTYPE_VERTEX_DOUBLE
+  typedef double fptype_vertex;
+#elif defined MGONGPU_FPTYPE_VERTEX_FLOAT
+  typedef float fptype_vertex;
+#else
+  typedef fptype fptype_vertex;
+#endif
+
+  // fptype_denom: for denominator variables in vertex functions
+#if defined MGONGPU_FPTYPE_DENOM_DOUBLE
+  typedef double fptype_denom;
+#elif defined MGONGPU_FPTYPE_DENOM_FLOAT
+  typedef float fptype_denom;
+#else
+  typedef fptype fptype_denom;
+#endif
+
+  // fptype_amp: for amplitude/jamp variables
+#if defined MGONGPU_FPTYPE_AMP_DOUBLE
+  typedef double fptype_amp;
+#elif defined MGONGPU_FPTYPE_AMP_FLOAT
+  typedef float fptype_amp;
+#else
+  typedef fptype fptype_amp;
+#endif
+
+  // fptype_colour: for color algebra (alias for fptype2)
+  typedef fptype2 fptype_colour;
+
   // --- Platform-specific software implementation details
 
   // Maximum number of blocks per grid
@@ -201,6 +253,12 @@ namespace mgOnGpu
 // Expose typedefs and operators outside the namespace
 using mgOnGpu::fptype;
 using mgOnGpu::fptype2;
+using mgOnGpu::fptype_momenta;
+using mgOnGpu::fptype_polarization;
+using mgOnGpu::fptype_vertex;
+using mgOnGpu::fptype_denom;
+using mgOnGpu::fptype_amp;
+using mgOnGpu::fptype_colour;
 
 // Undefine ARM_NEON (hack for cppnone on Apple silicon ARM)
 #ifdef MGONGPU_NOARMNEON
@@ -251,7 +309,7 @@ using mgOnGpu::fptype2;
 //#define mgDebugDeclare() __shared__ float mgDebugCounter[mgOnGpu::ntpbMAX];
 //#define mgDebugInitialise() { mgDebugCounter[threadIdx.x] = 0; }
 //#define mgDebug( code, text ) { mgDebugCounter[threadIdx.x] += 1; }
-//#define mgDebugFinalise() { if ( blockIdx.x == 0 && threadIdx.x == 0 ) printf( "MGDEBUG: counter=%%f\n", mgDebugCounter[threadIdx.x] ); }
+//#define mgDebugFinalise() { if ( blockIdx.x == 0 && threadIdx.x == 0 ) printf( "MGDEBUG: counter=%f\n", mgDebugCounter[threadIdx.x] ); }
 //#else
 #define mgDebugDeclare() /*noop*/
 #define mgDebugInitialise() /*noop*/
