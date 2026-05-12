@@ -78,6 +78,7 @@ class Event:
     """ class to read an event, record the information, write down the event in the lhe format.
             This class is used both for production and decayed events"""
 
+    _pdg_to_merged = None  # cache for get_tag() to remap actual PDG codes to merged-particle IDs
     def __init__(self, inputfile=None, banner=None, model=None):
         """Store the name of the event file """
         self.inputfile=inputfile
@@ -87,7 +88,8 @@ class Event:
         # to merged-particle IDs so that all_ME key lookups succeed.
         self.model = model
         # Lazy-built reverse map: actual_pdg -> merged_particle_pdg
-        self._pdg_to_merged = None
+        if model:
+            self._get_pdg_to_merged(model)
 
     def give_momenta(self, map_event=None):
         """ return the set of external momenta of the event, 
@@ -145,7 +147,8 @@ class Event:
         line.append('')
         return "\n".join(line)
     
-    def _get_pdg_to_merged(self):
+    @classmethod
+    def _get_pdg_to_merged(cls, model):
         """Build (and cache) a reverse map from real PDG code to merged-particle PDG.
 
         For example, if merged_particles = {81: [1, 2, 3, 4], 82: [11, 13]},
@@ -153,19 +156,21 @@ class Event:
         Particle 21 (gluon, self-antipart) would map both 21 -> 81 and -21 -> -81
         only if 21 is a member of the group.
         """
-        if self._pdg_to_merged is not None:
-            return self._pdg_to_merged
-        self._pdg_to_merged = {}
-        if self.model is None:
-            return self._pdg_to_merged
-        merged = self.model.get('merged_particles')
+        if cls._pdg_to_merged:
+            return cls._pdg_to_merged
+        cls._pdg_to_merged = {}
+        if model is None:
+            return cls._pdg_to_merged
+        merged = model.get('merged_particles')
+        misc.sprint(merged)
         if not merged:
-            return self._pdg_to_merged
+            return cls._pdg_to_merged
+
         for merged_pdg, members in merged.items():
             for pid in members:
-                self._pdg_to_merged[pid] = merged_pdg
-                self._pdg_to_merged[-pid] = -merged_pdg
-        return self._pdg_to_merged
+                cls._pdg_to_merged[pid] = merged_pdg
+                cls._pdg_to_merged[-pid] = -merged_pdg
+        return cls._pdg_to_merged
 
     def get_tag(self):
         """Return the production tag and particle ordering for this event.
@@ -176,7 +181,7 @@ class Event:
         matches the keys stored in AllMatrixElement (which are built from the
         process legs and therefore use merged-particle IDs).
         """
-        pdg_to_merged = self._get_pdg_to_merged()
+        pdg_to_merged = self._get_pdg_to_merged(self.model)
         initial = []
         final = []
         order = [[],[]]
@@ -222,43 +227,32 @@ class Event:
         Returns the 1-based flavor_index, or 1 if no match is found (safe
         fallback for processes without merged particles).
         """
+        if not self._pdg_to_merged:
+            self._get_pdg_to_merged(self.model)
         if not flavor_groups:
             return 1
 
-        # Build absolute event PIDs in ME order, limited to the flavor tuple
-        # length.  The event can contain extra particles (already-decayed
-        # daughters, radiation, etc.) that do not belong to this ME flavor map.
-        # Using len(self.particle) would then overrun the tuple length and force
-        # a fallback to flavor index 1.
-        sample_tuple = None
-        for group_tuples in flavor_groups:
-            if group_tuples:
-                sample_tuple = group_tuples[0]
-                break
-        if sample_tuple is None:
-            return 1
-        n_parts = len(sample_tuple)
-
-        event_pids = []
+        n_parts = len(flavor_groups[0][0])  # number of particles in the process (length of each flavor tuple)
+        event_flav = []
         for me_pos in range(n_parts):
             evt_pos = event_map.get(me_pos)
             if evt_pos is None:
                 return 1
             pid = self.particle[evt_pos + 1]['pid']   # particle dict is 1-indexed
-            event_pids.append(abs(pid))
 
-        for group_idx, group_tuples in enumerate(flavor_groups):
-            for flav_tuple in group_tuples:
-                if len(flav_tuple) != len(event_pids):
-                    continue
-                if all(abs(flav_tuple[j]) == event_pids[j]
-                       for j in range(len(event_pids))):
+            if pid not in self._pdg_to_merged:
+                flav = 1
+            else:
+                flav = self.model.get('merged_particles')[abs(self._pdg_to_merged[pid])].index(abs(pid)) + 1
+            event_flav.append(flav)
+
+        # note that that falvor group can have more than one tuple (not sure when this happens)
+        # so not using a simple index search here. (or one should change flavor_groups to be a dict of tuple:flavor_index)
+        for group_idx, groupflav_tuples in enumerate(flavor_groups):
+            for flav_tuple in groupflav_tuples:
+                if tuple(flav_tuple) == tuple(event_flav):
                     return group_idx + 1  # 1-based
-
-        # No exact match found – fall back to index 1
-        return 1
- 
-        
+        raise Exception('No matching flavor index found for event with PIDs %s and flavor groups %s' %                         (event_flav, flavor_groups))
     
 
     def string_event(self):
@@ -2393,7 +2387,7 @@ class decay_all_events(object):
         # Keep curr_event.model in sync so get_tag() uses the right merged_particles.
         if self.curr_event is not None:
             self.curr_event.model = model
-            self.curr_event._pdg_to_merged = None  # invalidate cached reverse map
+            type(self.curr_event)._pdg_to_merged = None  # invalidate cached reverse map
         for proc in self.all_ME:
             if  'decays' in self.all_ME[proc]:
                 for me in self.all_ME[proc]['decays']:
