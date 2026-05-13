@@ -302,4 +302,3 @@ decay z > l+ l-
         self.assertNotRegex(banner_text, r'(?mi)^\s*decay\s+81\s+[0-9eE.+-]+\s+# added\s*$')
         self.assertNotRegex(banner_text, r'(?mi)^\s*decay\s+82\s+[0-9eE.+-]+\s+# added\s*$')
         self.assertNotRegex(banner_text, r'(?mi)^\s*decay\s+83\s+[0-9eE.+-]+\s+# added\s*$')
-         

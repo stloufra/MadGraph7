@@ -339,7 +339,7 @@ class TestEvent(unittest.TestCase):
         self.assertIn('       13', output)
         self.assertNotIn('      -82', output)
         self.assertNotIn('       82', output)
-         
+
 
 
 

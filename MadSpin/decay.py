@@ -1895,7 +1895,6 @@ class width_estimate(object):
         self.banner.param_card = param_card
         self.banner.check_pid(self.pid2label, self.model.get('merged_particles'))
         self.banner['slha'] = self.banner.param_card.write(None)
-        self.banner['slha'] = self.banner.param_card.write(None)
         
         self.extract_br_for_antiparticle()
         return self.br
