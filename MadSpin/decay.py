@@ -3588,21 +3588,29 @@ class decay_all_events(object):
         if not prod2full:
             return 1
 
-        # Build a dict: 0-based full-ME position -> actual abs(PID) from event
-        pos_to_pid = {}
+        # Retrieve the PDG->group-position map stored alongside the full combos.
+        # The flavor tuples store group positions (1-based within each merged
+        # group, defaulting to 1 for unmerged particles like the gluon).  We
+        # must therefore compare *group positions*, not raw PDG codes.
+        flavor_combos_full = decay_me.get('flavor_combos_full')
+        pdg_to_group_pos = flavor_combos_full[2] if flavor_combos_full else {}
+
+        # Build a dict: 0-based full-ME position -> group position of event particle
+        pos_to_gpos = {}
         for prod_pos, full_pos in enumerate(prod2full):
             if full_pos > 0:  # external in full ME (not a resonance / decaying particle)
                 evt_pos = event_map.get(prod_pos, prod_pos)  # 0-based event position
                 pid = self.curr_event.particle[evt_pos + 1]['pid']
-                pos_to_pid[full_pos - 1] = abs(pid)  # convert to 0-based index
+                gpos = pdg_to_group_pos.get(abs(pid), 1)
+                pos_to_gpos[full_pos - 1] = gpos  # convert to 0-based index
 
-        if not pos_to_pid:
+        if not pos_to_gpos:
             return 1
 
         for group_idx, group_tuples in enumerate(flavor_groups_full):
             for flav_tuple in group_tuples:
-                if all(abs(flav_tuple[pos]) == actual_pid
-                       for pos, actual_pid in pos_to_pid.items()
+                if all(abs(flav_tuple[pos]) == gpos
+                       for pos, gpos in pos_to_gpos.items()
                        if pos < len(flav_tuple)):
                     return group_idx + 1  # 1-based
 
@@ -3654,22 +3662,29 @@ class decay_all_events(object):
 
         prod2full = decay_me.get('prod2full', [])
 
-        # Build mapping: 0-based full-ME position -> abs(PID) from the event
-        pos_to_pid = {}
+        # Retrieve the PDG->group-position map.  The flavor tuples store group
+        # positions (1-based within merged groups, 1 for unmerged particles such
+        # as the gluon).  We must compare group positions, not raw PDG codes.
+        flavor_combos_full = decay_me.get('flavor_combos_full')
+        pdg_to_group_pos = flavor_combos_full[2] if flavor_combos_full else {}
+
+        # Build mapping: 0-based full-ME position -> group position from event
+        pos_to_gpos = {}
         if prod2full:
             for prod_pos, full_pos in enumerate(prod2full):
                 if full_pos > 0:  # positive entry = external particle
                     evt_pos = event_map.get(prod_pos, prod_pos)
                     pid = self.curr_event.particle[evt_pos + 1]['pid']
-                    pos_to_pid[full_pos - 1] = abs(pid)  # 0-based
+                    gpos = pdg_to_group_pos.get(abs(pid), 1)
+                    pos_to_gpos[full_pos - 1] = gpos  # 0-based
 
         # Find all groups whose production-position PDGs match the event
         compatible = []
         for group_idx, group_tuples in enumerate(flavor_groups_full):
             for flav_tuple in group_tuples:
-                if (not pos_to_pid or
-                        all(abs(flav_tuple[pos]) == actual_pid
-                            for pos, actual_pid in pos_to_pid.items()
+                if (not pos_to_gpos or
+                        all(abs(flav_tuple[pos]) == gpos
+                            for pos, gpos in pos_to_gpos.items()
                             if pos < len(flav_tuple))):
                     compatible.append(group_idx + 1)  # 1-based
                     break  # one match per group is sufficient

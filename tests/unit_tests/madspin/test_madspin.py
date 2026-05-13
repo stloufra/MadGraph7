@@ -617,7 +617,8 @@ class TestGetCompatibleFlavorIndices(unittest.TestCase):
             [(2, -1, 2, -1, -2, 1)],   # u d~ initial, W+->ud~, W-->u~d
         ]
         decay_me = {'br': 0.10, 'prod2full': prod2full,
-                    'flavor_groups_full': flavor_groups_full}
+                    'flavor_groups_full': flavor_groups_full,
+                    'flavor_combos_full': (6, [], _PDG_TO_POS_J)}
         event_map = {0: 0, 1: 1}
 
         indices = handler.get_compatible_flavor_indices(decay_me, event_map)
@@ -639,7 +640,8 @@ class TestGetCompatibleFlavorIndices(unittest.TestCase):
         handler = _make_handler(ev_ud)
 
         decay_me = {'br': 0.12, 'prod2full': _PROD2FULL_WW,
-                    'flavor_groups_full': _FLAVOR_GROUPS_WW}
+                    'flavor_groups_full': _FLAVOR_GROUPS_WW,
+                    'flavor_combos_full': (6, [], _PDG_TO_POS_J)}
         event_map = {0: 0, 1: 1}
 
         indices = handler.get_compatible_flavor_indices(decay_me, event_map)
@@ -654,7 +656,8 @@ class TestGetCompatibleFlavorIndices(unittest.TestCase):
         handler = _make_handler(ev_du)
 
         decay_me = {'br': 0.12, 'prod2full': _PROD2FULL_WW,
-                    'flavor_groups_full': _FLAVOR_GROUPS_WW}
+                    'flavor_groups_full': _FLAVOR_GROUPS_WW,
+                    'flavor_combos_full': (6, [], _PDG_TO_POS_J)}
         event_map = {0: 0, 1: 1}
 
         indices = handler.get_compatible_flavor_indices(decay_me, event_map)
@@ -686,7 +689,8 @@ class TestGetCompatibleFlavorIndices(unittest.TestCase):
             [(1, -2,  1, -2, -1,  2)],   # group 2 – d u~ initial state
         ]
         decay_me = {'br': 0.12, 'prod2full': prod2full,
-                    'flavor_groups_full': flavor_groups_full}
+                    'flavor_groups_full': flavor_groups_full,
+                    'flavor_combos_full': (6, [], _PDG_TO_POS_J)}
         event_map = {0: 0, 1: 1}
 
         indices = handler.get_compatible_flavor_indices(decay_me, event_map)
@@ -723,7 +727,8 @@ class TestGetCompatibleFlavorData(unittest.TestCase):
         ]
         br_value = 0.347
         decay_me = {'br': br_value, 'prod2full': prod2full,
-                    'flavor_groups_full': flavor_groups_full}
+                    'flavor_groups_full': flavor_groups_full,
+                    'flavor_combos_full': (6, [], _PDG_TO_POS_J)}
         event_map = {0: 0, 1: 1}
 
         indices, brs = handler.get_compatible_flavor_data(
@@ -742,7 +747,8 @@ class TestGetCompatibleFlavorData(unittest.TestCase):
         handler = _make_handler(ev)
 
         decay_me = {'br': 0.12, 'prod2full': _PROD2FULL_WW,
-                    'flavor_groups_full': _FLAVOR_GROUPS_WW}
+                    'flavor_groups_full': _FLAVOR_GROUPS_WW,
+                    'flavor_combos_full': (6, [], _PDG_TO_POS_J)}
         event_map = {0: 0, 1: 1}
 
         indices_direct = handler.get_compatible_flavor_indices(
