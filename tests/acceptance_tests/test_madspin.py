@@ -232,4 +232,56 @@ class TestMadSpin(unittest.TestCase):
         import math
         self.assertLess(abs(pol[1]-pol[-1]), 2 * math.sqrt(pol[1]))
         self.assertLess(pol[0], pol[-1])
+
+    def test_madspin_mixed_flavor_decay_log_summary(self):
+        """Check MadSpin log summary for mixed lepton/quark decay definition."""
+
+        cmd_path = pjoin(self.path, 'test_madspin_mixed_flavor.cmd')
+        log_path = pjoin(self.path, 'test_madspin_mixed_flavor.log')
+        command = """import model sm
+set automatic_html_opening False --no_save
+set notification_center False --no_save
+define l+ = e+ mu+ u d~
+define l- = e- mu- u~ d
+generate u u~ > z g
+output %(path)s
+launch
+madspin=ON
+shower=OFF
+analysis=OFF
+set nevents 10000
+set iseed 1
+decay w+ > j j
+decay w- > j j
+decay z > l+ l-
+""" % {'path': self.run_dir}
+        with open(cmd_path, 'w') as fsock:
+            fsock.write(command)
+
+        with open(log_path, 'w') as log_file:
+            return_code = subprocess.call(
+                [sys.executable, pjoin(_file_path, os.path.pardir, 'bin', 'mg5_aMC'), cmd_path],
+                cwd=pjoin(_file_path, os.path.pardir),
+                stdout=log_file, stderr=subprocess.STDOUT)
+        self.assertEqual(return_code, 0)
+
+        with open(log_path) as log_file:
+            log = log_file.read()
+        self.assertRegex(log, r'INFO:\s*Total number of events written:\s*10000/10000')
+
+        avg_trial = re.search(
+            r'INFO:\s*Average number of trial points per production event:\s*([0-9]+(?:\.[0-9]+)?)',
+            log)
+        self.assertIsNotNone(avg_trial)
+        self.assertAlmostEqual(float(avg_trial.group(1)), 4.9772, delta=0.05)
+
+        br_allowed = re.search(
+            r'INFO:\s*Branching ratio to allowed decays:\s*([0-9]+(?:\.[0-9]+)?)',
+            log)
+        self.assertIsNotNone(br_allowed)
+        self.assertAlmostEqual(float(br_allowed.group(1)), 0.339955, delta=0.005)
+
+        self.assertRegex(log, r'INFO:\s*Number of events with weights larger than max_weight:\s*0')
+        self.assertRegex(log, r'INFO:\s*Number of subprocesses[:\s]+1')
+        self.assertRegex(log, r'INFO:\s*Number of failures when restoring the Monte Carlo masses:\s*0')
          

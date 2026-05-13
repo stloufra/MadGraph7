@@ -50,6 +50,7 @@ jobs:
             ./tests/test_manager.py test_hepmc_decay -pA -t0 -l INFO
             ./tests/test_manager.py test_lhe_none_decay -pA -t0 -l INFO
             ./tests/test_manager.py test_madspin_spin_only -pA -t0 -l INFO
+            ./tests/test_manager.py test_madspin_mixed_flavor_decay_log_summary -pA -t0 -l INFO
 
 
 
