@@ -1462,10 +1462,10 @@ c general rotation is needed
               pj(1)=-pj(1)
               pj(3)=-pj(3)
            endif
-           CALL IXXXSO(pi ,ZERO ,+1,+1,1,W1)        
-           CALL OXXXSO(pj ,ZERO ,-1,+1,1,W2)        
-           CALL IXXXSO(pi ,ZERO ,-1,+1,1,W3)        
-           CALL OXXXSO(pj ,ZERO ,+1,+1,1,W4)        
+           CALL IXXXXX(pi ,ZERO ,+1,+1,1,W1)        
+           CALL OXXXXX(pj ,ZERO ,-1,+1,1,W2)        
+           CALL IXXXXX(pi ,ZERO ,-1,+1,1,W3)        
+           CALL OXXXXX(pj ,ZERO ,+1,+1,1,W4)        
            Wij_angle=(0d0,0d0)
            Wij_recta=(0d0,0d0)
            do i=1,4
