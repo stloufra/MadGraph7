@@ -59,7 +59,7 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
 
     # AV - modify C++ code from aloha_writers.ALOHAWriterForGPU
     ###ci_definition = 'cxtype cI = cxtype(0., 1.);\n'
-    ci_definition = 'const cxtype cI = cxmake( 0., 1. );\n'
+    ci_definition = 'const cxtype_vertex_sv cI = cxmake<fptype_vertex_sv>( 0., 1. );\n'
     ###realoperator = '.real()'
     ###imagoperator = '.imag()'
     realoperator = 'cxreal' # NB now a function
@@ -129,6 +129,13 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
             else: out = '%s./%s.' % (tmp.numerator, tmp.denominator)
         return out
 
+    # AV - wrap momentum references in non-denominator expressions with vertex-precision cast
+    def change_var_format(self, name):
+        str_var = super().change_var_format(name)
+        if re.match(r'^P\d+\[\d+\]$', str_var):
+            str_var = 'static_cast<fptype_vertex>(%s)' % str_var
+        return str_var
+
     # AV - modify aloha_writers.ALOHAWriterForCPP method (improve formatting)
     # [NB: this exists in ALOHAWriterForGPU but essentially falls back to ALOHAWriterForCPP]
     # [NB: no, actually this exists twice(!) in ForGPU and the 2nd version is not trivial! but I keep the ForCPP version]
@@ -185,10 +192,9 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
             ###output = '%(doublec)s%(pointer_vertex)s allvertexes' % {
             ###    'doublec': self.type2def['double'],
             ###    'pointer_vertex': self.type2def['pointer_vertex']}
-            output = '%(doublec)s allvertexes[]' % {
-                'doublec': self.type2def['double']}
+            output = 'fptype_amp allvertexes[]'
             if combined:
-                output = output + ', ' + '\n%(indent)s%(doublec)s alltmp[]' % {'doublec': self.type2def['double'], 'indent': indent}
+                output = output + ', ' + '\n%(indent)sfptype_amp alltmp[]' % {'indent': indent}
             comment_output = 'amplitude \'vertex\''
             template = 'template<class W_ACCESS, class A_ACCESS, class C_ACCESS>'
         else:
@@ -252,12 +258,18 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
         for type, name in self.call_arg:
             ###out.write('    %s %s;\n' % ( type, name ) ) # FOR DEBUGGING
             if type.startswith('aloha'):
-                out.write('    const cxtype_sv* w%s = W_ACCESS::kernelAccessConst( %s.w );\n' % ( name, name ) )
+                out.write('    const cxtype_vertex_sv* w%s = W_ACCESS::kernelAccessConst( %s.w );\n' % ( name, name ) )
             if name.startswith('COUP'): # AV from cxtype_sv to fptype array (running alphas #373)
                 if 'M' in self.tag:
-                    out.write('    cxtype_sv %s;\n' % name )
+                    if not self.offshell:
+                        out.write('    cxtype_vertex_sv %s;\n' % name )
+                    else:
+                        out.write('    cxtype_momenta_sv %s;\n' % name )
                 else:
-                    out.write('    const cxtype_sv %s = C_ACCESS::kernelAccessConst( all%s );\n' % ( name, name ) )
+                    if not self.offshell:
+                        out.write('    const cxtype_vertex_sv %s = static_cast<cxtype_vertex_sv>( C_ACCESS::kernelAccessConst( all%s ) );\n' % ( name, name ) )
+                    else:
+                        out.write('    const cxtype_momenta_sv %s = C_ACCESS::kernelAccessConst( all%s );\n' % ( name, name ) )
         if not self.offshell:
             vname = 'vertex'
             access = 'A_ACCESS'
@@ -267,7 +279,10 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
             access = 'W_ACCESS'
             allvname = vname+".w"
             vname = "w" + vname
-        out.write('    cxtype_sv* %s = %s::kernelAccess( %s );\n' % ( vname, access, allvname ) )
+        if not self.offshell:
+            out.write('    cxtype_amp_sv* %s = %s::kernelAccess( %s );\n' % ( vname, access, allvname ) )
+        else:
+            out.write('    cxtype_vertex_sv* %s = %s::kernelAccess( %s );\n' % ( vname, access, allvname ) )
         if combined:
             if not self.offshell:
                 vname = 'tmp'
@@ -278,9 +293,12 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
                 access = 'W_ACCESS'
                 allvname = vname+".w"
                 vname = "w" + vname
-            out.write('    cxtype_sv* %s = %s::kernelAccess( %s );\n' % ( vname, access, allvname ) )
+            if not self.offshell:
+                out.write('    cxtype_amp_sv* %s = %s::kernelAccess( %s );\n' % ( vname, access, allvname ) )
+            else:
+                out.write('    cxtype_vertex_sv* %s = %s::kernelAccess( %s );\n' % ( vname, access, allvname ) )
         if fd_gauge:
-            out.write('    cxtype_sv CZERO=cxzero_sv(); \n')
+            out.write('    cxtype_vertex_sv CZERO = cxzero_sv<cxtype_vertex_sv>(); \n')
         # define the complex number CI = 0+1j
         if add_i:
             ###out.write(self.ci_definition)
@@ -391,7 +409,12 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
         else:
             ptype = 'double_v'
         templateval ='%(sign)s%(type)s%(i)d.pvec[%(j)d]'
-        if self.nodeclare: strfile.write('    const %s P%d[4] = { ' % ( self.type2def[ptype], i) ) # AV
+        if self.nodeclare:
+            if ptype == 'double_v':
+                mom_type = 'fptype_denom_sv'
+            else:
+                mom_type = self.type2def[ptype]
+            strfile.write('    const %s P%d[4] = { ' % ( mom_type, i ) ) # AV
         for j in range(4):
             sign = self.get_P_sign(i) if self.get_P_sign(i) else '+' # AV
             if self.nodeclare: template = templateval + ( ', ' if j<3 else '' ) # AV
@@ -522,7 +545,10 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
                     # the coupling is a complex number but in this case it is represented as a sequence of real numbers
                     # so, when we need to shift within the array, we need to double the shift width to account for
                     # both real and imaginary parts
-                    out.write('    %s = C_ACCESS::kernelAccessConst( M%s.value + 2*flv_index1 );\n' % (name, name))
+                    if not self.offshell:
+                        out.write('    %s = static_cast<cxtype_vertex_sv>( C_ACCESS::kernelAccessConst( M%s.value + 2*flv_index1 ) );\n' % (name, name))
+                    else:
+                        out.write('    %s = C_ACCESS::kernelAccessConst( M%s.value + 2*flv_index1 );\n' % (name, name))
         return out.getvalue()
 
     # AV - modify aloha_writers.ALOHAWriterForCPP method (improve formatting)
@@ -543,8 +569,8 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
                 # This affects 'TMP0 = ' in HelAmps_sm.cc
                 ###out.write(' %s = %s;\n' % (name, self.write_obj(obj)))
                 if self.nodeclare:
-                    out.write('    const %s %s = %s;\n' %
-                              (self.type2def['complex_v'], name, self.write_obj(obj))) # AV
+                    out.write('    const cxtype_vertex_sv %s = %s;\n' %
+                              (name, self.write_obj(obj))) # AV
                 else:
                     out.write('    %s = %s;\n' % (name, self.write_obj(obj))) # AV
                     self.declaration.add(('complex', name))
@@ -567,7 +593,7 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
                         mydict['pre_%s' %c] = ''
                         mydict['post_%s'%c] = ''
                 # This affects '( *vertex ) = ' in HelAmps_sm.cc
-                out.write('    %(pre_vertex)svertex%(post_vertex)s = Ccoeff * %(pre_coup)sCOUP%(post_coup)s * %(num)s;\n' % mydict) # OM add Ccoeff (fix #825)
+                out.write('    %(pre_vertex)svertex%(post_vertex)s = (cxtype_amp_sv)( static_cast<fptype_vertex>(Ccoeff) * %(pre_coup)sCOUP%(post_coup)s * %(num)s );\n' % mydict) # OM add Ccoeff (fix #825)
             else:
                 mydict= {}
                 if self.type2def['pointer_vertex'] in ['*']:
@@ -578,7 +604,7 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
                     mydict['post_vertex'] = ''
                 mydict['data'] = self.write_obj(numerator.get_rep([0]))
                 # This affects '( *vertex ) = ' in HelAmps_sm.cc
-                out.write('    %(pre_vertex)svertex%(post_vertex)s = %(data)s;\n' % mydict)
+                out.write('    %(pre_vertex)svertex%(post_vertex)s = (cxtype_amp_sv)( %(data)s );\n' % mydict)
         else:
             OffShellParticle = '%s%d' % (self.particles[self.offshell-1],\
                                                                   self.offshell)
@@ -594,13 +620,14 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
                 mydict['coup'] = coup_name
                 mydict['i'] = self.outgoing
                 if self.nodeclare:
-                    mydict['declnamedenom'] = 'const %s denom' % self.type2def['complex_v'] # AV
+                    mydict['declnamedenom'] = 'const cxtype_vertex_sv denom' # AV
                 else:
                     mydict['declnamedenom'] = 'denom' # AV
                     self.declaration.add(('complex','denom'))
                 # Need to add the unary operator before the coupling (OM fix for #825)
                 if mydict['coup'] != 'one': # but in case where the coupling is not used (one)
-                    mydict['pre_coup'] = 'Ccoeff * %s' % mydict['pre_coup']
+                    mydict['pre_coup'] = 'static_cast<fptype_denom_sv>(Ccoeff) * static_cast<cxtype_denom>(%s' % mydict['pre_coup']
+                    mydict['post_coup'] = '%s)' % mydict['post_coup']
                 if not aloha.complex_mass:
                     # This affects 'denom = COUP' in HelAmps_sm.cc
                     if self.routine.denominator:
@@ -610,12 +637,12 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
                             mydict['denom'] = self.routine.denominator
                             out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( %(denom)s );\n' % mydict) # AV
                     else:
-                        out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( ( P%(i)s[0] * P%(i)s[0] ) - ( P%(i)s[1] * P%(i)s[1] ) - ( P%(i)s[2] * P%(i)s[2] ) - ( P%(i)s[3] * P%(i)s[3] ) - M%(i)s * ( M%(i)s - cI * W%(i)s ) );\n' % mydict) # AV
+                        out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( ( P%(i)s[0] * P%(i)s[0] ) - ( P%(i)s[1] * P%(i)s[1] ) - ( P%(i)s[2] * P%(i)s[2] ) - ( P%(i)s[3] * P%(i)s[3] ) - static_cast<fptype_denom_sv>(M%(i)s) * ( static_cast<fptype_denom_sv>(M%(i)s) - static_cast<cxtype_denom_sv>(cI) * static_cast<fptype_denom_sv>(W%(i)s) ) );\n' % mydict) # AV
                 else:
                     if self.routine.denominator:
                         raise Exception('modify denominator are not compatible with complex mass scheme')
                     # This affects 'denom = COUP' in HelAmps_sm.cc
-                    out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( ( P%(i)s[0] * P%(i)s[0] ) - ( P%(i)s[1] *P%(i)s[1] ) - ( P%(i)s[2] * P%(i)s[2] ) - ( P%(i)s[3] * P%(i)s[3] ) - ( M%(i)s * M%(i)s ) );\n' % mydict) # AV
+                    out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( ( P%(i)s[0] * P%(i)s[0] ) - ( P%(i)s[1] *P%(i)s[1] ) - ( P%(i)s[2] * P%(i)s[2] ) - ( P%(i)s[3] * P%(i)s[3] ) - ( static_cast<fptype_denom>(M%(i)s) * static_cast<fptype_denom>(M%(i)s) ) );\n' % mydict) # AV
                 ###self.declaration.add(('complex','denom')) # AV moved earlier (or simply removed)
                 if aloha.loop_mode: ptype = 'list_complex'
                 else: ptype = 'list_double'
@@ -1875,10 +1902,7 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
         replace_dict['noutcoming'] = nexternal - nincoming
         replace_dict['nbhel'] = self.matrix_elements[0].get_helicity_combinations() # number of helicity combinations
         ###replace_dict['nwavefunc'] = self.matrix_elements[0].get_number_of_wavefunctions() # this is the correct P1-specific nwf, now in CPPProcess.h (#644)
-        if fd_gauge:
-            replace_dict['wavefuncsize'] = 4
-        else:
-            replace_dict['wavefuncsize'] = 5
+        replace_dict['wavefuncsize'] = 6
         ff = open(pjoin(self.path, '..','..','src','mgOnGpuConfig.h'),'w')
         ff.write(template % replace_dict)
         ff.close()
