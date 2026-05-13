@@ -295,6 +295,7 @@ class LoopProcessExporterFortranSA(LoopExporterFortran,
     
     f2py_matrix_splitter_template = pjoin(os.pardir,"loop", "f2py_wrapper_subproccesses.f")
     all_matrix_template = pjoin(os.pardir, "loop", "all_matrix.f")
+
     def write_f2py_splitter(self):
         """write a function to call the correct matrix element"""
 
@@ -331,11 +332,11 @@ class LoopProcessExporterFortranSA(LoopExporterFortran,
                     text.append( ' if(%s.and.(procid.le.0.or.procid.eq.%d)) then ! %i' % (condition, pid, len(pdgs)))
                 else:
                     text.append( ' else if(%s.and.(procid.le.0.or.procid.eq.%d)) then ! %i' % (condition,pid,len(pdgs)))
-                text.append(' call %sget_me(p, ALPHAS, DSQRT(SCALES2), NHEL, ANS, RETURNCODE)' % self.prefix_info[(pdgs,pid)][0])
-            text.append( ' else if(procid.gt.0) then !')
-            text.append( ' procid = -1' )
-            text.append( ' goto 1' )
-            
+                # text.append(' call %sget_me(p, ALPHAS, DSQRT(SCALES2), NHEL, ANS, RETURNCODE)' % self.prefix_info[(pdgs,pid)][0])
+                text.append(' call %s%%(fct_name)s' % self.prefix_info[(pdgs,pid)][0])
+            # text.append( ' else if(procid.gt.0) then !')
+            # text.append( ' procid = -1' )
+            # text.append( ' goto 1' )
             text.append(' endif')
         #close the function
         if min_nexternal != max_nexternal:
@@ -346,22 +347,39 @@ class LoopProcessExporterFortranSA(LoopExporterFortran,
         for key, var in params.items():
             parameter_setup.append('        CASE ("%s")\n          %s = value\n        MP__%s = value' 
                                    % (key, var, var))
-            
-            
+        
+               # part for the resetting of the helicity
+        helreset_def = []
+        helreset_setup = []
+        for prefix in set(allprefix):
+            helreset_setup.append(' %shelreset = .true. ' % prefix)
+            helreset_def.append(' logical %shelreset \n common /%shelreset/ %shelreset' % (prefix, prefix, prefix))
+        
+
+        f2py_prefix = ''
+        if self.opt['output_options'] and 'prefixf2py' in self.opt['output_options']:
+            f2py_prefix = 'f%s_' % self.opt['output_options']['prefixf2py']
+
+
+        # Build IDENS entries ONCE per ME slot (must align 1-to-1 with get_pdg_order / allids).
 
         formatting = {'python_information':'\n'.join(info), 
-                          'smatrixhel': '\n'.join(text),
-                          'maxpart': max_nexternal,
-                          'nb_me': len(allids),
-                          'pdgs': ','.join([str(pdg[i]) if i<len(pdg) else '0' 
-                                             for i in range(max_nexternal) \
-                                             for (pdg,pid) in allids]),
+                      'smatrixhel': '\n'.join(text) % {'fct_name': 'smatrixhel(p, nhel, ans)'},
+                      'maxpart': max_nexternal,
+                      'nb_me': len(allids),
+                      'pdgs': ','.join([str(pdg[i]) if i<len(pdg) else '0' 
+                                    for i in range(max_nexternal) \
+                                    for (pdg,pid) in allids]),
                       'prefix':'\',\''.join(allprefix),
                       'parameter_setup': '\n'.join(parameter_setup),
                       'pids':  ','.join(str(pid) for (pdg,pid) in allids),
+                      'helreset_def' : '\n'.join(helreset_def),
+                      'helreset_setup' : '\n'.join(helreset_setup),
+                      'f2py_prefix': f2py_prefix,
+                      'density_splitter': '\n'.join(text) % {'fct_name': 'GET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL, N_COMB, ALPHAS, SCALE2, INTER)'},
                       }
     
-    
+        formatting['lenprefix'] = len(formatting['prefix'])
         text = template_matrix % formatting
         fsock = writers.FortranWriter(pjoin(self.dir_path, 'SubProcesses', 'all_matrix.f'),'w')
         fsock.writelines(text)
@@ -817,7 +835,7 @@ class LoopProcessExporterFortranSA(LoopExporterFortran,
         # Even when not reducing at the amplitude level, the TIR caching
         # is useful when there is more than one squared split order config.
         TIRCaching = AmplitudeReduction or n_squared_split_orders>1
-        UseDensity =  'density' in self.cmd_options
+        UseDensity = 'density' in self.cmd_options #detects if we want to compute the density matrix
         MadEventOutput = False
         return {'LoopInduced': LoopInduced,
                 'ComputeColorFlows': ComputeColorFlows,

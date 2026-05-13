@@ -381,7 +381,7 @@ C     check that is is equal to the matrix element
       INTEGER NSQUAREDSO
       PARAMETER (NSQUAREDSO=%(nSquaredSO)d)
 
-      DOUBLE COMPLEX RHO((N_COMB_RHO*(N_COMB_RHO+1))/2, 0:NSQUAREDSO)
+      DOUBLE COMPLEX RHO((N_COMB_RHO*(N_COMB_RHO+1))/2)
       DOUBLE PRECISION TRACE
 
       INTEGER COUNTER, IDIAG, I
@@ -395,12 +395,15 @@ C     check that is is equal to the matrix element
 
       TRACE = 0
       DO I = 1, N_COMB_RHO
-        TRACE = TRACE + DREAL(RHO(DIAG_INDICES(I),0))
+        TRACE = TRACE + DREAL(RHO(DIAG_INDICES(I)))
       ENDDO
       END
       
       SUBROUTINE get_density_matrix(P, RMATRIX)
       implicit none
+
+      %(include_vector)s
+      INCLUDE "coupl.inc"
 
       INTEGER N_CHANGING
       PARAMETER (N_CHANGING=%(dens_nchanging)i)
@@ -413,7 +416,7 @@ C     check that is is equal to the matrix element
 
       INTEGER POS(N_CHANGING)
       INTEGER ALLOW_HEL(N_CHANGING*N_COMB_RHO)
-      DOUBLE COMPLEX RMATRIX((N_COMB_RHO*(N_COMB_RHO+1))/2, 0:NSQUAREDSO)
+      DOUBLE COMPLEX RMATRIX((N_COMB_RHO*(N_COMB_RHO+1))/2)
       REAL*8 P(0:3,NEXTERNAL)   ! four momenta. Energy is the zeroth component.
 
       INTEGER I,J,K,SOL
@@ -425,8 +428,9 @@ C     check that is is equal to the matrix element
 c      density matrix helicity index value for particle
       %(dens_allow_hel)s
 
-      ALPHAS = 0D0
-      MU_R2 = 0D0
+C     We take the values of alpha_s and mu_r from the param card
+      ALPHAS = (G/2)**2/3.14159265358979323846d0
+      MU_R2 = MU_R**2
 
       CALL %(proc_prefix)sGET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL, N_COMB_RHO, ALPHAS, MU_R2, RMATRIX)
 
@@ -443,7 +447,7 @@ c      density matrix helicity index value for particle
             DO K =1, N_CHANGING
                WRITE (*,*) 'particle', POS(K), 'has helicity', ALLOW_HEL((I-1)*N_CHANGING+K), ALLOW_HEL((J-1)*N_CHANGING+K)
            ENDDO
-            write(*,*) 'value is ',SOL , RMATRIX(SOL, 0)
+            write(*,*) 'value is ',SOL , RMATRIX(SOL)
          ENDDO
       ENDDO
       return

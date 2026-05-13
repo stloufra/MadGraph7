@@ -1855,7 +1855,7 @@ class ReweightInterface(extended_cmd.Cmd):
         commandline = 'output %s %s --prefix=int --prefixf2py=%s' % (self.sa_class, pjoin(path_me,data['paths'][0]), self.nb_rw)
         self.path2prefix[pjoin(path_me,data['paths'][0])] = self.nb_rw
         self.nb_rw += 1
-        commandline = 'output %s %s --prefix=int' % (self.sa_class, pjoin(path_me,data['paths'][0]))
+        commandline = 'output %s %s --prefix=int --density=1' % (self.sa_class, pjoin(path_me,data['paths'][0]))
         if self.inc_sudakov:
             # in this case, the sudakov output format has to be changed
             commandline = 'output ewsudakovsa %s --prefix=int' % pjoin(path_me,data['paths'][0])
@@ -3121,18 +3121,18 @@ class DensityInterface(ReweightInterface):
                 if pdg in All_PDGs[k]:
                     prefix = prefix_cor[k]
 
-        me_value = 0
-        get_density = lambda *args: module.py_get_density(orig_order[0]+orig_order[1], *args)  
+        get_density = lambda *args: module.py_get_density(orig_order[0]+orig_order[1], *args)
         for i in range(len(all_p)):
             pinv = self.invert_momenta(all_p[i])
+            # the argument event.scale**2 is a dummy argument for LO processes, else it is taken as the value given in the LHE file
             production_matrix = get_density(-1, pinv, pos_corrected, #self.number_changing_helicities,
-                                            self.allowed_helicities, self.number_combinations,
-                                            event.aqcd)    
+                                            self.allowed_helicities, event.aqcd, event.scale**2)
+
             if self.symmetrise_initial_state:
                 pinv_bis = self.invert_momenta(all_p_bis[i])
-                production_matrix_bis = get_density(-1, pinv_bis, pos_corrected, self.allowed_helicities, self.number_combinations,
-                                                    event.aqcd) #event.aqcd can be also fixed.
-
+                production_matrix_bis = get_density(-1, pinv_bis, pos_corrected, #self.number_changing_helicities,
+                                            self.allowed_helicities, event.aqcd, event.scale**2)
+                
             if self.symmetrise_initial_state:
                 rho_instance = dens.DensityMatrixObservables(production_matrix + production_matrix_bis, self.number_combinations * (self.number_combinations + 1) / 2)
                 new_value = rho_instance.density_matrix
