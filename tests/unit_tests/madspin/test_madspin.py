@@ -332,12 +332,11 @@ class TestEvent(unittest.TestCase):
 
         decayed_event = handler.decay_one_event_new(
             curr_event, decay_struct, {0: 0, 1: 1, 2: 2, 3: 3}, momenta_in_decay,
-            False, helicities, prod_flavor_tuple=[2, -2, 23, 21],
-            full_flavor_tuple=[2, -2, -11, 11, 21])
+            False, helicities, full_flavor_tuple=[2, -2, 2, 2, 21])
 
         output = decayed_event.string_event()
-        self.assertIn('      -11', output)
-        self.assertIn('       11', output)
+        self.assertIn('      -13', output)
+        self.assertIn('       13', output)
         self.assertNotIn('      -82', output)
         self.assertNotIn('       82', output)
          
