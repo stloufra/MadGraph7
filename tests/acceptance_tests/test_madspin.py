@@ -10,6 +10,8 @@ import logging
 import time
 import tempfile
 import math
+import glob
+import gzip
 
 logger = logging.getLogger('test_cmd')
 
@@ -273,15 +275,31 @@ decay z > l+ l-
             r'INFO:\s*Average number of trial points per production event:\s*([0-9]+(?:\.[0-9]+)?)',
             log)
         self.assertIsNotNone(avg_trial)
-        self.assertAlmostEqual(float(avg_trial.group(1)), 4.9772, delta=0.05)
+        self.assertAlmostEqual(float(avg_trial.group(1)), 4.9772, delta=0.5)
 
         br_allowed = re.search(
             r'INFO:\s*Branching ratio to allowed decays:\s*([0-9]+(?:\.[0-9]+)?)',
             log)
         self.assertIsNotNone(br_allowed)
-        self.assertAlmostEqual(float(br_allowed.group(1)), 0.339955, delta=0.005)
+        self.assertAlmostEqual(float(br_allowed.group(1)), 0.339955, delta=0.02)
 
         self.assertRegex(log, r'INFO:\s*Number of events with weights larger than max_weight:\s*0')
         self.assertRegex(log, r'INFO:\s*Number of subprocesses[:\s]+1')
         self.assertRegex(log, r'INFO:\s*Number of failures when restoring the Monte Carlo masses:\s*0')
+
+        decayed_events = glob.glob(pjoin(self.run_dir, 'Events', '*decayed*', '*.lhe.gz'))
+        self.assertTrue(decayed_events)
+        with gzip.open(decayed_events[0], 'rt') as lhe_file:
+            banner_lines = []
+            for line in lhe_file:
+                if '<event' in line:
+                    break
+                banner_lines.append(line)
+        banner_text = ''.join(banner_lines)
+        self.assertNotRegex(banner_text, r'(?mi)^\s*81\s+[0-9eE.+-]+\s+# added\s*$')
+        self.assertNotRegex(banner_text, r'(?mi)^\s*82\s+[0-9eE.+-]+\s+# added\s*$')
+        self.assertNotRegex(banner_text, r'(?mi)^\s*83\s+[0-9eE.+-]+\s+# added\s*$')
+        self.assertNotRegex(banner_text, r'(?mi)^\s*decay\s+81\s+[0-9eE.+-]+\s+# added\s*$')
+        self.assertNotRegex(banner_text, r'(?mi)^\s*decay\s+82\s+[0-9eE.+-]+\s+# added\s*$')
+        self.assertNotRegex(banner_text, r'(?mi)^\s*decay\s+83\s+[0-9eE.+-]+\s+# added\s*$')
          

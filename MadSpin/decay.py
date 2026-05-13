@@ -265,6 +265,19 @@ class Event:
                 if tuple(flav_tuple) == tuple(event_flav):
                     return group_idx + 1  # 1-based
         raise Exception('No matching flavor index found for event with PIDs %s and flavor groups %s' %                         (event_flav, flavor_groups))
+
+    @staticmethod
+    def get_selected_flavor_tuple(flavor_data, flavor_index):
+        """Return the concrete PDG tuple selected by a 1-based flavor index."""
+        if not flavor_data or flavor_index is None:
+            return None
+        try:
+            _, flavor_combos, _ = flavor_data
+        except (TypeError, ValueError):
+            return None
+        if not flavor_combos or flavor_index < 1 or flavor_index > len(flavor_combos):
+            return None
+        return flavor_combos[flavor_index - 1]
     
 
     def string_event(self):
@@ -1879,8 +1892,10 @@ class width_estimate(object):
             self.width_value[label]=recalculated_width  
 
         #update the banner:
-        self.banner['slha'] = param_card.write(None)
         self.banner.param_card = param_card
+        self.banner.check_pid(self.pid2label, self.model.get('merged_particles'))
+        self.banner['slha'] = self.banner.param_card.write(None)
+        self.banner['slha'] = self.banner.param_card.write(None)
         
         self.extract_br_for_antiparticle()
         return self.br
@@ -2151,7 +2166,7 @@ class decay_all_events(object):
         # Prepare some dict usefull for optimize model imformation
         # pid -> label and label -> pid
         self.pid2label=pid2label(self.model)
-        self.banner.check_pid(self.pid2label)
+        self.banner.check_pid(self.pid2label, self.model.get('merged_particles'))
         self.pid2label.update(label2pid(self.model))
         self.pid2massvar={}
         self.pid2widthvar={}
@@ -2235,6 +2250,30 @@ class decay_all_events(object):
 
         self.compile()
 
+
+    def resolve_merged_pid_with_flavor(self, pid, flavor_tuple, me_index):
+        """Resolve a merged-particle PDG to the selected concrete flavor."""
+        if not flavor_tuple or me_index is None:
+            return pid
+        merged_particles = self.model.get('merged_particles') if self.model else {}
+        if not self.model or abs(pid) not in merged_particles:
+            return pid
+        if me_index < 1 or me_index > len(flavor_tuple):
+            return pid
+        return flavor_tuple[me_index - 1]
+
+    def replace_merged_pdgs_in_event(self, event, event_map, flavor_tuple):
+        """Replace merged PDGs in an event with the selected concrete production flavor."""
+        if not flavor_tuple:
+            return
+        for me_pos, evt_pos in event_map.items():
+            if evt_pos is None:
+                continue
+            part = event.particle.get(evt_pos + 1)
+            if not part:
+                continue
+            part['pid'] = self.resolve_merged_pid_with_flavor(
+                part['pid'], flavor_tuple, me_pos + 1)
 
     def pid2width(self, pid):
         try:
@@ -2546,6 +2585,12 @@ class decay_all_events(object):
                 self.all_ME[production_tag].get('flavor_groups_prod', []), event_map)
             flavor_index_full = self.get_full_flavor_index(
                 production_tag, decay_me, event_map)
+            prod_flavor_tuple = self.curr_event.get_selected_flavor_tuple(
+                self.all_ME[production_tag].get('flavor_combos_prod'),
+                flavor_index_prod)
+            full_flavor_tuple = self.curr_event.get_selected_flavor_tuple(
+                decay_me.get('flavor_combos_full'),
+                flavor_index_full)
             # Use the per-flavor maxweight when available; fall back to the
             # global value for flavors not seen during the maxweight probing.
             mw_for_event = decay_me.get('max_weight_per_flavor', {}).get(
@@ -2579,7 +2624,9 @@ class decay_all_events(object):
             
             #
             decayed_event = self.decay_one_event_new(self.curr_event,decay['decay_struct'],\
-                                                      event_map, momenta_in_decay,use_mc_masses, helicities)
+                                                      event_map, momenta_in_decay,use_mc_masses, helicities,
+                                                      prod_flavor_tuple=prod_flavor_tuple,
+                                                      full_flavor_tuple=full_flavor_tuple)
             
             
             # Treat the case we get too many failures for the PS generation.
@@ -2697,6 +2744,9 @@ class decay_all_events(object):
             self.all_ME[production_tag].get('flavor_groups_prod', []), event_map)
         flavor_index_full = self.get_full_flavor_index(
             production_tag, decay_me, event_map)
+        prod_flavor_tuple = self.curr_event.get_selected_flavor_tuple(
+            self.all_ME[production_tag].get('flavor_combos_prod'),
+            flavor_index_prod)
         stdin_text=' %s %s %s %s %s %s %s\n' % ('2', self.options['BW_cut'], self.Ecollider, 1.0, frameid, flavor_index_prod, flavor_index_full)
         stdin_text+=p_str
         # here I also need to specify the Monte Carlo Masses
@@ -2708,6 +2758,7 @@ class decay_all_events(object):
             return 0, 1
         trial_nb, BWvalue, weight, momenta, failed, use_mc_masses, helicities = output                
         self.reset_helicityonly_in_prod_event(event_map, helicities)
+        self.replace_merged_pdgs_in_event(self.curr_event, event_map, prod_flavor_tuple)
 
         decayed_event = self.curr_event
         self.outputfile.write(decayed_event.string_event())
@@ -4429,7 +4480,9 @@ class decay_all_events(object):
 
         return indices_for_mc_masses,values_for_mc_masses
 
-    def decay_one_event_new(self,curr_event,decay_struct, event_map, momenta_in_decay, use_mc_masses, helicities):
+    def decay_one_event_new(self,curr_event,decay_struct, event_map, momenta_in_decay,
+                            use_mc_masses, helicities, prod_flavor_tuple=None,
+                            full_flavor_tuple=None):
         """Write down the event 
            momenta is the list of momenta ordered according to the productin ME
         """
@@ -4466,7 +4519,10 @@ class decay_all_events(object):
                 if part not in decay_struct:
                     external+=1 
                     part_number+=1
-                    decayed_event.particle[part_number]=curr_event.particle[part_for_curr_evt]
+                    particle = curr_event.particle[part_for_curr_evt].copy()
+                    particle['pid'] = self.resolve_merged_pid_with_flavor(
+                        particle['pid'], prod_flavor_tuple, part)
+                    decayed_event.particle[part_number]=particle
                     decayed_event.event2mg[part_number]=part_number
                 
                 else:
@@ -4479,6 +4535,8 @@ class decay_all_events(object):
                             part_number+=1
                             mom=momenta_in_decay[index_res_for_mom].copy()
                             pid=decay_struct[part]["tree"][res]['label'] 
+                            pid=self.resolve_merged_pid_with_flavor(
+                                pid, prod_flavor_tuple, part)
                             istup=2
                             mothup1=curr_event.particle[part_for_curr_evt]["mothup1"]
                             mothup2=curr_event.particle[part_for_curr_evt]["mothup2"]
@@ -4622,6 +4680,8 @@ class decay_all_events(object):
                         #            ["tree"][res]["d1"]["index"]]["momentum"]
                         pid=decay_struct[part]\
                                     ["tree"][res]["d1"]["label"]
+                        pid=self.resolve_merged_pid_with_flavor(
+                            pid, full_flavor_tuple, index_d1_for_mom)
 
 
                         indexd1=decay_struct[part]["tree"][res]["d1"]["index"]
@@ -4658,6 +4718,8 @@ class decay_all_events(object):
                         #                   ["index"]]["momentum"]
                         pid=decay_struct[part]["tree"][res]["d2"]\
                                            ["label"]
+                        pid=self.resolve_merged_pid_with_flavor(
+                            pid, full_flavor_tuple, index_d2_for_mom)
 
                         indexd2=decay_struct[part]["tree"][res]["d2"]["index"]
                         if ( indexd2>0):

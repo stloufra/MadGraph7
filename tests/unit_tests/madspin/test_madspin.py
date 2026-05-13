@@ -273,7 +273,74 @@ class TestEvent(unittest.TestCase):
         # Third event ! Not existing
         event = events.get_next_event()
         self.assertEqual(event, "no_event")
-        
+
+    def test_decay_output_uses_selected_flavor_pid(self):
+        """Merged-particle IDs must be replaced by the selected concrete flavor in LHE output."""
+
+        cmd = Cmd.MasterCmd()
+        cmd.do_import('sm')
+        model = cmd._curr_model
+
+        handler = madspin.decay_all_events.__new__(madspin.decay_all_events)
+        object.__setattr__(handler, 'model', model)
+        object.__setattr__(handler, 'pid2color',
+                           {23: 1, -82: 1, 82: 1, 2: 3, -2: -3, 21: 8})
+        object.__setattr__(handler, 'MC_masses', {})
+        object.__setattr__(handler, 'pid2mass', lambda pid: 0.0)
+
+        curr_event = madspin.Event(model=model)
+        curr_event.ievent = 7
+        curr_event.wgt = 1.0
+        curr_event.scale = 91.188
+        curr_event.aqed = 0.007297
+        curr_event.aqcd = 0.118
+        curr_event.diese = ''
+        curr_event.rwgt = ''
+        curr_event.event_init_line = '<event>\n'
+        curr_event.max_col = 503
+        curr_event.resonance = {}
+        curr_event.event2mg = {1: 1, 2: 2, 3: 3, 4: 4}
+        curr_event.particle = {
+            1: {'pid': 2, 'istup': -1, 'mothup1': 0, 'mothup2': 0, 'colup1': 501, 'colup2': 0,
+                'momentum': madspin.momentum(500.0, 0.0, 0.0, 500.0), 'mass': 0.0, 'helicity': 9.0},
+            2: {'pid': -2, 'istup': -1, 'mothup1': 0, 'mothup2': 0, 'colup1': 0, 'colup2': 501,
+                'momentum': madspin.momentum(500.0, 0.0, 0.0, -500.0), 'mass': 0.0, 'helicity': 9.0},
+            3: {'pid': 23, 'istup': 1, 'mothup1': 1, 'mothup2': 2, 'colup1': 0, 'colup2': 0,
+                'momentum': madspin.momentum(300.0, 0.0, 0.0, 0.0), 'mass': 91.188, 'helicity': 9.0},
+            4: {'pid': 21, 'istup': 1, 'mothup1': 1, 'mothup2': 2, 'colup1': 502, 'colup2': 503,
+                'momentum': madspin.momentum(700.0, 0.0, 0.0, 0.0), 'mass': 0.0, 'helicity': 9.0},
+        }
+
+        decay_struct = {
+            3: {
+                'mg_tree': [[-1, 3, 4]],
+                'tree': {
+                    -1: {
+                        'label': 23,
+                        'd1': {'label': -82, 'index': 3},
+                        'd2': {'label': 82, 'index': 4},
+                    }
+                }
+            }
+        }
+        momenta_in_decay = {
+            -1: madspin.momentum(300.0, 0.0, 0.0, 0.0),
+            3: madspin.momentum(150.0, 10.0, 0.0, 149.66629547095766),
+            4: madspin.momentum(150.0, -10.0, 0.0, -149.66629547095766),
+        }
+        helicities = [9.0, 9.0, -1.0, 1.0]
+
+        decayed_event = handler.decay_one_event_new(
+            curr_event, decay_struct, {0: 0, 1: 1, 2: 2, 3: 3}, momenta_in_decay,
+            False, helicities, prod_flavor_tuple=[2, -2, 23, 21],
+            full_flavor_tuple=[2, -2, -11, 11, 21])
+
+        output = decayed_event.string_event()
+        self.assertIn('      -11', output)
+        self.assertIn('       11', output)
+        self.assertNotIn('      -82', output)
+        self.assertNotIn('       82', output)
+         
 
 
 
