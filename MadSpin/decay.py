@@ -2180,8 +2180,7 @@ class decay_all_events(object):
         seedfile.close()       
  
         # width and mass information will be filled up later
-        self.pid2width = lambda pid: self.banner.get('param_card', 'decay', abs(pid)).value
-        self.pid2mass = lambda pid: self.banner.get('param_card', 'mass', abs(pid)).value
+
         
         if os.path.isfile(pjoin(self.path_me,"param_card.dat")):
             os.remove(pjoin(self.path_me,"param_card.dat"))        
@@ -2235,7 +2234,29 @@ class decay_all_events(object):
             self.extract_resonances_mass_width(resonances) 
 
         self.compile()
-    
+
+
+    def pid2width(self, pid):
+        try:
+            return self.banner.get('param_card', 'decay', abs(pid)).value
+        except Exception:
+            if abs(pid) in self.model['merged_particles']:
+                return self.banner.get('param_card', 'decay', abs(self.model['merged_particles'][abs(pid)][0])).value
+            misc.sprint(pid)
+            raise Exception('No width information for particle with pid %s' % pid)
+            
+    def pid2mass(self, pid):
+        try:
+            return self.banner.get('param_card', 'mass', abs(pid)).value
+        except Exception:
+            if self.model and abs(pid) in self.model['merged_particles']:
+                return self.banner.get('param_card', 'mass', abs(self.model['merged_particles'][abs(pid)][0])).value
+            elif hasattr(self, 'merged_particles') and abs(pid) in self.merged_particles:
+                # this can happens when gridpack mode is used
+                return self.banner.get('param_card', 'mass', abs(self.merged_particles[abs(pid)][0])).value
+            misc.sprint(pid)
+            raise Exception('No mass information for particle with pid %s' % pid)
+
     def save_to_file(self, *args):
         return save_load_object.save_to_file(*args)
     
@@ -2341,9 +2362,11 @@ class decay_all_events(object):
         curr_event, self.curr_event = self.curr_event , None
         mgcmd, self.mgcmd = self.mgcmd, None
         mscmd, self.mscmd = self.mscmd , None
-        pid2mass, self.pid2mass = self.pid2mass, None
-        pid2width, self.pid2width = self.pid2width, None
+        #pid2mass, self.pid2mass = self.pid2mass, None
+        #pid2width, self.pid2width = self.pid2width, None
         model=  self.model
+        #
+        self.merged_particles = model['merged_particles']
 
 
         self.switch_all_model_instance(None)
@@ -2372,8 +2395,8 @@ class decay_all_events(object):
         self.curr_event = curr_event
         self.mgcmd = mgcmd
         self.mscmd = mscmd 
-        self.pid2mass = pid2mass
-        self.pid2width = pid2width
+        #self.pid2mass = pid2mass
+        #self.pid2width = pid2width
         
 
         self.all_decay = bkp 
@@ -4607,7 +4630,8 @@ class decay_all_events(object):
                             istup=1
                             external+=1
                             if not use_mc_masses or abs(pid) not in self.MC_masses:
-                                mass=self.banner.get('param_card','mass', abs(pid)).value
+                                mass = self.pid2mass(abs(pid))
+                                #mass=self.banner.get('param_card','mass', abs(pid)).value
                             else:
                                 mass=self.MC_masses[abs(pid)]
                         else:
@@ -4641,7 +4665,7 @@ class decay_all_events(object):
                             istup=1
                             external+=1
                             if not use_mc_masses or abs(pid) not in self.MC_masses:
-                                mass=self.banner.get('param_card','mass', abs(pid)).value
+                                mass = self.pid2mass(abs(pid))
                             else:
                                 mass=self.MC_masses[abs(pid)]
                         else:

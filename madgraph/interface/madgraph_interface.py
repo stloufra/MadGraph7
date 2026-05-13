@@ -8571,6 +8571,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
             if major_version != sys.version_info[0] or \
                minor_version != sys.version_info[1]:
                return  
+            del args[2]
 
         to_do = True
         if args[0].endswith('_py2'):
