@@ -314,7 +314,7 @@ decay z > l+ l-
         command = """import model sm
 set automatic_html_opening False --no_save
 set notification_center False --no_save
-generate p p > w+
+generate p p > w+ g
 output %(path)s
 launch
 madspin=ON
@@ -334,17 +334,37 @@ decay w+ > all all
                 stdout=log_file, stderr=subprocess.STDOUT)
         self.assertEqual(return_code, 0)
 
-        counts = {-11: 0, -13: 0, 4: 0, -3: 0}
+        counts={}
         for event in lhe_parser.EventFile(self._get_single_decayed_lhe_path()):
             for particle in event:
-                if particle.status == 1 and particle.pdg in counts:
-                    counts[particle.pdg] += 1
+                if particle.status == 1:
+                    if particle.pdg in counts:
+                        counts[particle.pdg] += 1
+                    else:
+                        counts[particle.pdg] = 1
 
+        misc.sprint(counts)
+        self.assertNotIn(81, counts)
+        self.assertNotIn(82, counts)
+        self.assertNotIn(83, counts)
+        self.assertNotIn(-81, counts)
+        self.assertNotIn(-82, counts)
+        self.assertNotIn(-83, counts)    
         self.assertGreater(counts[-11], 0)
+        self.assertEqual(counts[-11],counts[12])
         self.assertGreater(counts[-13], 0)
+        self.assertEqual(counts[-13],counts[14])
+        self.assertGreater(counts[-15], 0) 
+        self.assertEqual(counts[-15],counts[16])
         self.assertGreater(counts[4], 0)
-        self.assertGreater(counts[-3], 0)
+        self.assertEqual(counts[4], counts[-3])
+        self.assertGreater(counts[2], 0)
+        self.assertEqual(counts[2], counts[-1])
+
 
         lepton_total = counts[-11] + counts[-13]
-        self.assertLess(abs(counts[-11] - counts[-13]), 0.2 * lepton_total,
+        self.assertLess(abs(counts[-11] - counts[-13]), 4* math.sqrt(counts[-11]),
             msg='Expected electron/muon counts to be comparable, got %s' % counts)
+        self.assertLess(abs(counts[2] - counts[4]), 4* math.sqrt(counts[4]),
+            msg='Expected electron/muon counts to be comparable, got %s' % counts)
+                
