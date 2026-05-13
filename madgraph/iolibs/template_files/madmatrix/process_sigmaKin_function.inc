@@ -15,10 +15,10 @@
     // *** PART 0a - CUDA ***
     const int nevt = gpublocks * gputhreads;
     gpuMemset( allMEs, 0, nevt * sizeof( fptype ) );
-    gpuMemset( ghelAllJamps, 0, cNGoodHel * ncolor * mgOnGpu::nx2 * nevt * sizeof( fptype ) );
-    gpuMemset( colAllJamp2s, 0, ncolor * nevt * sizeof( fptype ) );
-    gpuMemset( ghelAllNumerators, 0, cNGoodHel * processConfig::ndiagrams * nevt * sizeof( fptype ) );
-    gpuMemset( ghelAllDenominators, 0, cNGoodHel * nevt * sizeof( fptype ) );
+    gpuMemset( ghelAllJamps, 0, cNGoodHel * ncolor * mgOnGpu::nx2 * nevt * sizeof( fptype_amp ) );
+    gpuMemset( colAllJamp2s, 0, ncolor * nevt * sizeof( fptype_amp ) );
+    gpuMemset( ghelAllNumerators, 0, cNGoodHel * processConfig::ndiagrams * nevt * sizeof( fptype_vertex ) );
+    gpuMemset( ghelAllDenominators, 0, cNGoodHel * nevt * sizeof( fptype_denom ) );
     gpuMemset( ghelAllMEs, 0, cNGoodHel * nevt * sizeof( fptype ) );
 #else
     // *** PART 0b - C++ ***
@@ -29,15 +29,15 @@
       fptype* MEs = E_ACCESS::ieventAccessRecord( allMEs, ievt0 );
       fptype_sv& MEs_sv = E_ACCESS::kernelAccess( MEs );
       MEs_sv = fptype_sv{ 0 };
-      fptype* numerators = NUM_ACCESS::ieventAccessRecord( allNumerators, ievt0 * processConfig::ndiagrams );
-      fptype* denominators = DEN_ACCESS::ieventAccessRecord( allDenominators, ievt0 );
-      fptype_sv* numerators_sv = NUM_ACCESS::kernelAccessP( numerators );
-      fptype_sv& denominators_sv = DEN_ACCESS::kernelAccess( denominators );
+      fptype_vertex* numerators = NUM_ACCESS::ieventAccessRecord( allNumerators, ievt0 * processConfig::ndiagrams );
+      fptype_denom* denominators = DEN_ACCESS::ieventAccessRecord( allDenominators, ievt0 );
+      fptype_vertex_sv* numerators_sv = NUM_ACCESS::kernelAccessP( numerators );
+      fptype_denom_sv& denominators_sv = DEN_ACCESS::kernelAccess( denominators );
       for( int i = 0; i < processConfig::ndiagrams; ++i )
       {
-        numerators_sv[i] = fptype_sv{ 0 };
+        numerators_sv[i] = fptype_vertex_sv{ 0 };
       }
-      denominators_sv = fptype_sv{ 0 };
+      denominators_sv = fptype_denom_sv{ 0 };
     }
 #endif
 
@@ -54,9 +54,9 @@
     for( int ighel = 0; ighel < cNGoodHel; ighel++ )
     {
       const int ihel = cGoodHel[ighel];
-      fptype* hAllJamps = ghelAllJamps + ighel * nevt; // HACK: bypass DeviceAccessJamp (consistent with layout defined there)
-      fptype* hAllNumerators = ghelAllNumerators + ighel * nevt * processConfig::ndiagrams;
-      fptype* hAllDenominators = ghelAllDenominators + ighel * nevt;
+      fptype_amp* hAllJamps = ghelAllJamps + ighel * nevt; // HACK: bypass DeviceAccessJamp (consistent with layout defined there)
+      fptype_vertex* hAllNumerators = ghelAllNumerators + ighel * nevt * processConfig::ndiagrams;
+      fptype_denom* hAllDenominators = ghelAllDenominators + ighel * nevt;
       bool storeChannelWeights = allChannelIds != nullptr || allrnddiagram != nullptr;
       gpuLaunchKernelStream( calculate_jamps, gpublocks, gputhreads, ghelStreams[ighel], ihel, allmomenta, allcouplings, iflavorVec, hAllJamps, storeChannelWeights, hAllNumerators, hAllDenominators, colAllJamp2s, nevt );
     }
@@ -107,7 +107,7 @@
 #endif
       // Running sum of partial amplitudes squared for event by event color selection (#402)
       // (jamp2[nParity][ncolor][neppV] for the SIMD vector - or the two SIMD vectors - of events processed in calculate_jamps)
-      fptype_sv jamp2_sv[nParity * ncolor] = {};
+      fptype_amp_sv jamp2_sv[nParity * ncolor] = {};
       fptype_sv MEs_ighel[ncomb] = {};  // sum of MEs for all good helicities up to ighel (for the first - and/or only - neppV page)
 #if defined MGONGPU_CPPSIMD and defined MGONGPU_FPTYPE_DOUBLE and defined MGONGPU_FPTYPE2_FLOAT
       fptype_sv MEs_ighel2[ncomb] = {}; // sum of MEs for all good helicities up to ighel (for the second neppV page)
@@ -184,7 +184,7 @@
         for( int ieppV = 0; ieppV < vecsize; ++ieppV )
         {
           const int ievt = ievt00 + ieppV;
-          fptype numerator_sum = 0., normalization = 0.;
+          fptype_vertex numerator_sum = 0., normalization = 0.;
           for( unsigned int ichan = 0; ichan < mgOnGpu::nchannels; ichan++ )
           {
             if( mgOnGpu::channel2iconfig[ichan] == -1 ) continue;
@@ -231,7 +231,7 @@
             printf( "INTERNAL ERROR! Cannot choose an event-by-event random color for channelId=%%d (invalid SDE iconfig=%%d\n > nconfig=%%d)", channelId, iconfig, mgOnGpu::nconfigSDE );
             assert( iconfig <= (int)mgOnGpu::nconfigSDE ); // SANITY CHECK #917
           }
-          fptype targetamp[ncolor] = { 0 };
+          fptype_amp targetamp[ncolor] = { 0 };
           // NB (see #877): explicitly use 'icolC' rather than 'icol' to indicate that icolC uses C indexing in [0, N_colors-1]
           for( int icolC = 0; icolC < ncolor; icolC++ )
           {
@@ -291,10 +291,10 @@
       if( mulChannelWeight && allChannelIds != nullptr ) // fix segfault #892 (not 'channelIds[0] != 0')
       {
         const unsigned int channelId = getChannelId( allChannelIds, ievt0, false );
-        fptype* numerators = NUM_ACCESS::ieventAccessRecord( allNumerators, ievt0 * processConfig::ndiagrams );
-        fptype* denominators = DEN_ACCESS::ieventAccessRecord( allDenominators, ievt0 );
-        fptype_sv* numerators_sv = NUM_ACCESS::kernelAccessP( numerators );
-        fptype_sv& denominators_sv = DEN_ACCESS::kernelAccess( denominators );
+        fptype_vertex* numerators = NUM_ACCESS::ieventAccessRecord( allNumerators, ievt0 * processConfig::ndiagrams );
+        fptype_denom* denominators = DEN_ACCESS::ieventAccessRecord( allDenominators, ievt0 );
+        fptype_vertex_sv* numerators_sv = NUM_ACCESS::kernelAccessP( numerators );
+        fptype_denom_sv& denominators_sv = DEN_ACCESS::kernelAccess( denominators );
         MEs_sv *= numerators_sv[channelId - 1] / denominators_sv;
       }
       //for( int ieppV = 0; ieppV < neppV; ieppV++ )
