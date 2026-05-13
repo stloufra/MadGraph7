@@ -60,6 +60,11 @@ class TestMadSpin(unittest.TestCase):
             shutil.rmtree(self.path)
         self.assertFalse(self.debuging)
 
+    def _get_single_decayed_lhe_path(self):
+        decayed_events = glob.glob(pjoin(self.run_dir, 'Events', '*decayed*', '*.lhe.gz'))
+        self.assertTrue(decayed_events)
+        return decayed_events[0]
+
 
     def test_hepmc_decay(self):
         """ """
@@ -287,9 +292,7 @@ decay z > l+ l-
         self.assertRegex(log, r'INFO:\s*Number of subprocesses[:\s]+1')
         self.assertRegex(log, r'INFO:\s*Number of failures when restoring the Monte Carlo masses:\s*0')
 
-        decayed_events = glob.glob(pjoin(self.run_dir, 'Events', '*decayed*', '*.lhe.gz'))
-        self.assertTrue(decayed_events)
-        with gzip.open(decayed_events[0], 'rt') as lhe_file:
+        with gzip.open(self._get_single_decayed_lhe_path(), 'rt') as lhe_file:
             banner_lines = []
             for line in lhe_file:
                 if '<event' in line:
@@ -302,3 +305,46 @@ decay z > l+ l-
         self.assertNotRegex(banner_text, r'(?mi)^\s*decay\s+81\s+[0-9eE.+-]+\s+# added\s*$')
         self.assertNotRegex(banner_text, r'(?mi)^\s*decay\s+82\s+[0-9eE.+-]+\s+# added\s*$')
         self.assertNotRegex(banner_text, r'(?mi)^\s*decay\s+83\s+[0-9eE.+-]+\s+# added\s*$')
+
+    def test_madspin_wplus_all_all_flavor_balance(self):
+        """`w+ > all all` should populate e/mu decay modes with similar rates."""
+
+        cmd_path = pjoin(self.path, 'test_madspin_wplus_all_all.cmd')
+        log_path = pjoin(self.path, 'test_madspin_wplus_all_all.log')
+        command = """import model sm
+set automatic_html_opening False --no_save
+set notification_center False --no_save
+generate p p > w+
+output %(path)s
+launch
+madspin=ON
+shower=OFF
+analysis=OFF
+set nevents 2000
+set iseed 1
+decay w+ > all all
+""" % {'path': self.run_dir}
+        with open(cmd_path, 'w') as fsock:
+            fsock.write(command)
+
+        with open(log_path, 'w') as log_file:
+            return_code = subprocess.call(
+                [sys.executable, pjoin(_file_path, os.path.pardir, 'bin', 'mg5_aMC'), cmd_path],
+                cwd=pjoin(_file_path, os.path.pardir),
+                stdout=log_file, stderr=subprocess.STDOUT)
+        self.assertEqual(return_code, 0)
+
+        counts = {-11: 0, -13: 0, 4: 0, -3: 0}
+        for event in lhe_parser.EventFile(self._get_single_decayed_lhe_path()):
+            for particle in event:
+                if particle.status == 1 and particle.pdg in counts:
+                    counts[particle.pdg] += 1
+
+        self.assertGreater(counts[-11], 0)
+        self.assertGreater(counts[-13], 0)
+        self.assertGreater(counts[4], 0)
+        self.assertGreater(counts[-3], 0)
+
+        lepton_total = counts[-11] + counts[-13]
+        self.assertLess(abs(counts[-11] - counts[-13]), 0.2 * lepton_total,
+            msg='Expected electron/muon counts to be comparable, got %s' % counts)

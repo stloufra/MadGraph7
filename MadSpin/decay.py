@@ -2578,11 +2578,15 @@ class decay_all_events(object):
             #   flavor_index_full: same, but matching against the full-event flavor groups
             flavor_index_prod = self.curr_event.get_flavor_index(
                 self.all_ME[production_tag].get('flavor_groups_prod', []), event_map)
-            flavor_index_full = self.get_full_flavor_index(
-                production_tag, decay_me, event_map)
+            flavor_index_full = self.choose_full_flavor_index(
+                production_tag, decay, decay_me, event_map)
             full_flavor_tuple = self.curr_event.get_selected_flavor_tuple(
-                decay_me.get('flavor_combos_full'),
+                decay.get('flavor_combos_full'),
                 flavor_index_full)
+            if full_flavor_tuple is None:
+                full_flavor_tuple = self.curr_event.get_selected_flavor_tuple(
+                    decay_me.get('flavor_combos_full'),
+                    flavor_index_full)
             # Use the per-flavor maxweight when available; fall back to the
             # global value for flavors not seen during the maxweight probing.
             mw_for_event = decay_me.get('max_weight_per_flavor', {}).get(
@@ -3699,6 +3703,27 @@ class decay_all_events(object):
         compatible = self.get_compatible_flavor_indices(
             decay_me, event_map, production_tag=production_tag)
         return compatible, [decay_br] * len(compatible)
+
+    def choose_full_flavor_index(self, production_tag, decay, decay_me, event_map):
+        """Choose a compatible full-event flavor index for this selected decay."""
+
+        selected_compatible = self.get_compatible_flavor_indices(
+            decay, event_map, production_tag=production_tag)
+
+        if decay_me is decay:
+            compatible = selected_compatible
+        else:
+            canonical_compatible = self.get_compatible_flavor_indices(
+                decay_me, event_map, production_tag=production_tag)
+            compatible = [idx for idx in selected_compatible
+                          if idx in canonical_compatible]
+            if not compatible:
+                compatible = selected_compatible or canonical_compatible
+
+        if compatible:
+            return random.choice(compatible)
+
+        return self.get_full_flavor_index(production_tag, decay_me, event_map)
 
     def compile(self):
         logger.info('Compiling code')
