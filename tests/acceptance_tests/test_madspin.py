@@ -368,7 +368,7 @@ decay w+ > all all
         self.assertLess(abs(counts[2] - counts[4]), 4* math.sqrt(counts[4]),
             msg='Expected electron/muon counts to be comparable, got %s' % counts)
                 
-  def test_madspin_wplus_all_all_flavor_balance_2to1(self):
+    def test_madspin_wplus_all_all_flavor_balance_2to1(self):
         """`w+ > all all` should populate e/mu decay modes with similar rates."""
 
         cmd_path = pjoin(self.path, 'test_madspin_wplus_all_all.cmd')
