@@ -368,3 +368,65 @@ decay w+ > all all
         self.assertLess(abs(counts[2] - counts[4]), 4* math.sqrt(counts[4]),
             msg='Expected electron/muon counts to be comparable, got %s' % counts)
                 
+  def test_madspin_wplus_all_all_flavor_balance_2to1(self):
+        """`w+ > all all` should populate e/mu decay modes with similar rates."""
+
+        cmd_path = pjoin(self.path, 'test_madspin_wplus_all_all.cmd')
+        log_path = pjoin(self.path, 'test_madspin_wplus_all_all.log')
+        command = """import model sm
+set automatic_html_opening False --no_save
+set notification_center False --no_save
+generate p p > w+
+output %(path)s
+launch
+madspin=ON
+shower=OFF
+analysis=OFF
+set nevents 2000
+set iseed 1
+decay w+ > all all
+""" % {'path': self.run_dir}
+        with open(cmd_path, 'w') as fsock:
+            fsock.write(command)
+
+        with open(log_path, 'w') as log_file:
+            return_code = subprocess.call(
+                [sys.executable, pjoin(_file_path, os.path.pardir, 'bin', 'mg5_aMC'), cmd_path],
+                cwd=pjoin(_file_path, os.path.pardir),
+                stdout=log_file, stderr=subprocess.STDOUT)
+        self.assertEqual(return_code, 0)
+
+        counts={}
+        for event in lhe_parser.EventFile(self._get_single_decayed_lhe_path()):
+            for particle in event:
+                if particle.status == 1:
+                    if particle.pdg in counts:
+                        counts[particle.pdg] += 1
+                    else:
+                        counts[particle.pdg] = 1
+
+        misc.sprint(counts)
+        self.assertNotIn(81, counts)
+        self.assertNotIn(82, counts)
+        self.assertNotIn(83, counts)
+        self.assertNotIn(-81, counts)
+        self.assertNotIn(-82, counts)
+        self.assertNotIn(-83, counts)    
+        self.assertGreater(counts[-11], 0)
+        self.assertEqual(counts[-11],counts[12])
+        self.assertGreater(counts[-13], 0)
+        self.assertEqual(counts[-13],counts[14])
+        self.assertGreater(counts[-15], 0) 
+        self.assertEqual(counts[-15],counts[16])
+        self.assertGreater(counts[4], 0)
+        self.assertEqual(counts[4], counts[-3])
+        self.assertGreater(counts[2], 0)
+        self.assertEqual(counts[2], counts[-1])
+
+
+        lepton_total = counts[-11] + counts[-13]
+        self.assertLess(abs(counts[-11] - counts[-13]), 4* math.sqrt(counts[-11]),
+            msg='Expected electron/muon counts to be comparable, got %s' % counts)
+        self.assertLess(abs(counts[2] - counts[4]), 4* math.sqrt(counts[4]),
+            msg='Expected electron/muon counts to be comparable, got %s' % counts)
+               
