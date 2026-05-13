@@ -435,6 +435,33 @@ class TestEventGetFlavorIndex(unittest.TestCase):
         flavor_index = ev.get_flavor_index(flavor_groups_prod, event_map)
         self.assertEqual(flavor_index, 1)
 
+
+        # Handling W+W- j 
+
+        event_map =  {0: 0, 1: 1, 2: 2, 3: 3, 4: 4}
+        flavor_groups_prod =  [[[1, 1, 1, 1, 1]], [[2, 2, 1, 1, 1]], [[3, 3, 1, 1, 1]], [[4, 4, 1, 1, 1]]] 
+        ev.particle =   {1: {'pid': 4}, 2: {'pid': -4}, 3: {'pid': 24}, 4: {'pid': -24}, 5: {'pid': 21}} 
+        flavor_index = ev.get_flavor_index(flavor_groups_prod, event_map)
+        self.assertEqual(flavor_index, 4)
+
+        event_map =  {0: 1, 1: 0, 2: 2, 3: 3, 4: 4} 
+        flavor_groups_prod =  [[[1, 1, 1, 1, 1]], [[1, 2, 1, 1, 2]], [[1, 3, 1, 1, 3]], [[1, 4, 1, 1, 4]]]
+        ev.particle=  {1: {'pid': 21}, 2: {'pid': -1}, 3: {'pid': 24}, 4: {'pid': -24}, 5: {'pid': -1}} 
+        flavor_index = ev.get_flavor_index(flavor_groups_prod, event_map)
+        self.assertEqual(flavor_index, 1)
+        event_map =  {0: 0, 1: 1, 2: 2, 3: 3, 4: 4} 
+        flavor_groups_prod =  [[[1, 1, 1, 1, 1]], [[1, 2, 1, 1, 2]], [[1, 3, 1, 1, 3]], [[1, 4, 1, 1, 4]]]
+        ev.particle=  {1: {'pid': 21}, 2: {'pid': 2}, 3: {'pid': 24}, 4: {'pid': -24}, 5: {'pid': 2}} 
+        flavor_index = ev.get_flavor_index(flavor_groups_prod, event_map)
+        self.assertEqual(flavor_index, 2)        
+        event_map =  {0: 1, 1: 0, 2: 2, 3: 3, 4: 4} 
+        flavor_groups_prod =  [[[1, 1, 1, 1, 1]], [[1, 2, 1, 1, 2]], [[1, 3, 1, 1, 3]], [[1, 4, 1, 1, 4]]]
+        ev.particle=  {1: {'pid': 2}, 2: {'pid': 21}, 3: {'pid': 24}, 4: {'pid': -24}, 5: {'pid': 2}} 
+        flavor_index = ev.get_flavor_index(flavor_groups_prod, event_map)
+        self.assertEqual(flavor_index, 2)   
+
+
+
 # Shared flavor-group fixture used by several tests.
 # Models p p > W+ W- with W+ > j j, W- > j j (j = u d s c).
 # prod2full: production particles 0,1 are initial-state (at full-ME positions

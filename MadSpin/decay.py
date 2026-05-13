@@ -232,6 +232,18 @@ class Event:
         if not flavor_groups:
             return 1
 
+        # helper for creating unittest
+        if False:        
+            misc.sprint(event_map)
+            misc.sprint(flavor_groups)
+            id = {}
+            n_parts = len(flavor_groups[0][0])  # number of particles in the process (length of each flavor tuple)
+            event_flav = []
+            for me_pos in range(n_parts):
+                pid = self.particle[event_map[me_pos] + 1]['pid']   # particle dict is 1-indexed
+                id[me_pos] = {'pid': pid}
+            misc.sprint(id)
+
         n_parts = len(flavor_groups[0][0])  # number of particles in the process (length of each flavor tuple)
         event_flav = []
         for me_pos in range(n_parts):
