@@ -2565,8 +2565,11 @@ class decay_all_events(object):
 
             # Treat the case that we ge too many overweight.
             # Use the per-flavor maxweight consistent with what was passed to Fortran.
-            decay_mw_for_event = decay.get('max_weight_per_flavor', {}).get(
-                flavor_index_full, decay['max_weight'])
+            # decay_me is the canonical ME entry used for the Fortran call; it may differ
+            # from decay when inverted_decay_mapping redirects an equivalent channel (e.g.
+            # z > l+ l- mapped to z > q q~).  The threshold must match mw_for_event above.
+            decay_mw_for_event = decay_me.get('max_weight_per_flavor', {}).get(
+                flavor_index_full, decay_me['max_weight'])
             if weight > decay_mw_for_event:
                 report['over_weight'] += 1
                 report['%s_f' % (decay['decay_tag'],)] +=1
