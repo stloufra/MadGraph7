@@ -3458,10 +3458,15 @@ class decay_all_events(object):
         # Fortran flavor index, which is required for correct BR-weighted
         # maxweight computation across all compatible channels.
         all_flav_flat = matrix_element.get_external_flavors()
-        # flavor_combos[i]: PDG tuple for Fortran flavor index i+1
+        # flavor_combos[i]: raw PDG tuple for Fortran flavor index i+1.
+        # The Fortran writer applies pdg_to_group_pos at DATA-statement time.
         flavor_combos = [list(flv) for flv in all_flav_flat]
-        # flavor_groups[i]: single-element list so Python matching still works
-        flavor_groups = [[list(flv)] for flv in all_flav_flat]
+        # flavor_groups[i] is compared against the group-position tuple
+        # produced by Event.get_flavor_index, so it must already be in that
+        # space (1-based position within the merged group, 1 for unmerged
+        # particles).  get_external_flavors returns raw PDGs, so convert.
+        flavor_groups = [[[pdg_to_group_pos.get(abs(f), 1) for f in flv]]
+                         for flv in all_flav_flat]
         return nexternal, flavor_combos, pdg_to_group_pos, flavor_groups
 
     @staticmethod
