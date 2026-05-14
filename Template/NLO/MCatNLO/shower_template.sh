@@ -12,7 +12,7 @@ export %(ld_library_path)s=$%(ld_library_path)s:%(extralibs)s
 # CommonRunCmd.patch_lhapdf_info_file injects AlphaS_FlavorScheme /
 # AlphaS_NumFlavors there for PDF sets shipped with older metadata; without
 # this prefix HERWIG6 loads the unpatched system copy and aborts.
-if [ -n "%(local_pdfsets)s" ] && [ -d "%(local_pdfsets)s" ]; then
+if [ -d "%(local_pdfsets)s" ]; then
     if [ -n "$LHAPDF_DATA_PATH" ]; then
         export LHAPDF_DATA_PATH="%(local_pdfsets)s:$LHAPDF_DATA_PATH"
     else

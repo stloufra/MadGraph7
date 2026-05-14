@@ -1762,8 +1762,9 @@ class MadSpinInterface(extended_cmd.Cmd):
             # pick the right flavor branch and returns 0.  See the analogous
             # logic in ReweightInterface.calculate_matrix_element.
             pdg_template = list(orig_order[0]) + list(orig_order[1])
+            merged_particles = self.model.get('merged_particles') or {}
             need_raw_pdg = (self._revert_merged and
-                            any(abs(p) in self.model['merged_particles']
+                            any(abs(p) in merged_particles
                                 for p in pdg_template))
             out = 0
             for p in all_p:
