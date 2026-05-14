@@ -1756,13 +1756,23 @@ class MadSpinInterface(extended_cmd.Cmd):
             if self.options['identical_particle_in_prod_and_decay'] == "crash" and\
                 len(all_p)> 1:
                 raise Exception("Ambiguous particle in production and decay. crash as requested by 'identical_particle_in_prod_and_decay'")
+            # When the ME legs use merged-particle IDs (apply_flavor_grouping
+            # is on for MadSpin), smatrixhel still needs the concrete raw PDGs
+            # from the event for the current permutation; otherwise it cannot
+            # pick the right flavor branch and returns 0.  See the analogous
+            # logic in ReweightInterface.calculate_matrix_element.
+            pdg_template = list(orig_order[0]) + list(orig_order[1])
+            need_raw_pdg = (self._revert_merged and
+                            any(abs(p) in self.model['merged_particles']
+                                for p in pdg_template))
             out = 0
             for p in all_p:
-                p = rwgt_interface.ReweightInterface.invert_momenta(p)
+                pdg_for_call = event.get_pdg(p) if need_raw_pdg else pdg_template
+                p_inv = rwgt_interface.ReweightInterface.invert_momenta(p)
                 if event[0].color1 == 599 and event.aqcd==0:
-                    new_value = self.all_f2py[pdir](p, 0.113, 0)
+                    new_value = self.all_f2py[pdir](pdg_for_call, p_inv, 0.113, 0)
                 else:
-                    new_value = self.all_f2py[pdir](p, event.aqcd, event.scale, -1)
+                    new_value = self.all_f2py[pdir](pdg_for_call, p_inv, event.aqcd, event.scale, -1)
                 if self.options['identical_particle_in_prod_and_decay'] == "average":
                     out += new_value
                 else:
@@ -1806,8 +1816,9 @@ class MadSpinInterface(extended_cmd.Cmd):
                         mymod.initialise(pjoin(self.path_me,'param_card.dat'))
                     else:
                         mymod.initialise(pjoin(self.path_me, 'Cards','param_card.dat'))
-            pdg = list(orig_order[0]) + list(orig_order[1])
-            self.all_f2py[pdir] = lambda *args : mymod.smatrixhel(pdg, 0, *args)
+            # pdg is passed per call (not captured here) so that callers can
+            # substitute concrete event PDGs when the ME legs use merged IDs.
+            self.all_f2py[pdir] = lambda pdg_list, *args : mymod.smatrixhel(pdg_list, 0, *args)
             return self.calculate_matrix_element(event)
         
         

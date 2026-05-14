@@ -3004,13 +3004,16 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         flavor_text += " do i =1, npdg\n"
         nb = 0
         for pdg, pids in self.model['merged_particles'].items():
-            for pid in pids:
+            for group_pos, pid in enumerate(pids, 1):
                 if nb !=0:
                     flavor_text += ' else'
                 else:
                     flavor_text += ' '
                 nb += 1
-                flavor_text += 'if (abs(pdgs(i)).eq.%i)then\n flavor(i) = abs(%i)\n pdgs(i) = Sign(%i, pdgs(i))\n' % (pid, pid, pdg)
+                # flavor(i) is the 1-based position of the actual PDG within
+                # the merged-particle group; pdgs(i) is rewritten to carry
+                # the merged-particle ID (with the original sign).
+                flavor_text += 'if (abs(pdgs(i)).eq.%i)then\n flavor(i) = %i\n pdgs(i) = Sign(%i, pdgs(i))\n' % (pid, group_pos, pdg)
         if nb>0:
             flavor_text += 'endif\n'
         flavor_text += " enddo\n"
