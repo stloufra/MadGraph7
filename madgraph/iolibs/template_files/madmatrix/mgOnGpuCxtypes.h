@@ -762,13 +762,13 @@ namespace mg5amcCpu
   inline __host__ __device__ const cxtype
   cxmake( const cxsmpl<float>& c ) // cxsmpl to cxtype (float-to-float or float-to-double)
   {
-    return cxmake( c.real(), c.imag() );
+    return cxmake<float>( c.real(), c.imag() );
   }
 
   inline __host__ __device__ const cxtype
   cxmake( const cxsmpl<double>& c ) // cxsmpl to cxtype (double-to-float or double-to-double)
   {
-    return cxmake( c.real(), c.imag() );
+    return cxmake<double>( c.real(), c.imag() );
   }
 
 } // end namespace mg5amcGpu/mg5amcCpu

@@ -373,6 +373,8 @@ for( unsigned int ievt = 0; ievt < nevt; ++ievt )
 
     if( verbose )
     {
+      const int ndigits = std::numeric_limits<double>::digits10;
+
       std::cout << std::string( SEP79, '*' ) << std::endl
                 << "Iteration #" << iiter + 1 << " of " << niter << std::endl;
       if( perf ) std::cout << "Wave function time: " << wavetime << std::endl;
@@ -381,19 +383,19 @@ for( unsigned int ievt = 0; ievt < nevt; ++ievt )
         std::cout << "Momenta:" << std::endl;
         for( int ipar = 0; ipar < CPPProcess::npar; ipar++ )
         {
-          std::cout << std::scientific
+          std::cout << std::scientific << std::setprecision(ndigits)
                     << std::setw( 4 ) << ipar + 1
-                    << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 0, ipar )
-                    << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 1, ipar )
-                    << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 2, ipar )
-                    << std::setw( 14 ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 3, ipar )
-                    << std::endl
-                    << std::defaultfloat;
+                    << std::setw( 8 + ndigits ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 0, ipar )
+                    << std::setw( 8 + ndigits ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 1, ipar )
+                    << std::setw( 8 + ndigits ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 2, ipar )
+                    << std::setw( 8 + ndigits ) << MemoryAccessMomenta::ieventAccessIp4IparConst( hstMomenta.data(), ievt, 3, ipar )
+                    << std::endl;
         }
         std::cout << std::string( SEP79, '-' ) << std::endl
                   << " Matrix element = " << mes[ievt]
                   << " GeV^" << meGeVexponent << std::endl
-                  << std::string( SEP79, '-' ) << std::endl;
+                  << std::string( SEP79, '-' ) << std::endl
+                  << std::defaultfloat;
       }
     }
     else if( !( debug || perf ) )

@@ -77,6 +77,8 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
     # AV - add vector types
     type2def['double_v'] = 'fptype_sv'
     type2def['complex_v'] = 'cxtype_sv'
+    type2def['vertex_sv'] = 'fptype_vertex_sv'
+    type2def['vertex_v'] = 'fptype_vertex_sv'
 
     type2def['aloha_ref'] = '&'
 
@@ -128,13 +130,6 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
             elif tmp.numerator == -1 and tmp.denominator == 4 : out = '-quarter' # AV
             else: out = '%s./%s.' % (tmp.numerator, tmp.denominator)
         return out
-
-    # AV - wrap momentum references in non-denominator expressions with vertex-precision cast
-    def change_var_format(self, name):
-        str_var = super().change_var_format(name)
-        if re.match(r'^P\d+\[\d+\]$', str_var):
-            str_var = 'static_cast<fptype_vertex>(%s)' % str_var
-        return str_var
 
     # AV - modify aloha_writers.ALOHAWriterForCPP method (improve formatting)
     # [NB: this exists in ALOHAWriterForGPU but essentially falls back to ALOHAWriterForCPP]
@@ -261,15 +256,9 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
                 out.write('    const cxtype_vertex_sv* w%s = W_ACCESS::kernelAccessConst( %s.w );\n' % ( name, name ) )
             if name.startswith('COUP'): # AV from cxtype_sv to fptype array (running alphas #373)
                 if 'M' in self.tag:
-                    if not self.offshell:
-                        out.write('    cxtype_vertex_sv %s;\n' % name )
-                    else:
-                        out.write('    cxtype_momenta_sv %s;\n' % name )
+                    out.write('    cxtype_sv %s;\n' % name )
                 else:
-                    if not self.offshell:
-                        out.write('    const cxtype_vertex_sv %s = static_cast<cxtype_vertex_sv>( C_ACCESS::kernelAccessConst( all%s ) );\n' % ( name, name ) )
-                    else:
-                        out.write('    const cxtype_momenta_sv %s = C_ACCESS::kernelAccessConst( all%s );\n' % ( name, name ) )
+                    out.write('    const cxtype_sv %s = C_ACCESS::kernelAccessConst( all%s );\n' % ( name, name ) )
         if not self.offshell:
             vname = 'vertex'
             access = 'A_ACCESS'
@@ -338,7 +327,7 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
             else:
                 continue # AV no need to declare the variable
             if fullname.startswith('OM') :
-                codedict[fullname] = '%s %s' % (self.type2def[type], fullname) # AV UGLY HACK (OM3 is always a scalar)
+                codedict[fullname] = 'fptype_vertex_sv %s' % fullname # AV use vertex precision for OM
             else:
                 codedict[fullname] = '%s %s' % (self.type2def[type+'_v'], fullname) # AV vectorize, add to codedict
             ###print(fullname, codedict[fullname]) # FOR DEBUGGING
@@ -609,7 +598,7 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
             OffShellParticle = '%s%d' % (self.particles[self.offshell-1],\
                                                                   self.offshell)
             if 'L' not in self.tag:
-                coeff = 'denom'
+                coeff = 'static_cast<cxtype_vertex_sv>(denom)'
                 mydict = {}
                 if self.type2def['pointer_coup'] in ['*']:
                     mydict['pre_coup'] = '(*'
@@ -620,13 +609,16 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
                 mydict['coup'] = coup_name
                 mydict['i'] = self.outgoing
                 if self.nodeclare:
-                    mydict['declnamedenom'] = 'const cxtype_vertex_sv denom' # AV
+                    mydict['declnamedenom'] = 'const cxtype_denom_sv denom' # AV cast down to cxtype_vertex_sv in wavefunction formulas
                 else:
                     mydict['declnamedenom'] = 'denom' # AV
                     self.declaration.add(('complex','denom'))
                 # Need to add the unary operator before the coupling (OM fix for #825)
                 if mydict['coup'] != 'one': # but in case where the coupling is not used (one)
                     mydict['pre_coup'] = 'static_cast<fptype_denom_sv>(Ccoeff) * static_cast<cxtype_denom>(%s' % mydict['pre_coup']
+                    mydict['post_coup'] = '%s)' % mydict['post_coup']
+                else:
+                    mydict['pre_coup'] = 'static_cast<fptype_denom_sv>(%s' % mydict['pre_coup']
                     mydict['post_coup'] = '%s)' % mydict['post_coup']
                 if not aloha.complex_mass:
                     # This affects 'denom = COUP' in HelAmps_sm.cc
@@ -637,7 +629,8 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
                             mydict['denom'] = self.routine.denominator
                             out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( %(denom)s );\n' % mydict) # AV
                     else:
-                        out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( ( P%(i)s[0] * P%(i)s[0] ) - ( P%(i)s[1] * P%(i)s[1] ) - ( P%(i)s[2] * P%(i)s[2] ) - ( P%(i)s[3] * P%(i)s[3] ) - static_cast<fptype_denom_sv>(M%(i)s) * ( static_cast<fptype_denom_sv>(M%(i)s) - static_cast<cxtype_denom_sv>(cI) * static_cast<fptype_denom_sv>(W%(i)s) ) );\n' % mydict) # AV
+                        out.write('    constexpr cxtype_denom_sv cId( 0., 1. );\n') # AV
+                        out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( ( P%(i)s[0] * P%(i)s[0] ) - ( P%(i)s[1] * P%(i)s[1] ) - ( P%(i)s[2] * P%(i)s[2] ) - ( P%(i)s[3] * P%(i)s[3] ) - static_cast<fptype_denom_sv>(M%(i)s) * ( static_cast<fptype_denom_sv>(M%(i)s) - cId * static_cast<fptype_denom_sv>(W%(i)s) ) );\n' % mydict) # AV
                 else:
                     if self.routine.denominator:
                         raise Exception('modify denominator are not compatible with complex mass scheme')
@@ -661,10 +654,10 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
         ###return out.getvalue() # AV
         # AV check if one, two, half or quarter are used and need to be defined (ugly hack for #291: can this be done better?)
         out2 = StringIO()
-        if 'one' in out.getvalue(): out2.write('    constexpr fptype one( 1. );\n')
-        if 'two' in out.getvalue(): out2.write('    constexpr fptype two( 2. );\n')
-        if 'half' in out.getvalue(): out2.write('    constexpr fptype half( 1. / 2. );\n')
-        if 'quarter' in out.getvalue(): out2.write('    constexpr fptype quarter( 1. / 4. );\n')
+        if 'one' in out.getvalue(): out2.write('    constexpr fptype_vertex one( 1. );\n    constexpr fptype_denom oned( 1. )\n;')
+        if 'two' in out.getvalue(): out2.write('    constexpr fptype_vertex two( 2. );\n    constexpr fptype_denom twod( 2. );\n;')
+        if 'half' in out.getvalue(): out2.write('    constexpr fptype_vertex half( 1. / 2. );\n    constexpr fptype_denom halfd( 1. / 2. );\n')
+        if 'quarter' in out.getvalue(): out2.write('    constexpr fptype_vertex quarter( 1. / 4. );\n    constexpr fptype_denom quarterd( 1. / 4. );\n')
         out2.write( out.getvalue() )
         return out2.getvalue()
 
@@ -712,14 +705,22 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
             return 'w%s[%s]' % (match.group('var'), int(match.group('num')) + shift)
 
     # OM - overload aloha_writers.WriteALOHA and ALOHAWriterForCPP methods (handle 'unary minus' #628)
+    # also wrap momentum references in non-denominator expressions with vertex-precision cast
     def change_var_format(self, obj):
         """ """
         if obj.startswith('COUP'):
             out = super().change_var_format(obj)
             postfix = out[4:]
-            return "Ccoeff%s * %s" % (postfix, out) # OM for 'unary minus' #628
+            return "static_cast<fptype_vertex>( Ccoeff%s ) * static_cast<cxtype_vertex_sv>( %s )" % (postfix, out) # OM for 'unary minus' #628, AV cast down for non-denom formulas
         else:
-            return super().change_var_format(obj)
+            out = super().change_var_format(obj)
+            if out == 'denom':
+                out = 'static_cast<cxtype_vertex_sv>(%s)' % out
+            elif re.match(r'^P\d+\[\d+\]$', out):
+                out = 'static_cast<fptype_vertex>(%s)' % out
+            elif re.match(r'^[MW]\d+$', out):
+                out = 'static_cast<fptype_vertex>(%s)' % out
+            return out
 
     # AV - new method (based on implementation of write_obj and write_MultVariable)
     def objIsSimpleVariable(self, obj) :
@@ -1479,7 +1480,7 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
     single_process_template = pjoin('madmatrix', 'process_matrix.inc')
     support_multichannel = False
     multichannel_var = ',fptype& multi_chanel_num, fptype& multi_chanel_denom'
-    imaginary_unit = "cxtype(0,1)"
+    imaginary_unit = "cxtype_amp(0,1)"
 
     # AV - overload export_cpp.OneProcessExporterCPP constructor (rename gCPPProcess to CPPProcess)
     def __init__(self, *args, **kwargs):
@@ -1756,16 +1757,16 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
 #ifdef MGONGPUCPP_GPUIMPL
                    fptype_amp* allJamps,                  // output: jamp[2*ncolor*nevt] buffer for one helicity _within a super-buffer for dcNGoodHel helicities_
                    bool storeChannelWeights,
-                   fptype_vertex* allNumerators,             // input/output: multichannel numerators[nevt], add helicity ihel
+                   fptype* allNumerators,             // input/output: multichannel numerators[nevt], add helicity ihel
                    fptype_denom* allDenominators,           // input/output: multichannel denominators[nevt], add helicity ihel
                    fptype* colAllJamp2s,              // output: allJamp2s[ncolor][nevt] super-buffer, sum over col/hel (nullptr to disable)
                    const int nevt                     // input: #events (for cuda: nevt == ndim == gpublocks*gputhreads)
 #else
                    cxtype_amp_sv* allJamp_sv,             // output: jamp_sv[ncolor] (float/double) or jamp_sv[2*ncolor] (mixed) for this helicity
                    bool storeChannelWeights,
-                   fptype_vertex* allNumerators,             // input/output: multichannel numerators[nevt], add helicity ihel
+                   fptype* allNumerators,             // input/output: multichannel numerators[nevt], add helicity ihel
                    fptype_denom* allDenominators,           // input/output: multichannel denominators[nevt], add helicity ihel
-                   fptype_sv* jamp2_sv,               // output: jamp2[nParity][ncolor][neppV] for color choice (nullptr if disabled)
+                   fptype_amp_sv* jamp2_sv,               // output: jamp2[nParity][ncolor][neppV] for color choice (nullptr if disabled)
                    const int ievt00                   // input: first event number in current C++ event page (for CUDA, ievt depends on threadid)
 #endif
                    )
@@ -2319,7 +2320,7 @@ class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
       const fptype* COUPs[nxcoup];
       for( size_t ixcoup = 0; ixcoup < nxcoup; ixcoup++ ) COUPs[ixcoup] = allCOUPs[ixcoup];
       const int ievt = blockDim.x * blockIdx.x + threadIdx.x; // index of event (thread) in grid
-      fptype_vertex* numerators = &allNumerators[ievt * processConfig::ndiagrams];
+      fptype* numerators = &allNumerators[ievt * processConfig::ndiagrams];
       fptype_denom* denominators = allDenominators;
 #else
       // C++ kernels take input/output buffers with momenta/MEs for one specific event (the first in the current event page)
@@ -2330,7 +2331,7 @@ class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
       //for( size_t iicoup = 0; iicoup < nicoup; iicoup++ ) // BUG #823
       for( size_t iicoup = 0; iicoup < nIPC; iicoup++ )     // FIX #823
         COUPs[ndcoup + iicoup] = allCOUPs[ndcoup + iicoup]; // independent couplings, fixed for all events
-      fptype_vertex* numerators = NUM_ACCESS::ieventAccessRecord( allNumerators, ievt0 * processConfig::ndiagrams );
+      fptype* numerators = NUM_ACCESS::ieventAccessRecord( allNumerators, ievt0 * processConfig::ndiagrams );
       fptype_denom* denominators = DEN_ACCESS::ieventAccessRecord( allDenominators, ievt0 );
 #endif
       // Create an array of views over the Flavor Couplings
@@ -2340,7 +2341,7 @@ class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
       for( int i = 0; i < ncolor; i++ ) { jamp_sv[i] = cxzero_sv<cxtype_amp>(); }
 
       // Numerators and denominators for the current event (CUDA) or SIMD event page (C++)
-      fptype_vertex_sv* numerators_sv = NUM_ACCESS::kernelAccessP( numerators );
+      fptype_sv* numerators_sv = NUM_ACCESS::kernelAccessP( numerators );
       fptype_denom_sv& denominators_sv = DEN_ACCESS::kernelAccess( denominators );
       // Scalar iflavor for the current event
       // for GPU it is an int

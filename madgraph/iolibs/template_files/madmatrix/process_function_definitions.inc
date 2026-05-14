@@ -174,15 +174,15 @@ namespace mg5amcCpu
   class DeviceAccessJamp2
   {
   public:
-    static __device__ inline fptype&
-    kernelAccessIcol( fptype* buffer, const int icol )
+    static __device__ inline fptype_amp&
+    kernelAccessIcol( fptype_amp* buffer, const int icol )
     {
       const int nevt = gridDim.x * blockDim.x;
       const int ievt = blockDim.x * blockIdx.x + threadIdx.x;
       return buffer[icol * nevt + ievt];
     }
-    static __device__ inline const fptype&
-    kernelAccessIcolConst( const fptype* buffer, const int icol )
+    static __device__ inline const fptype_amp&
+    kernelAccessIcolConst( const fptype_amp* buffer, const int icol )
     {
       const int nevt = gridDim.x * blockDim.x;
       const int ievt = blockDim.x * blockIdx.x + threadIdx.x;
@@ -441,7 +441,7 @@ namespace mg5amcCpu
                        const fptype* allcouplings,     // input: couplings[nevt*ndcoup*2]
                        const unsigned int* iflavorVec, // input: indices of the flavor combinations
                        fptype* allMEs,                 // output: allMEs[nevt], |M|^2 final_avg_over_helicities
-                       fptype_vertex* allNumerators,          // output: multichannel numerators[nevt], running_sum_over_helicities
+                       fptype* allNumerators,          // output: multichannel numerators[nevt], running_sum_over_helicities
                        fptype_denom* allDenominators,        // output: multichannel denominators[nevt], running_sum_over_helicities
                        fptype_amp_sv* allJamps,            // tmp: jamp[ncolor*2*nevt] _for one helicity_ (reused in the getGoodHel helicity loop)
                        bool* isGoodHel,                // output: isGoodHel[ncomb] - host array
@@ -482,7 +482,7 @@ namespace mg5amcCpu
                        const fptype* allcouplings,     // input: couplings[nevt*ndcoup*2]
                        const unsigned int* iflavorVec, // input: indices of the flavor combinations
                        fptype* allMEs,                 // output: allMEs[nevt], |M|^2 final_avg_over_helicities
-                       fptype_vertex* allNumerators,          // output: multichannel numerators[nevt], running_sum_over_helicities
+                       fptype* allNumerators,          // output: multichannel numerators[nevt], running_sum_over_helicities
                        fptype_denom* allDenominators,        // output: multichannel denominators[nevt], running_sum_over_helicities
                        bool* isGoodHel,                // output: isGoodHel[ncomb] - host array
                        const int nevt )                // input: #events (for cuda: nevt == ndim == gpublocks*gputhreads)
@@ -527,7 +527,7 @@ namespace mg5amcCpu
         }
         constexpr fptype_amp_sv* jamp2_sv = nullptr; // no need for color selection during helicity filtering
         //std::cout << "sigmaKin_getGoodHel ihel=" << ihel << ( isGoodHel[ihel] ? " true" : " false" ) << std::endl;
-#if defined MGONGPU_CPPSIMD and defined MGONGPU_FPTYPE_DOUBLE and defined MGONGPU_FPTYPE2_FLOAT
+#if defined MGONGPU_CPPSIMD and !(defined MGONGPU_FPTYPE_AMP_FLOAT) and defined MGONGPU_FPTYPE2_FLOAT
         cxtype_amp_sv jamp_sv[2 * ncolor] = {}; // all zeros
 #else
         cxtype_amp_sv jamp_sv[ncolor] = {};  // all zeros
@@ -615,7 +615,7 @@ namespace mg5amcCpu
   __global__ void
   normalise_output( fptype* allMEs,                    // output: allMEs[nevt], |M|^2 running_sum_over_helicities
                     const unsigned int* iflavorVec,
-                    fptype_vertex* ghelAllNumerators,         // input/tmp: allNumerators super-buffer for nGoodHel <= ncomb individual helicities (index is ighel)
+                    fptype* ghelAllNumerators,         // input/tmp: allNumerators super-buffer for nGoodHel <= ncomb individual helicities (index is ighel)
                     fptype_denom* ghelAllDenominators,       // input/tmp: allNumerators super-buffer for nGoodHel <= ncomb individual helicities (index is ighel)
                     const unsigned int* allChannelIds, // input: multichannel channelIds[nevt] (1 to #diagrams); nullptr to disable SDE enhancement (fix #899/#911)
                     bool storeChannelWeights,           // if true, compute final multichannel weights
@@ -627,14 +627,14 @@ namespace mg5amcCpu
     const int nevt = gridDim.x * blockDim.x;
     if( storeChannelWeights ) // fix segfault #892 (not 'channelIds[0] != 0')
     {
-      fptype_vertex* totAllNumerators = ghelAllNumerators;     // reuse "helicity #0" buffer to compute the total over all helicities
+      fptype* totAllNumerators = ghelAllNumerators;     // reuse "helicity #0" buffer to compute the total over all helicities
       fptype_denom* totAllDenominators = ghelAllDenominators; // reuse "helicity #0" buffer to compute the total over all helicities
       for( int ighel = 1; ighel < dcNGoodHel; ighel++ ) // NB: the loop starts at ighel=1
       {
         fptype_denom* hAllDenominators = ghelAllDenominators + ighel * nevt;
         totAllDenominators[ievt] += hAllDenominators[ievt];
-        fptype_vertex* hAllNumerators = ghelAllNumerators + ( ievt + ighel * nevt ) * processConfig::ndiagrams;
-        fptype_vertex* firstNumerator = ghelAllNumerators + ievt * processConfig::ndiagrams;
+        fptype* hAllNumerators = ghelAllNumerators + ( ievt + ighel * nevt ) * processConfig::ndiagrams;
+        fptype* firstNumerator = ghelAllNumerators + ievt * processConfig::ndiagrams;
         for( int idiag = 0; idiag < processConfig::ndiagrams; ++idiag )
         {
           firstNumerator[idiag] += hAllNumerators[idiag];
@@ -693,7 +693,7 @@ namespace mg5amcCpu
                        const fptype* allrnddiagram,       // input: random numbers[nevt] for diagram selection
                        const unsigned int* allChannelIds, // input: multichannel channelIds[nevt] (1 to #diagrams); nullptr to disable SDE enhancement (fix #899/#911)
                        const fptype_amp_sv* allJamp2s,        // input: jamp2[ncolor][nevt] for color choice (nullptr if disabled)
-                       const fptype_vertex* allNumerators,       // input: all numerators
+                       const fptype* allNumerators,       // input: all numerators
                        const fptype_denom* allDenominators,     // input: all denominators
                        const int nevt )                   // input: #events (for cuda: nevt == ndim == gpublocks*gputhreads)
   {
@@ -705,7 +705,7 @@ namespace mg5amcCpu
     // Event-by-event random choice of channel
     if( allrnddiagram != nullptr )
     {
-      fptype_vertex numerator_sum = 0., normalization = 0.;
+      fptype numerator_sum = 0., normalization = 0.;
       for( unsigned int ichan = 0; ichan < mgOnGpu::nchannels; ichan++ )
       {
         if( mgOnGpu::channel2iconfig[ichan] == -1 ) continue;
@@ -797,13 +797,13 @@ namespace mg5amcCpu
             int* allselhel,                     // output: helicity selection[nevt]
 #ifdef MGONGPUCPP_GPUIMPL
             int* allselcol,                     // output: helicity selection[nevt]
-            fptype* colAllJamp2s,               // tmp: allJamp2s super-buffer for ncolor individual colors, running sum over colors and helicities
-            fptype_vertex* ghelAllNumerators,          // tmp: allNumerators super-buffer for nGoodHel <= ncomb individual helicities (index is ighel)
+            fptype_amp* colAllJamp2s,               // tmp: allJamp2s super-buffer for ncolor individual colors, running sum over colors and helicities
+            fptype* ghelAllNumerators,          // tmp: allNumerators super-buffer for nGoodHel <= ncomb individual helicities (index is ighel)
             fptype_denom* ghelAllDenominators,        // tmp: allDenominators super-buffer for nGoodHel <= ncomb individual helicities (index is ighel)
             unsigned int* allDiagramIdsOut,     // output: multichannel channelIds[nevt] (1 to #diagrams)
             bool mulChannelWeight,              // if true, multiply channel weight to ME output
             fptype* ghelAllMEs,                 // tmp: allMEs super-buffer for nGoodHel <= ncomb individual helicities (index is ighel)
-            fptype* ghelAllJamps,               // tmp: jamp[2*ncolor*nGoodHel*nevt] super-buffer for nGoodHel <= ncomb individual helicities
+            fptype_amp* ghelAllJamps,               // tmp: jamp[2*ncolor*nGoodHel*nevt] super-buffer for nGoodHel <= ncomb individual helicities
             fptype_colour* ghelAllBlasTmp,            // tmp: allBlasTmp super-buffer for nGoodHel <= ncomb individual helicities (index is ighel)
             gpuBlasHandle_t* pBlasHandle,       // input: cuBLAS/hipBLAS handle
             gpuStream_t* ghelStreams,           // input: cuda streams (index is ighel: only the first nGoodHel <= ncomb are non-null)
@@ -811,7 +811,7 @@ namespace mg5amcCpu
             const int gputhreads                // input: cuda gputhreads
 #else
             int* allselcol,                     // output: helicity selection[nevt]
-            fptype_vertex* allNumerators,              // output: multichannel numerators[nevt], running_sum_over_helicities
+            fptype* allNumerators,              // output: multichannel numerators[nevt], running_sum_over_helicities
             fptype_denom* allDenominators,            // output: multichannel denominators[nevt], running_sum_over_helicities
             unsigned int* allDiagramIdsOut,     // output: multichannel channelIds[nevt] (1 to #diagrams)
             bool mulChannelWeight,              // if true, multiply channel weight to ME output

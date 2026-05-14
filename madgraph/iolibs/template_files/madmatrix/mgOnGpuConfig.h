@@ -206,7 +206,7 @@ namespace mgOnGpu
 #elif defined MGONGPU_FPTYPE_VERTEX_FLOAT
   typedef float fptype_vertex;
 #else
-  typedef fptype fptype_vertex;
+  typedef fptype2 fptype_vertex;
 #endif
 
   // fptype_denom: for denominator variables in vertex functions
@@ -224,7 +224,7 @@ namespace mgOnGpu
 #elif defined MGONGPU_FPTYPE_AMP_FLOAT
   typedef float fptype_amp;
 #else
-  typedef fptype fptype_amp;
+  typedef fptype2 fptype_amp;
 #endif
 
   // fptype_colour: for color algebra (alias for fptype2)
