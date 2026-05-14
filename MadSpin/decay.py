@@ -3051,10 +3051,16 @@ class decay_all_events(object):
         mgcmd = self.mgcmd
         modelpath = self.model.get('modelpath+restriction')
 
+        # NLO contexts (loop_interface) force apply_flavor_grouping=False, which
+        # collapses get_external_flavors() to a single trivial entry and breaks
+        # merged-particle handling in MadSpin.  Re-enable it before reloading
+        # the model so the production MEs share the LO multi-flavor treatment.
+        mgcmd.exec_cmd('set apply_flavor_grouping True')
+
         commandline="import model %s" % modelpath
         if not self.model.mg5_name:
             commandline += ' --modelname'
-            
+
         mgcmd.exec_cmd(commandline)
         # Handle the multiparticle of the banner        
         #for name, definition in self.mscmd.multiparticles:
@@ -5031,10 +5037,16 @@ class decay_all_events_onshell(decay_all_events):
         mgcmd = self.mgcmd
         modelpath = self.model.get('modelpath+restriction')
 
+        # NLO contexts (loop_interface) force apply_flavor_grouping=False, which
+        # collapses get_external_flavors() to a single trivial entry and breaks
+        # merged-particle handling in MadSpin.  Re-enable it before reloading
+        # the model so the production MEs share the LO multi-flavor treatment.
+        mgcmd.exec_cmd('set apply_flavor_grouping True')
+
         commandline="import model %s" % modelpath
         if not self.model.mg5_name:
             commandline += ' --modelname'
-            
+
         mgcmd.exec_cmd(commandline)
         # Handle the multiparticle of the banner        
         #for name, definition in self.mscmd.multiparticles:

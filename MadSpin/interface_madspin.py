@@ -1520,6 +1520,17 @@ class MadSpinInterface(extended_cmd.Cmd):
         self.generate_all.compile()
         self.all_me = self.generate_all.all_me
         self.all_f2py = {}
+        # Build raw-PDG -> merged-particle-ID mapping so event tags can be
+        # remapped to match all_me keys (which are built from process legs,
+        # i.e. merged-particle IDs when apply_flavor_grouping is on).
+        self._revert_merged = {}
+        model_merged = getattr(self.generate_all, 'model', None)
+        model_merged = model_merged.get('merged_particles') if model_merged else None
+        if model_merged:
+            for merged_id, members in model_merged.items():
+                for pdg in members:
+                    self._revert_merged[pdg] = merged_id
+                    self._revert_merged[-pdg] = -merged_id
         
         #4. determine the maxwgt
         maxwgt = self.get_maxwgt_for_onshell(orig_lhe, evt_decayfile)
@@ -1694,10 +1705,10 @@ class MadSpinInterface(extended_cmd.Cmd):
             
     def get_onshell_evt_and_wgt(self, production, decays):
         """ return the onshell wgt for the production event associated to the decays
-            return also the full event with decay. 
+            return also the full event with decay.
             Carefull this modifies production event (pass to the full one)"""
-        
-        tag, order = production.get_tag_and_order()
+
+        tag, order = production.get_tag_and_order(self._revert_merged or None)
         try:
             info = self.generate_all.all_me[tag]
         except:
@@ -1725,9 +1736,9 @@ class MadSpinInterface(extended_cmd.Cmd):
         
         
     def calculate_matrix_element(self, event):
-        """routine to return the matrix element"""        
-        
-        tag, order = event.get_tag_and_order()
+        """routine to return the matrix element"""
+
+        tag, order = event.get_tag_and_order(self._revert_merged or None)
         try:
             orig_order = self.all_me[tag]['order']
         except Exception:
@@ -1741,7 +1752,7 @@ class MadSpinInterface(extended_cmd.Cmd):
             orig_order = self.all_me[tag]['order']
         pdir = self.all_me[tag]['pdir']
         if pdir in self.all_f2py:
-            all_p = event.get_all_momenta(orig_order)
+            all_p = event.get_all_momenta(orig_order, merged_map=self._revert_merged or None)
             if self.options['identical_particle_in_prod_and_decay'] == "crash" and\
                 len(all_p)> 1:
                 raise Exception("Ambiguous particle in production and decay. crash as requested by 'identical_particle_in_prod_and_decay'")
