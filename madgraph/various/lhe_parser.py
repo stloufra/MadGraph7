@@ -2832,11 +2832,26 @@ class Event(list):
         misc.sprint(self)
         p = self.get_momenta(get_order, allow_reversed, merged_map=merged_map)
 
+        # When the ME legs use merged-particle IDs, event PDGs need the same
+        # remap before being looked up in get_order[1]; otherwise
+        # final.index(raw_pdg) raises ValueError.
+        if merged_map:
+            def map_pdg(x):
+                try:
+                    return merged_map[x]
+                except KeyError:
+                    try:
+                        return -merged_map[-x]
+                    except KeyError:
+                        return x
+        else:
+            map_pdg = lambda x: x
+
         nbin = len(get_order[0])
         data = {} # dict will be {pdg: {(m1,m2): [position1, position2]}} position are position in p
         final = list(get_order[1])
         for i, part in enumerate(self):
-            pdg = part.pid
+            pdg = map_pdg(part.pid)
             if part.status != 1:
                 continue
             try:
