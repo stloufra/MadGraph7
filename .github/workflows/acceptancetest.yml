@@ -50,6 +50,9 @@ jobs:
             ./tests/test_manager.py test_hepmc_decay -pA -t0 -l INFO
             ./tests/test_manager.py test_lhe_none_decay -pA -t0 -l INFO
             ./tests/test_manager.py test_madspin_spin_only -pA -t0 -l INFO
+            ./tests/test_manager.py test_madspin_mixed_flavor_decay_log_summary -pA -t0 -l INFO
+            ./tests/test_manager.py test_madspin_wplus_all_all_flavor_balance -pA -t0 -l INFO
+            ./tests/test_manager.py test_madspin_wplus_all_all_flavor_balance_2to1 -pA -t0 -l INFO
 
 
 
@@ -1570,23 +1573,22 @@ jobs:
 
 
 
-            #  acceptancetest_95:
-            #    # The type of runner that the job will run on
-            #    runs-on: ubuntu-22.04
-            #
-            #    # Steps represent a sequence of tasks that will be executed as part of the job
-            #    steps:
-            #      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-            #      - uses: actions/checkout@v4
-            #      - uses: ./.github/actions/checkout_mg5 
-            #      - uses: ./.github/actions/restore-pip-cache
-            #
-            #      # Runs a set of commands using the runners shell
-            #      - name: test one of the test test_madspin_LOonly
-            #        run: |
-            #            cd $GITHUB_WORKSPACE
-            #            ./tests/test_manager.py test_madspin_LOonly -pA -t0 -l INFO
-            #
+  acceptancetest_95:
+    # The type of runner that the job will run on
+    runs-on: ubuntu-22.04
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/checkout_mg5
+      - uses: ./.github/actions/restore_all
+
+      # Runs a set of commands using the runners shell
+      - name: test one of the test test_madspin_LOonly
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py test_madspin_LOonly -pA -t0 -l INFO
 
 
   acceptancetest_96:

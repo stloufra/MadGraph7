@@ -298,19 +298,21 @@ class Banner(dict):
     ############################################################################
     #  WRITE BANNER
     ############################################################################
-    def check_pid(self, pid2label):
+    def check_pid(self, pid2label, forbidden_pids=None):
         """special routine removing width/mass of particles not present in the model
         This is usefull in case of loop model card, when we want to use the non
         loop model."""
         
         if not hasattr(self, 'param_card'):
             self.charge_card('slha')
+
+        forbidden_pids = set(forbidden_pids or [])
             
         for tag in ['mass', 'decay']:
             block = self.param_card.get(tag)
-            for data in block:
+            for data in list(block):
                 pid = data.lhacode[0]
-                if pid not in list(pid2label.keys()): 
+                if pid not in list(pid2label.keys()) or pid in forbidden_pids:
                     block.remove((pid,))
 
     def get_lha_strategy(self):

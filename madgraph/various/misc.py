@@ -943,6 +943,24 @@ def multiple_replacer(*key_values):
 def multiple_replace(string, *key_values):
     return multiple_replacer(*key_values)(string)
 
+
+_FORMAT_PATTERN = re.compile(
+    r'%\((\w+)\)([-+# 0]*\d*\.?\d*[hlL]?[diouxXeEfgGcrsa])'
+)
+
+def apply_template(template, mapping):
+    """Substitute %(name)<spec> placeholders in template with values from mapping.
+
+    Only matches valid Python %-format specifiers like %(name)s, %(name)d, or
+    %(name)3.3d. Any other '%' character is left untouched, so templates can
+    safely contain Fortran object member access (e.g., W(I)%P) without needing
+    to be escaped as '%%P'.
+    """
+    def replace(match):
+        name, spec = match.group(1), match.group(2)
+        return ('%' + spec) % mapping[name]
+    return _FORMAT_PATTERN.sub(replace, template)
+
 # Control
 def check_system_error(value=1):
     def deco_check(f):

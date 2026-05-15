@@ -26,7 +26,8 @@ import unittest
 import subprocess
 import pydoc
 import tempfile
-from functools import wraps 
+from functools import wraps
+from string import Template
 
 import aloha
 import aloha.aloha_lib as aloha_lib

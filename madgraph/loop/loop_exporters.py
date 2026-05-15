@@ -1731,11 +1731,11 @@ C               ENDIF""")%replace_dict
         else:
             replace_dict['born_amps_and_wfs_calls']=\
                                             '\n'.join(born_amps_and_wfs_calls)
-        
-        file = file % replace_dict
+
+        file = misc.apply_template(file, replace_dict)
         if writer:
             # Write the file
-            writer.writelines(file)  
+            writer.writelines(file)
         else:
             # Return it to be written along with the others
             return file
