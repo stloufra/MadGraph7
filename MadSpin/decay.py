@@ -2274,8 +2274,11 @@ class decay_all_events(object):
         try:
             return self.banner.get('param_card', 'decay', abs(pid)).value
         except Exception:
-            if abs(pid) in self.model['merged_particles']:
+            if self.model and abs(pid) in self.model['merged_particles']:
                 return self.banner.get('param_card', 'decay', abs(self.model['merged_particles'][abs(pid)][0])).value
+            elif hasattr(self, 'merged_particles') and abs(pid) in self.merged_particles:
+                # this can happens when gridpack mode is used
+                return self.banner.get('param_card', 'decay', abs(self.merged_particles[abs(pid)][0])).value
             misc.sprint(pid)
             raise Exception('No width information for particle with pid %s' % pid)
             
@@ -2400,7 +2403,8 @@ class decay_all_events(object):
         #pid2width, self.pid2width = self.pid2width, None
         model=  self.model
         #
-        self.merged_particles = model['merged_particles']
+        if model:
+            self.merged_particles = model['merged_particles']
 
 
         self.switch_all_model_instance(None)

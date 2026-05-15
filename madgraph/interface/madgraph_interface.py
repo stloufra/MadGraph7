@@ -8571,6 +8571,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
             if major_version != sys.version_info[0] or \
                minor_version != sys.version_info[1]:
                return  
+            # remove the --python- arguent to not include it in the option/configuration file
             del args[2]
 
         to_do = True
