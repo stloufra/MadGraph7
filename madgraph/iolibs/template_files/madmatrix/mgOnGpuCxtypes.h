@@ -459,10 +459,11 @@ namespace mg5amcCpu
   // CUDA - using thrust::complex
   //------------------------------
 
-  inline __host__ __device__ cxtype
-  cxmake( const fptype& r, const fptype& i )
+  template<typename FP>
+  inline __host__ __device__ thrust::complex<FP>
+  cxmake( const FP& r, const FP& i )
   {
-    return cxtype( r, i ); // thrust::complex<fptype> constructor
+    return thrust::complex<FP>( r, i );
   }
 
   inline __host__ __device__ fptype
@@ -690,6 +691,13 @@ namespace mg5amcCpu
     return cxmake( cxreal( c ), -cximag( c ) );
   }
 
+  template<typename FP>
+  inline __host__ __device__ cxsmpl<FP>
+  cxmake( const FP& r, const FP& i )
+  {
+    return cxsmpl<FP>( r, i );
+  }
+
   inline __host__ cxtype                  // NOT __device__
   cxmake( const std::complex<fptype>& c ) // std::complex to cucomplex (float-to-float or double-to-double)
   {
@@ -762,15 +770,6 @@ namespace mg5amcCpu
   cxconj( const std::complex<FP>& c ) { return conj( c ); }
 
 #endif // #if not defined __CUDACC__ and defined MGONGPU_CPPCXTYPE_STDCOMPLEX
-
-  //==========================================================================
-
-  template<typename FP>
-  inline __host__ __device__ const cxtype
-  cxmake( const cxsmpl<FP>& c ) // cxsmpl to cxtype (float-to-float or float-to-double)
-  {
-    return cxmake<FP>( c.real(), c.imag() );
-  }
 
 } // end namespace mg5amcGpu/mg5amcCpu
 
