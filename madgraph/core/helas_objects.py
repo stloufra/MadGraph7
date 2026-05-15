@@ -3717,8 +3717,8 @@ class HelasDiagram(base_objects.PhysicsObject):
         for wfct in self['wavefunctions']:
             if len(wfct.get('mothers')) > 0:
                 for m in wfct.get('mothers'):
-                    #if id(m) not in wf_in_list:
-                    _tag_external_ancestors(m)
+                    if id(m) not in wf_in_list:
+                        _tag_external_ancestors(m)
 
         if debug:misc.sprint(len(self['wavefunctions']), len(self['amplitudes']), [id(w) for w in self['wavefunctions']], [id(w) for w in self['amplitudes']])
         for wfct in self['wavefunctions']:
