@@ -253,7 +253,7 @@ extern "C"
     const double* random_color_in = nullptr;
     const double* random_helicity_in = nullptr;
     const double* random_diagram_in = nullptr;
-    //const int* diagram_in = nullptr; // TODO: unused
+    [[maybe_unused]] const int* diagram_in = nullptr; // TODO: unused
 
     for( std::size_t i = 0; i < input_count; ++i )
     {

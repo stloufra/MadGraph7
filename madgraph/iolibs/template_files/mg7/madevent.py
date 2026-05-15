@@ -393,11 +393,14 @@ class MadgraphProcess:
 
     def train_madnis(self) -> None:
         madnis_args = self.run_card["madnis"]
-        gen_args = self.run_card["generation"]
-        run_args = self.run_card["run"]
+        if not madnis_args["enable"]:
+            return
         if madnis_args.get("old", False):
             self.train_madnis_old()
             return
+
+        gen_args = self.run_card["generation"]
+        run_args = self.run_card["run"]
 
         config = ms.MadnisConfig()
         config.verbosity = run_args["verbosity"]
