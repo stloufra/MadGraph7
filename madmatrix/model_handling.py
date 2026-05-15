@@ -400,16 +400,33 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
         templateval ='%(sign)s%(type)s%(i)d.pvec[%(j)d]'
         if self.nodeclare:
             if ptype == 'double_v':
-                mom_type = 'fptype_denom_sv'
+                # P array in vertex precision with static_cast from momenta
+                strfile.write('    const fptype_vertex_sv P%d[4] = { ' % i )
+                for j in range(4):
+                    sign = self.get_P_sign(i) if self.get_P_sign(i) else '+'
+                    element = 'static_cast<fptype_vertex_sv>(%(sign)s%(type)s%(i)d.pvec[%(j)d])' % {'j':j,'type': type, 'i': i, 'sign': sign}
+                    strfile.write(element + (', ' if j<3 else ''))
+                strfile.write(' };\n')
+                # dP array in denom precision for the outgoing particle only
+                if i == self.outgoing:
+                    strfile.write('    const fptype_denom_sv dP%d[4] = { ' % i )
+                    for j in range(4):
+                        sign = self.get_P_sign(i) if self.get_P_sign(i) else '+'
+                        element = '%(sign)s%(type)s%(i)d.pvec[%(j)d]' % {'j':j,'type': type, 'i': i, 'sign': sign}
+                        strfile.write(element + (', ' if j<3 else ''))
+                    strfile.write(' };\n')
             else:
                 mom_type = self.type2def[ptype]
-            strfile.write('    const %s P%d[4] = { ' % ( mom_type, i ) ) # AV
-        for j in range(4):
-            sign = self.get_P_sign(i) if self.get_P_sign(i) else '+' # AV
-            if self.nodeclare: template = templateval + ( ', ' if j<3 else '' ) # AV
-            else: template ='    P%(i)d[%(j)d] = ' + templateval + ';\n' # AV
-            strfile.write(template % {'j':j,'type': type, 'i': i, 'sign': sign}) # AV
-        if self.nodeclare: strfile.write(' };\n') # AV
+                strfile.write('    const %s P%d[4] = { ' % ( mom_type, i ) )
+                for j in range(4):
+                    sign = self.get_P_sign(i) if self.get_P_sign(i) else '+'
+                    strfile.write( (templateval + ( ', ' if j<3 else '' )) % {'j':j,'type': type, 'i': i, 'sign': sign} )
+                strfile.write(' };\n')
+        else:
+            for j in range(4):
+                sign = self.get_P_sign(i) if self.get_P_sign(i) else '+'
+                template ='    P%(i)d[%(j)d] = ' + templateval + ';\n'
+                strfile.write(template % {'j':j,'type': type, 'i': i, 'sign': sign})
 
     def get_coupling_def(self):
         """Define the coupling constant"""
@@ -582,7 +599,7 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
                         mydict['pre_%s' %c] = ''
                         mydict['post_%s'%c] = ''
                 # This affects '( *vertex ) = ' in HelAmps_sm.cc
-                out.write('    %(pre_vertex)svertex%(post_vertex)s = (cxtype_amp_sv)( static_cast<fptype_vertex>(Ccoeff) * %(pre_coup)sCOUP%(post_coup)s * %(num)s );\n' % mydict) # OM add Ccoeff (fix #825)
+                out.write('    %(pre_vertex)svertex%(post_vertex)s = (cxtype_amp_sv)( static_cast<fptype_vertex>(Ccoeff) * %(pre_coup)sstatic_cast<cxtype_vertex_sv>(COUP)%(post_coup)s * %(num)s );\n' % mydict) # OM add Ccoeff (fix #825)
             else:
                 mydict= {}
                 if self.type2def['pointer_vertex'] in ['*']:
@@ -630,12 +647,12 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
                             out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( %(denom)s );\n' % mydict) # AV
                     else:
                         out.write('    constexpr cxtype_denom_sv cId( 0., 1. );\n') # AV
-                        out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( ( P%(i)s[0] * P%(i)s[0] ) - ( P%(i)s[1] * P%(i)s[1] ) - ( P%(i)s[2] * P%(i)s[2] ) - ( P%(i)s[3] * P%(i)s[3] ) - static_cast<fptype_denom_sv>(M%(i)s) * ( static_cast<fptype_denom_sv>(M%(i)s) - cId * static_cast<fptype_denom_sv>(W%(i)s) ) );\n' % mydict) # AV
+                        out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( ( dP%(i)s[0] * dP%(i)s[0] ) - ( dP%(i)s[1] * dP%(i)s[1] ) - ( dP%(i)s[2] * dP%(i)s[2] ) - ( dP%(i)s[3] * dP%(i)s[3] ) - static_cast<fptype_denom_sv>(M%(i)s) * ( static_cast<fptype_denom_sv>(M%(i)s) - cId * static_cast<fptype_denom_sv>(W%(i)s) ) );\n' % mydict) # AV
                 else:
                     if self.routine.denominator:
                         raise Exception('modify denominator are not compatible with complex mass scheme')
                     # This affects 'denom = COUP' in HelAmps_sm.cc
-                    out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( ( P%(i)s[0] * P%(i)s[0] ) - ( P%(i)s[1] *P%(i)s[1] ) - ( P%(i)s[2] * P%(i)s[2] ) - ( P%(i)s[3] * P%(i)s[3] ) - ( static_cast<fptype_denom>(M%(i)s) * static_cast<fptype_denom>(M%(i)s) ) );\n' % mydict) # AV
+                    out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( ( dP%(i)s[0] * dP%(i)s[0] ) - ( dP%(i)s[1] *dP%(i)s[1] ) - ( dP%(i)s[2] * dP%(i)s[2] ) - ( dP%(i)s[3] * dP%(i)s[3] ) - ( static_cast<fptype_denom>(M%(i)s) * static_cast<fptype_denom>(M%(i)s) ) );\n' % mydict) # AV
                 ###self.declaration.add(('complex','denom')) # AV moved earlier (or simply removed)
                 if aloha.loop_mode: ptype = 'list_complex'
                 else: ptype = 'list_double'
@@ -716,10 +733,6 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
             out = super().change_var_format(obj)
             if out == 'denom':
                 out = 'static_cast<cxtype_vertex_sv>(%s)' % out
-            elif re.match(r'^P\d+\[\d+\]$', out):
-                out = 'static_cast<fptype_vertex>(%s)' % out
-            elif re.match(r'^[MW]\d+$', out):
-                out = 'static_cast<fptype_vertex>(%s)' % out
             return out
 
     # AV - new method (based on implementation of write_obj and write_MultVariable)
