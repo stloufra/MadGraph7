@@ -336,22 +336,38 @@ extern "C"
     unsigned int *flavor_indices, *diagram_index;
 
     std::size_t n_coup = mg5amcGpu::Parameters_dependentCouplings::ndcoup;
-    gpuMallocAsync( &momenta, rounded_count * CPPProcess::npar * 4 * sizeof( fptype ), gpu_stream );
-    gpuMallocAsync( &couplings, rounded_count * n_coup * 2 * sizeof( fptype ), gpu_stream );
-    gpuMallocAsync( &g_s, rounded_count * sizeof( fptype ), gpu_stream );
-    gpuMallocAsync( &flavor_indices, rounded_count * sizeof( unsigned int ), gpu_stream );
-    gpuMallocAsync( &helicity_random, rounded_count * sizeof( fptype ), gpu_stream );
-    gpuMallocAsync( &color_random, rounded_count * sizeof( fptype ), gpu_stream );
-    gpuMallocAsync( &diagram_random, rounded_count * sizeof( fptype ), gpu_stream );
-    gpuMallocAsync( &matrix_elements, rounded_count * sizeof( fptype ), gpu_stream );
-    gpuMallocAsync( &diagram_index, rounded_count * sizeof( unsigned int ), gpu_stream );
-    gpuMallocAsync( &color_jamps, rounded_count * CPPProcess::ncolor * mgOnGpu::nx2 * sizeof( fptype ), gpu_stream );
-    gpuMallocAsync( &numerators, rounded_count * CPPProcess::ndiagrams * CPPProcess::ncomb * sizeof( fptype ), gpu_stream );
-    gpuMallocAsync( &denominators, rounded_count * CPPProcess::ncomb * sizeof( fptype ), gpu_stream );
-    gpuMallocAsync( &helicity_index, rounded_count * sizeof( int ), gpu_stream );
-    gpuMallocAsync( &color_index, rounded_count * sizeof( int ), gpu_stream );
-    gpuMallocAsync( &ghel_matrix_elements, rounded_count * CPPProcess::ncomb * sizeof( fptype ), gpu_stream );
-    gpuMallocAsync( &ghel_jamps, rounded_count * CPPProcess::ncomb * CPPProcess::ncolor * mgOnGpu::nx2 * sizeof( fptype ), gpu_stream );
+    std::array<std::pair<void**, std::size_t>, 16> ptrs_and_sizes = {{
+        {&momenta, rounded_count * CPPProcess::npar * 4 * sizeof( fptype )},
+        {&couplings, rounded_count * n_coup * 2 * sizeof( fptype )},
+        {&g_s, rounded_count * sizeof( fptype )},
+        {&flavor_indices, rounded_count * sizeof( unsigned int )},
+        {&helicity_random, rounded_count * sizeof( fptype )},
+        {&color_random, rounded_count * sizeof( fptype )},
+        {&diagram_random, rounded_count * sizeof( fptype )},
+        {&matrix_elements, rounded_count * sizeof( fptype )},
+        {&diagram_index, rounded_count * sizeof( unsigned int )},
+        {&color_jamps, rounded_count * CPPProcess::ncolor * mgOnGpu::nx2 * sizeof( fptype )},
+        {&numerators, rounded_count * CPPProcess::ndiagrams * CPPProcess::ncomb * sizeof( fptype )},
+        {&denominators, rounded_count * CPPProcess::ncomb * sizeof( fptype )},
+        {&helicity_index, rounded_count * sizeof( int )},
+        {&color_index, rounded_count * sizeof( int )},
+        {&ghel_matrix_elements, rounded_count * CPPProcess::ncomb * sizeof( fptype )},
+        {&ghel_jamps, rounded_count * CPPProcess::ncomb * CPPProcess::ncolor * mgOnGpu::nx2 * sizeof( fptype )},
+    }};
+    std::size_t total_size = 0;
+    for (auto [ptr, size] : ptrs_and_sizes) {
+        std::size_t aligned_size = (size + 7) / 8 * 8;
+        total_size += aligned_size;
+    }
+    uint8_t* buffer;
+    // we can consider caching this between matrix element calls
+    gpuMallocAsync( &buffer, total_size, gpu_stream );
+    std::size_t offset = 0;
+    for (auto [ptr, size] : ptrs_and_sizes) {
+        std::size_t aligned_size = (size + 7) / 8 * 8;
+        *ptr = buffer + offset;
+        offset += aligned_size;
+    }
 
     copy_inputs<<<n_blocks, n_threads, 0, gpu_stream>>>(
       momenta_in,
@@ -424,22 +440,7 @@ extern "C"
       offset );
     checkGpu( gpuPeekAtLastError() );
 
-    gpuFreeAsync( momenta, gpu_stream );
-    gpuFreeAsync( couplings, gpu_stream );
-    gpuFreeAsync( flavor_indices, gpu_stream );
-    gpuFreeAsync( g_s, gpu_stream );
-    gpuFreeAsync( helicity_random, gpu_stream );
-    gpuFreeAsync( color_random, gpu_stream );
-    gpuFreeAsync( diagram_random, gpu_stream );
-    gpuFreeAsync( matrix_elements, gpu_stream );
-    gpuFreeAsync( diagram_index, gpu_stream );
-    gpuFreeAsync( color_jamps, gpu_stream );
-    gpuFreeAsync( numerators, gpu_stream );
-    gpuFreeAsync( denominators, gpu_stream );
-    gpuFreeAsync( helicity_index, gpu_stream );
-    gpuFreeAsync( color_index, gpu_stream );
-    gpuFreeAsync( ghel_matrix_elements, gpu_stream );
-    gpuFreeAsync( ghel_jamps, gpu_stream );
+    gpuFreeAsync( buffer, gpu_stream );
 #else  // MGONGPUCPP_GPUIMPL
     // need to round to round to double page size for some reason
     std::size_t page_size2 = 2 * MemoryAccessMomentaBase::neppM;
