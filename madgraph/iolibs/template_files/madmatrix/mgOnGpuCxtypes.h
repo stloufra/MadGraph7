@@ -331,6 +331,7 @@ namespace mg5amcCpu
   typedef thrust::complex<fptype_vertex> cxtype_vertex;
   typedef thrust::complex<fptype_denom> cxtype_denom;
   typedef thrust::complex<fptype_amp> cxtype_amp;
+  typedef thrust::complex<fptype_colour> cxtype_colour;
 #elif defined MGONGPU_CUCXTYPE_CUCOMPLEX
   // cucomplex is not templated; use cxsmpl for stage-specific types
   typedef cxsmpl<fptype_momenta> cxtype_momenta;
@@ -338,12 +339,14 @@ namespace mg5amcCpu
   typedef cxsmpl<fptype_vertex> cxtype_vertex;
   typedef cxsmpl<fptype_denom> cxtype_denom;
   typedef cxsmpl<fptype_amp> cxtype_amp;
+  typedef cxsmpl<fptype_colour> cxtype_colour;
 #else
   typedef cxsmpl<fptype_momenta> cxtype_momenta;
   typedef cxsmpl<fptype_polarization> cxtype_polarization;
   typedef cxsmpl<fptype_vertex> cxtype_vertex;
   typedef cxsmpl<fptype_denom> cxtype_denom;
   typedef cxsmpl<fptype_amp> cxtype_amp;
+  typedef cxsmpl<fptype_colour> cxtype_colour;
 #endif
 #else // c++
 #if defined MGONGPU_CPPCXTYPE_STDCOMPLEX
@@ -352,12 +355,14 @@ namespace mg5amcCpu
   typedef std::complex<fptype_vertex> cxtype_vertex;
   typedef std::complex<fptype_denom> cxtype_denom;
   typedef std::complex<fptype_amp> cxtype_amp;
+  typedef std::complex<fptype_colour> cxtype_colour;
 #else
   typedef cxsmpl<fptype_momenta> cxtype_momenta;
   typedef cxsmpl<fptype_polarization> cxtype_polarization;
   typedef cxsmpl<fptype_vertex> cxtype_vertex;
   typedef cxsmpl<fptype_denom> cxtype_denom;
   typedef cxsmpl<fptype_amp> cxtype_amp;
+  typedef cxsmpl<fptype_colour> cxtype_colour;
 #endif
 #endif
 
@@ -367,6 +372,7 @@ namespace mg5amcCpu
   static_assert( sizeof( cxtype_vertex ) == mgOnGpu::nx2 * sizeof( fptype_vertex ), "sizeof(cxtype_vertex) is not 2*sizeof(fptype_vertex)" );
   static_assert( sizeof( cxtype_denom ) == mgOnGpu::nx2 * sizeof( fptype_denom ), "sizeof(cxtype_denom) is not 2*sizeof(fptype_denom)" );
   static_assert( sizeof( cxtype_amp ) == mgOnGpu::nx2 * sizeof( fptype_amp ), "sizeof(cxtype_amp) is not 2*sizeof(fptype_amp)" );
+  static_assert( sizeof( cxtype_colour ) == mgOnGpu::nx2 * sizeof( fptype2 ), "sizeof(cxtype_colour) is not 2*sizeof(fptype2)" );
 }
 
 // DANGEROUS! this was mixing different cxtype definitions for CPU and GPU builds (see #318 and #725)
