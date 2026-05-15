@@ -646,7 +646,7 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
                             mydict['denom'] = self.routine.denominator
                             out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( %(denom)s );\n' % mydict) # AV
                     else:
-                        out.write('    constexpr cxtype_denom_sv cId( 0., 1. );\n') # AV
+                        out.write('    const cxtype_denom_sv cId( 0., 1. );\n') # AV
                         out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( ( dP%(i)s[0] * dP%(i)s[0] ) - ( dP%(i)s[1] * dP%(i)s[1] ) - ( dP%(i)s[2] * dP%(i)s[2] ) - ( dP%(i)s[3] * dP%(i)s[3] ) - static_cast<fptype_denom_sv>(M%(i)s) * ( static_cast<fptype_denom_sv>(M%(i)s) - cId * static_cast<fptype_denom_sv>(W%(i)s) ) );\n' % mydict) # AV
                 else:
                     if self.routine.denominator:

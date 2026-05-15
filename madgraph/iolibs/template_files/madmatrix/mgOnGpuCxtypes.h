@@ -432,6 +432,12 @@ namespace mg5amcCpu
     return cxmake( c.real(), c.imag() );
   }
 
+  inline __host__ __device__ const cxtype&
+  cxmake( const cxtype& c ) // cxsmpl to cxsmpl (identity)
+  {
+    return c;
+  }
+
   // Template versions for multi-precision complex types (cxsmpl-based)
   template<typename FP>
   inline __host__ __device__ cxsmpl<FP>
