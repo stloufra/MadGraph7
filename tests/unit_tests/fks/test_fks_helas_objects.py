@@ -204,7 +204,7 @@ class testFKSHelasObjects(unittest.TestCase):
         p_leg = MG.MultiLeg({'ids': p, 'state': False});
         my_multi_leglist = MG.MultiLegList([copy.copy(leg) for leg in [p_leg] * 2] \
                     + MG.MultiLegList([z_leg, z_leg]))
-        mymodel = import_ufo.import_model('RS')
+        mymodel = import_ufo.import_model('RS', options={'apply_flavor_grouping':False})
         my_process_definition = MG.ProcessDefinition({ \
                         'born_sq_orders': {'QCD':0, 'QED':4, 'QTD':4},
                         'squared_orders': {'QCD':2, 'QED':4, 'QTD':4},
