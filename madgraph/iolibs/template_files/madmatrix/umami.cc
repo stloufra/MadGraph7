@@ -12,6 +12,8 @@
 #include "MemoryBuffers.h"
 
 #include <cmath>
+#include <array>
+#include <utility>
 
 #ifdef MGONGPUCPP_GPUIMPL
 using namespace mg5amcGpu;
@@ -216,19 +218,19 @@ extern "C"
   }
 
   UmamiStatus umami_set_parameter(
-    UmamiHandle handle,
-    char const* name,
-    double parameter_real,
-    double parameter_imag )
+    [[maybe_unused]] UmamiHandle handle,
+    [[maybe_unused]] char const* name,
+    [[maybe_unused]] double parameter_real,
+    [[maybe_unused]] double parameter_imag )
   {
     return UMAMI_ERROR_NOT_IMPLEMENTED;
   }
 
   UmamiStatus umami_get_parameter(
-    UmamiHandle handle,
-    char const* name,
-    double* parameter_real,
-    double* parameter_imag )
+    [[maybe_unused]] UmamiHandle handle,
+    [[maybe_unused]] char const* name,
+    [[maybe_unused]] double* parameter_real,
+    [[maybe_unused]] double* parameter_imag )
   {
     return UMAMI_ERROR_NOT_IMPLEMENTED;
   }
@@ -251,7 +253,7 @@ extern "C"
     const double* random_color_in = nullptr;
     const double* random_helicity_in = nullptr;
     const double* random_diagram_in = nullptr;
-    const int* diagram_in = nullptr; // TODO: unused
+    //const int* diagram_in = nullptr; // TODO: unused
 
     for( std::size_t i = 0; i < input_count; ++i )
     {
@@ -337,22 +339,22 @@ extern "C"
 
     std::size_t n_coup = mg5amcGpu::Parameters_dependentCouplings::ndcoup;
     std::array<std::pair<void**, std::size_t>, 16> ptrs_and_sizes = {{
-        {&momenta, rounded_count * CPPProcess::npar * 4 * sizeof( fptype )},
-        {&couplings, rounded_count * n_coup * 2 * sizeof( fptype )},
-        {&g_s, rounded_count * sizeof( fptype )},
-        {&flavor_indices, rounded_count * sizeof( unsigned int )},
-        {&helicity_random, rounded_count * sizeof( fptype )},
-        {&color_random, rounded_count * sizeof( fptype )},
-        {&diagram_random, rounded_count * sizeof( fptype )},
-        {&matrix_elements, rounded_count * sizeof( fptype )},
-        {&diagram_index, rounded_count * sizeof( unsigned int )},
-        {&color_jamps, rounded_count * CPPProcess::ncolor * mgOnGpu::nx2 * sizeof( fptype )},
-        {&numerators, rounded_count * CPPProcess::ndiagrams * CPPProcess::ncomb * sizeof( fptype )},
-        {&denominators, rounded_count * CPPProcess::ncomb * sizeof( fptype )},
-        {&helicity_index, rounded_count * sizeof( int )},
-        {&color_index, rounded_count * sizeof( int )},
-        {&ghel_matrix_elements, rounded_count * CPPProcess::ncomb * sizeof( fptype )},
-        {&ghel_jamps, rounded_count * CPPProcess::ncomb * CPPProcess::ncolor * mgOnGpu::nx2 * sizeof( fptype )},
+        {reinterpret_cast<void**>(&momenta), rounded_count * CPPProcess::npar * 4 * sizeof( fptype )},
+        {reinterpret_cast<void**>(&couplings), rounded_count * n_coup * 2 * sizeof( fptype )},
+        {reinterpret_cast<void**>(&g_s), rounded_count * sizeof( fptype )},
+        {reinterpret_cast<void**>(&flavor_indices), rounded_count * sizeof( unsigned int )},
+        {reinterpret_cast<void**>(&helicity_random), rounded_count * sizeof( fptype )},
+        {reinterpret_cast<void**>(&color_random), rounded_count * sizeof( fptype )},
+        {reinterpret_cast<void**>(&diagram_random), rounded_count * sizeof( fptype )},
+        {reinterpret_cast<void**>(&matrix_elements), rounded_count * sizeof( fptype )},
+        {reinterpret_cast<void**>(&diagram_index), rounded_count * sizeof( unsigned int )},
+        {reinterpret_cast<void**>(&color_jamps), rounded_count * CPPProcess::ncolor * mgOnGpu::nx2 * sizeof( fptype )},
+        {reinterpret_cast<void**>(&numerators), rounded_count * CPPProcess::ndiagrams * CPPProcess::ncomb * sizeof( fptype )},
+        {reinterpret_cast<void**>(&denominators), rounded_count * CPPProcess::ncomb * sizeof( fptype )},
+        {reinterpret_cast<void**>(&helicity_index), rounded_count * sizeof( int )},
+        {reinterpret_cast<void**>(&color_index), rounded_count * sizeof( int )},
+        {reinterpret_cast<void**>(&ghel_matrix_elements), rounded_count * CPPProcess::ncomb * sizeof( fptype )},
+        {reinterpret_cast<void**>(&ghel_jamps), rounded_count * CPPProcess::ncomb * CPPProcess::ncolor * mgOnGpu::nx2 * sizeof( fptype )},
     }};
     std::size_t total_size = 0;
     for (auto [ptr, size] : ptrs_and_sizes) {
@@ -362,11 +364,11 @@ extern "C"
     uint8_t* buffer;
     // we can consider caching this between matrix element calls
     gpuMallocAsync( &buffer, total_size, gpu_stream );
-    std::size_t offset = 0;
+    std::size_t buf_offset = 0;
     for (auto [ptr, size] : ptrs_and_sizes) {
         std::size_t aligned_size = (size + 7) / 8 * 8;
-        *ptr = buffer + offset;
-        offset += aligned_size;
+        *ptr = buffer + buf_offset;
+        buf_offset += aligned_size;
     }
 
     copy_inputs<<<n_blocks, n_threads, 0, gpu_stream>>>(
