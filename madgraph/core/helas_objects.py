@@ -1542,7 +1542,7 @@ class HelasWavefunction(base_objects.PhysicsObject):
                 return ans
 
         # check special case for external wavefunction
-        #assert( len(self.get('mothers'))!=0)
+        assert( len(self.get('mothers'))!=0)
         try:
             del self[tag_name]
         except:
