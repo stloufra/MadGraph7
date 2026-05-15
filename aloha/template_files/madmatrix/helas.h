@@ -5,7 +5,7 @@
 ! Copyright (C) 2020-2026 CERN and UCLouvain.
 ! Licensed under the GNU Lesser General Public License (version 3 or later).
 ! Modified originally by: O. Mattelaer (Mar 2020) for the MG5aMC CUDACPP plugin.
-! Further modified by: D. Massaro, O. Mattelaer, A. Thete, A. Valassi (2020-2024).
+! Further modified by:  F. Stloukal, D. Massaro, O. Mattelaer, A. Thete, A. Valassi (2020-2024).
 ! Integrated with the MadGraph7 project in Feb 2026.
 !==========================================================================
 
@@ -57,7 +57,7 @@
   imzxxx( const fptype_momenta momenta[], // input: momenta
           //const fptype_polarization fmass,   // [skip: ASSUME fermion mass==0]
           const int nhel,         // input: -1 or +1 (helicity of fermion)
-          const int nsf,          // input: +1 (particle) or -1 (antiparticle),
+          const int nsf,          // input: +1 (particle) or -1 (antiparticle)
           const int flv,          // input: flavor index
           ALOHAOBJ & fi,          // output: wavefunctions
           const int ipar          // input: particle# out of npar
@@ -182,15 +182,19 @@
     // Variables xxxDENOM are a hack to avoid division-by-0 FPE while preserving speed (#701 and #727)
     // Variables xxxDENOM are declared as 'volatile' to make sure they are not optimized away on clang! (#724)
     // A few additional variables are declared as 'volatile' to avoid sqrt-of-negative-number FPEs (#736)
-    const fptype_momenta_sv& pvec0 = M_ACCESS::kernelAccessIp4IparConst( momenta, 0, ipar );
-    const fptype_momenta_sv& pvec1 = M_ACCESS::kernelAccessIp4IparConst( momenta, 1, ipar );
-    const fptype_momenta_sv& pvec2 = M_ACCESS::kernelAccessIp4IparConst( momenta, 2, ipar );
-    const fptype_momenta_sv& pvec3 = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_momenta_sv& pvec0_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 0, ipar );
+    const fptype_momenta_sv& pvec1_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 1, ipar );
+    const fptype_momenta_sv& pvec2_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 2, ipar );
+    const fptype_momenta_sv& pvec3_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_polarization_sv pvec0 = static_cast<fptype_polarization_sv>(pvec0_);
+    const fptype_polarization_sv pvec1 = static_cast<fptype_polarization_sv>(pvec1_);
+    const fptype_polarization_sv pvec2 = static_cast<fptype_polarization_sv>(pvec2_);
+    const fptype_polarization_sv pvec3 = static_cast<fptype_polarization_sv>(pvec3_);
     cxtype_vertex_sv* w = W_ACCESS::kernelAccess( fi.w );
-    fi.pvec[0] = -pvec0 * static_cast<fptype_polarization>(nsf);
-    fi.pvec[1] = -pvec1 * static_cast<fptype_polarization>(nsf);
-    fi.pvec[2] = -pvec2 * static_cast<fptype_polarization>(nsf);
-    fi.pvec[3] = -pvec3 * static_cast<fptype_polarization>(nsf);
+    fi.pvec[0] = -pvec0_ * static_cast<fptype_momenta>(nsf);
+    fi.pvec[1] = -pvec1_ * static_cast<fptype_momenta>(nsf);
+    fi.pvec[2] = -pvec2_ * static_cast<fptype_momenta>(nsf);
+    fi.pvec[3] = -pvec3_ * static_cast<fptype_momenta>(nsf);
     fi.flv_index = flv;
     const int nh = nhel * nsf;
     if( fmass != 0. )
@@ -321,12 +325,13 @@
           const int ipar )        // input: particle# out of npar
   {
     mgDebug( 0, __FUNCTION__ );
-    const fptype_momenta_sv& pvec3 = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_momenta_sv& pvec3_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_polarization_sv pvec3 = static_cast<fptype_polarization_sv>(pvec3_);
     cxtype_vertex_sv* w = W_ACCESS::kernelAccess( fi.w );
-    fi.pvec[0] = -pvec3 * static_cast<fptype_polarization>(nsf);
+    fi.pvec[0] = -pvec3_ * static_cast<fptype_momenta>(nsf);
     fi.pvec[1] = fptype_sv{ 0 };
     fi.pvec[2] = fptype_sv{ 0 };
-    fi.pvec[3] = -pvec3 * static_cast<fptype_polarization>(nsf);
+    fi.pvec[3] = -pvec3_ * static_cast<fptype_momenta>(nsf);
     fi.flv_index = flv;
     const int nh = nhel * nsf;
     const cxtype_polarization_sv sqp0p3 = cxmake<fptype_polarization>( fpsqrt<fptype_polarization>( 2. * pvec3 ) * (fptype_polarization)nsf, 0. );
@@ -361,12 +366,13 @@
           const int ipar )        // input: particle# out of npar
   {
     mgDebug( 0, __FUNCTION__ );
-    const fptype_momenta_sv& pvec3 = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_momenta_sv& pvec3_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_polarization_sv pvec3 = static_cast<fptype_momenta_sv>(pvec3_);
     cxtype_vertex_sv* w = W_ACCESS::kernelAccess( fi.w );
-    fi.pvec[0] =  pvec3 * static_cast<fptype_polarization>(nsf);
-    fi.pvec[1] = fptype_sv{ 0 };
-    fi.pvec[2] = fptype_sv{ 0 };
-    fi.pvec[3] = -pvec3 * static_cast<fptype_polarization>(nsf);
+    fi.pvec[0] =  pvec3_ * static_cast<fptype_momenta>(nsf);
+    fi.pvec[1] = fptype_momenta_sv{ 0 };
+    fi.pvec[2] = fptype_momenta_sv{ 0 };
+    fi.pvec[3] = -pvec3_ * static_cast<fptype_momenta>(nsf);
     fi.flv_index = flv;
     const int nh = nhel * nsf;
     const cxtype_polarization_sv chi = cxmake<fptype_polarization>( -(fptype_polarization)nhel * fpsqrt<fptype_polarization>( -2. * pvec3 ), 0. );
@@ -401,16 +407,21 @@
           const int ipar )        // input: particle# out of npar
   {
     mgDebug( 0, __FUNCTION__ );
-    const fptype_momenta_sv& pvec0 = M_ACCESS::kernelAccessIp4IparConst( momenta, 0, ipar );
-    const fptype_momenta_sv& pvec1 = M_ACCESS::kernelAccessIp4IparConst( momenta, 1, ipar );
-    const fptype_momenta_sv& pvec2 = M_ACCESS::kernelAccessIp4IparConst( momenta, 2, ipar );
-    const fptype_momenta_sv& pvec3 = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_momenta_sv& pvec0_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 0, ipar );
+    const fptype_momenta_sv& pvec1_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 1, ipar );
+    const fptype_momenta_sv& pvec2_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 2, ipar );
+    const fptype_momenta_sv& pvec3_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_polarization_sv pvec0 = static_cast<fptype_polarization_sv>(pvec0_);
+    const fptype_polarization_sv pvec1 = static_cast<fptype_polarization_sv>(pvec1_);
+    const fptype_polarization_sv pvec2 = static_cast<fptype_polarization_sv>(pvec2_);
+    const fptype_polarization_sv pvec3 = static_cast<fptype_polarization_sv>(pvec3_);
     cxtype_vertex_sv* w = W_ACCESS::kernelAccess( fi.w );
-    fi.pvec[0] = -pvec0 * static_cast<fptype_polarization>(nsf);
-    fi.pvec[1] = -pvec1 * static_cast<fptype_polarization>(nsf);
-    fi.pvec[2] = -pvec2 * static_cast<fptype_polarization>(nsf);
-    fi.pvec[3] = -pvec3 * static_cast<fptype_polarization>(nsf);
+    fi.pvec[0] = -pvec0_ * static_cast<fptype_momenta>(nsf);
+    fi.pvec[1] = -pvec1_ * static_cast<fptype_momenta>(nsf);
+    fi.pvec[2] = -pvec2_ * static_cast<fptype_momenta>(nsf);
+    fi.pvec[3] = -pvec3_ * static_cast<fptype_momenta>(nsf);
     fi.flv_index = flv;
+
     const int nh = nhel * nsf;
     //const float sqp0p3 = sqrtf( pvec0 + pvec3 ) * nsf; // AV: why force a float here?
     const fptype_polarization_sv sqp0p3 = fpsqrt<fptype_polarization>( pvec0 + pvec3 ) * static_cast<fptype_polarization>(nsf);
@@ -452,15 +463,19 @@
     // Variables xxxDENOM are a hack to avoid division-by-0 FPE while preserving speed (#701 and #727)
     // Variables xxxDENOM are declared as 'volatile' to make sure they are not optimized away on clang! (#724)
     // A few additional variables are declared as 'volatile' to avoid sqrt-of-negative-number FPEs (#736)
-    const fptype_momenta_sv& pvec0 = M_ACCESS::kernelAccessIp4IparConst( momenta, 0, ipar );
-    const fptype_momenta_sv& pvec1 = M_ACCESS::kernelAccessIp4IparConst( momenta, 1, ipar );
-    const fptype_momenta_sv& pvec2 = M_ACCESS::kernelAccessIp4IparConst( momenta, 2, ipar );
-    const fptype_momenta_sv& pvec3 = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_momenta_sv& pvec0_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 0, ipar );
+    const fptype_momenta_sv& pvec1_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 1, ipar );
+    const fptype_momenta_sv& pvec2_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 2, ipar );
+    const fptype_momenta_sv& pvec3_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_polarization_sv pvec0 = static_cast<fptype_polarization_sv>(pvec0_);
+    const fptype_polarization_sv pvec1 = static_cast<fptype_polarization_sv>(pvec1_);
+    const fptype_polarization_sv pvec2 = static_cast<fptype_polarization_sv>(pvec2_);
+    const fptype_polarization_sv pvec3 = static_cast<fptype_polarization_sv>(pvec3_);
     cxtype_vertex_sv* w = W_ACCESS::kernelAccess( vc.w );
-    vc.pvec[0] = pvec0 * (fptype_polarization)nsv;
-    vc.pvec[1] = pvec1 * (fptype_polarization)nsv;
-    vc.pvec[2] = pvec2 * (fptype_polarization)nsv;
-    vc.pvec[3] = pvec3 * (fptype_polarization)nsv;
+    vc.pvec[0] = pvec0_ * static_cast<fptype_momenta>(nsv);
+    vc.pvec[1] = pvec1_ * static_cast<fptype_momenta>(nsv);
+    vc.pvec[2] = pvec2_ * static_cast<fptype_momenta>(nsv);
+    vc.pvec[3] = pvec3_ * static_cast<fptype_momenta>(nsv);
     vc.flv_index = flv;
     const fptype_polarization sqh = fpsqrt<fptype_polarization>( 0.5 ); // AV this is > 0!
     const fptype_polarization hel = nhel;
@@ -519,11 +534,11 @@
       // Branch B1: pp != 0. and pt != 0.
       volatile fptype_polarization_v ptDENOM = fpternary<fptype_polarization_sv>( pt != 0, pt, 1. );                                                     // hack: ptDENOM[ieppV]=1 if pt[ieppV]==0
       const fptype_polarization_v pzpt = pvec3 / ( ppDENOM * ptDENOM ) * sqh * hel;                                              // hack: dummy[ieppV] is not used if pp[ieppV]==0
-      const cxtype_polarization_v vcB1_3 = cxmake<fptype_polarization>( hel0 * pvec1 * emp - pvec1 * pzpt, -(fptype_polarization)nsvahl * pvec2 / ptDENOM * sqh ); // hack: dummy[ieppV] is not used if pt[ieppV]==0
-      const cxtype_polarization_v vcB1_4 = cxmake<fptype_polarization>( hel0 * pvec2 * emp - pvec2 * pzpt, (fptype_polarization)nsvahl * pvec1 / ptDENOM * sqh );  // hack: dummy[ieppV] is not used if pt[ieppV]==0
+      const cxtype_polarization_v vcB1_3 = cxmake<fptype_polarization>( hel0 * pvec1 * emp - pvec1 * pzpt, -static_cast<fptype_momenta_sv>(nsvahl) * pvec2 / ptDENOM * sqh ); // hack: dummy[ieppV] is not used if pt[ieppV]==0
+      const cxtype_polarization_v vcB1_4 = cxmake<fptype_polarization>( hel0 * pvec2 * emp - pvec2 * pzpt, static_cast<fptype_momenta_sv>(nsvahl) * pvec1 / ptDENOM * sqh );  // hack: dummy[ieppV] is not used if pt[ieppV]==0
       // Branch B2: pp != 0. and pt == 0.
       const cxtype_polarization vcB2_3 = cxmake<fptype_polarization>( -hel * sqh, 0. );
-      const cxtype_polarization_v vcB2_4 = cxmake<fptype_polarization>( 0., (fptype_polarization)nsvahl * fpternary<fptype_polarization_sv>( ( pvec3 < 0 ), -sqh, sqh ) ); // AV: removed an abs here
+      const cxtype_polarization_v vcB2_4 = cxmake<fptype_polarization>( 0., static_cast<fptype_momenta_sv>(nsvahl) * fpternary<fptype_polarization_sv>( ( pvec3 < 0 ), -sqh, sqh ) ); // AV: removed an abs here
       // Choose between the results from branch A and branch B (and from branch B1 and branch B2)
       const bool_v mask = ( pp == 0. );
       const bool_v maskB = ( pt != 0. );
@@ -562,11 +577,11 @@
       // Branch A: pt != 0.
       volatile fptype_polarization_v ptDENOM = fpternary<fptype_polarization_sv>( pt != 0, pt, 1. );                             // hack: ptDENOM[ieppV]=1 if pt[ieppV]==0
       const fptype_polarization_v pzpt = pvec3 / ( pp * ptDENOM ) * sqh * hel;                           // hack: dummy[ieppV] is not used if pt[ieppV]==0
-      const cxtype_polarization_v vcA_3 = cxmake<fptype_polarization>( -pvec1 * pzpt, -(fptype_polarization)nsv * pvec2 / ptDENOM * sqh ); // hack: dummy[ieppV] is not used if pt[ieppV]==0
-      const cxtype_polarization_v vcA_4 = cxmake<fptype_polarization>( -pvec2 * pzpt, (fptype_polarization)nsv * pvec1 / ptDENOM * sqh );  // hack: dummy[ieppV] is not used if pt[ieppV]==0
+      const cxtype_polarization_v vcA_3 = cxmake<fptype_polarization>( -pvec1 * pzpt, -static_cast<fptype_momenta_sv>(nsv) * pvec2 / ptDENOM * sqh ); // hack: dummy[ieppV] is not used if pt[ieppV]==0
+      const cxtype_polarization_v vcA_4 = cxmake<fptype_polarization>( -pvec2 * pzpt, static_cast<fptype_momenta_sv>(nsv) * pvec1 / ptDENOM * sqh );  // hack: dummy[ieppV] is not used if pt[ieppV]==0
       // Branch B: pt == 0.
       const cxtype_polarization vcB_3 = cxmake<fptype_polarization>( -(fptype_polarization)hel * sqh, 0 );
-      const cxtype_polarization_v vcB_4 = cxmake<fptype_polarization>( 0, (fptype_polarization)nsv * fpternary<fptype_polarization_sv>( ( pvec3 < 0 ), -sqh, sqh ) ); // AV: removed an abs here
+      const cxtype_polarization_v vcB_4 = cxmake<fptype_polarization>( 0, static_cast<fptype_momenta_sv>(nsv) * fpternary<fptype_polarization_sv>( ( pvec3 < 0 ), -sqh, sqh ) ); // AV: removed an abs here
       // Choose between the results from branch A and branch B
       const bool_v mask = ( pt != 0. );
       w[1] = static_cast<cxtype_vertex_sv>( cxternary<cxtype_polarization_sv>( mask, vcA_3, vcB_3 ));
@@ -591,15 +606,19 @@
           const int ipar )        // input: particle# out of npar
   {
     mgDebug( 0, __FUNCTION__ );
-    const fptype_momenta_sv& pvec0 = M_ACCESS::kernelAccessIp4IparConst( momenta, 0, ipar );
-    const fptype_momenta_sv& pvec1 = M_ACCESS::kernelAccessIp4IparConst( momenta, 1, ipar );
-    const fptype_momenta_sv& pvec2 = M_ACCESS::kernelAccessIp4IparConst( momenta, 2, ipar );
-    const fptype_momenta_sv& pvec3 = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_momenta_sv& pvec0_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 0, ipar );
+    const fptype_momenta_sv& pvec1_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 1, ipar );
+    const fptype_momenta_sv& pvec2_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 2, ipar );
+    const fptype_momenta_sv& pvec3_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_polarization_sv pvec0 = static_cast<fptype_polarization_sv>(pvec0_);
+    const fptype_polarization_sv pvec1 = static_cast<fptype_polarization_sv>(pvec1_);
+    const fptype_polarization_sv pvec2 = static_cast<fptype_polarization_sv>(pvec2_);
+    const fptype_polarization_sv pvec3 = static_cast<fptype_polarization_sv>(pvec3_);
     cxtype_vertex_sv* w = W_ACCESS::kernelAccess( sc.w );
-    sc.pvec[0] = pvec0 * (fptype_polarization)nss;
-    sc.pvec[1] = pvec1 * (fptype_polarization)nss;
-    sc.pvec[2] = pvec2 * (fptype_polarization)nss;
-    sc.pvec[3] = pvec3 * (fptype_polarization)nss;
+    sc.pvec[0] = pvec0_ * static_cast<fptype_momenta>(nss);
+    sc.pvec[1] = pvec1_ * static_cast<fptype_momenta>(nss);
+    sc.pvec[2] = pvec2_ * static_cast<fptype_momenta>(nss);
+    sc.pvec[3] = pvec3_ * static_cast<fptype_momenta>(nss);
     sc.flv_index = flv;
     w[0] = static_cast<cxtype_vertex_sv>( cxmake<fptype_polarization>( 1 + fptype_sv{ 0 }, 0 ));
     mgDebug( 1, __FUNCTION__ );
@@ -624,15 +643,20 @@
     // Variables xxxDENOM are a hack to avoid division-by-0 FPE while preserving speed (#701 and #727)
     // Variables xxxDENOM are declared as 'volatile' to make sure they are not optimized away on clang! (#724)
     // A few additional variables are declared as 'volatile' to avoid sqrt-of-negative-number FPEs (#736)
-    const fptype_momenta_sv& pvec0 = M_ACCESS::kernelAccessIp4IparConst( momenta, 0, ipar );
-    const fptype_momenta_sv& pvec1 = M_ACCESS::kernelAccessIp4IparConst( momenta, 1, ipar );
-    const fptype_momenta_sv& pvec2 = M_ACCESS::kernelAccessIp4IparConst( momenta, 2, ipar );
-    const fptype_momenta_sv& pvec3 = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_momenta_sv& pvec0_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 0, ipar );
+    const fptype_momenta_sv& pvec1_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 1, ipar );
+    const fptype_momenta_sv& pvec2_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 2, ipar );
+    const fptype_momenta_sv& pvec3_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_polarization_sv pvec0 = static_cast<fptype_polarization_sv>(pvec0_);
+    const fptype_polarization_sv pvec1 = static_cast<fptype_polarization_sv>(pvec1_);
+    const fptype_polarization_sv pvec2 = static_cast<fptype_polarization_sv>(pvec2_);
+    const fptype_polarization_sv pvec3 = static_cast<fptype_polarization_sv>(pvec3_);
     cxtype_vertex_sv* w = W_ACCESS::kernelAccess( fo.w );
-    fo.pvec[0] = pvec0 * static_cast<fptype_polarization>(nsf);
-    fo.pvec[1] = pvec1 * static_cast<fptype_polarization>(nsf);
-    fo.pvec[2] = pvec2 * static_cast<fptype_polarization>(nsf);
-    fo.pvec[3] = pvec3 * static_cast<fptype_polarization>(nsf);
+
+    fo.pvec[0] = pvec0_ * static_cast<fptype_momenta>(nsf);
+    fo.pvec[1] = pvec1_ * static_cast<fptype_momenta>(nsf);
+    fo.pvec[2] = pvec2_ * static_cast<fptype_momenta>(nsf);
+    fo.pvec[3] = pvec3_ * static_cast<fptype_momenta>(nsf);
     fo.flv_index = flv;
     const int nh = nhel * nsf;
     if( fmass != 0. )
@@ -764,12 +788,13 @@
           const int ipar )        // input: particle# out of npar
   {
     mgDebug( 0, __FUNCTION__ );
-    const fptype_momenta_sv& pvec3 = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_momenta_sv& pvec3_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_polarization_sv pvec3 = static_cast<fptype_polarization_sv>(pvec3_);
     cxtype_vertex_sv* w = W_ACCESS::kernelAccess( fo.w );
-    fo.pvec[0] = pvec3 * static_cast<fptype_polarization>(nsf);
-    fo.pvec[1] = fptype_sv{ 0 };
-    fo.pvec[2] = fptype_sv{ 0 };
-    fo.pvec[3] = pvec3 * static_cast<fptype_polarization>(nsf);
+    fo.pvec[0] = pvec3_ * static_cast<fptype_momenta>(nsf);
+    fo.pvec[1] = fptype_momenta_sv{ 0 };
+    fo.pvec[2] = fptype_momenta_sv{ 0 };
+    fo.pvec[3] = pvec3_ * static_cast<fptype_momenta>(nsf);
     fo.flv_index = flv;
     const int nh = nhel * nsf;
     const cxtype_polarization_sv csqp0p3 = cxmake<fptype_polarization>( fpsqrt<fptype_polarization>( 2. * pvec3 ) * (fptype_polarization)nsf, 0. );
@@ -804,12 +829,13 @@
           const int ipar )        // input: particle# out of npar
   {
     mgDebug( 0, __FUNCTION__ );
-    const fptype_momenta_sv& pvec3 = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_momenta_sv& pvec3_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_polarization_sv pvec3 = static_cast<fptype_polarization_sv>(pvec3_);
     cxtype_vertex_sv* w = W_ACCESS::kernelAccess( fo.w );
-    fo.pvec[0] = -pvec3 * static_cast<fptype_polarization>(nsf);
-    fo.pvec[1] = fptype_sv{ 0 };
-    fo.pvec[2] = fptype_sv{ 0 };
-    fo.pvec[3] = pvec3 * static_cast<fptype_polarization>(nsf);
+    fo.pvec[0] = -pvec3_ * static_cast<fptype_momenta_sv>(nsf);
+    fo.pvec[1] = fptype_momenta_sv{ 0 };
+    fo.pvec[2] = fptype_momenta_sv{ 0 };
+    fo.pvec[3] = pvec3_ * static_cast<fptype_momenta_sv>(nsf);
     fo.flv_index = flv;
     const int nh = nhel * nsf;
     const cxtype_polarization_sv chi1 = cxmake<fptype_polarization>( -nhel, 0. ) * fpsqrt<fptype_polarization>( -2. * pvec3 );
@@ -847,15 +873,20 @@
           const int ipar )        // input: particle# out of npar
   {
     mgDebug( 0, __FUNCTION__ );
-    const fptype_momenta_sv& pvec0 = M_ACCESS::kernelAccessIp4IparConst( momenta, 0, ipar );
-    const fptype_momenta_sv& pvec1 = M_ACCESS::kernelAccessIp4IparConst( momenta, 1, ipar );
-    const fptype_momenta_sv& pvec2 = M_ACCESS::kernelAccessIp4IparConst( momenta, 2, ipar );
-    const fptype_momenta_sv& pvec3 = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_momenta_sv& pvec0_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 0, ipar );
+    const fptype_momenta_sv& pvec1_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 1, ipar );
+    const fptype_momenta_sv& pvec2_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 2, ipar );
+    const fptype_momenta_sv& pvec3_ = M_ACCESS::kernelAccessIp4IparConst( momenta, 3, ipar );
+    const fptype_polarization_sv pvec0 = static_cast<fptype_polarization_sv>(pvec0_);
+    const fptype_polarization_sv pvec1 = static_cast<fptype_polarization_sv>(pvec1_);
+    const fptype_polarization_sv pvec2 = static_cast<fptype_polarization_sv>(pvec2_);
+    const fptype_polarization_sv pvec3 = static_cast<fptype_polarization_sv>(pvec3_);
     cxtype_vertex_sv* w = W_ACCESS::kernelAccess( fo.w );
-    fo.pvec[0] = pvec0 * static_cast<fptype_polarization>(nsf);
-    fo.pvec[1] = pvec1 * static_cast<fptype_polarization>(nsf);
-    fo.pvec[2] = pvec2 * static_cast<fptype_polarization>(nsf);
-    fo.pvec[3] = pvec3 * static_cast<fptype_polarization>(nsf);
+
+    fo.pvec[0] = pvec0_ * static_cast<fptype_momenta>(nsf);
+    fo.pvec[1] = pvec1_ * static_cast<fptype_momenta>(nsf);
+    fo.pvec[2] = pvec2_ * static_cast<fptype_momenta>(nsf);
+    fo.pvec[3] = pvec3_ * static_cast<fptype_momenta>(nsf);
     fo.flv_index = flv;
     const int nh = nhel * nsf;
     //const float sqp0p3 = sqrtf( pvec0 + pvec3 ) * nsf; // AV: why force a float here?
