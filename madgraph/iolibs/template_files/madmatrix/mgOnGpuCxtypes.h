@@ -490,6 +490,19 @@ namespace mg5amcCpu
     return c;
   }
 
+  // Template versions for multi-precision complex types (thrust-based)
+  template<typename FP>
+  inline __host__ __device__ FP
+  cxreal( const thrust::complex<FP>& c ) { return c.real(); }
+
+  template<typename FP>
+  inline __host__ __device__ FP
+  cximag( const thrust::complex<FP>& c ) { return c.imag(); }
+
+  template<typename FP>
+  inline __host__ __device__ thrust::complex<FP>
+  cxconj( const thrust::complex<FP>& c ) { return thrust::conj( c ); }
+
 #endif // #if defined __CUDACC__ and defined MGONGPU_CUCXTYPE_THRUST
 
   //==========================================================================
@@ -703,6 +716,19 @@ namespace mg5amcCpu
   {
     return cxmake( c.real(), c.imag() );
   }
+
+// Template versions for multi-precision complex types (cxsmpl-based, used with cucomplex build)
+  template<typename FP>
+  inline __host__ __device__ FP
+  cxreal( const cxsmpl<FP>& c ) { return c.real(); }
+
+  template<typename FP>
+  inline __host__ __device__ FP
+  cximag( const cxsmpl<FP>& c ) { return c.imag(); }
+
+  template<typename FP>
+  inline __host__ __device__ cxsmpl<FP>
+  cxconj( const cxsmpl<FP>& c ) { return conj( c ); }
 
 #endif // #if defined __CUDACC__ and defined MGONGPU_CUCXTYPE_CUCOMPLEX
 
