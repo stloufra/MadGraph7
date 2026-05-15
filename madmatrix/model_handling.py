@@ -177,7 +177,7 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
                     list_arg = '[]' # AV from cxtype_sv to fptype array (running alphas #373)
                     point = self.type2def['pointer_coup']
                 args.append('%s %s%s%s'% (type, point, argname, list_arg))
-                coeff_n = re.search(r"\d?+$", argname).group()
+                coeff_n = re.search(r"\d*$", argname).group()
                 args.append('double Ccoeff%s'% coeff_n) # OM for 'unary minus' #628
             else:
                 args.append('%s %s%s'% (type, argname, list_arg))
