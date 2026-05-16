@@ -717,6 +717,19 @@ namespace mg5amcCpu
     return cxsmpl<FP>( r, i );
   }
 
+  // Template versions for multi-precision complex types (cucomplex-based, using cxsmpl)
+  template<typename FP>
+  inline __host__ __device__ FP
+  cxreal( const cxsmpl<FP>& c ) { return c.real(); }
+
+  template<typename FP>
+  inline __host__ __device__ FP
+  cximag( const cxsmpl<FP>& c ) { return c.imag(); }
+
+  template<typename FP>
+  inline __host__ __device__ cxsmpl<FP>
+  cxconj( const cxsmpl<FP>& c ) { return conj( c ); }
+
   inline __host__ cxtype                  // NOT __device__
   cxmake( const std::complex<fptype>& c ) // std::complex to cucomplex (float-to-float or double-to-double)
   {

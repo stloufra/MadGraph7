@@ -1772,7 +1772,7 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
                    bool storeChannelWeights,
                    fptype* allNumerators,             // input/output: multichannel numerators[nevt], add helicity ihel
                    fptype_denom* allDenominators,           // input/output: multichannel denominators[nevt], add helicity ihel
-                   fptype* colAllJamp2s,              // output: allJamp2s[ncolor][nevt] super-buffer, sum over col/hel (nullptr to disable)
+                    fptype_amp* colAllJamp2s,              // output: allJamp2s[ncolor][nevt] super-buffer, sum over col/hel (nullptr to disable)
                    const int nevt                     // input: #events (for cuda: nevt == ndim == gpublocks*gputhreads)
 #else
                    cxtype_amp_sv* allJamp_sv,             // output: jamp_sv[ncolor] (float/double) or jamp_sv[2*ncolor] (mixed) for this helicity
