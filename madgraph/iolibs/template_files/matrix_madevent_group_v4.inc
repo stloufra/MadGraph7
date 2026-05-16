@@ -60,6 +60,15 @@ C
         REAL*8 R,SUMHEL,TS(NCOMB)
         INTEGER I,IDEN
         INTEGER FLAVOR(NEXTERNAL)
+        INTEGER FLAVOR_FOR_SYM(NEXTERNAL)
+C       Per-row FLAVOR lookup used by BROKEN_SYM. The IFLAV-indexed FLAVOR
+C       table above can collapse distinct same-flavor / different-flavor
+C       leshouche rows that share the same coupling group; BROKEN_SYM needs
+C       row-level information to apply the identical-particle correction.
+        INTEGER FLAVOR_ROW(NEXTERNAL,%(max_flavor_row)s)
+        %(get_flavor_row_matrix)s
+        INTEGER IPSEL
+        COMMON /SUBPROC/ IPSEL
         REAL*8 HWGT, XTOT, XTRY, XREJ, XR, YFRAC(0:NCOMB)
         INTEGER NGOOD
         INTEGER J, JJ
@@ -237,7 +246,12 @@ c         Set right sign for ANS, based on sign of chosen helicity
 	    endif
         ENDIF
     ENDIF
-    ANS=ANS/DBLE(IDEN)*BROKEN_SYM%(proc_id)s(FLAVOR)
+    IF (IPSEL.GE.1.AND.IPSEL.LE.%(max_flavor_row)s) THEN
+       FLAVOR_FOR_SYM(:) = FLAVOR_ROW(:, IPSEL)
+    ELSE
+       FLAVOR_FOR_SYM(:) = FLAVOR(:)
+    ENDIF
+    ANS=ANS/DBLE(IDEN)*BROKEN_SYM%(proc_id)s(FLAVOR_FOR_SYM)
 
     call select_color(rcol, jamp2, iconfig,%(proc_id)s,  icol, ivec)
 

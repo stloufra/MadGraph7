@@ -5382,6 +5382,19 @@ class ProcessExporterFortranME(ProcessExporterFortran):
         for i, flav in enumerate(all_flav):
             flav_positions = [str(pdg_to_group_pos.get(f, f)) for f in flav[0]]
             replace_dict['get_flavor_matrix'] += ' DATA (FLAVOR(i,  %d),i=  1, NEXTERNAL) /%s/\n' % (i+1, ', '.join(flav_positions))
+
+        # In addition to the IFLAV-indexed FLAVOR table above (one row per
+        # coupling-equivalence group), emit a second table indexed by the
+        # global IPSEL (leshouche row).  BROKEN_SYM needs row-level flavor
+        # information to distinguish same-flavor vs different-flavor decay
+        # configurations within a single coupling group — without this, the
+        # identical-particle factor is never cancelled when it should be.
+        all_flav_flat = sum((list(group) for group in all_flav), [])
+        replace_dict['max_flavor_row'] = len(all_flav_flat)
+        replace_dict['get_flavor_row_matrix'] = ''
+        for i, flav_tuple in enumerate(all_flav_flat):
+            flav_positions = [str(pdg_to_group_pos.get(f, f)) for f in flav_tuple]
+            replace_dict['get_flavor_row_matrix'] += ' DATA (FLAVOR_ROW(i,  %d),i=  1, NEXTERNAL) /%s/\n' % (i+1, ', '.join(flav_positions))
         
         # information for computing the correct symmetry factor for each flavor
         process = matrix_element.get('processes')[0]
