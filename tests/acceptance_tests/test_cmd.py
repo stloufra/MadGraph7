@@ -779,7 +779,7 @@ class TestCmdShell2(unittest.TestCase,
             self.assertAlmostEqual(standalone_cpp[i], standalone[i])
 
         self.do('set gauge unitary')
-        self.do('generate _quark _quark > h _quark _quark _quark _quark _quark _anti_quark  QCD=0')
+        self.do('generate _quark _quark > h _quark _quark _quark _anti_quark  QCD=0')
         devnull = open(os.devnull,'w')
         energy = '1000'     
         
