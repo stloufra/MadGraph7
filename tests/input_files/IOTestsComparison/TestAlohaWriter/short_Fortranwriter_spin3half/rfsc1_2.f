@@ -1,6 +1,5 @@
 subroutine RFSC1_2(F2, S3, COUP, M1, W1,R1)
 use aloha_object
-use model_object
 implicit none
  complex*16 CI
  parameter (CI=(0d0,1d0))

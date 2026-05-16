@@ -1,6 +1,5 @@
 subroutine VVS1_1(V2, S3, COUP, M1, W1,V1)
 use aloha_object
-use model_object
 implicit none
  complex*16 CI
  parameter (CI=(0d0,1d0))
@@ -32,7 +31,6 @@ P1(:) = -V1 %% P (:)
 
 subroutine VVS1_2_1(V2, S3, COUP1, COUP2, M1, W1,V1)
 use aloha_object
-use model_object
 implicit none
  complex*16 CI
  parameter (CI=(0d0,1d0))

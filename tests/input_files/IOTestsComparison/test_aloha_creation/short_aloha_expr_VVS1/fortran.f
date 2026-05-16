@@ -1,6 +1,5 @@
 subroutine VVS1_0(V1, V2, S3, COUP,vertex)
 use aloha_object
-use model_object
 implicit none
  complex*16 CI
  parameter (CI=(0d0,1d0))

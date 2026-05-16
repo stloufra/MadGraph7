@@ -1,6 +1,5 @@
 subroutine FFV1_3(F1, F2, COUP, M3, W3,V3)
 use aloha_object
-use model_object
 implicit none
  complex*16 CI
  parameter (CI=(0d0,1d0))

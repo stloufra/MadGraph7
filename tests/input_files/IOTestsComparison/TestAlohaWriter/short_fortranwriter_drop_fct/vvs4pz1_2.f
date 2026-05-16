@@ -1,6 +1,5 @@
 subroutine VVS4PZ1_2(V1, S3, COUP, M2, W2,V2)
 use aloha_object
-use model_object
 implicit none
  include "../MODEL/input.inc"
  include "../MODEL/coupl.inc"

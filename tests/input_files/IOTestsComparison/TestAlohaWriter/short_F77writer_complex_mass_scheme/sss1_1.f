@@ -1,6 +1,5 @@
 subroutine SSS1_1(S2, S3, COUP, M1,S1)
 use aloha_object
-use model_object
 implicit none
  complex*16 CI
  parameter (CI=(0d0,1d0))
