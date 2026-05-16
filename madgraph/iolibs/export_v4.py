@@ -5389,7 +5389,7 @@ class ProcessExporterFortranME(ProcessExporterFortran):
         # information to distinguish same-flavor vs different-flavor decay
         # configurations within a single coupling group — without this, the
         # identical-particle factor is never cancelled when it should be.
-        all_flav_flat = sum((list(group) for group in all_flav), [])
+        all_flav_flat = [flav_tuple for group in all_flav for flav_tuple in group]
         replace_dict['max_flavor_row'] = len(all_flav_flat)
         replace_dict['get_flavor_row_matrix'] = ''
         for i, flav_tuple in enumerate(all_flav_flat):
