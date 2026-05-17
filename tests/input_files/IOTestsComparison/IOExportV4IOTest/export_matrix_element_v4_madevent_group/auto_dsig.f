@@ -642,6 +642,3 @@ C      particle
       RETURN
       END
 
-
-
-
