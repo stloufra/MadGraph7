@@ -582,7 +582,11 @@ class ALOHAWriterForFortran(WriteALOHA):
             if type.startswith('list'):
                 type = type[5:]
                 #determine the size of the list
-                if name[0] in ['F', 'V', 'S', 'T', 'R'] and not aloha.loop_mode:
+                if name[0] in ['F', 'V', 'S', 'T', 'R']:
+                    # All wavefunctions (inputs and outputs) are now passed and
+                    # built as type(aloha) / type(aloha2d), regardless of
+                    # loop_mode.  This keeps the body code (which uses %W / %P
+                    # accessors) consistent with the declaration.
                     if name[0] not in ['T', 'R']:
                         out.write(' type(aloha) %s\n' % (name))
                     else:
@@ -597,26 +601,6 @@ class ALOHAWriterForFortran(WriteALOHA):
                         size ='*'
                     elif name.startswith('P'):
                         size='0:3'
-                    elif name[0] in ['F','V']:
-                        if aloha.loop_mode:
-                            size = 8
-                        elif aloha.unitary_gauge == 3 and name[0] in 'V':
-                            size = 7
-                        else:
-                            size = 6
-                    elif name[0] == 'S':
-                        if aloha.loop_mode:
-                            size = 5
-                        elif aloha.unitary_gauge == 3: # FD gauge 
-                            # Need to fix since this need to be dependent if S is a goldstone or not
-                            size = 7
-                        else:
-                            size = 3
-                    elif name[0] in ['R','T']: 
-                        if aloha.loop_mode:
-                            size = 20
-                        else:
-                            size = 18
                     else:
                         size = '*'
                     out.write(' %s %s(%s)\n' % (self.type2def[type], name, size))
@@ -671,10 +655,9 @@ class ALOHAWriterForFortran(WriteALOHA):
                 out_size = self.type_to_size[type] 
                 continue
             elif self.offshell:
-                if not aloha.loop_mode:
-                    p.append('{0}{1}{2}%P(:)'.format(signs[i],type,i+1))
-                else:
-                    p.append('{0}{1}{2}(%(i)s)'.format(signs[i],type,i+1,type))    
+                # Always use the type(aloha) %P accessor; wavefunctions are
+                # type(aloha) regardless of loop_mode.
+                p.append('{0}{1}{2}%P(:)'.format(signs[i],type,i+1))
                 
             if self.declaration.is_used('P%s' % (i+1)):
                 self.get_one_momenta_def(i+1, out)
@@ -996,15 +979,14 @@ class ALOHAWriterForFortran(WriteALOHA):
                 shift = 1
                 if aloha.unitary_gauge == 3 and self.outname[0] == "S":
                     shift = 5
-                if not aloha.loop_mode:
-                    shift -= 2
-                    to_order[self.pass_to_HELAS(ind)] = \
-                        '    %s%%W(%d)= %s%s\n' % (self.outname, self.pass_to_HELAS(ind)+shift, 
-                        coeff, formatted)
-                else:
-                    to_order[self.pass_to_HELAS(ind)] = \
-                        '    %s(%d)= %s%s\n' % (self.outname, self.pass_to_HELAS(ind)+shift, 
-                        coeff, formatted)
+                # Subtract momentum_size: pass_to_HELAS adds it to obtain a
+                # flat-array index, but the output wavefunction is now a
+                # type(aloha) and we write into %W which is 1-indexed for
+                # Lorentz components only.
+                shift -= self.momentum_size
+                to_order[self.pass_to_HELAS(ind)] = \
+                    '    %s%%W(%d)= %s%s\n' % (self.outname, self.pass_to_HELAS(ind)+shift,
+                    coeff, formatted)
             key = list(to_order.keys())
             key.sort()
             for i in key:
