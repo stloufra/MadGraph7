@@ -226,6 +226,8 @@ namespace mg5amcCpu
   // A class encapsulating a simple CUDA device buffer managed on an ad-hoc basis
   typedef DeviceBuffer<fptype, 1> DeviceBufferSimple;
   typedef DeviceBuffer<fptype2, 1> DeviceBufferSimple2;
+  // A simple CUDA device buffer using fptype_amp (for JAMP buffers)
+  typedef DeviceBuffer<fptype_amp, 1> DeviceBufferAmp;
 #endif
 
   //--------------------------------------------------------------------------
