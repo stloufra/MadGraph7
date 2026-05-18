@@ -586,11 +586,22 @@ class ALOHAWriterForFortran(WriteALOHA):
                     # All wavefunctions (inputs and outputs) are now passed and
                     # built as type(aloha) / type(aloha2d), regardless of
                     # loop_mode.  This keeps the body code (which uses %W / %P
-                    # accessors) consistent with the declaration.
-                    if name[0] not in ['T', 'R']:
-                        out.write(' type(aloha) %s\n' % (name))
+                    # accessors) consistent with the declaration.  MP routines
+                    # must use the mp_aloha* variants whose %W / %P fields are
+                    # complex*32 / real*16 — otherwise the storage layout at
+                    # the call site (type(mp_aloha) caller) does not match the
+                    # callee's view, and %P writes land in the middle of %W,
+                    # leaving the momentum at zero.
+                    if 'MP' in self.tag:
+                        if name[0] not in ['T', 'R']:
+                            out.write(' type(mp_aloha) %s\n' % (name))
+                        else:
+                            out.write(' type(mp_aloha2d) %s\n' % (name))
                     else:
-                        out.write(' type(aloha2d) %s\n' % (name))
+                        if name[0] not in ['T', 'R']:
+                            out.write(' type(aloha) %s\n' % (name))
+                        else:
+                            out.write(' type(aloha2d) %s\n' % (name))
                     if name not in argument_var:
                         size=self.get_size(name, -2)
                         #to_end.append("allocate(%s %% W(%s))" % (name,size))
