@@ -98,7 +98,7 @@ C
 C LOCAL VARIABLES 
 C
       %(complex_dp_format)s BUFF(4)
-      %(complex_dp_format)s WL(20,NMAXLOOPWFS)
+      TYPE(ALOHA) WL(NMAXLOOPWFS)
       INTEGER I
 C
 C GLOBAL VARIABLES
@@ -247,7 +247,7 @@ C
 C LOCAL VARIABLES 
 C
       %(complex_mp_format)s BUFF(4)
-      %(complex_mp_format)s WL(20,NMAXLOOPWFS)
+      TYPE(MP_ALOHA) WL(NMAXLOOPWFS)
       INTEGER I
 C
 C GLOBAL VARIABLES

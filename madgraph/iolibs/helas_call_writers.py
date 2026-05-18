@@ -1141,7 +1141,7 @@ class FortranUFOHelasCallWriter(UFOHelasCallWriter):
         call="CALL "
         call_function = None
         if argument.get('is_loop'):
-            call=call+"LCUT_%(conjugate)s%(lcutspinletter)s(Q(0),I,WL(1,%(number)d))"
+            call=call+"LCUT_%(conjugate)s%(lcutspinletter)s(Q(0),I,WL(%(number)d))"
         else:
             # String is just IXXXXX, OXXXXX, VXXXXX or SXXXXX
             call = call + HelasCallWriter.mother_dict[\
@@ -1218,7 +1218,7 @@ class FortranUFOHelasCallWriter(UFOHelasCallWriter):
         # First WaveFunction    
         if isinstance(argument, helas_objects.HelasWavefunction):
             if argument['is_loop']:
-                arg['out'] = 'WL(1,%(out)d)'
+                arg['out'] = 'WL(%(out)d)'
                 if aloha.complex_mass:
                     arg['mass'] = "ML(%(out)d),"
                 else:
@@ -1324,13 +1324,10 @@ class FortranUFOHelasCallWriter(UFOHelasCallWriter):
                     if lwf.get('mothers'):
                         last_lwf_number=lwf.get('number')
                         break
-                # In the type(aloha) layout, the Lorentz components (W field)
-                # live in WL(1..4), with the momentum (P field) following in
-                # WL(5..6) packed as real*8 pairs.  The previous +4 offset
-                # corresponded to the legacy "4 momentum then 4 spin" packing
-                # and now reads the momentum bytes instead of the spin
-                # components, giving a garbage closing factor.
-                res.append('BUFF(I)=WL(I,%d)'%last_lwf_number)
+                # WL is now a 1-D TYPE(ALOHA) array of loop wavefunctions;
+                # close the loop by reading the Lorentz components of the
+                # last one.
+                res.append('BUFF(I)=WL(%d)%%W(I)'%last_lwf_number)
                 # And re-establish the original numbering
                 indexMothers=0
                 indexWfs=0

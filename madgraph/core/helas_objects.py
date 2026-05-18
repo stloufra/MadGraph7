@@ -1729,7 +1729,7 @@ class HelasWavefunction(base_objects.PhysicsObject):
             output[str(i)] = nb
             if not OptimizedOutput:
                 if mother.get('is_loop'):
-                    output['WF%d'%i] = 'L(1,%d)'%nb
+                    output['WF%d'%i] = 'L(%d)'%nb
                 else:
                     output['WF%d'%i] = '(WE(%d)'%nb
             else:
