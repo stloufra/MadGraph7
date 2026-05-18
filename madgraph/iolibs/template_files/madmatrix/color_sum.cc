@@ -390,7 +390,7 @@ namespace mg5amcCpu
       for( int ighel = 0; ighel < nGoodHel; ighel++ )
       {
         fptype* hAllMEs = ghelAllMEs + ighel * nevt;           // MEs for one specific helicity ighel
-        const fptype* hAllJamps = ghelAllJamps + ighel * nevt; // Jamps for one specific helicity ighel
+        const fptype_amp* hAllJamps = ghelAllJamps + ighel * nevt; // Jamps for one specific helicity ighel
         gpuStream_t hStream = ghelStreams[ighel];
         gpuLaunchKernelStream( color_sum_kernel, gpublocks, gputhreads, hStream, hAllMEs, hAllJamps, nGoodHel );
       }
