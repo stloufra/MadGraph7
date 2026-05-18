@@ -646,13 +646,37 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
                             mydict['denom'] = self.routine.denominator
                             out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( %(denom)s );\n' % mydict) # AV
                     else:
+                        out.write('\n#ifndef MADARITH_DOUBLEEXPANSION\n')
                         out.write('    const cxtype_denom_sv cId( 0., 1. );\n') # AV
                         out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( ( dP%(i)s[0] * dP%(i)s[0] ) - ( dP%(i)s[1] * dP%(i)s[1] ) - ( dP%(i)s[2] * dP%(i)s[2] ) - ( dP%(i)s[3] * dP%(i)s[3] ) - static_cast<fptype_denom_sv>(M%(i)s) * ( static_cast<fptype_denom_sv>(M%(i)s) - cId * static_cast<fptype_denom_sv>(W%(i)s) ) );\n' % mydict) # AV
+                        out.write('#endif\n')
+                        out.write('#ifdef MADARITH_DOUBLEEXPANSION\n')
+                        wtype = self.particles[self.outgoing - 1]
+                        coeff_vertex = '%(pre_coup)s%(coup)s%(post_coup)s' % mydict
+                        coeff_vertex = coeff_vertex.replace('fptype_denom_sv', 'fptype_vertex_sv')
+                        out.write('    const MG_ARITHM::Double<fptype_vertex> P{0}d[4] = {{ static_cast<MG_ARITHM::Double<fptype_vertex>>(-{1}{0}.pvec[0]), static_cast<MG_ARITHM::Double<fptype_vertex>>(-{1}{0}.pvec[1]), static_cast<MG_ARITHM::Double<fptype_vertex>>(-{1}{0}.pvec[2]), static_cast<MG_ARITHM::Double<fptype_vertex>>(-{1}{0}.pvec[3]) }};\n'.format(self.outgoing, wtype))
+                        out.write('    const MG_ARITHM::Double<fptype_vertex> Md{0} = static_cast<MG_ARITHM::Double<fptype_vertex>>(M{0});\n'.format(self.outgoing))
+                        out.write('    const fptype_vertex_sv PmM2 = static_cast<fptype_vertex_sv>(( P{0}d[0] * P{0}d[0] ) - ( P{0}d[1] * P{0}d[1] ) - ( P{0}d[2] * P{0}d[2] ) - ( P{0}d[3] * P{0}d[3] ) - ( Md{0} * Md{0} ) );\n'.format(self.outgoing))
+                        out.write('    const fptype_vertex_sv iMW = M{0} * W{0};\n'.format(self.outgoing))
+                        out.write('    const cxtype_vertex_sv denden = cxmake( PmM2, iMW );\n')
+                        out.write('    const cxtype_vertex_sv denom = {} / denden;\n'.format(coeff_vertex))
+                        out.write('#endif\n')
                 else:
                     if self.routine.denominator:
                         raise Exception('modify denominator are not compatible with complex mass scheme')
                     # This affects 'denom = COUP' in HelAmps_sm.cc
+                    out.write('\n#ifndef MADARITH_DOUBLEEXPANSION\n')
                     out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( ( dP%(i)s[0] * dP%(i)s[0] ) - ( dP%(i)s[1] *dP%(i)s[1] ) - ( dP%(i)s[2] * dP%(i)s[2] ) - ( dP%(i)s[3] * dP%(i)s[3] ) - ( static_cast<fptype_denom>(M%(i)s) * static_cast<fptype_denom>(M%(i)s) ) );\n' % mydict) # AV
+                    out.write('#endif\n')
+                    out.write('#ifdef MADARITH_DOUBLEEXPANSION\n')
+                    wtype = self.particles[self.outgoing - 1]
+                    coeff_vertex = '%(pre_coup)s%(coup)s%(post_coup)s' % mydict
+                    coeff_vertex = coeff_vertex.replace('fptype_denom_sv', 'fptype_vertex_sv')
+                    out.write('    const MG_ARITHM::Double<fptype_vertex> P{0}d[4] = {{ static_cast<MG_ARITHM::Double<fptype_vertex>>(-{1}{0}.pvec[0]), static_cast<MG_ARITHM::Double<fptype_vertex>>(-{1}{0}.pvec[1]), static_cast<MG_ARITHM::Double<fptype_vertex>>(-{1}{0}.pvec[2]), static_cast<MG_ARITHM::Double<fptype_vertex>>(-{1}{0}.pvec[3]) }};\n'.format(self.outgoing, wtype))
+                    out.write('    const MG_ARITHM::Double<fptype_vertex> Md{0} = static_cast<MG_ARITHM::Double<fptype_vertex>>(M{0});\n'.format(self.outgoing))
+                    out.write('    const fptype_vertex_sv PmM2 = static_cast<fptype_vertex_sv>(( P{0}d[0] * P{0}d[0] ) - ( P{0}d[1] * P{0}d[1] ) - ( P{0}d[2] * P{0}d[2] ) - ( P{0}d[3] * P{0}d[3] ) - ( Md{0} * Md{0} ) );\n'.format(self.outgoing))
+                    out.write('    const cxtype_vertex_sv denom = {} / PmM2;\n'.format(coeff_vertex))
+                    out.write('#endif\n')
                 ###self.declaration.add(('complex','denom')) # AV moved earlier (or simply removed)
                 if aloha.loop_mode: ptype = 'list_complex'
                 else: ptype = 'list_double'
@@ -671,8 +695,8 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
         ###return out.getvalue() # AV
         # AV check if one, two, half or quarter are used and need to be defined (ugly hack for #291: can this be done better?)
         out2 = StringIO()
-        if 'one' in out.getvalue(): out2.write('    constexpr fptype_vertex one( 1. );\n    constexpr fptype_denom oned( 1. )\n;')
-        if 'two' in out.getvalue(): out2.write('    constexpr fptype_vertex two( 2. );\n    constexpr fptype_denom twod( 2. );\n;')
+        if 'one' in out.getvalue(): out2.write('    constexpr fptype_vertex one( 1. );\n    constexpr fptype_denom oned( 1. );\n')
+        if 'two' in out.getvalue(): out2.write('    constexpr fptype_vertex two( 2. );\n    constexpr fptype_denom twod( 2. );\n')
         if 'half' in out.getvalue(): out2.write('    constexpr fptype_vertex half( 1. / 2. );\n    constexpr fptype_denom halfd( 1. / 2. );\n')
         if 'quarter' in out.getvalue(): out2.write('    constexpr fptype_vertex quarter( 1. / 4. );\n    constexpr fptype_denom quarterd( 1. / 4. );\n')
         out2.write( out.getvalue() )
@@ -1436,6 +1460,11 @@ class MadMatrixUFOModelConverter(export_cpp.UFOModelConverterGPU):
         file_h = '\n'.join( file_h_lines[:-3]) # skip the trailing '//---'
         file_h += file_cc # append the contents of HelAmps_sm.cc directly to HelAmps_sm.h!
         file_h = file_h[:-1] # skip the trailing empty line
+        # Add Arithmetics include guarded by MADARITH_DOUBLEEXPANSION
+        file_h = file_h.replace(
+            '#include "mgOnGpuConfig.h"',
+            '#include "mgOnGpuConfig.h"\n#ifdef MADARITH_DOUBLEEXPANSION\n#include "Arithmetics/Double.h"\n#endif'
+        )
         writers.CPPWriter(model_h_file).writelines(file_h, formatting=False)
         logger.info('Created file %s in directory %s' \
                     % (os.path.split(model_h_file)[-1], os.path.split(model_h_file)[0] ) )
