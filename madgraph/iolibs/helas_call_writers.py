@@ -1324,7 +1324,13 @@ class FortranUFOHelasCallWriter(UFOHelasCallWriter):
                     if lwf.get('mothers'):
                         last_lwf_number=lwf.get('number')
                         break
-                res.append('BUFF(I)=WL(I+4,%d)'%last_lwf_number)
+                # In the type(aloha) layout, the Lorentz components (W field)
+                # live in WL(1..4), with the momentum (P field) following in
+                # WL(5..6) packed as real*8 pairs.  The previous +4 offset
+                # corresponded to the legacy "4 momentum then 4 spin" packing
+                # and now reads the momentum bytes instead of the spin
+                # components, giving a garbage closing factor.
+                res.append('BUFF(I)=WL(I,%d)'%last_lwf_number)
                 # And re-establish the original numbering
                 indexMothers=0
                 indexWfs=0
