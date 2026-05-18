@@ -833,8 +833,12 @@ class ALOHAWriterForFortran(WriteALOHA):
         if '_' in name:
             vtype = name.type
             decla = name.split('_',1)[0]
-            # P-momentum variables may be cached as complex from a previous loop
-            # computation; override with the type appropriate for the current mode.
+            # In loop_mode the type(aloha)%P field is double complex so
+            # that the OPP loop-momentum samples (which are complex) are
+            # preserved as they propagate through the loop wavefunctions;
+            # the per-routine momentum scratch variables therefore must
+            # also be complex.  Tree-only generation keeps %P real and
+            # the scratch variables stay real for performance.
             if decla.startswith('P'):
                 vtype = 'complex' if aloha.loop_mode else 'double'
             self.declaration.add(('list_%s' % vtype, decla))
