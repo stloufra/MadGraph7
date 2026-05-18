@@ -17,7 +17,7 @@ struct rne
 
 
 
-/*
+
 namespace spliting_detail {
 
 // double precision
@@ -75,7 +75,7 @@ split( T value )
       }
       return { static_cast< U >( high ), static_cast< U >( low ) };
    }
-}*/
+}
 
 FLOAT_TEMPLATE_GUARD
 __cuda_callable__

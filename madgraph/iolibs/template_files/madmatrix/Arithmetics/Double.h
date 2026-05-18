@@ -45,6 +45,13 @@ class alignas( 2 * sizeof( T ) ) Double
   __cuda_callable__
   constexpr Double(U rhs);
 
+#ifdef __CADNA__
+   template<typename U, std::enable_if_t<std::is_same_v<U, double_st>, int> = 0>
+#else
+    template<typename U, std::enable_if_t<std::is_same_v<U, double>, int> = 0>
+ #endif
+    __cuda_callable__
+    constexpr Double(U rhs);
 
 #ifdef __CADNA__
    __cuda_callable__
@@ -180,6 +187,26 @@ class alignas( 2 * sizeof( T ) ) Double
       data[ 1 ] = 0.0;
     }
   }
+
+template< typename T >
+template< typename U, std::enable_if_t< std::is_same_v< U, double >, int > >
+__cuda_callable__
+constexpr Double< T >::Double( const U rhs )
+{
+#ifdef __CADNA__
+    if constexpr( std::is_same_v< T, float_st > ) {
+#else
+    if constexpr( std::is_same_v< T, float > ) {
+#endif
+      const auto sp = split< double, float >( rhs );
+      data[ 0 ] = sp.sum;
+      data[ 1 ] = sp.error;
+   }
+   else {
+      data[ 0 ] = rhs;
+      data[ 1 ] = 0.0;
+   }
+}
 
 #ifdef __CADNA__
 template< typename T >
