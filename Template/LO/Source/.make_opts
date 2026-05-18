@@ -61,7 +61,20 @@ else
     VERS="$(shell $(FC) --version | grep ifort -i)"
     ifeq ($(VERS), "")
         FFLAGS+= -ffixed-line-length-132
-    else	     
+        # MadLoop's non-optimized output calls some ALOHA helper routines
+        # with mixed type(aloha) / COMPLEX argument types from different
+        # call sites in loop_num.f.  gfortran 10+ promotes that legacy F77
+        # pattern to an error; -fallow-argument-mismatch restores the
+        # prior warning-only behavior.  Older gfortran versions do not
+        # have the strict check and also do not understand the flag, so
+        # we guard on gfortran 10+.
+        GFORT_MAJOR := $(shell $(FC) -dumpversion 2>/dev/null | cut -d. -f1)
+        ifneq ($(GFORT_MAJOR),)
+            ifeq ($(shell test $(GFORT_MAJOR) -ge 10 && echo yes),yes)
+                FFLAGS+= -fallow-argument-mismatch
+            endif
+        endif
+    else
         FFLAGS+= -extend-source # for ifort type of compiler
     endif
 endif

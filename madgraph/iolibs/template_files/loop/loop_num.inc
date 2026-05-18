@@ -123,10 +123,9 @@ C ----------
       END
 
       SUBROUTINE %(proc_prefix)sMPLOOPNUM(Q,RES)
-	  
-      INCLUDE 'cts_mprec.h'
       USE ALOHA_OBJECT
-	  IMPLICIT NONE	  
+      INCLUDE 'cts_mprec.h'
+	  IMPLICIT NONE
 C  
 C CONSTANTS 
 C 
@@ -219,9 +218,10 @@ C       This is just to compute the wfs in quad prec
       END
 
       SUBROUTINE %(proc_prefix)sMPLOOPNUMHEL(Q,RES,H)
-C  
-C CONSTANTS 
-C  
+      USE ALOHA_OBJECT
+C
+C CONSTANTS
+C
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=%(nexternal)d)
 	  INTEGER    MAXLCOUPLINGS
