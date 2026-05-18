@@ -320,7 +320,7 @@ for( unsigned int ievt = 0; ievt < nevt; ++ievt )
     UmamiInputKey in_keys[UmamiInKeyNum] = { UMAMI_IN_MOMENTA, UMAMI_IN_FLAVOR_INDEX };
     UmamiOutputKey out_keys[1] = { UMAMI_OUT_MATRIX_ELEMENT };
 #ifdef MGONGPUCPP_GPUIMPL
-    const void* inputs[UmamiInKeyNum] = { devUmamiMomenta.data(), devFlvVec.data() };
+    const void* inputs[UmamiInKeyNum] = { devUmamiMomenta.data(), devFlv.data() };
     void* outputs[1] = { devUmamiMEs.data() };
 #else
     const void* inputs[UmamiInKeyNum] = { umamiMomenta.data(), FlvVec.data() };
