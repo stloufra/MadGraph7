@@ -1072,7 +1072,7 @@ class LoopMatrixElementEvaluator(MatrixElementEvaluator):
         original_file=""
         gaugeVectorRegExp=re.compile(\
          r"CALL (MP\_)?VXXXXX\(P\(0,(?P<p_id>\d+)\),((D)?CMPLX\()?ZERO((,KIND\=16)?\))?,"+
-         r"NHEL\(\d+\),[\+\-]1\*IC\(\d+\),W\(1,(?P<wf_id>\d+(,H)?)\)\)")
+         r"NHEL\(\d+\),[\+\-]1\,W\((?P<wf_id>\d+(,H)?)\)\)")
         foundGauge=False
         # Now we modify the first massless gauge vector wavefunction
         for line in file:

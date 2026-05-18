@@ -40,15 +40,15 @@ implicit none
  complex*32 CI
  parameter (CI=(0q0,1q0))
  complex*32 COUP
- type(aloha) F1
+ type(mp_aloha) F1
  integer flv_index1 
- type(aloha) F2
+ type(mp_aloha) F2
  integer flv_index2 
  real*16 M3
  real*16 OM3
  real*16 P3(0:3)
  complex*32 TMP0
- type(aloha) V3
+ type(mp_aloha) V3
  real*16 W3
  complex*32 denom
     OM3 = 0q0

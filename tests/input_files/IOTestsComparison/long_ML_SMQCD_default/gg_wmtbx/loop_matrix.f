@@ -567,7 +567,7 @@ C      helicity is asked
       ENDDO
 
 C     Compute the born, for a specific helicity if asked so.
-      CALL ML5_0_SMATRIXHEL(P_USER,USERHEL,ANS(0))
+      CALL ML5_0_SMATRIXHEL(P_USER,USERHEL,FLAVOR,ANS(0))
 
 
       IF (USER_STAB_PREC.GT.0.0D0) THEN
@@ -685,7 +685,7 @@ C        energy-momentum conservation)
      $ +P(2,2))**2-(P(3,1)+P(3,2))**2))
 
 C     We chose to use the born evaluation for the reference
-      CALL ML5_0_SMATRIX(P,REF)
+      CALL ML5_0_SMATRIX(P,FLAVOR,REF)
 
  200  CONTINUE
 
