@@ -1487,25 +1487,7 @@ C
         self.assertEqual(proc.returncode, 0)
 
 
-
-        target ="""   1   1
-   2  -1
-   3  -1
-   4  -1
-   5   1
-   6  -5
-   7  -5
-   8  -5
-   9   1
-  10  -9
-  11  -9
-  12  -9
-"""
                 
-        misc.sprint(open(os.path.join(self.out_dir,
-                                           'SubProcesses',
-                                           'P0_qq_gogo_go_qqn1_go_qqn1',
-                                           'symfact.dat')).read())
         # Check the new contents of the symfact.dat file
         self.assertEqual(analyse(open(os.path.join(self.out_dir,
                                            'SubProcesses',
