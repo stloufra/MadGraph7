@@ -17,7 +17,7 @@ ifeq ($(CADNA),1)
   # Remove -ffast-math which is incompatible with CADNA
   CXXFLAGS := $(filter-out -ffast-math,$(CXXFLAGS))
   CXXFLAGS += -D__CADNA_ANALYSIS__ -I$(CADNA_PATH)/include
-  CADNA_LIBFLAGS = -L$(CADNA_PATH)/lib -lcadnaOpenmpC
+  CADNA_LIBFLAGS = -L$(CADNA_PATH)/lib -lcadnaC
 else
   CADNA_LIBFLAGS =
 endif
