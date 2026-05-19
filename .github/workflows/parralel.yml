@@ -616,3 +616,105 @@ jobs:
         run: |
             cd $GITHUB_WORKSPACE
             ./tests/test_manager.py test_short_generate_events_name -pP -t0 -l INFO
+            
+
+
+  test_decay_comparator_mssm:
+    # bin/generate_events with an explicit run name, default HERWIG6 shower.
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/checkout_mg5
+      - uses: ./.github/actions/restore_all
+
+      - name: test test_decay_mssm
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py -pP -t0 -l INFO test_decay_mssm
+
+
+  test_decay_comparator_heft:
+    # bin/generate_events with an explicit run name, default HERWIG6 shower.
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/checkout_mg5
+      - uses: ./.github/actions/restore_all
+
+      - name: test test_decay
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py test_decay_heft test_decay_sm -pP -t0 -l INFO
+            
+
+  test_decay_comparator_nmssm1:
+    # bin/generate_events with an explicit run name, default HERWIG6 shower.
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/checkout_mg5
+      - uses: ./.github/actions/restore_all
+
+      - name: test test_decay
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py test_decay_nmssm1 -pP -t0 -l INFO
+            
+
+  test_decay_comparator_nmssm2:
+    # bin/generate_events with an explicit run name, default HERWIG6 shower.
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/checkout_mg5
+      - uses: ./.github/actions/restore_all
+
+      - name: test test_decay
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py test_decay_nmssm2 -pP -t0 -l INFO
+            
+
+  test_decay_comparator_nmssm3:
+    # bin/generate_events with an explicit run name, default HERWIG6 shower.
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v5
+      - uses: ./.github/actions/checkout_mg5
+      - uses: ./.github/actions/restore_all
+
+      - name: test test_decay
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py test_decay_nmssm3 -pP -t0 -l INFO
+            
+
+
+            
+
+
+
+            
+
+
+
+            
+
+
+
+            
+
+
+
+            
+
+
+
+            
+
+
