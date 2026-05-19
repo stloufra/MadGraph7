@@ -11,6 +11,9 @@
 
 #include <algorithm>
 #include <cmath>
+using std::max;
+using std::min;
+using std::sqrt;
 
 // NB: namespaces mg5amcGpu and mg5amcCpu includes types which are defined in different ways for CPU and GPU builds (see #318 and #725)
 #ifdef MGONGPUCPP_GPUIMPL // cuda
@@ -78,19 +81,19 @@ namespace mg5amcCpu
   inline const fptype&
   fpmax( const fptype& a, const fptype& b )
   {
-    return std::max( a, b );
+    return max( a, b );
   }
 
   inline const fptype&
   fpmin( const fptype& a, const fptype& b )
   {
-    return std::min( a, b );
+    return min( a, b );
   }
 
   inline fptype
   fpsqrt( const fptype& f )
   {
-    return std::sqrt( f );
+    return sqrt( f );
   }
 
 #endif // #ifndef MGONGPUCPP_GPUIMPL

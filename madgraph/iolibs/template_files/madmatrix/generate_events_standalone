@@ -74,6 +74,8 @@ def build_parser():
                              f"Use '--' to separate them from orchestrator options.")
     parser.add_argument("--cadna", choices=('Y', 'y', 'N', 'n'), default=None,
                         help="Enable CADNA analysis (Y/N).")
+    parser.add_argument("--fptype", choices=('f', 'd', 'm'), default=None,
+                        help="Floating-point type (f=both float, d=both double, m=mixed double/float).")
     return parser
 
 
@@ -118,6 +120,28 @@ def prompt_yes_no(label, default=False):
         if answer in ('n', 'no'):
             return False
         print(f"Invalid choice: {answer!r}. Please enter Y or N.", file=sys.stderr)
+
+
+def prompt_fptype(items, default_index=0):
+    """Prompt for fptype, accepting both index numbers (0,1,2) and letters (f,d,m)."""
+    while True:
+        print(f"\nSelect floating-point type (f/d/m):")
+        for i, item in enumerate(items):
+            tag = " (default)" if i == default_index else ""
+            print(f"  [{i}] {item}{tag}")
+        try:
+            answer = input(f"Enter number or letter [{default_index}]: ").strip().lower()
+        except EOFError:
+            print()
+            return items[default_index]
+        if not answer:
+            return items[default_index]
+        if answer.isdigit() and 0 <= int(answer) < len(items):
+            return items[int(answer)]
+        if answer in items:
+            return answer
+        print(f"Invalid choice: {answer!r}", file=sys.stderr)
+
 
 
 def resolve_proc(arg_proc, p_dirs):
@@ -185,14 +209,45 @@ def main():
     else:
         cadna = False
 
+    # CADNA is only supported with cppnone backend
+    if cadna and backend != 'cppnone':
+        raise SystemExit(
+            f"ERROR: CADNA analysis is only supported with cppnone backend (selected: '{backend}')"
+        )
+
+    # CADNA_PATH validation
+    if cadna:
+        cadna_path = os.environ.get('CADNA_PATH')
+        if not cadna_path:
+            raise SystemExit(
+                "\nERROR: CADNA analysis requires CADNA_PATH environment variable.\n"
+                "Please install CADNA and set the environment variable:\n"
+                "  export CADNA_PATH=/path/to/cadna/lib\n"
+                "Then re-run the command."
+            )
+        if not os.path.isdir(cadna_path):
+            raise SystemExit(
+                f"\nERROR: CADNA_PATH='{cadna_path}' is not a valid directory."
+            )
+
     cadna_flag = 'CADNA=1' if cadna else ''
+
+    # FPTYPE (f=both float, d=both double, m=mixed double/float)
+    fptype_choices = ['f', 'd', 'm']
+    if args.fptype is not None:
+        fptype = args.fptype
+    elif interactive:
+        fptype = prompt_fptype(fptype_choices, default_index=2)
+    else:
+        fptype = 'm'
 
     for d in chosen:
         path = os.path.join(subproc, d)
         print(f"\n=== [{backend}] Building {d} ===", flush=True)
-        make_cmd = ['make', '-j', str(args.jobs), f'BACKEND={backend}', 'USEBUILDDIR=1']
+        make_cmd = ['make', '-j', str(args.jobs), f'BACKEND={backend}', f'FPTYPE={fptype}', 'USEBUILDDIR=1']
         if cadna_flag:
             make_cmd.append(cadna_flag)
+            make_cmd.append(f'CADNA_PATH={cadna_path}')
         subprocess.run(make_cmd, cwd=path, check=True)
         print(f"\n=== [{backend}] Running {d}/check_sa.exe {' '.join(extra)} ===", flush=True)
         subprocess.run(['./check_sa.exe', '-p', *extra], cwd=path, check=True)

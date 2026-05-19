@@ -10,6 +10,15 @@
 
 #include "MemoryAccessMatrixElements.h"
 
+#ifndef __MGCONSTEXPR__
+#if __CADNA_ANALYSIS__
+#define __MGCONSTEXPR__ const
+#else
+#define __MGCONSTEXPR__ constexpr
+#endif
+#endif
+
+
 #ifdef MGONGPUCPP_GPUIMPL
 namespace mg5amcGpu
 #else
@@ -68,7 +77,12 @@ namespace mg5amcCpu
     struct TriangularNormalizedColorMatrix
     {
       // See https://stackoverflow.com/a/34465458
+#ifdef __CADNA_ANALYSIS__
+      __host__ __device__ TriangularNormalizedColorMatrix()
+#else
       __host__ __device__ constexpr TriangularNormalizedColorMatrix()
+#endif
+
         : value()
       {
         for( int icol = 0; icol < ncolor; icol++ )
@@ -82,7 +96,11 @@ namespace mg5amcCpu
       }
       fptype2 value[ncolor][ncolor];
     };
+#ifdef __CADNA_ANALYSIS__
+    static auto cf2 = TriangularNormalizedColorMatrix();
+#else
     static constexpr auto cf2 = TriangularNormalizedColorMatrix();
+#endif
     // Use the property that M is a real matrix (see #475):
     // we can rewrite the quadratic form (A-iB)(M)(A+iB) as AMA - iBMA + iBMA + BMB = AMA + BMB
     // In addition, on C++ use the property that M is symmetric (see #475),

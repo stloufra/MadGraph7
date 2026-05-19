@@ -8,7 +8,7 @@
 ! Further modified by: D. Massaro, O. Mattelaer, A. Thete, A. Valassi (2020-2024).
 ! Integrated with the MadGraph7 project in Feb 2026.
 !==========================================================================
-
+using std::abs;
   //--------------------------------------------------------------------------
 
 #ifdef MGONGPU_INLINE_HELAMPS
@@ -17,6 +17,14 @@
 #else
 #define INLINE
 #define ALWAYS_INLINE
+#endif
+
+#ifndef __MGCONSTEXPR__
+#if __CADNA_ANALYSIS__
+#define __MGCONSTEXPR__ const
+#else
+#define __MGCONSTEXPR__ constexpr
+#endif
 #endif
 
   //--------------------------------------------------------------------------
@@ -209,8 +217,8 @@
 #ifndef MGONGPU_CPPSIMD
       if( pp == 0. )
       {
-        // NB: Do not use "abs" for floats! It returns an integer with no build warning! Use std::abs!
-        fptype sqm[2] = { fpsqrt( std::abs( fmass ) ), 0. }; // possibility of negative fermion masses
+        // NB: Do not use "abs" for floats! It returns an integer with no build warning! Use abs!
+        fptype sqm[2] = { fpsqrt( abs( fmass ) ), 0. }; // possibility of negative fermion masses
         //sqm[1] = ( fmass < 0. ? -abs( sqm[0] ) : abs( sqm[0] ) ); // AV: why abs here?
         sqm[1] = ( fmass < 0. ? -sqm[0] : sqm[0] ); // AV: removed an abs here
         w[0] = cxmake( ip * sqm[ip], 0 );
@@ -235,8 +243,8 @@
       }
 #else
       // Branch A: pp == 0.
-      // NB: Do not use "abs" for floats! It returns an integer with no build warning! Use std::abs!
-      fptype sqm[2] = { fpsqrt( std::abs( fmass ) ), 0 }; // possibility of negative fermion masses (NB: SCALAR!)
+      // NB: Do not use "abs" for floats! It returns an integer with no build warning! Use abs!
+      fptype sqm[2] = { fpsqrt( abs( fmass ) ), 0 }; // possibility of negative fermion masses (NB: SCALAR!)
       sqm[1] = ( fmass < 0 ? -sqm[0] : sqm[0] );          // AV: removed an abs here (as above)
       const cxtype fiA_2 = ip * sqm[ip];                  // scalar cxtype: real part initialised from fptype, imag part = 0
       const cxtype fiA_3 = im * nsf * sqm[ip];            // scalar cxtype: real part initialised from fptype, imag part = 0
@@ -466,8 +474,8 @@
     const fptype hel = nhel;
     if( vmass != 0. )
     {
-      const int nsvahl = nsv * std::abs( hel );
-      const fptype hel0 = 1. - std::abs( hel );
+      const int nsvahl = nsv * abs( hel );
+      const fptype hel0 = 1. - abs( hel );
 #ifndef MGONGPU_CPPSIMD
       const fptype_sv pt2 = ( pvec1 * pvec1 ) + ( pvec2 * pvec2 );
       const fptype_sv pp = fpmin( pvec0, fpsqrt( pt2 + ( pvec3 * pvec3 ) ) );
@@ -496,8 +504,8 @@
         else
         {
           w[1] = cxmake( -hel * sqh, 0. );
-          // NB: Do not use "abs" for floats! It returns an integer with no build warning! Use std::abs!
-          //vc[4] = cxmake( 0., nsvahl * ( pvec3 < 0. ? -std::abs( sqh ) : std::abs( sqh ) ) ); // AV: why abs here?
+          // NB: Do not use "abs" for floats! It returns an integer with no build warning! Use abs!
+          //vc[4] = cxmake( 0., nsvahl * ( pvec3 < 0. ? -abs( sqh ) : std::abs( sqh ) ) ); // AV: why abs here?
           w[2] = cxmake( 0., nsvahl * ( pvec3 < 0. ? -sqh : sqh ) ); // AV: removed an abs here
         }
       }
@@ -554,8 +562,8 @@
       else
       {
         w[1] = cxmake( -hel * sqh, 0. );
-        // NB: Do not use "abs" for floats! It returns an integer with no build warning! Use std::abs!
-        //w[2] = cxmake( 0, nsv * ( pvec3 < 0. ? -std::abs( sqh ) : std::abs( sqh ) ) ); // AV why abs here?
+        // NB: Do not use "abs" for floats! It returns an integer with no build warning! Use abs!
+        //w[2] = cxmake( 0, nsv * ( pvec3 < 0. ? -abs( sqh ) : std::abs( sqh ) ) ); // AV why abs here?
         w[2] = cxmake( 0., nsv * ( pvec3 < 0. ? -sqh : sqh ) ); // AV: removed an abs here
       }
 #else
@@ -641,16 +649,16 @@
       const fptype_sv pp = fpmin( pvec0, fpsqrt( ( pvec1 * pvec1 ) + ( pvec2 * pvec2 ) + ( pvec3 * pvec3 ) ) );
       if( pp == 0. )
       {
-        // NB: Do not use "abs" for floats! It returns an integer with no build warning! Use std::abs!
-        fptype sqm[2] = { fpsqrt( std::abs( fmass ) ), 0. }; // possibility of negative fermion masses
+        // NB: Do not use "abs" for floats! It returns an integer with no build warning! Use abs!
+        fptype sqm[2] = { fpsqrt( abs( fmass ) ), 0. }; // possibility of negative fermion masses
         //sqm[1] = ( fmass < 0. ? -abs( sqm[0] ) : abs( sqm[0] ) ); // AV: why abs here?
         sqm[1] = ( fmass < 0. ? -sqm[0] : sqm[0] ); // AV: removed an abs here
         const int ip = -( ( 1 - nh ) / 2 ) * nhel;  // NB: Fortran sqm(0:1) also has indexes 0,1 as in C++
         const int im = ( 1 + nh ) / 2 * nhel;       // NB: Fortran sqm(0:1) also has indexes 0,1 as in C++
-        w[0] = cxmake( im * sqm[std::abs( ip )], 0 );
-        w[1] = cxmake( ip * nsf * sqm[std::abs( ip )], 0 );
-        w[2] = cxmake( im * nsf * sqm[std::abs( im )], 0 );
-        w[3] = cxmake( ip * sqm[std::abs( im )], 0 );
+        w[0] = cxmake( im * sqm[abs( ip )], 0 );
+        w[1] = cxmake( ip * nsf * sqm[abs( ip )], 0 );
+        w[2] = cxmake( im * nsf * sqm[abs( im )], 0 );
+        w[3] = cxmake( ip * sqm[abs( im )], 0 );
       }
       else
       {
@@ -674,15 +682,15 @@
       volatile fptype_sv p2 = pvec1 * pvec1 + pvec2 * pvec2 + pvec3 * pvec3; // volatile fixes #736
       const fptype_sv pp = fpmin( pvec0, fpsqrt( p2 ) );
       // Branch A: pp == 0.
-      // NB: Do not use "abs" for floats! It returns an integer with no build warning! Use std::abs!
-      fptype sqm[2] = { fpsqrt( std::abs( fmass ) ), 0 }; // possibility of negative fermion masses
+      // NB: Do not use "abs" for floats! It returns an integer with no build warning! Use abs!
+      fptype sqm[2] = { fpsqrt( abs( fmass ) ), 0 }; // possibility of negative fermion masses
       sqm[1] = ( fmass < 0 ? -sqm[0] : sqm[0] );          // AV: removed an abs here (as above)
       const int ipA = -( ( 1 - nh ) / 2 ) * nhel;
       const int imA = ( 1 + nh ) / 2 * nhel;
-      const cxtype foA_2 = imA * sqm[std::abs( ipA )];
-      const cxtype foA_3 = ipA * nsf * sqm[std::abs( ipA )];
-      const cxtype foA_4 = imA * nsf * sqm[std::abs( imA )];
-      const cxtype foA_5 = ipA * sqm[std::abs( imA )];
+      const cxtype foA_2 = imA * sqm[abs( ipA )];
+      const cxtype foA_3 = ipA * nsf * sqm[abs( ipA )];
+      const cxtype foA_4 = imA * nsf * sqm[abs( imA )];
+      const cxtype foA_5 = ipA * sqm[abs( imA )];
       // Branch B: pp != 0.
       const fptype sf[2] = { fptype( 1 + nsf + ( 1 - nsf ) * nh ) * (fptype)0.5,
                              fptype( 1 + nsf - ( 1 - nsf ) * nh ) * (fptype)0.5 };

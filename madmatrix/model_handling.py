@@ -634,10 +634,10 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
         ###return out.getvalue() # AV
         # AV check if one, two, half or quarter are used and need to be defined (ugly hack for #291: can this be done better?)
         out2 = StringIO()
-        if 'one' in out.getvalue(): out2.write('    constexpr fptype one( 1. );\n')
-        if 'two' in out.getvalue(): out2.write('    constexpr fptype two( 2. );\n')
-        if 'half' in out.getvalue(): out2.write('    constexpr fptype half( 1. / 2. );\n')
-        if 'quarter' in out.getvalue(): out2.write('    constexpr fptype quarter( 1. / 4. );\n')
+        if 'one' in out.getvalue(): out2.write('    __MGCONSTEXPR__ fptype one( 1. );\n')
+        if 'two' in out.getvalue(): out2.write('    __MGCONSTEXPR__ fptype two( 2. );\n')
+        if 'half' in out.getvalue(): out2.write('     __MGCONSTEXPR__ fptype half( 1. / 2. );\n')
+        if 'quarter' in out.getvalue(): out2.write('     __MGCONSTEXPR__ fptype quarter( 1. / 4. );\n')
         out2.write( out.getvalue() )
         return out2.getvalue()
 
@@ -2040,25 +2040,25 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
         """Return the color matrix definition lines for this matrix element. Split rows in chunks of size n."""
         import madgraph.core.color_algebra as color
         if not matrix_element.get('color_matrix'):
-            return '\n'.join(['  static constexpr fptype2 colorDenom[1] = {1.};', 'static const fptype2 cf[1][1] = {1.};'])
+            return '\n'.join(['  static __MGCONSTEXPR__ fptype2 colorDenom[1] = {1.};', 'static const fptype2 cf[1][1] = {1.};'])
         else:
             color_denominators = matrix_element.get('color_matrix').\
                                                  get_line_denominators()
-            denom_string = '  static constexpr fptype2 colorDenom[ncolor] = { %s }; // 1-D array[%i]' \
+            denom_string = '  static __MGCONSTEXPR__ fptype2 colorDenom[ncolor] = { %s }; // 1-D array[%i]' \
                            % ( ', '.join(['%i' % denom for denom in color_denominators]), len(color_denominators) )
             matrix_strings = []
             for index, denominator in enumerate(color_denominators):
                 # Then write the numerators for the matrix elements
                 num_list = matrix_element.get('color_matrix').get_line_numerators(index, denominator)
                 matrix_strings.append('{ %s }' % ', '.join(['%d' % i for i in num_list]))
-            matrix_string = '  static constexpr fptype2 colorMatrix[ncolor][ncolor] = '
+            matrix_string = '  static __MGCONSTEXPR__ fptype2 colorMatrix[ncolor][ncolor] = '
             if len( matrix_strings ) > 1:
                 matrix_string += '{\n    ' + ',\n    '.join(matrix_strings) + ' };'
             else:
                 matrix_string += '{ ' + matrix_strings[0] + ' };'
             matrix_string += ' // 2-D array[%i][%i]' % ( len(color_denominators), len(color_denominators) )
-            denom_comment = '\n  // The color denominators (initialize all array elements, with ncolor=%i)\n  // [NB do keep \'static\' for these constexpr arrays, see issue #283]\n' % len(color_denominators)
-            matrix_comment = '\n  // The color matrix (initialize all array elements, with ncolor=%i)\n  // [NB do keep \'static\' for these constexpr arrays, see issue #283]\n' % len(color_denominators)
+            denom_comment = '\n  // The color denominators (initialize all array elements, with ncolor=%i)\n  // [NB do keep \'static\' for these __MGCONSTEXPR__ arrays, see issue #283]\n' % len(color_denominators)
+            matrix_comment = '\n  // The color matrix (initialize all array elements, with ncolor=%i)\n  // [NB do keep \'static\' for these __MGCONSTEXPR__ arrays, see issue #283]\n' % len(color_denominators)
             denom_string = denom_comment + denom_string
             matrix_string = matrix_comment + matrix_string
             return '\n'.join([denom_string, matrix_string])
