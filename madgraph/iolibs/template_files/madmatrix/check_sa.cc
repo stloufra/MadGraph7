@@ -182,6 +182,7 @@ int main( int argc, char** argv )
   unsigned int flavorID = 0; // default flavor index
   unsigned int numvec[5] = { 0, 0, 0, 0, 0 };
   int nnum = 0;
+  const auto ndigits = std::numeric_limits<fptype>::digits10;
 
   constexpr unsigned int UmamiInKeyNum = 2;
   const auto ndigits = std::numeric_limits<fptype>::digits10;
