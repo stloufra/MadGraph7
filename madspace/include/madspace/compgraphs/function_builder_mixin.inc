@@ -87,12 +87,12 @@ Value reduce_sum_vector(Value in1) {
     return instruction("reduce_sum_vector", {in1})[0];
 }
 
-Value batch_reduce_mean(Value in) {
-    return instruction("batch_reduce_mean", {in})[0];
+Value batch_reduce_mean(Value in1) {
+    return instruction("batch_reduce_mean", {in1})[0];
 }
 
-Value batch_reduce_mean_keepdim(Value in) {
-    return instruction("batch_reduce_mean_keepdim", {in})[0];
+Value batch_reduce_mean_keepdim(Value in1) {
+    return instruction("batch_reduce_mean_keepdim", {in1})[0];
 }
 
 Value reduce_product(Value in1) {

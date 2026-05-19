@@ -22,7 +22,7 @@
 #include "phasespace/rambo.hpp"
 #include "phasespace/scale.hpp"
 #include "phasespace/t_propagator_mapping.hpp"
-#include "madspace/phasespace/t_propagator_mapping_23.hpp"
+#include "phasespace/color_ordered_mapping.hpp"
 #include "phasespace/three_particle.hpp"
 #include "phasespace/topology.hpp"
 #include "phasespace/two_particle.hpp"

@@ -255,7 +255,7 @@ reduce_sum_vector:
 
 batch_reduce_mean:
   inputs:
-    - name: in
+    - name: in1
       type: [float]
       desc:
   outputs:
@@ -267,7 +267,7 @@ batch_reduce_mean:
 
 batch_reduce_mean_keepdim:
   inputs:
-    - name: in
+    - name: in1
       type: [float]
       desc:
   outputs:

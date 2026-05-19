@@ -121,8 +121,6 @@ t2_inv_min_max_doublet(FVal<T> s, FVal<T> m1_2, FVal<T> mir_min_2, FVal<T> t1_ab
     // |t2| bounds given fixed s, m_i, mir_min, |t1|.
     // Derivation (abs-value convention): from the signed-t formulas in the
     // Fortran double_t, flip both signs.
-    //   t2_min_abs = m_i^2 * (s - t1_abs - m_i^2) / (m_i^2 + t1_abs)
-    //   t2_max_abs = s - t1_abs - m_i^2 - mir_min^2
     auto denom = m1_2 + t1_abs + EPS;
     auto t2_min_raw = m1_2 * (s - t1_abs - m1_2) / denom;
     auto t2_max_raw = s - t1_abs - m1_2 - mir_min_2;
@@ -228,7 +226,7 @@ rotate_two_ref(FourMom<T> p, FourMom<T> q_z, FourMom<T> q_x) {
     // Forward rotation: take p from a canonical frame
     //   (e_z along q_z, e_x in the plane spanned by q_z and q_x with positive
     //    component along q_x's perpendicular part)
-    // into the world frame. Energy unchanged.
+    // into the lab frame. Energy unchanged.
     //
     // Used by kernel_two_to_three_particle_scattering: q_z = pa_com,
     // q_x = p3 boosted into the p_12 rest frame. Picks a unique azimuth
@@ -265,7 +263,7 @@ rotate_two_ref(FourMom<T> p, FourMom<T> q_z, FourMom<T> q_x) {
 template <typename T>
 KERNELSPEC FourMom<T>
 rotate_two_ref_inverse(FourMom<T> p, FourMom<T> q_z, FourMom<T> q_x) {
-    // Inverse of rotate_two_ref: take a vector p from the world frame into the
+    // Inverse of rotate_two_ref: take a vector p from the lab frame into the
     // canonical frame defined by (q_z, q_x). Energy unchanged.
 
     auto qz_n2 = q_z[1]*q_z[1] + q_z[2]*q_z[2] + q_z[3]*q_z[3];
