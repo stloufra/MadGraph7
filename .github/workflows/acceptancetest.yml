@@ -517,7 +517,7 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
-      - uses: ./.github/actions/checkout_mg5 
+      - uses: ./.github/actions/checkout_mg5
       - uses: ./.github/actions/restore-pip-cache
 
       # Runs a set of commands using the runners shell
@@ -525,6 +525,25 @@ jobs:
         run: |
             cd $GITHUB_WORKSPACE
             ./tests/test_manager.py test_ufo_aloha -pA -t0 -l INFO
+
+
+  acceptancetest_spin2_standalone:
+    # Regression test for spin-2 wavefunction storage in standalone
+    # Fortran output (loop_smgrav: p p > w+ y). Guards against the
+    # TYPE(ALOHA)/TYPE(ALOHA2D) layout mismatch that overruns the
+    # caller's wavefunction slot when TXXXXX writes 16 complex into
+    # a 4-complex aloha element.
+    runs-on: ubuntu-22.04
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/checkout_mg5
+      - uses: ./.github/actions/restore-pip-cache
+
+      - name: test test_standalone_spin2_loop_smgrav
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py test_standalone_spin2_loop_smgrav -pA -t0 -l INFO
 
 
 
@@ -1781,3 +1800,47 @@ jobs:
             cd $GITHUB_WORKSPACE
             cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
             ./tests/test_manager.py test_flavor_grouping_consistency_mlm test_flavor_grouping_consistency test_decay_chain_symmetry_factor -pA -t0 -l INFO
+
+
+  acceptancetest_uncovered_merged:
+    # Previously uncovered acceptance tests in tests/acceptance_tests/test_cmd.py
+    # related to the merged/ufo_aloha pipelines and decay-chain ordering
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/checkout_mg5
+      - uses: ./.github/actions/restore-pip-cache
+
+      - name: test cmd uncovered merged/ufo_aloha/standalone tests
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py test_complex_mass_SA_merged test_decay_chain_identical_particle_outoforder test_import_model_v4_requires_debug test_madevent_ufo_aloha_merged test_standalone_cpp_fd_output_consistency test_ufo_aloha_merged -pA -t0 -l INFO
+
+
+  acceptancetest_uncovered_madevent:
+    # Previously uncovered acceptance tests in tests/acceptance_tests/test_cmd_madevent.py
+    # Includes test_madevent_dy3j_mlm after reopening/owning stdout safely.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/checkout_mg5
+      - uses: ./.github/actions/restore-pip-cache
+
+      - name: test madevent uncovered acceptance tests
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py test_flavor_grouping_consistency_width test_madevent_dy3j_mlm -pA -t0 -l INFO
+
+
+  acceptancetest_uncovered_madloop:
+    # Previously uncovered acceptance test in tests/acceptance_tests/test_cmd_madloop.py
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/checkout_mg5
+      - uses: ./.github/actions/restore_all
+
+      - name: test ML gauge invariance acceptance test
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py test_ML_gauge_invariance_epem_ttx_all_modes -pA -t0 -l INFO
