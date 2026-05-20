@@ -2574,12 +2574,14 @@ class DensityInterface(ReweightInterface):
         self.allowed_helicities = [0] #basis of helicities
         self.axis_referential = [0]
         self.symmetrise_initial_state = False
+        self.matrix_normalisation = True
         self.spins = None 
         self.number_changing_helicities = None
         self.number_combinations = None
         self.new_param_card = False #Needed to not call ask_edit_card_static
         self.average_rho = 0
         self.total_wgt = 0
+        self.nevents = 0
         
         ReweightInterface.__init__(self, *args, **opts)
         self.flag_density_matrix = True
@@ -2767,6 +2769,21 @@ class DensityInterface(ReweightInterface):
             else:
                 return #if "change axis_referential None" is the option, we do not change the default value 
         self.axis_referential = line
+    
+    def do_change_matrix_normalisation(self,line):
+        """
+        Choses if the production matrix should be normalised by its trace or not.
+        Default = True
+        """
+        for i in range(len(line)): 
+            line[i] = line[i].strip("[],()") 
+        if line[0] == 'True':
+            self.matrix_normalisation = True
+        elif line[0] == 'False':
+            self.matrix_normalisation = False
+        else:
+            logger.warning('Option matrix_normalisation not understood, set it to True. Please use the syntax: change matrix_normalisation True if you want to enable it.')
+            self.matrix_normalisation = False
 
 
     def do_change_particle_in_density_matrix(self, line):
@@ -2862,6 +2879,7 @@ class DensityInterface(ReweightInterface):
         logger.info("number_combinations = \t" + str(self.number_combinations))
         logger.info("axis_referential = \t" + str(self.axis_referential))
         logger.info("symmetrise_initial_state = \t" + str(self.symmetrise_initial_state))
+        logger.info("matrix_normalisation = \t" + str(self.matrix_normalisation))
 
         if self.flag_particle_in_density_matrix == False:
             logger.error("Error: the reweight_card contains no option for the density mode")
@@ -2896,7 +2914,8 @@ class DensityInterface(ReweightInterface):
                                     'number_changing_helicities = ' + str(self.number_changing_helicities) + '\n' + \
                                     'number_combinations = ' + str(self.number_combinations) + '\n' + \
                                     'axis_referential = ' + str(self.axis_referential) + '\n' + \
-                                    'symmetrise_initial_state = ' + str(self.symmetrise_initial_state)
+                                    'symmetrise_initial_state = ' + str(self.symmetrise_initial_state) + '\n' + \
+                                    'matrix_normalisation = ' + str(self.matrix_normalisation)
         self.banner.pop('initrwgt') #we remove the reweight header because it does not correspond to the operations done
         output = open( self.lhe_input.path +'rw', 'w')
         #write the banner to the output file
@@ -2914,20 +2933,18 @@ class DensityInterface(ReweightInterface):
                     logger.info('Event nb %s %s' % (event_nb, running_time))
             if (event_nb==10001): logger.info('reducing number of print status. Next status update in 10000 events')
             if (event_nb==100001): logger.info('reducing number of print status. Next status update in 100000 events')
+            
             weight = self.calculate_weight(event)
             rho_temp = dens.DensityMatrixObservables(weight['orig'])
-            event.density = rho_temp.get_rho_normalised().tolist()
 
-            if not isinstance(weight, dict):
-                weight = {'':weight}
-                avg_rho_instance = dens.DensityMatrixObservables(weight[''])
-                self.average_rho += avg_rho_instance.get_rho_normalised() * event.wgt
+            if self.matrix_normalisation:
+                event.density = rho_temp.get_rho_normalised().tolist()
+                self.average_rho += rho_temp.get_rho_normalised() * event.wgt # weighted sum of the density matrices for the total density matrix
                 self.total_wgt += event.wgt
             else:
-                avg_rho_instance = dens.DensityMatrixObservables(weight['orig'])
-                self.average_rho += avg_rho_instance.get_rho_normalised() * event.wgt # weighted sum of the density matrices for the total density matrix
-                self.total_wgt += event.wgt
-
+                event.density = weight['orig']
+                self.average_rho += rho_temp.density_array() # direct sum of non-normalised density matrices
+                self.nevents +=1
 
             output.write(str(event))
                 
@@ -2936,8 +2953,13 @@ class DensityInterface(ReweightInterface):
         
         # Compute the average density matrix on write it on a .txt file
         rho_avg = [0 for i in range(len(self.average_rho))]
-        for i in range(len(rho_avg)):
-            rho_avg[i] = self.average_rho[i] / self.total_wgt
+        if self.matrix_normalisation:
+            for i in range(len(rho_avg)):
+                rho_avg[i] = self.average_rho[i] / self.total_wgt
+        else:
+            for i in range(len(rho_avg)):
+                rho_avg[i] = self.average_rho[i] / self.nevents
+
         rho_avg_instance = dens.DensityMatrixObservables(rho_avg)
         rho_avg_square = rho_avg_instance.square_matrix()
 
@@ -3020,7 +3042,7 @@ class DensityInterface(ReweightInterface):
         except KeyError:
             misc.sprint(tag)
             misc.sprint(self.id_to_path)
-            raise KeyError('Try to fix it')
+            raise KeyError('This issue is caused because two different processes were used in the same terminal session with the density mode. Please retry in a new terminal.')
 
         base = os.path.basename(os.path.dirname(Pdir))
 

@@ -964,7 +964,7 @@ class DensityMatrixObservables22(DensityMatrixObservables):
         from scipy.optimize import minimize
 
         Srho = self.Von_Neumann_entropy() # S(rho)
-        rhoB = self.Partial_Trace(2, ['fermion', 'fermion'])
+        rhoB = self.Partial_Trace(1, ['fermion', 'fermion'])
         SrhoB = self.Von_Neumann_entropy(rho=rhoB) #S(rho_B)
 
         B_plus, B_minus = self.Get_Polarisations()
@@ -973,7 +973,7 @@ class DensityMatrixObservables22(DensityMatrixObservables):
         def proba_n(n: list[float]) -> float: #B- = B2
             return (1 + np.dot(B_minus, n)) / 2
         def Bn_plus(n: list[float]) -> list[complex]:
-            return np.array(B_plus) + np.dot(Corr,n) / (1 + np.dot(B_minus, n))
+            return (np.array(B_plus) + np.dot(Corr,n)) / (1 + np.dot(B_minus, n))
         def rho_n(n: list[float]) -> list[complex, complex]:
             Bnp = Bn_plus(n)
             return (np.eye(2) + Bnp[0]*sigma[0] + Bnp[1]*sigma[1] + Bnp[2]*sigma[2])/2
