@@ -2789,7 +2789,8 @@ class DensityInterface(ReweightInterface):
     def do_change_particle_in_density_matrix(self, line):
         """change the particle in the density matrix, calculates the number of particles changes,
            their spins and the number of combinations"""
-        
+        import itertools
+
         pdg_codes = []
         lambda_function = ''
         order_particles = []
@@ -2844,21 +2845,23 @@ class DensityInterface(ReweightInterface):
 
         #if the user didn't use the option or if it has not been read yet, fill it automatically here
         if self.allowed_helicities == None or self.allowed_helicities == [0]:
-            if self.number_combinations == 2:
-                self.allowed_helicities = [+1, -1]
-            elif self.number_combinations == 3:
-                self.allowed_helicities = [+1, 0, -1]
-            elif self.number_combinations == 4:
-                self.allowed_helicities = [+1, +1, +1, -1, -1, +1, -1, -1]
-            elif self.number_combinations == 6 and self.spins[0] == 2:
-                self.allowed_helicities = [+1, +1, +1, 0, +1, -1, -1, +1, -1, 0, -1, -1]
-            elif self.number_combinations == 6 and self.spins[0] == 3:
-                self.allowed_helicities = [+1, +1, +1, -1, 0, +1, 0, -1, -1, +1, -1, -1]
-            elif self.number_combinations == 9:
-                self.allowed_helicities = [+1, +1, +1, 0, +1, -1, 0, +1, 0, 0, 0, -1, -1, +1, -1, 0, -1, -1]
-            else:
-                logger.error("Tried to use density mode selecting more than 2 particles or selecting a spin 0 or spin > 1 particle")
-        
+            base = {"2": [1, -1], "3": [1, 0, -1]} #if you want to have particles with higher spin, you need to add it here
+            list_base = []
+            for spin in self.spins:
+                list_base.append(base[str(spin)])
+                        
+            new_combination = list_base[0]
+            for i in range(1, len(list_base)):
+                new_combination = list(itertools.product(new_combination, list_base[i]))
+            aux = str(new_combination)
+            new_combination_corrected = aux[1:-1].replace("(", "").replace(")", "").split(",")
+            self.allowed_helicities = [int(elem) for elem in new_combination_corrected]
+
+        # the default values for allowed_helicities are:
+        # [+1, +1, +1, -1, -1, +1, -1, -1]
+        # [+1, +1, +1, 0, +1, -1, 0, +1, 0, 0, 0, -1, -1, +1, -1, 0, -1, -1]
+        # ....
+
         self.flag_particle_in_density_matrix = True
 
 
@@ -3109,7 +3112,7 @@ class DensityInterface(ReweightInterface):
 
 
         pos_corrected = self.chose_particle_user_input(event, pdg, list_properties, orig_order, self.particle_in_density_matrix, 'particle_in_density_matrix', fortran_format = True)
-        
+
         status = []
         for particle in event:
             status.append(int(particle.status))
