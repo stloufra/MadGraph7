@@ -2198,4 +2198,4 @@ jobs:
         run: |
             cd $GITHUB_WORKSPACE
             cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
-            ./tests/test_manager.py test_density_mode_vs_standalone_LI1 -pA -t0 -l INFO
+            ./tests/test_manager.py test_density_mode_vs_standalone_LI1 -pA -t0 -l DEBUG
