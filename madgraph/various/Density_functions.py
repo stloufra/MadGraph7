@@ -261,6 +261,9 @@ class DensityMatrixObservables(list):
             return True
         else:
             return False
+    
+    def density_array(self):
+        return np.array(self.density_matrix)
 
     def square_or_line_or_string(self, user_input=None) -> str:
         """This method determines if user_input is a line matrix, a square matrix, a string or something else."""
@@ -728,6 +731,16 @@ class DensityMatrixObservables(list):
         else:
             return Wigner / (d1 * d2)
 
+    def Get_Coherence(self):
+        """Computes the coherence (the sum of the absolute value of the non-diagonal elements of the density matrix)."""
+        rho_square = self.square_matrix()
+        coherence = 0
+        for i in range(len(rho_square)):
+            for j in range(len(rho_square[0])):
+                if j != i:
+                    coherence += abs(rho_square[i][j])
+        
+        return coherence
 
 class DensityMatrixObservables22(DensityMatrixObservables):
     """

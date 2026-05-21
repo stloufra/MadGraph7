@@ -776,6 +776,7 @@ class TestCmdLoop(unittest.TestCase):
                     set run_card use_syst False
                     set reweight_card particle_in_density_matrix [24, -24]
                     set reweight_card order_helicities [-1, 1, -1, 0, -1, -1, 0, 1, 0, 0, 0, -1, 1, 1, 1, 0, 1, -1]
+                    set matrix_normalisation False
                 """
 
         #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
@@ -787,7 +788,6 @@ class TestCmdLoop(unittest.TestCase):
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
                         '/tmp/mg5_cmd.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
         
-        #what is the event ?
         lhe_path = pjoin(short_path, "Events/run_01/unweighted_events.lhe.gz")
         p_all = []
         for event in lhe_parser.EventFile(lhe_path):
@@ -844,7 +844,7 @@ class TestCmdLoop(unittest.TestCase):
             aux = rho_standalone[i].strip("()").split(",")
             rho_standalone[i] = float(aux[0]) + float(aux[1])*1j
 
-        for j in range(len(density_check)):
+        for j in range(45): # 45 to raise error if density_check is an empty array
             self.assertAlmostEqual(density_check[j].real, rho_standalone[j].real, places=7)
             self.assertAlmostEqual(density_check[j].imag, rho_standalone[j].imag, places=7)
 
