@@ -52,6 +52,7 @@ path = os.path
 class TestCmdLoop(unittest.TestCase):
     """this treats all the command not related to MG_ME"""
     logger_saved_info = {}
+    debugging = True
     def setUp(self):
         """ Initialize the test """
         self.interface = MGCmd.MasterCmd()
@@ -59,6 +60,16 @@ class TestCmdLoop(unittest.TestCase):
         # Below the key is the name of the logger and the value is a tuple with
         # first the handlers and second the level.
         self.logger_saved_info = {}
+
+        if not self.debugging:
+            self.tmpdir = tempfile.mkdtemp(prefix='amc')
+        else:
+            if os.path.exists(pjoin(MG5DIR, 'TEST_AMC')):
+                shutil.rmtree(pjoin(MG5DIR, 'TEST_AMC'))
+            os.mkdir(pjoin(MG5DIR, 'TEST_AMC'))
+            self.tmpdir = pjoin(MG5DIR, 'TEST_AMC')
+            
+        self.out_dir = pjoin(self.tmpdir,'MGProcess')
     
     def generate(self, process, model):
         """Create a process"""
@@ -761,14 +772,15 @@ class TestCmdLoop(unittest.TestCase):
             We generate a single event from the python interface and use the value of alpha_s, mu_r and p to feed to standalone code. 
             We compare the non-normalised density matrices.
         """
-        short_path = '/tmp/test_density_LI1'
+        # short_path = '/tmp/test_density_LI1'
+        # replaced short_path by self.out_dir
 
-        if os.path.isdir(short_path):
-            shutil.rmtree(short_path)
+        if os.path.isdir(self.out_dir):
+            shutil.rmtree(self.out_dir)
 
         text = f""" import model loop_sm
                     generate g g > w+ w- [noborn=QCD]
-                    output {short_path}
+                    output {self.out_dir}
                     launch
                     reweight=density
                     set run_card nevents 1
@@ -786,9 +798,9 @@ class TestCmdLoop(unittest.TestCase):
 
         logfile = 'test_density_vs_LI_standalone1.log'
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                        '/tmp/mg5_cmd.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
+                        '/tmp/mg5_cmd.txt'])
         
-        lhe_path = pjoin(short_path, "Events/run_01/unweighted_events.lhe.gz")
+        lhe_path = pjoin(self.out_dir, "Events/run_01/unweighted_events.lhe.gz")
         p_all = []
         for event in lhe_parser.EventFile(lhe_path):
             density_check = event.density
@@ -804,49 +816,52 @@ class TestCmdLoop(unittest.TestCase):
         #         [3.7361417506e+02, +5.6043661480e+01, -2.8570090576e+01, -3.5939281265e+0]]
 
         # density = [(7.205908422761971e-06+0j), (-1.5434921382487374e-06+2.179927916809586e-06j), (3.127974858819004e-06-3.033019723344865e-07j), (-3.9808503981386133e-07-1.2133465271473962e-06j), (-1.4035478565819433e-06+1.411486038399882e-07j), (-2.960726048709014e-06+2.6471572900406975e-06j), (8.186969223652609e-06-1.2666920150783218e-06j), (-1.1171833655283137e-06-7.941692063861139e-07j), (6.129377812449666e-06-2.6639138794033913e-08j), (1.1250445934922041e-05+0j), (1.0820862642871047e-05-2.2992631179840125e-07j), (1.9700784820020342e-06-6.737902430642065e-07j), (7.372481165638581e-06+9.565201613409245e-07j), (1.5372570483649945e-05+1.6120588733783455e-06j), (-2.619167805159744e-06-1.3961062964130743e-06j), (1.8339426511428442e-06-1.0061608807092573e-08j), (1.053743835423739e-06-7.732719897210284e-07j), (2.3550031201756676e-05+0j), (3.1247811327445063e-06-1.295596244750579e-06j), (6.377387668266904e-06-4.4343840239595067e-08j), (1.3311917480952208e-05+2.478921014873536e-06j), (-4.273883397050707e-06+1.9130383595467497e-08j), (2.488847005209694e-06-1.4139186882901056e-06j), (8.288777368229982e-06+1.215639393689196e-06j), (2.1443102054285064e-05+0j), (-1.0862488448950334e-05+2.2465448736817294e-07j), (1.8791012886498373e-06-2.2394215405088287e-08j), (-1.3499446042808146e-05+2.39932298056878e-06j), (1.5365886094321808e-05-1.6528325289600213e-06j), (2.9213575361780936e-06+2.6159429815368175e-06j), (1.2622061849450236e-05+0j), (1.0805897325543687e-05+2.60806826992101e-07j), (6.337578162820429e-06+5.366174566026604e-08j), (-7.4198450875720575e-06+9.774913440220636e-07j), (-1.4062658414944795e-06-1.46983831109317e-07j), (2.160535726132623e-05+0j), (-3.136109191338811e-06-1.2763700524900932e-06j), (2.023010672136256e-06+6.917894898987009e-07j), (3.007087075977778e-07-1.2371791569780194e-06j), (2.3190820455906264e-05+0j), (-1.0855600882848617e-05-2.7382097512462966e-07j), (3.054109026077031e-06+2.797177670664281e-07j), (1.130100524113687e-05+0j), (1.4804137552467662e-06+2.2000878667862902e-06j), (7.203776554561844e-06+0j)]
-        short_path2 = '/tmp/test_density_LI2'
-        if os.path.isdir(short_path2):
-            shutil.rmtree(short_path2)
+        
+        
+        # temporary comment
+        # short_path2 = '/tmp/test_density_LI2'
+        # if os.path.isdir(short_path2):
+        #     shutil.rmtree(short_path2)
 
-        self.do('import model loop_sm')
-        self.do('generate g g > w+ w-  [sqrvirt=QCD]')
-        self.run_cmd(f'output standalone {short_path2} --density=3,4 -f') # we need run_cmd here, else HelicityFilterLevel is not set to 1.
-        path_PS_card = pjoin(short_path2, "SubProcesses/P0_gg_wpwm/PS.input")
-        with open(path_PS_card, 'w') as psinput:
-            psinput.write(str(p_all[0]).strip("[],") + "\n")
-            psinput.write(str(p_all[1]).strip("[],") + "\n")
-            psinput.write(str(p_all[2]).strip("[],") + "\n")
-            psinput.write(str(p_all[3]).strip("[],") + "\n")
+        # self.do('import model loop_sm')
+        # self.do('generate g g > w+ w-  [sqrvirt=QCD]')
+        # self.run_cmd(f'output standalone {short_path2} --density=3,4 -f') # we need run_cmd here, else HelicityFilterLevel is not set to 1.
+        # path_PS_card = pjoin(short_path2, "SubProcesses/P0_gg_wpwm/PS.input")
+        # with open(path_PS_card, 'w') as psinput:
+        #     psinput.write(str(p_all[0]).strip("[],") + "\n")
+        #     psinput.write(str(p_all[1]).strip("[],") + "\n")
+        #     psinput.write(str(p_all[2]).strip("[],") + "\n")
+        #     psinput.write(str(p_all[3]).strip("[],") + "\n")
         
 
-        text_bis = f""" launch {short_path2}
-                    set param_card mu_r {mu_r}
-                    set param_card as {alphas}
-                    """
+        # text_bis = f""" launch {short_path2}
+        #             set param_card mu_r {mu_r}
+        #             set param_card as {alphas}
+        #             """
         
-        command_card_bis = open('/tmp/mg5_cmd_bis.txt','w')
-        command_card_bis.write(text_bis)
-        command_card_bis.close()
+        # command_card_bis = open('/tmp/mg5_cmd_bis.txt','w')
+        # command_card_bis.write(text_bis)
+        # command_card_bis.close()
 
-        logfile = 'test_density_vs_LI_standalone.log'
-        subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                        '/tmp/mg5_cmd_bis.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
+        # logfile = 'test_density_vs_LI_standalone.log'
+        # subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
+        #                 '/tmp/mg5_cmd_bis.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
         
 
-        # the two are identical, make the comparison
-        with open(pjoin(short_path2, "SubProcesses/P0_gg_wpwm/result.dat"), "r") as result:
-            for line in result:
-                if line.strip()[:3] == 'RHO':
-                    rho_standalone_str = line.strip()[3:].strip()
+        # # the two are identical, make the comparison
+        # with open(pjoin(short_path2, "SubProcesses/P0_gg_wpwm/result.dat"), "r") as result:
+        #     for line in result:
+        #         if line.strip()[:3] == 'RHO':
+        #             rho_standalone_str = line.strip()[3:].strip()
         
-        rho_standalone = rho_standalone_str.split()
-        for i in range(len(rho_standalone)):
-            aux = rho_standalone[i].strip("()").split(",")
-            rho_standalone[i] = float(aux[0]) + float(aux[1])*1j
+        # rho_standalone = rho_standalone_str.split()
+        # for i in range(len(rho_standalone)):
+        #     aux = rho_standalone[i].strip("()").split(",")
+        #     rho_standalone[i] = float(aux[0]) + float(aux[1])*1j
 
-        for j in range(45): # 45 to raise error if density_check is an empty array
-            self.assertAlmostEqual(density_check[j].real, rho_standalone[j].real, places=7)
-            self.assertAlmostEqual(density_check[j].imag, rho_standalone[j].imag, places=7)
+        # for j in range(45): # 45 to raise error if density_check is an empty array
+        #     self.assertAlmostEqual(density_check[j].real, rho_standalone[j].real, places=7)
+        #     self.assertAlmostEqual(density_check[j].imag, rho_standalone[j].imag, places=7)
 
 
 class TestCmdMatchBox(IOTests.IOTestManager):

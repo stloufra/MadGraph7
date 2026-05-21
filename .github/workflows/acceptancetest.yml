@@ -2211,7 +2211,6 @@ jobs:
             echo "f2py_compiler = $(which f2py)" >> input/mg5_configuration.txt
             cp Template/LO/Source/.make_opts Template/LO/Source/make_opts
             echo "install lhapdf6" > cmd
-            echo "install pythia8" >> cmd
             ./bin/mg5_aMC cmd
             cat HEPTools/lhapdf6_py3/lhapdf6_install.log
             ls HEPTools/lhapdf6_py3/bin
