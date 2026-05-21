@@ -9,48 +9,48 @@ using namespace madspace;
 
 namespace {
 
-// Cyclically rotate the colour order so that particle 0 is first, then
+// Cyclically rotate the color order so that particle 0 is first, then
 // split the rest into two sets: particles strictly between 0 and 1 in the
 // cyclic order go into set1, particles after 1 (wrapping around) go into
 // set2.
 std::pair<std::vector<std::size_t>, std::vector<std::size_t>>
-split_sets_from_colour_order(const std::vector<std::size_t>& colour_order) {
-    std::size_t n = colour_order.size();
+split_sets_from_color_order(const std::vector<std::size_t>& color_order) {
+    std::size_t n = color_order.size();
     if (n < 4) {
         throw std::invalid_argument(
             "ColorOrderedMapping requires at least 4 particles (2 beams + 2 outgoing)"
         );
     }
-    auto it = std::find(colour_order.begin(), colour_order.end(), 0u);
-    if (it == colour_order.end()) {
-        throw std::invalid_argument("colour_order must contain particle 0");
+    auto it = std::find(color_order.begin(), color_order.end(), 0u);
+    if (it == color_order.end()) {
+        throw std::invalid_argument("color_order must contain particle 0");
     }
-    std::size_t i0 = std::distance(colour_order.begin(), it);
+    std::size_t i0 = std::distance(color_order.begin(), it);
     std::vector<std::size_t> rotated;
     rotated.reserve(n);
     for (std::size_t k = 0; k < n; ++k) {
-        rotated.push_back(colour_order[(i0 + k) % n]);
+        rotated.push_back(color_order[(i0 + k) % n]);
     }
     auto it1 = std::find(rotated.begin(), rotated.end(), 1u);
     if (it1 == rotated.end()) {
-        throw std::invalid_argument("colour_order must contain particle 1");
+        throw std::invalid_argument("color_order must contain particle 1");
     }
     std::size_t i1 = std::distance(rotated.begin(), it1);
     std::vector<std::size_t> set1, set2;
     for (std::size_t k = 1; k < i1; ++k) {
         std::size_t p = rotated[k];
-        if (p <= 1) throw std::invalid_argument("invalid colour_order");
+        if (p <= 1) throw std::invalid_argument("invalid color_order");
         set1.push_back(p - 2);
     }
     for (std::size_t k = i1 + 1; k < n; ++k) {
         std::size_t p = rotated[k];
-        if (p <= 1) throw std::invalid_argument("invalid colour_order");
+        if (p <= 1) throw std::invalid_argument("invalid color_order");
         set2.push_back(p - 2);
     }
     if (set1.empty() || set2.empty()) {
         throw std::invalid_argument(
             "ColorOrderedMapping requires both sets to be non-empty "
-            "(particles 0 and 1 must not be adjacent in the colour order)"
+            "(particles 0 and 1 must not be adjacent in the color order)"
         );
     }
     return {set1, set2};
@@ -69,14 +69,14 @@ std::size_t n_block_randoms_for_set_size(std::size_t k) {
 }  // namespace
 
 ColorOrderedMapping::ColorOrderedMapping(
-    const std::vector<std::size_t>& colour_order,
+    const std::vector<std::size_t>& color_order,
     double t_invariant_power,
     double s_invariant_power
 ) :
     Mapping(
         "ColorOrderedMapping",
         [&] {
-            auto [s1, s2] = split_sets_from_colour_order(colour_order);
+            auto [s1, s2] = split_sets_from_color_order(color_order);
             bool use_double_t = (s1.size() == 1) != (s2.size() == 1);
             // DoubleT branch: 0 set-masses + 3 central randoms.
             // Standard branch: 1 set-mass per multi-particle side + 2 central randoms.
@@ -99,7 +99,7 @@ ColorOrderedMapping::ColorOrderedMapping(
             return input_types;
         }(),
         [&] {
-            std::size_t n_out = colour_order.size() - 2;
+            std::size_t n_out = color_order.size() - 2;
             NamedVector<Type> output_types;
             for (std::size_t i = 0; i < n_out + 2; ++i) {
                 output_types.push_back(std::format("momentum{}", i), batch_four_vec);
@@ -107,7 +107,7 @@ ColorOrderedMapping::ColorOrderedMapping(
             return output_types;
         }(),
         [&] {
-            std::size_t n_out = colour_order.size() - 2;
+            std::size_t n_out = color_order.size() - 2;
             NamedVector<Type> cond_types{{"com_energy", batch_float}};
             for (std::size_t i = 0; i < n_out; ++i) {
                 cond_types.push_back(std::format("mass{}", i), batch_float);
@@ -115,12 +115,12 @@ ColorOrderedMapping::ColorOrderedMapping(
             return cond_types;
         }()
     ),
-    _n_out(colour_order.size() - 2),
+    _n_out(color_order.size() - 2),
     _com_scattering(true, t_invariant_power),
     _lab_scattering(false, t_invariant_power),
     _two_to_three(t_invariant_power, 0., 0., s_invariant_power, 0., 0.),
     _double_t(t_invariant_power, 0., 0., t_invariant_power, 0., 0.) {
-    auto [s1, s2] = split_sets_from_colour_order(colour_order);
+    auto [s1, s2] = split_sets_from_color_order(color_order);
     _set1 = s1;
     _set2 = s2;
     _use_double_t = (s1.size() == 1) != (s2.size() == 1);

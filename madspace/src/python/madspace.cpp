@@ -491,7 +491,7 @@ PYBIND11_MODULE(_madspace_py, m) {
     py::classh<ColorOrderedMapping, Mapping>(m, "ColorOrderedMapping")
         .def(
             py::init<std::vector<std::size_t>, double, double>(),
-            py::arg("colour_order"),
+            py::arg("color_order"),
             py::arg("t_invariant_power") = 0.,
             py::arg("s_invariant_power") = 0.
         )

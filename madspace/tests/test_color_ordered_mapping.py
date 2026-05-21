@@ -38,7 +38,7 @@ def _mass_sets_for(n_out):
     return sets
 
 
-# Each entry: (colour_order, int_order_for_old_class, topology_label).
+# Each entry: (color_order, int_order_for_old_class, topology_label).
 TOPOLOGIES = [
     ([0, 2, 3, 1, 4],            [0, 1],            "n=5: set1={2,3}, set2={4}"),
     ([0, 2, 3, 4, 1, 5],         [0, 1, 2],         "n=6: set1={2,3,4}, set2={5}"),
@@ -50,13 +50,13 @@ TOPOLOGIES = [
 
 
 def _expand(topologies):
-    """Flat list of (colour_order, int_order, masses, label) pairs."""
+    """Flat list of (color_order, int_order, masses, label) pairs."""
     out = []
-    for colour_order, int_order, topo_label in topologies:
-        n_out = len(colour_order) - 2
+    for color_order, int_order, topo_label in topologies:
+        n_out = len(color_order) - 2
         for masses, mass_label in _mass_sets_for(n_out):
             label = f"{mass_label}-{topo_label}"
-            out.append((colour_order, int_order, masses, label))
+            out.append((color_order, int_order, masses, label))
     return out
 
 
@@ -83,9 +83,9 @@ def _filter_physical(det, p_ext):
 # Tests
 # ----------------------------
 
-@pytest.mark.parametrize("colour_order,_int_order,masses,_label", CASES, ids=CASE_IDS)
-def test_momentum_conservation(rng, colour_order, _int_order, masses, _label):
-    mapping = ms.ColorOrderedMapping(colour_order)
+@pytest.mark.parametrize("color_order,_int_order,masses,_label", CASES, ids=CASE_IDS)
+def test_momentum_conservation(rng, color_order, _int_order, masses, _label):
+    mapping = ms.ColorOrderedMapping(color_order)
     r = rng.random((N, mapping.random_dim()))
     e_cm = np.full(N, CM_ENERGY)
     cond = [e_cm] + [np.full(N, m) for m in masses]
@@ -99,9 +99,9 @@ def test_momentum_conservation(rng, colour_order, _int_order, masses, _label):
     assert p_in == approx(p_out_sum, abs=1e-3, rel=1e-6)
 
 
-@pytest.mark.parametrize("colour_order,_int_order,masses,_label", CASES, ids=CASE_IDS)
-def test_on_shell_masses(rng, colour_order, _int_order, masses, _label):
-    mapping = ms.ColorOrderedMapping(colour_order)
+@pytest.mark.parametrize("color_order,_int_order,masses,_label", CASES, ids=CASE_IDS)
+def test_on_shell_masses(rng, color_order, _int_order, masses, _label):
+    mapping = ms.ColorOrderedMapping(color_order)
     r = rng.random((N, mapping.random_dim()))
     e_cm = np.full(N, CM_ENERGY)
     cond = [e_cm] + [np.full(N, m) for m in masses]
@@ -119,8 +119,8 @@ def test_on_shell_masses(rng, colour_order, _int_order, masses, _label):
             f"particle {i} mass off"
 
 
-@pytest.mark.parametrize("colour_order,_int_order,masses,_label", CASES, ids=CASE_IDS)
-def test_inverse(rng, colour_order, _int_order, masses, _label):
+@pytest.mark.parametrize("color_order,_int_order,masses,_label", CASES, ids=CASE_IDS)
+def test_inverse(rng, color_order, _int_order, masses, _label):
     """Forward o inverse = identity, to FP precision modulo a small tail.
 
     A handful of events at the very edge of the physical region produce a
@@ -130,7 +130,7 @@ def test_inverse(rng, colour_order, _int_order, masses, _label):
     weight in any MC integral) and check the rest.
     """
     n_events = N 
-    mapping = ms.ColorOrderedMapping(colour_order)
+    mapping = ms.ColorOrderedMapping(color_order)
     r = rng.random((n_events, mapping.random_dim()))
     e_cm = np.full(n_events, CM_ENERGY)
     cond = [e_cm] + [np.full(n_events, m) for m in masses]
@@ -170,8 +170,8 @@ def test_inverse(rng, colour_order, _int_order, masses, _label):
         )
 
 
-@pytest.mark.parametrize("colour_order,int_order,masses,_label", CASES, ids=CASE_IDS)
-def test_phase_space_volume_matches_old(rng, colour_order, int_order, masses, _label):
+@pytest.mark.parametrize("color_order,int_order,masses,_label", CASES, ids=CASE_IDS)
+def test_phase_space_volume_matches_old(rng, color_order, int_order, masses, _label):
     """The new class should integrate to the same phase-space volume as the
     old TPropagatorMapping (matrix element = 1).
 
@@ -180,7 +180,7 @@ def test_phase_space_volume_matches_old(rng, colour_order, int_order, masses, _l
     test_inverse is a precision check; this one is the physics check.
     """
     n_events = N
-    new = ms.ColorOrderedMapping(colour_order)
+    new = ms.ColorOrderedMapping(color_order)
     old = ms.TPropagatorMapping(int_order)
 
     r_new = rng.random((n_events, new.random_dim()))

@@ -12,10 +12,10 @@ namespace madspace {
 
 class ColorOrderedMapping : public Mapping {
 public:
-    // colour_order: 0-indexed permutation of {0, ..., n-1} (n = n_out + 2).
+    // color_order: 0-indexed permutation of {0, ..., n-1} (n = n_out + 2).
     // Particles 0 and 1 are the two incoming beams.
     ColorOrderedMapping(
-        const std::vector<std::size_t>& colour_order,
+        const std::vector<std::size_t>& color_order,
         double t_invariant_power = 0.8,
         double s_invariant_power = 0.8
     );
