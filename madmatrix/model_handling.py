@@ -1725,7 +1725,8 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
                    fptype* allNumerators,             // input/output: multichannel numerators[nevt], add helicity ihel
                    fptype* allDenominators,           // input/output: multichannel denominators[nevt], add helicity ihel
                    fptype* colAllJamp2s,              // output: allJamp2s[ncolor][nevt] super-buffer, sum over col/hel (nullptr to disable)
-                   const int nevt                     // input: #events (for cuda: nevt == ndim == gpublocks*gputhreads)
+                   const int nevt,                    // input: #events (for cuda: nevt == ndim == gpublocks*gputhreads)
+                   const bool processAllHelicities    // input: if true, use blockIdx.y to index helicities
 #else
                    cxtype_sv* allJamp_sv,             // output: jamp_sv[ncolor] (float/double) or jamp_sv[2*ncolor] (mixed) for this helicity
                    bool storeChannelWeights,
@@ -1765,6 +1766,13 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
     //if( debug ) printf( \"calculate_jamps: ievt00=%d ihel=%2d\\n\", ievt00, ihel );
 #else
     //const int ievt = blockDim.x * blockIdx.x + threadIdx.x;
+    if (processAllHelicities) {
+      int ighel = blockIdx.y;
+      ihel = dcGoodHel[ighel];
+      allJamps = allJamps + ighel * nevt;
+      allNumerators = allNumerators + ighel * nevt;
+      allDenominators = allDenominators + ighel * nevt;
+    }
     //debug = ( ievt == 0 );
     //if( debug ) printf( \"calculate_jamps: ievt=%6d ihel=%2d\\n\", ievt, ihel );
 #endif /* clang-format on */""")

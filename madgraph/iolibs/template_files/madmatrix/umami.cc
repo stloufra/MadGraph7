@@ -158,9 +158,6 @@ namespace
   struct InterfaceInstance
   {
     bool initialized = false;
-#ifdef MGONGPUCPP_GPUIMPL
-    gpuStream_t hel_streams[CPPProcess::ncomb];
-#endif
   };
 
 }
@@ -208,12 +205,6 @@ extern "C"
     process.initProc( param_card_path );
     auto instance = new InterfaceInstance();
     *handle = instance;
-#ifdef MGONGPUCPP_GPUIMPL
-    for( int ihel = 0; ihel < CPPProcess::ncomb; ihel++ )
-    {
-      gpuStreamCreate( &instance->hel_streams[ihel] );
-    }
-#endif
     return UMAMI_SUCCESS;
   }
 
@@ -389,9 +380,6 @@ extern "C"
       offset );
     computeDependentCouplings<<<n_blocks, n_threads, 0, gpu_stream>>>( g_s, couplings );
     checkGpu( gpuPeekAtLastError() );
-    // TODO: make things fully async (requires using events instead of synchronize in
-    //       the sigmaKin implementation)
-    gpuStreamSynchronize( gpu_stream );
 
     InterfaceInstance* instance = static_cast<InterfaceInstance*>( handle );
     if( !instance->initialized )
@@ -421,7 +409,8 @@ extern "C"
       ghel_jamps,
       nullptr,
       nullptr,
-      instance->hel_streams,
+      &gpu_stream,
+      true,
       n_blocks,
       n_threads );
 

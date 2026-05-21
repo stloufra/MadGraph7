@@ -377,21 +377,25 @@ namespace mg5amcCpu
                  gpuBlasHandle_t* pBlasHandle,     // input: cuBLAS/hipBLAS handle
                  gpuStream_t* ghelStreams,         // input: cuda streams (index is ighel: only the first nGoodHel <= ncomb are non-null)
                  const int nGoodHel,               // input: number of good helicities
-                 const int gpublocks,              // input: cuda gpublocks
-                 const int gputhreads )            // input: cuda gputhreads
+                 const int gputhreads,             // input: cuda gputhreads
+                 const bool async )                // input: if true, run everything asynchronously in first stream in ghelStreams
   {
     const int nevt = gpublocks * gputhreads;
     // CASE 1: KERNEL
     if( !pBlasHandle )
     {
       assert( ghelAllBlasTmp == nullptr );  // sanity check for HASBLAS=hasNoBlas or CUDACPP_RUNTIME_BLASCOLORSUM not set
-      // Loop over helicities
-      for( int ighel = 0; ighel < nGoodHel; ighel++ )
-      {
-        fptype* hAllMEs = ghelAllMEs + ighel * nevt;           // MEs for one specific helicity ighel
-        const fptype* hAllJamps = ghelAllJamps + ighel * nevt; // Jamps for one specific helicity ighel
-        gpuStream_t hStream = ghelStreams[ighel];
-        gpuLaunchKernelStream( color_sum_kernel, gpublocks, gputhreads, hStream, hAllMEs, hAllJamps, nGoodHel );
+      if (async) {
+        gpuLaunchKernel2D( calculate_jamps, gpublocks, nGoodHel, gputhreads, ghelStreams[0], ghelAllMEs, ghelAllJamps, nGoodHel, nevt );
+      } else {
+        // Loop over helicities
+        for( int ighel = 0; ighel < nGoodHel; ighel++ )
+        {
+          fptype* hAllMEs = ghelAllMEs + ighel * nevt;           // MEs for one specific helicity ighel
+          const fptype* hAllJamps = ghelAllJamps + ighel * nevt; // Jamps for one specific helicity ighel
+          gpuStream_t hStream = ghelStreams[ighel];
+          gpuLaunchKernelStream( color_sum_kernel, gpublocks, gputhreads, hStream, hAllMEs, hAllJamps, nGoodHel, 0 );
+        }
       }
     }
     // CASE 2: BLAS
@@ -400,15 +404,19 @@ namespace mg5amcCpu
 #ifdef MGONGPU_HAS_NO_BLAS
       assert( false ); // sanity check: no path to this statement for HASBLAS=hasNoBlas
 #else
-      checkGpu( gpuDeviceSynchronize() ); // do not start the BLAS color sum for all helicities until the loop over helicities has completed
-      // Reset the tmp buffer
+      if (async) {
+        assert( false ); // BLAS in async mode not supported for now
+      } else {
+        checkGpu( gpuDeviceSynchronize() ); // do not start the BLAS color sum for all helicities until the loop over helicities has completed
+        // Reset the tmp buffer
 #if defined MGONGPU_FPTYPE_DOUBLE and defined MGONGPU_FPTYPE2_FLOAT
-      gpuMemset( ghelAllBlasTmp, 0, nGoodHel * nevt * ( 2 * ncolor * mgOnGpu::nx2 + 1 ) * sizeof( fptype2 ) );
+        gpuMemset( ghelAllBlasTmp, 0, nGoodHel * nevt * ( 2 * ncolor * mgOnGpu::nx2 + 1 ) * sizeof( fptype2 ) );
 #else
-      gpuMemset( ghelAllBlasTmp, 0, nGoodHel * nevt * ( ncolor * mgOnGpu::nx2 ) * sizeof( fptype2 ) );
-#endif
-      // Delegate the color sum to BLAS for 
-      color_sum_blas( ghelAllMEs, ghelAllJamps, ghelAllBlasTmp, pBlasHandle, ghelStreams, nGoodHel, gpublocks, gputhreads );
+        gpuMemset( ghelAllBlasTmp, 0, nGoodHel * nevt * ( ncolor * mgOnGpu::nx2 ) * sizeof( fptype2 ) );
+#endif  
+        // Delegate the color sum to BLAS for 
+        color_sum_blas( ghelAllMEs, ghelAllJamps, ghelAllBlasTmp, pBlasHandle, ghelStreams, nGoodHel, gpublocks, gputhreads );
+      }
 #endif
     }
   }
