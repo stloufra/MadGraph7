@@ -2451,6 +2451,20 @@ argsort:
       desc:
   vectorized: False
 
+quantile:
+  inputs:
+    - name: input
+      type: [float]
+      desc:
+    - name: q
+      type: [float, single]
+      desc:
+  outputs:
+    - name: output
+      type: [float, single]
+      desc:
+  custom_op: True
+
 one_hot:
   inputs:
     - name: index
@@ -2599,6 +2613,18 @@ random:
     - name: output
       desc:
   class: RandomInstruction
+  custom_op: True
+
+random_int:
+  inputs:
+    - name: batch_size
+      desc:
+    - name: max
+      desc:
+  outputs:
+    - name: output
+      desc:
+  class: RandomIntInstruction
   custom_op: True
 
 unweight:

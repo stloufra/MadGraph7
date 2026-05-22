@@ -595,6 +595,10 @@ Value argsort(Value input) {
     return instruction("argsort", {input})[0];
 }
 
+Value quantile(Value input, Value q) {
+    return instruction("quantile", {input, q})[0];
+}
+
 Value one_hot(Value index, Value option_count) {
     return instruction("one_hot", {index, option_count})[0];
 }
@@ -633,6 +637,10 @@ Value batch_scatter(Value indices, Value target, Value source) {
 
 Value random(Value batch_size, Value count) {
     return instruction("random", {batch_size, count})[0];
+}
+
+Value random_int(Value batch_size, Value max) {
+    return instruction("random_int", {batch_size, max})[0];
 }
 
 std::array<Value, 2> unweight(Value weights, Value max_weight) {

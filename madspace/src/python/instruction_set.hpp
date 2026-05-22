@@ -148,6 +148,7 @@ void add_instructions(py::classh<FunctionBuilder>& fb) {
     fb.def("select", &FunctionBuilder::select, py::arg("input"), py::arg("indices"));
     fb.def("select_vector", &FunctionBuilder::select_vector, py::arg("input"), py::arg("indices"));
     fb.def("argsort", &FunctionBuilder::argsort, py::arg("input"));
+    fb.def("quantile", &FunctionBuilder::quantile, py::arg("input"), py::arg("q"));
     fb.def("one_hot", &FunctionBuilder::one_hot, py::arg("index"), py::arg("option_count"));
     fb.def("madnis_abs_weight", &FunctionBuilder::madnis_abs_weight, py::arg("f"), py::arg("q"));
     fb.def("madnis_softclip", &FunctionBuilder::madnis_softclip, py::arg("f"), py::arg("q"), py::arg("norm"), py::arg("threshold"));
@@ -158,6 +159,7 @@ void add_instructions(py::classh<FunctionBuilder>& fb) {
     fb.def("batch_gather", &FunctionBuilder::batch_gather, py::arg("indices"), py::arg("values"));
     fb.def("batch_scatter", &FunctionBuilder::batch_scatter, py::arg("indices"), py::arg("target"), py::arg("source"));
     fb.def("random", &FunctionBuilder::random, py::arg("batch_size"), py::arg("count"));
+    fb.def("random_int", &FunctionBuilder::random_int, py::arg("batch_size"), py::arg("max"));
     fb.def("unweight", &FunctionBuilder::unweight, py::arg("weights"), py::arg("max_weight"));
     fb.def("vegas_forward", &FunctionBuilder::vegas_forward, py::arg("input"), py::arg("grid"));
     fb.def("vegas_inverse", &FunctionBuilder::vegas_inverse, py::arg("input"), py::arg("grid"));
