@@ -565,6 +565,40 @@ class TestMECmdShell(unittest.TestCase):
         self.assertAlmostEqual(n_u / n_events, 1.042, delta=0.1)
         self.assertAlmostEqual(n_d / n_events, 0.958, delta=0.1)
 
+    def test_madevent_merged_flavor_uq(self):
+        """Cross-section for u q > u q QCD=0 with q = u d (madevent backend).
+
+        One initial leg is a fixed u, the other a merged u/d multiparticle,
+        so the subprocess covers the u u and u d initial states. Running the
+        two flavors separately (no merged multiparticle) gives 4428 pb; the
+        merged-flavor path must reproduce that. This pins the cross-section
+        so a mis-applied PDF convolution or symmetry factor is caught.
+        """
+
+        mg_cmd = MGCmd.MasterCmd()
+        mg_cmd.no_notification()
+        mg_cmd.exec_cmd('set automatic_html_opening False --no_save')
+        mg_cmd.exec_cmd('import model sm')
+        mg_cmd.exec_cmd('define q = u d')
+        mg_cmd.exec_cmd('generate u q > u q QCD=0')
+        mg_cmd.exec_cmd('output %s' % self.run_dir)
+
+        self.cmd_line = MECmd.MadEventCmdShell(me_dir=self.run_dir)
+        self.cmd_line.no_notification()
+        self.cmd_line.exec_cmd('set automatic_html_opening False')
+
+        run_card = banner.RunCardLO(pjoin(self.run_dir, 'Cards', 'run_card.dat'))
+        run_card.set('nevents', 1000, user=True)
+        run_card.write(pjoin(self.run_dir, 'Cards', 'run_card.dat'))
+
+        self.do('launch -f')
+
+        cross = self.cmd_line.results.current['cross']
+        error = self.cmd_line.results.current['error']
+        # Reference 4428 pb is u u > u u plus u d > u d run as separate
+        # single-flavor processes (no merged multiparticle).
+        self.assertAlmostEqual(cross, 4428.0, delta=max(30.0, 5 * error))
+
     def test_flavor_grouping_consistency(self):
         """Check that the four combinations of 'apply_flavor_grouping' and
         'group_subprocesses' return compatible cross-sections for the
