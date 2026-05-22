@@ -186,6 +186,7 @@ class ProcessExporterFortran(VirtualExporter):
     grouped_mode = False
     jamp_optim = False
     run_card_class = None
+    use_flavor_mask = True
 
     def __init__(self,  dir_path = "", opt=None):
         """Initiate the ProcessExporterFortran with directory information"""
@@ -198,6 +199,7 @@ class ProcessExporterFortran(VirtualExporter):
         if opt:
             self.opt.update(opt)
         self.cmd_options = self.opt['output_options']
+        self._configure_flavor_mask_from_cmd_options()
         
         #place holder to pass information to the run_interface
         self.proc_characteristic = banner_mod.ProcCharacteristic()
@@ -745,6 +747,300 @@ C
         """
         pass
 
+    def _configure_flavor_mask_from_cmd_options(self):
+        """Honor `--mask=True|False` from the output command line."""
+
+        if 'mask' not in self.cmd_options:
+            return
+        val = self.cmd_options['mask']
+        if isinstance(val, bool):
+            self.use_flavor_mask = val
+        elif isinstance(val, str):
+            token = val.strip().lower()
+            if token in ('false', '0', 'no', 'off'):
+                self.use_flavor_mask = False
+            elif token in ('true', '1', 'yes', 'on'):
+                self.use_flavor_mask = True
+
+    def _build_flavor_group_lookup(self, model):
+        """Return (pdg_or_group_id -> group_position, max_group_size)."""
+
+        merged_particles = (model.get('merged_particles') or {}) if model else {}
+        pdg_to_group_pos = {}
+        max_group_size = 0
+
+        for merged_id, members in merged_particles.items():
+            members = list(members)
+            if members:
+                max_group_size = max(max_group_size, len(members))
+                # If a merged pseudo-id appears in a flavor tuple, map it to a
+                # deterministic valid partner index.
+                pdg_to_group_pos[int(merged_id)] = 1
+                pdg_to_group_pos[-int(merged_id)] = 1
+            for pos, pdg in enumerate(members, 1):
+                pdg = int(pdg)
+                pdg_to_group_pos[pdg] = pos
+                pdg_to_group_pos[-pdg] = pos
+
+        return pdg_to_group_pos, max_group_size
+
+    def _map_flavor_to_group_pos(self, flavor, pdg_to_group_pos, max_group_size=0):
+        """Map a raw flavor token to a valid FLV_COUPLING partner index."""
+
+        f = int(flavor)
+        if f in pdg_to_group_pos:
+            return pdg_to_group_pos[f]
+        af = abs(f)
+        if af in pdg_to_group_pos:
+            return pdg_to_group_pos[af]
+        if max_group_size and 1 <= af <= max_group_size:
+            return af
+        # In merged-particle mode, never leak raw merged IDs/PDGs to PARTNER().
+        if pdg_to_group_pos:
+            return 1
+        return f
+
+    def _compress_mask_list_to_flavor_groups(self, matrix_element, allowed_flavors,
+                                             object_masks):
+        """Project per-flavor masks onto coupling-equivalent flavor groups."""
+
+        grouped_flavors = [list(group)
+                           for group in matrix_element.get_external_flavors_with_iden()]
+        if not grouped_flavors:
+            return allowed_flavors, object_masks
+
+        if len(grouped_flavors) == len(allowed_flavors) and all(
+                len(group) == 1 and tuple(group[0]) == tuple(flavor)
+                for group, flavor in zip(grouped_flavors, allowed_flavors)):
+            return allowed_flavors, object_masks
+
+        flavor_to_idx = {tuple(flavor): idx
+                         for idx, flavor in enumerate(allowed_flavors)}
+        runtime_flavors = []
+        group_bitsets = []
+        for group in grouped_flavors:
+            runtime_flavors.append(tuple(group[0]))
+            bits = 0
+            for flavor in group:
+                bits |= (1 << flavor_to_idx[tuple(flavor)])
+            group_bitsets.append(bits)
+
+        grouped_masks = []
+        for mask in object_masks:
+            grouped_mask = 0
+            for group_idx, bits in enumerate(group_bitsets):
+                if mask & bits:
+                    grouped_mask |= (1 << group_idx)
+            grouped_masks.append(grouped_mask)
+
+        return runtime_flavors, grouped_masks
+
+    def _build_flavor_index_masks(self, object_masks, n_flavors, nwords):
+        """Transpose a per-object flavor bitset list into per-word, per-flavor
+        index bitsets, plus the OR-combined active mask.
+
+        object_masks[i] is the flavor bitset of wavefunction/amplitude i. In
+        the result index_masks[word][flav] bit p is set iff object
+        64*word + p contributes for flavor flav, and active[word] is the OR
+        over all flavors of that word.
+        """
+
+        index_masks = [[0] * n_flavors for _ in range(nwords)]
+        for obj_idx, mask in enumerate(object_masks):
+            word = obj_idx // 64
+            bit = obj_idx % 64
+            for flav_idx in range(n_flavors):
+                if (mask >> flav_idx) & 1:
+                    index_masks[word][flav_idx] |= (1 << bit)
+        active = [0] * nwords
+        for word in range(nwords):
+            for flav_idx in range(n_flavors):
+                active[word] |= index_masks[word][flav_idx]
+        return index_masks, active
+
+    def _format_flavor_mask_decl(self, n_flavors, n_wfs, n_amps,
+                                 nwords_wf, nwords_amp,
+                                 wf_index_masks, amp_index_masks,
+                                 active_wf_index_masks, active_amp_index_masks,
+                                 flav_table_flat):
+        """Format the Fortran declaration / DATA block for the flavor-mask
+        machinery. Shared verbatim by the standalone and madevent matrix
+        element exporters so the runtime lookup layout cannot drift apart.
+        """
+
+        def _fmt_int8_2d(name, matrix):
+            items = []
+            for row in matrix:
+                for v in row:
+                    # INTEGER*8 is signed; convert unsigned 64-bit values that
+                    # have the high bit set to their two's-complement equivalent
+                    # so gfortran does not reject them with "integer too big".
+                    if v >= (1 << 63):
+                        v -= (1 << 64)
+                    items.append('%d_8' % v)
+            return '      DATA %s / %s /' % (name, ', '.join(items))
+
+        def _fmt_int_array(name, values):
+            items = [str(v) for v in values]
+            return '      DATA %s / %s /' % (name, ', '.join(items))
+
+        # WF_INDEX_MASK / AMP_INDEX_MASK are declared (NWORDS, NMASK_FLAV).
+        # Fortran DATA fills column-major (first index fastest), so the value
+        # stream must be word-fastest. wf_index_masks/amp_index_masks are
+        # indexed [word][flavor]; transpose to [flavor][word] before emitting.
+        def _transpose(matrix):
+            return [list(col) for col in zip(*matrix)] if matrix else matrix
+
+        decl_lines = [
+            'C     Flavor-mask machinery (compute_flavor_masks).',
+            '      INTEGER NMASK_FLAV, NMASK_WF, NMASK_AMP',
+            '      INTEGER NWORDS_WF, NWORDS_AMP',
+            '      PARAMETER (NMASK_FLAV=%d)' % n_flavors,
+            '      PARAMETER (NMASK_WF=%d, NMASK_AMP=%d)' % (n_wfs, n_amps),
+            '      PARAMETER (NWORDS_WF=%d, NWORDS_AMP=%d)' % (nwords_wf, nwords_amp),
+            '      INTEGER*8 WF_INDEX_MASK(NWORDS_WF, NMASK_FLAV)',
+            '      INTEGER*8 AMP_INDEX_MASK(NWORDS_AMP, NMASK_FLAV)',
+            '      INTEGER*8 CURRENT_WF_MASK(NWORDS_WF)',
+            '      INTEGER*8 CURRENT_AMP_MASK(NWORDS_AMP)',
+            '      INTEGER*8 ACTIVE_WF_MASK(NWORDS_WF)',
+            '      INTEGER*8 ACTIVE_AMP_MASK(NWORDS_AMP)',
+            '      INTEGER FLAV_IDX_LOOKUP, MASK_I, MASK_J, MASK_K',
+            '      LOGICAL FLAV_MATCH',
+            '      INTEGER FLAV_TABLE(NEXTERNAL, NMASK_FLAV)',
+            _fmt_int8_2d('WF_INDEX_MASK', _transpose(wf_index_masks)),
+            _fmt_int8_2d('AMP_INDEX_MASK', _transpose(amp_index_masks)),
+            _fmt_int8_2d('ACTIVE_WF_MASK', [active_wf_index_masks]),
+            _fmt_int8_2d('ACTIVE_AMP_MASK', [active_amp_index_masks]),
+            _fmt_int_array('FLAV_TABLE', flav_table_flat),
+        ]
+        return '\n'.join(decl_lines)
+
+    def _format_flavor_mask_setup(self, leading_comment=None,
+                                  append_amp_init=False):
+        """Format the Fortran runtime flavor-lookup block for the flavor-mask
+        machinery. Shared by the standalone and madevent matrix element
+        exporters; leading_comment and append_amp_init cover the only
+        backend-specific wrapping around the common lookup loop.
+        """
+
+        setup_lines = []
+        if leading_comment:
+            setup_lines.append(leading_comment)
+        setup_lines += [
+            '      FLAV_IDX_LOOKUP = 0',
+            '      DO MASK_I = 1, NMASK_FLAV',
+            '        FLAV_MATCH = .TRUE.',
+            '        DO MASK_J = 1, NEXTERNAL',
+            '          IF (FLAVOR(MASK_J) .NE. FLAV_TABLE(MASK_J, MASK_I)) THEN',
+            '            FLAV_MATCH = .FALSE.',
+            '            EXIT',
+            '          ENDIF',
+            '        ENDDO',
+            '        IF (FLAV_MATCH) THEN',
+            '          FLAV_IDX_LOOKUP = MASK_I',
+            '          EXIT',
+            '        ENDIF',
+            '      ENDDO',
+            'C     If the lookup misses, keep all active calls enabled. HELAS',
+            'C     still checks flavor compatibility internally, so this is a',
+            'C     safe fallback for grouped flavor tables and MadSpin probes.',
+            '      IF (FLAV_IDX_LOOKUP .EQ. 0) THEN',
+            '        DO MASK_K = 1, NWORDS_WF',
+            '          CURRENT_WF_MASK(MASK_K) = ACTIVE_WF_MASK(MASK_K)',
+            '        ENDDO',
+            '        DO MASK_K = 1, NWORDS_AMP',
+            '          CURRENT_AMP_MASK(MASK_K) = ACTIVE_AMP_MASK(MASK_K)',
+            '        ENDDO',
+            '      ELSE',
+            '        DO MASK_K = 1, NWORDS_WF',
+            '          CURRENT_WF_MASK(MASK_K) = WF_INDEX_MASK(MASK_K, FLAV_IDX_LOOKUP)',
+            '        ENDDO',
+            '        DO MASK_K = 1, NWORDS_AMP',
+            '          CURRENT_AMP_MASK(MASK_K) = AMP_INDEX_MASK(MASK_K, FLAV_IDX_LOOKUP)',
+            '        ENDDO',
+            '      ENDIF',
+        ]
+        if append_amp_init:
+            setup_lines += [
+                'C     Zero-initialise AMP so that JAMP reads 0 from any slot whose',
+                'C     CALL is skipped by the IAND guard below. Without this, AMP',
+                'C     would carry uninitialised stack data into JAMP.',
+                '      AMP(:) = (0D0, 0D0)',
+            ]
+        return '\n'.join(setup_lines)
+
+    def _get_flavor_mask_blocks(self, matrix_element):
+        """Return declaration/setup blocks for per-call flavor masks.
+
+        This madevent variant projects the per-flavor masks onto
+        coupling-equivalent flavor groups; ProcessExporterFortranSA overrides
+        the method to keep every flavor instead. Both share the Fortran
+        formatting through _build_flavor_index_masks, _format_flavor_mask_decl
+        and _format_flavor_mask_setup.
+        """
+
+        if not getattr(self, 'use_flavor_mask', False):
+            return ('', '', 0, 0)
+
+        allowed_flavors = matrix_element.compute_flavor_masks()
+        if not allowed_flavors:
+            return ('', '', 0, 0)
+
+        if matrix_element.flavor_mask_is_trivial():
+            return ('', '', len(allowed_flavors), (1 << len(allowed_flavors)) - 1)
+
+        n_wfs = matrix_element.get_number_of_wavefunctions()
+        n_amps = matrix_element.get_number_of_amplitudes()
+        nwords_wf = max(1, (n_wfs + 63) // 64)
+        nwords_amp = max(1, (n_amps + 63) // 64)
+
+        wf_masks = [0] * n_wfs
+        amp_masks = [0] * n_amps
+        for wf in matrix_element.get_all_wavefunctions():
+            idx = wf.get('number')
+            if isinstance(idx, int) and idx > 0:
+                wf_masks[idx - 1] = wf['flavor_mask'] if 'flavor_mask' in wf else 0
+        for amp in matrix_element.get_all_amplitudes():
+            idx = amp.get('number')
+            if isinstance(idx, int) and idx > 0:
+                amp_masks[idx - 1] = amp['flavor_mask'] if 'flavor_mask' in amp else 0
+
+        # madevent collapses coupling-equivalent flavors into one runtime
+        # table entry; the standalone exporter overrides this method to skip
+        # the compression and keep every flavor.
+        runtime_flavors, wf_masks = self._compress_mask_list_to_flavor_groups(
+            matrix_element, allowed_flavors, wf_masks)
+        _, amp_masks = self._compress_mask_list_to_flavor_groups(
+            matrix_element, allowed_flavors, amp_masks)
+        n_flavors = len(runtime_flavors)
+
+        active_flavor_mask = 0
+        for amp_mask in amp_masks:
+            active_flavor_mask |= amp_mask
+        if active_flavor_mask == 0:
+            active_flavor_mask = (1 << n_flavors) - 1
+
+        wf_index_masks, active_wf_index_masks = self._build_flavor_index_masks(
+            wf_masks, n_flavors, nwords_wf)
+        amp_index_masks, active_amp_index_masks = self._build_flavor_index_masks(
+            amp_masks, n_flavors, nwords_amp)
+
+        model = matrix_element.get('processes')[0].get('model')
+        pdg_to_group_pos, max_group_size = self._build_flavor_group_lookup(model)
+        flav_table_flat = []
+        for flavor in runtime_flavors:
+            for p in flavor:
+                flav_table_flat.append(self._map_flavor_to_group_pos(
+                    p, pdg_to_group_pos, max_group_size))
+
+        decl_block = self._format_flavor_mask_decl(
+            n_flavors, n_wfs, n_amps, nwords_wf, nwords_amp,
+            wf_index_masks, amp_index_masks,
+            active_wf_index_masks, active_amp_index_masks, flav_table_flat)
+        setup_block = self._format_flavor_mask_setup()
+
+        return (decl_block, setup_block, n_flavors, active_flavor_mask)
+
     #===========================================================================
     # write_pdf_opendata
     #===========================================================================
@@ -976,7 +1272,8 @@ param_card.inc: ../Cards/param_card.dat\n\t../bin/madevent treatcards param\n'''
     def write_nexternal_madspin(self, writer, nexternal, ninitial):
         """Write the nexternal_prod.inc file for madspin"""
 
-        replace_dict = {}
+        replace_dict = {'flavor_mask_decl':'',
+                        'flavor_mask_setup':''}
 
         replace_dict['nexternal'] = nexternal
         replace_dict['ninitial'] = ninitial
@@ -2773,16 +3070,21 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
     f2py_matrix_splitter = "f2py_splitter.py"
     jamp_optim = True
     default_vector_size = 0
+    # When True, emit per-call IAND(WF_FLAVOR_MASK/AMP_FLAVOR_MASK,
+    # CURRENT_FLAV_BIT) guards in MATRIX so that wavefunctions and amplitudes
+    # which contribute zero for the current input flavor are skipped at
+    # runtime. Set to False to revert to the unconditional emission.
+    use_flavor_mask = True
 
     def __init__(self, *args,**opts):
         """add the format information compare to standard init"""
-        
+
         if 'format' in opts:
             self.format = opts['format']
             del opts['format']
         else:
             self.format = 'standalone'
-        
+
         self.prefix_info = {}
         ProcessExporterFortran.__init__(self, *args, **opts)
 
@@ -3435,6 +3737,95 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         
         return replace_dict
 
+    def _get_flavor_mask_blocks(self, matrix_element):
+        """Build the Fortran declaration / DATA block and the runtime flavor
+        bit lookup block for the per-call flavor-mask optimization.
+
+        Returns (decl_block, setup_block, n_flavors, active_flavor_mask). When
+        the optimization is inactive for this matrix element, returns
+        ('', '', 0, 0) and does not mutate the matrix element.
+
+        Unlike the madevent base method, this standalone variant keeps every
+        allowed flavor in FLAV_TABLE (no coupling-group compression) so that
+        any flavor the caller passes resolves directly. The Fortran formatting
+        is shared with the base method through _build_flavor_index_masks,
+        _format_flavor_mask_decl and _format_flavor_mask_setup.
+
+        Inactive cases:
+          - self.use_flavor_mask is False (toggle disabled);
+          - the matrix element has no merged-particle flavor variants
+            (compute_flavor_masks returns []);
+          - every per-diagram mask is all-ones, so no per-call guard would
+            ever fire.
+        """
+
+        if not getattr(self, 'use_flavor_mask', False):
+            return ('', '', 0, 0)
+
+        allowed_flavors = matrix_element.compute_flavor_masks()
+        n_flavors = len(allowed_flavors)
+        if n_flavors == 0:
+            return ('', '', 0, 0)
+        if matrix_element.flavor_mask_is_trivial():
+            return ('', '', 0, 0)
+
+        all_amps = matrix_element.get_all_amplitudes()
+        all_wfs = matrix_element.get_all_wavefunctions()
+        n_amps = len(all_amps)
+        n_wfs = len(all_wfs)
+
+        # Mask values are indexed by the object's 'number' attribute (1-based,
+        # contiguous).
+        wf_masks = [0] * n_wfs
+        for wf in all_wfs:
+            idx = wf.get('number') - 1
+            if 0 <= idx < n_wfs:
+                wf_masks[idx] = wf['flavor_mask'] if 'flavor_mask' in wf else 0
+        amp_masks = [0] * n_amps
+        for amp in all_amps:
+            idx = amp.get('number') - 1
+            if 0 <= idx < n_amps:
+                amp_masks[idx] = amp['flavor_mask'] if 'flavor_mask' in amp else 0
+        active_flavor_mask = 0
+        for amp_mask in amp_masks:
+            active_flavor_mask |= amp_mask
+
+        nwords_wf = (n_wfs + 63) // 64
+        nwords_amp = (n_amps + 63) // 64
+
+        wf_index_masks, active_wf_index_masks = self._build_flavor_index_masks(
+            wf_masks, n_flavors, nwords_wf)
+        amp_index_masks, active_amp_index_masks = self._build_flavor_index_masks(
+            amp_masks, n_flavors, nwords_amp)
+
+        # allowed_flavors stores raw (positive) PDG codes, but at runtime the
+        # caller fills FLAVOR(NEXTERNAL) with the *group position* within each
+        # merged-particle group (1..N) — the same convention HELAS's ixxxxx
+        # uses as its flv argument and the same convention the existing
+        # GET_FLAVOR / FLAV_COUPLING tables use in madevent. So FLAV_TABLE
+        # below must hold group positions, not PDG codes.
+        model = matrix_element.get('processes')[0].get('model')
+        pdg_to_group_pos, max_group_size = self._build_flavor_group_lookup(model)
+        # FLAV_TABLE laid out column-major: FLAV_TABLE(NEXTERNAL, NMASK_FLAV).
+        # Fortran DATA without explicit indices iterates fastest in the first
+        # dimension, so we emit (leg, flavor) tuples with leg-first ordering.
+        flav_table_flat = []
+        for flavor in allowed_flavors:
+            for p in flavor:
+                flav_table_flat.append(self._map_flavor_to_group_pos(
+                    p, pdg_to_group_pos, max_group_size))
+
+        decl_block = self._format_flavor_mask_decl(
+            n_flavors, n_wfs, n_amps, nwords_wf, nwords_amp,
+            wf_index_masks, amp_index_masks,
+            active_wf_index_masks, active_amp_index_masks, flav_table_flat)
+        setup_block = self._format_flavor_mask_setup(
+            leading_comment='C     Resolve input FLAVOR(NEXTERNAL) -> bit'
+            ' in CURRENT_FLAV_BIT.',
+            append_amp_init=True)
+
+        return (decl_block, setup_block, n_flavors, active_flavor_mask)
+
     #===========================================================================
     # write_matrix_element_v4
     #===========================================================================
@@ -3447,7 +3838,7 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         if not matrix_element.get('processes') or \
                not matrix_element.get('diagrams'):
             return 0
-        
+
         if writer:
             if not isinstance(writer, writers.FortranWriter):
                 raise writers.FortranWriter.FortranWriterError(\
@@ -3455,18 +3846,38 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
             # Set lowercase/uppercase Fortran code
             writers.FortranWriter.downcase = False
 
-            
+
         if 'sa_symmetry' not in self.opt:
             self.opt['sa_symmetry']=False
 
 
         # The proc_id is for MadEvent grouping which is never used in SA.
         replace_dict = {'global_variable':'', 'amp2_lines':'',
-                                       'proc_prefix':proc_prefix, 'proc_id':''}
+                                       'proc_prefix':proc_prefix, 'proc_id':'',
+                                       'flavor_mask_decl':'',
+                                       'flavor_mask_setup':''}
 
-        # Extract helas calls
-        helas_calls = fortran_model.get_matrix_element_calls(\
-                    matrix_element)
+        # Flavor-mask optimization: compute per-amp/per-wf masks (only when the
+        # toggle is on and the ME has merged-particle flavor variants), build
+        # the data/decl/setup blocks, and configure the helas writer so it
+        # prefixes each per-call CALL with an IAND guard. The try/finally
+        # ensures we never leak the writer state into the next matrix element.
+        mask_decl, mask_setup, n_flavors, active_flavor_mask = \
+                self._get_flavor_mask_blocks(matrix_element)
+        replace_dict['flavor_mask_decl'] = mask_decl
+        replace_dict['flavor_mask_setup'] = mask_setup
+
+        fortran_model.use_flavor_mask = (n_flavors > 0)
+        fortran_model.me_n_flavors = n_flavors
+        fortran_model.me_active_flavor_mask = active_flavor_mask
+        try:
+            # Extract helas calls
+            helas_calls = fortran_model.get_matrix_element_calls(\
+                        matrix_element)
+        finally:
+            fortran_model.use_flavor_mask = False
+            fortran_model.me_n_flavors = 0
+            fortran_model.me_active_flavor_mask = None
 
         replace_dict['helas_calls'] = "\n".join(helas_calls)
 
@@ -4281,9 +4692,20 @@ class ProcessExporterFortranMW(ProcessExporterFortran):
         color_data_lines = self.get_color_data_lines(matrix_element)
         replace_dict['color_data_lines'] = "\n".join(color_data_lines)
 
-        # Extract helas calls
-        helas_calls = fortran_model.get_matrix_element_calls(\
-                    matrix_element)
+        mask_decl, mask_setup, n_flavors, active_flavor_mask = \
+                self._get_flavor_mask_blocks(matrix_element)
+        replace_dict['flavor_mask_decl'] = mask_decl
+        replace_dict['flavor_mask_setup'] = mask_setup
+
+        fortran_model.use_flavor_mask = (n_flavors > 0)
+        fortran_model.me_n_flavors = n_flavors
+        fortran_model.me_active_flavor_mask = active_flavor_mask
+        try:
+            helas_calls = fortran_model.get_matrix_element_calls(matrix_element)
+        finally:
+            fortran_model.use_flavor_mask = False
+            fortran_model.me_n_flavors = 0
+            fortran_model.me_active_flavor_mask = None
 
         replace_dict['helas_calls'] = "\n".join(helas_calls)
 
@@ -5220,12 +5642,25 @@ class ProcessExporterFortranME(ProcessExporterFortran):
         # The proc prefix is not used for MadEvent output so it can safely be set
         # to an empty string.
         replace_dict = {'proc_prefix':'',
-                        'set_amp2_line': 'ANS=ANS*AMP2(MAPCONFIG(ICONFIG))/XTOT'}
+                        'set_amp2_line': 'ANS=ANS*AMP2(MAPCONFIG(ICONFIG))/XTOT',
+                        'flavor_mask_decl':'',
+                        'flavor_mask_setup':''}
  
  
-        # Extract helas calls
-        helas_calls = fortran_model.get_matrix_element_calls(\
-                    matrix_element)
+        mask_decl, mask_setup, n_flavors, active_flavor_mask = \
+                self._get_flavor_mask_blocks(matrix_element)
+        replace_dict['flavor_mask_decl'] = mask_decl
+        replace_dict['flavor_mask_setup'] = mask_setup
+
+        fortran_model.use_flavor_mask = (n_flavors > 0)
+        fortran_model.me_n_flavors = n_flavors
+        fortran_model.me_active_flavor_mask = active_flavor_mask
+        try:
+            helas_calls = fortran_model.get_matrix_element_calls(matrix_element)
+        finally:
+            fortran_model.use_flavor_mask = False
+            fortran_model.me_n_flavors = 0
+            fortran_model.me_active_flavor_mask = None
         if fortran_model.width_tchannel_set_tozero and not ProcessExporterFortranME.done_warning_tchannel:
             logger.info("Some T-channel width have been set to zero [new since 2.8.0]\n if you want to keep this width please set \"zerowidth_tchannel\" to False", '$MG:BOLD')
             ProcessExporterFortranME.done_warning_tchannel = True
@@ -5417,14 +5852,12 @@ class ProcessExporterFortranME(ProcessExporterFortran):
         # each PDG code is converted to its group position before being written
         # into the DATA statement.
         model = matrix_element.get('processes')[0].get('model')
-        pdg_to_group_pos = {}
-        merged_particles = model.get('merged_particles') or {}
-        for members in merged_particles.values():
-            for pos, pdg in enumerate(members, 1):
-                pdg_to_group_pos[pdg] = pos
+        pdg_to_group_pos, max_group_size = self._build_flavor_group_lookup(model)
 
         for i, flav in enumerate(all_flav):
-            flav_positions = [str(pdg_to_group_pos.get(f, f)) for f in flav[0]]
+            flav_positions = [str(self._map_flavor_to_group_pos(
+                              f, pdg_to_group_pos, max_group_size))
+                              for f in flav[0]]
             replace_dict['get_flavor_matrix'] += ' DATA (FLAVOR(i,  %d),i=  1, NEXTERNAL) /%s/\n' % (i+1, ', '.join(flav_positions))
 
         # In addition to the IFLAV-indexed FLAVOR table above (one row per
@@ -5437,7 +5870,9 @@ class ProcessExporterFortranME(ProcessExporterFortran):
         replace_dict['max_flavor_row'] = len(all_flav_flat)
         replace_dict['get_flavor_row_matrix'] = ''
         for i, flav_tuple in enumerate(all_flav_flat):
-            flav_positions = [str(pdg_to_group_pos.get(f, f)) for f in flav_tuple]
+            flav_positions = [str(self._map_flavor_to_group_pos(
+                              f, pdg_to_group_pos, max_group_size))
+                              for f in flav_tuple]
             replace_dict['get_flavor_row_matrix'] += ' DATA (FLAVOR_ROW(i,  %d),i=  1, NEXTERNAL) /%s/\n' % (i+1, ', '.join(flav_positions))
         
         # information for computing the correct symmetry factor for each flavor
@@ -5626,14 +6061,12 @@ class ProcessExporterFortranME(ProcessExporterFortran):
         replace_dict['start_ipsel_for_IFLAV'] += ' ENDIF\n'
         replace_dict['maxflavor'] = len(all_flv)
         replace_dict['get_flavor_matrix'] = ''
-        pdg_to_group_pos = {}
         model = self.model or matrix_element.get('processes')[0].get('model')
-        merged_particles = (model.get('merged_particles') or {}) if model else {}
-        for members in merged_particles.values():
-            for pos, pdg in enumerate(members, 1):
-                pdg_to_group_pos[pdg] = pos
+        pdg_to_group_pos, max_group_size = self._build_flavor_group_lookup(model)
         for i, flav in enumerate(all_flv):
-            flav_positions = [str(pdg_to_group_pos.get(f, f)) for f in flav[0]]
+            flav_positions = [str(self._map_flavor_to_group_pos(
+                              f, pdg_to_group_pos, max_group_size))
+                              for f in flav[0]]
             replace_dict['get_flavor_matrix'] += ' DATA (FLAVOR(i,  %d),i=  1, NEXTERNAL) /%s/\n' % (i+1, ', '.join(flav_positions))
         
 

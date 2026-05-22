@@ -1034,21 +1034,65 @@ class FortranUFOHelasCallWriter(UFOHelasCallWriter):
         helicity, i.e. W(i) vs W(i,H).
         """
         self.hel_sum = hel_sum
+        # Flavor-mask emission state. The exporter sets these around its call
+        # to get_matrix_element_calls when the optimization is active. When
+        # use_flavor_mask is True and an object carries a non-trivial
+        # 'flavor_mask' key, the emitted CALL is prefixed with an IAND guard
+        # checking an index bit against CURRENT_{WF,AMP}_MASK selected for the
+        # runtime FLAVOR(NEXTERNAL) entry.
+        self.use_flavor_mask = False
+        self.me_n_flavors = 0
+        self.me_active_flavor_mask = None
         super(FortranUFOHelasCallWriter, self).__init__(argument, options=options)
 
     def format_helas_object(self, prefix, number):
         """ Returns the string for accessing the wavefunction with number in
         argument. Typical output is {prefix}(1,{number}) """
-        
+
         if self.hel_sum:
             return '%s%s,H)'%(prefix, number)
         else:
-            return '%s%s)'%(prefix, number)       
+            return '%s%s)'%(prefix, number)
+
+    def _flavor_mask_prefix(self, obj, kind):
+        """Return an 'IF (IAND(...)) ' prefix for a CALL line, or '' if the
+        guard is not needed (feature disabled, no mask on object, or mask is
+        all-ones for this ME). kind is 'wf' or 'amp'."""
+
+        if not self.use_flavor_mask or self.me_n_flavors <= 0:
+            return ''
+        if 'flavor_mask' not in obj:
+            return ''
+        mask = obj['flavor_mask']
+        all_ones = (1 << self.me_n_flavors) - 1
+        active_mask = getattr(self, 'me_active_flavor_mask', None)
+        if active_mask is None:
+            active_mask = all_ones
+        if mask == active_mask:
+            return ''
+        idx = obj.get('number')
+        array = 'CURRENT_WF_MASK' if kind == 'wf' else 'CURRENT_AMP_MASK'
+        if kind == 'wf' and 'guard_amp_number' in obj:
+            idx = obj.get('guard_amp_number')
+            array = 'CURRENT_AMP_MASK'
+        if not isinstance(idx, int) or idx <= 0:
+            return ''
+        word = (idx - 1) // 64 + 1
+        bit = (idx - 1) % 64
+        return 'IF (IAND(%s(%d), ISHFT(1_8, %d)) .NE. 0) ' % (array, word, bit)
+
+    def get_wavefunction_call(self, wavefunction, **opt):
+        call = super(FortranUFOHelasCallWriter, self).get_wavefunction_call(
+                                                            wavefunction, **opt)
+        if not call:
+            return call
+        prefix = self._flavor_mask_prefix(wavefunction, 'wf')
+        return prefix + call if prefix else call
 
     def get_amplitude_call(self, amplitude,**opts):
-        """ We overwrite this function here because we must call 
+        """ We overwrite this function here because we must call
         set_octet_majorana_coupling_sign for all wavefunction taking part in
-        this loopHelasAmplitude. This is not necessary in the optimized mode"""        
+        this loopHelasAmplitude. This is not necessary in the optimized mode"""
 
         # Special feature: For octet Majorana fermions, need an extra
         # minus sign in the FVI (and FSI?) wavefunction in UFO
@@ -1057,9 +1101,13 @@ class FortranUFOHelasCallWriter(UFOHelasCallWriter):
             for lwf in amplitude.get('wavefunctions'):
                 lwf.set_octet_majorana_coupling_sign()
             amplitude.set('coupling',amplitude.get_couplings())
-        
-        return super(FortranUFOHelasCallWriter, self).get_amplitude_call(
-                                                               amplitude,**opts)         
+
+        call = super(FortranUFOHelasCallWriter, self).get_amplitude_call(
+                                                               amplitude,**opts)
+        if not call:
+            return call
+        prefix = self._flavor_mask_prefix(amplitude, 'amp')
+        return prefix + call if prefix else call
         
 
 
@@ -1622,6 +1670,37 @@ class CPPUFOHelasCallWriter(UFOHelasCallWriter):
     generates the C++ Helas call based on the Lorentz structure of
     the interaction."""
 
+    def __init__(self, argument={}, options={}):
+        self.use_flavor_mask = False
+        self.me_n_flavors = 0
+        self.me_active_flavor_mask = None
+        super(CPPUFOHelasCallWriter, self).__init__(argument, options=options)
+
+    def _flavor_mask_prefix(self, obj, kind):
+        """Return an 'if ((...)) ' prefix for a C++ HELAS call, or ''."""
+
+        if not self.use_flavor_mask or self.me_n_flavors <= 0:
+            return ''
+        if 'flavor_mask' not in obj:
+            return ''
+        mask = obj['flavor_mask']
+        all_ones = (1 << self.me_n_flavors) - 1
+        active_mask = getattr(self, 'me_active_flavor_mask', None)
+        if active_mask is None:
+            active_mask = all_ones
+        if mask == active_mask:
+            return ''
+        idx = obj.get('number')
+        array = 'current_wf_mask' if kind == 'wf' else 'current_amp_mask'
+        if kind == 'wf' and 'guard_amp_number' in obj:
+            idx = obj.get('guard_amp_number')
+            array = 'current_amp_mask'
+        if not isinstance(idx, int) or idx <= 0:
+            return ''
+        word = (idx - 1) // 64
+        bit = (idx - 1) % 64
+        return 'if ((%s[%d] & (1ULL << %d)) != 0ULL) ' % (array, word, bit)
+
     def generate_helas_call(self, argument):
         """Routine for automatic generation of C++ Helas calls
         according to just the spin structure of the interaction.
@@ -2048,6 +2127,21 @@ class GPUFOHelasCallWriter(CPPUFOHelasCallWriter):
                          (njamp, export_cpp.OneProcessExporterGPU.coeff(*coeff)))
 
         return res
+
+    def get_wavefunction_call(self, wavefunction, **opt):
+        call = super(CPPUFOHelasCallWriter, self).get_wavefunction_call(
+                                                            wavefunction, **opt)
+        if not call:
+            return call
+        prefix = self._flavor_mask_prefix(wavefunction, 'wf')
+        return prefix + call if prefix else call
+
+    def get_amplitude_call(self, amplitude):
+        call = super(CPPUFOHelasCallWriter, self).get_amplitude_call(amplitude)
+        if not call:
+            return call
+        prefix = self._flavor_mask_prefix(amplitude, 'amp')
+        return prefix + call if prefix else call
 
 
 
