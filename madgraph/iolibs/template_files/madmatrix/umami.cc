@@ -443,7 +443,8 @@ extern "C"
     constexpr std::size_t flavor_count = CPPProcess::nmaxflavor;
     HostBufferBase<unsigned int, false> flavor_indices( ((count + page_size2 - 1) / page_size2 + flavor_count) * page_size2 );
     bool sort_flavors = vector_size > 1 && flavor_count > 1 && flavor_indices_in;
-    if ( sort_flavors ) {
+    if ( sort_flavors ) 
+    {
       permutation.resize(count);
       std::size_t voffset = 0;
       std::size_t vector_indices[flavor_count] = {};
@@ -455,7 +456,8 @@ extern "C"
         unsigned int flav = flavor_indices_in[i_event + offset];
         auto& vcount = vector_counts[flav];
         auto& vindex = vector_indices[flav];
-        if (vcount == 0) {
+        if ( vcount == 0 )
+        {
           vindex = voffset * page_size2;
           for ( std::size_t i = 0; i < page_size2; ++i) {
             flavor_indices[voffset * page_size2 + i] = flav;
@@ -539,35 +541,71 @@ extern "C"
       false,
       rounded_count );
 
-    std::size_t page_size = MemoryAccessMomentaBase::neppM;
-    for( std::size_t i_event = 0; i_event < count; ++i_event )
+    if ( sort_flavors )
     {
-      std::size_t i_page = i_event / page_size;
-      std::size_t i_vector = i_event % page_size;
+      for( std::size_t i_event = 0; i_event < count; ++i_event )
+      {
+        std::size_t i_sorted = permutation[i_event];
+        std::size_t page_size = MemoryAccessMomentaBase::neppM;
+        std::size_t i_page = i_sorted / page_size;
+        std::size_t i_vector = i_sorted % page_size;
 
-      double denominator = denominators[i_event];
-      if( m2_out != nullptr )
-      {
-        m2_out[i_event + offset] = matrix_elements[i_event];
-      }
-      if( amp2_out != nullptr )
-      {
-        for( std::size_t i_diag = 0; i_diag < CPPProcess::ndiagrams; ++i_diag )
+        double denominator = denominators[i_sorted];
+        if( m2_out != nullptr )
         {
-          amp2_out[stride * i_diag + i_event + offset] = numerators[i_page * page_size * CPPProcess::ndiagrams + i_diag * page_size + i_vector] / denominator;
+          m2_out[i_event + offset] = matrix_elements[i_sorted];
+        }
+        if( amp2_out != nullptr )
+        {
+          for( std::size_t i_diag = 0; i_diag < CPPProcess::ndiagrams; ++i_diag )
+          {
+            amp2_out[stride * i_diag + i_event + offset] = numerators[i_page * page_size * CPPProcess::ndiagrams + i_diag * page_size + i_vector] / denominator;
+          }
+        }
+        if( diagram_out != nullptr )
+        {
+          diagram_out[i_event + offset] = diagram_index[i_sorted] - 1;
+        }
+        if( color_out != nullptr )
+        {
+          color_out[i_event + offset] = color_index[i_sorted] - 1;
+        }
+        if( helicity_out != nullptr )
+        {
+          helicity_out[i_event + offset] = helicity_index[i_sorted] - 1;
         }
       }
-      if( diagram_out != nullptr )
+    } else {
+      std::size_t page_size = MemoryAccessMomentaBase::neppM;
+      for( std::size_t i_event = 0; i_event < count; ++i_event )
       {
-        diagram_out[i_event + offset] = diagram_index[i_event] - 1;
-      }
-      if( color_out != nullptr )
-      {
-        color_out[i_event + offset] = color_index[i_event] - 1;
-      }
-      if( helicity_out != nullptr )
-      {
-        helicity_out[i_event + offset] = helicity_index[i_event] - 1;
+        std::size_t i_page = i_event / page_size;
+        std::size_t i_vector = i_event % page_size;
+
+        double denominator = denominators[i_event];
+        if( m2_out != nullptr )
+        {
+          m2_out[i_event + offset] = matrix_elements[i_event];
+        }
+        if( amp2_out != nullptr )
+        {
+          for( std::size_t i_diag = 0; i_diag < CPPProcess::ndiagrams; ++i_diag )
+          {
+            amp2_out[stride * i_diag + i_event + offset] = numerators[i_page * page_size * CPPProcess::ndiagrams + i_diag * page_size + i_vector] / denominator;
+          }
+        }
+        if( diagram_out != nullptr )
+        {
+          diagram_out[i_event + offset] = diagram_index[i_event] - 1;
+        }
+        if( color_out != nullptr )
+        {
+          color_out[i_event + offset] = color_index[i_event] - 1;
+        }
+        if( helicity_out != nullptr )
+        {
+          helicity_out[i_event + offset] = helicity_index[i_event] - 1;
+        }
       }
     }
 #endif // MGONGPUCPP_GPUIMPL
