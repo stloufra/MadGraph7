@@ -12,6 +12,7 @@
 #include "MemoryBuffers.h"
 
 #include <cmath>
+#include <vector>
 #include <array>
 #include <utility>
 
@@ -74,18 +75,18 @@ namespace
   __device__
 #endif
     void
-    transpose_momenta( const double* momenta_in, fptype* momenta_out, std::size_t i_event, std::size_t stride )
+    transpose_momenta( const double* momenta_in, fptype* momenta_out, std::size_t i_event_in, std::size_t i_event_out, std::size_t stride )
   {
     std::size_t page_size = MemoryAccessMomentaBase::neppM;
-    std::size_t i_page = i_event / page_size;
-    std::size_t i_vector = i_event % page_size;
+    std::size_t i_page = i_event_out / page_size;
+    std::size_t i_vector = i_event_out % page_size;
 
     for( std::size_t i_part = 0; i_part < CPPProcess::npar; ++i_part )
     {
       for( std::size_t i_mom = 0; i_mom < 4; ++i_mom )
       {
         momenta_out[i_page * CPPProcess::npar * 4 * page_size +
-                    i_part * 4 * page_size + i_mom * page_size + i_vector] = momenta_in[stride * ( CPPProcess::npar * i_mom + i_part ) + i_event];
+                    i_part * 4 * page_size + i_mom * page_size + i_vector] = momenta_in[stride * ( CPPProcess::npar * i_mom + i_part ) + i_event_in];
       }
     }
   }
@@ -112,7 +113,7 @@ namespace
     std::size_t i_event = blockDim.x * blockIdx.x + threadIdx.x;
     if( i_event >= count ) return;
 
-    transpose_momenta( &momenta_in[offset], momenta, i_event, stride );
+    transpose_momenta( &momenta_in[offset], momenta, i_event, i_event, stride );
     diagram_random[i_event] = diagram_random_in ? diagram_random_in[i_event + offset] : 0.5;
     helicity_random[i_event] = helicity_random_in ? helicity_random_in[i_event + offset] : 0.5;
     color_random[i_event] = color_random_in ? color_random_in[i_event + offset] : 0.5;
@@ -433,14 +434,45 @@ extern "C"
 
     gpuFreeAsync( buffer, gpu_stream );
 #else  // MGONGPUCPP_GPUIMPL
+    constexpr std::size_t vector_size = MemoryAccessMomentaBase::neppM;
     // need to round to round to double page size for some reason
-    std::size_t page_size2 = 2 * MemoryAccessMomentaBase::neppM;
-    std::size_t rounded_count = ( count + page_size2 - 1 ) / page_size2 * page_size2;
+    constexpr std::size_t page_size2 = 2 * vector_size;
+    std::vector<std::size_t> permutation;
+    std::size_t rounded_count;
+
+    constexpr std::size_t flavor_count = CPPProcess::nmaxflavor;
+    HostBufferBase<unsigned int, false> flavor_indices( ((count + page_size2 - 1) / page_size2 + flavor_count) * page_size2 );
+    bool sort_flavors = vector_size > 1 && flavor_count > 1 && flavor_indices_in;
+    if ( sort_flavors ) {
+      permutation.resize(count);
+      std::size_t voffset = 0;
+      std::size_t vector_indices[flavor_count] = {};
+      std::size_t vector_counts[flavor_count] = {};
+      // determine permutation of inputs such that all entries in a SIMD vector
+      // have the same flavor index
+      for( std::size_t i_event = 0; i_event < count; ++i_event )
+      {
+        unsigned int flav = flavor_indices_in[i_event + offset];
+        auto& vcount = vector_counts[flav];
+        auto& vindex = vector_indices[flav];
+        if (vcount == 0) {
+          vindex = voffset * page_size2;
+          for ( std::size_t i = 0; i < page_size2; ++i) {
+            flavor_indices[voffset * page_size2 + i] = flav;
+          }
+          voffset += 1;
+        }
+        permutation[i_event] = vindex + vcount;
+        vcount = (vcount + 1) % page_size2;
+      }
+      rounded_count = voffset * page_size2;
+    } else {
+      rounded_count = ( count + page_size2 - 1 ) / page_size2 * page_size2;
+    }
 
     HostBufferBase<fptype, false> momenta( rounded_count * CPPProcess::npar * 4 );
     HostBufferBase<fptype, false> couplings( rounded_count * mg5amcCpu::Parameters_dependentCouplings::ndcoup * 2 );
     HostBufferBase<fptype, false> g_s( rounded_count );
-    HostBufferBase<unsigned int, false> flavor_indices( rounded_count );
     HostBufferBase<fptype, false> helicity_random( rounded_count );
     HostBufferBase<fptype, false> color_random( rounded_count );
     HostBufferBase<fptype, false> diagram_random( rounded_count );
@@ -450,17 +482,29 @@ extern "C"
     HostBufferBase<fptype, false> denominators( rounded_count );
     HostBufferBase<int, false> helicity_index( rounded_count );
     HostBufferBase<int, false> color_index( rounded_count );
-    for( std::size_t i_event = 0; i_event < count; ++i_event )
-    {
-      transpose_momenta( &momenta_in[offset], momenta.data(), i_event, stride );
-      helicity_random[i_event] = random_helicity_in ? random_helicity_in[i_event + offset] : 0.5;
-      color_random[i_event] = random_color_in ? random_color_in[i_event + offset] : 0.5;
-      diagram_random[i_event] = random_diagram_in ? random_diagram_in[i_event + offset] : 0.5;
-      g_s[i_event] = alpha_s_in ? sqrt( 4 * M_PI * alpha_s_in[i_event + offset] ) : 1.2177157847767195;
-      flavor_indices[i_event] = flavor_indices_in ? flavor_indices_in[i_event + offset] : 0;
-    }
-    for ( std::size_t i_event = count; i_event < rounded_count; ++i_event ) {
-      flavor_indices[i_event] = 0;
+    if ( sort_flavors ) {
+      for( std::size_t i_event = 0; i_event < count; ++i_event )
+      {
+        std::size_t i_sorted = permutation[i_event];
+        transpose_momenta( &momenta_in[offset], momenta.data(), i_event, i_sorted, stride );
+        helicity_random[i_sorted] = random_helicity_in ? random_helicity_in[i_event + offset] : 0.5;
+        color_random[i_sorted] = random_color_in ? random_color_in[i_event + offset] : 0.5;
+        diagram_random[i_sorted] = random_diagram_in ? random_diagram_in[i_event + offset] : 0.5;
+        g_s[i_sorted] = alpha_s_in ? sqrt( 4 * M_PI * alpha_s_in[i_event + offset] ) : 1.2177157847767195;
+      }
+    } else {
+      for( std::size_t i_event = 0; i_event < count; ++i_event )
+      {
+        transpose_momenta( &momenta_in[offset], momenta.data(), i_event, i_event, stride );
+        helicity_random[i_event] = random_helicity_in ? random_helicity_in[i_event + offset] : 0.5;
+        color_random[i_event] = random_color_in ? random_color_in[i_event + offset] : 0.5;
+        diagram_random[i_event] = random_diagram_in ? random_diagram_in[i_event + offset] : 0.5;
+        g_s[i_event] = alpha_s_in ? sqrt( 4 * M_PI * alpha_s_in[i_event + offset] ) : 1.2177157847767195;
+        flavor_indices[i_event] = flavor_indices_in ? flavor_indices_in[i_event + offset] : 0;
+      }
+      for ( std::size_t i_event = count; i_event < rounded_count; ++i_event ) {
+        flavor_indices[i_event] = 0;
+      }
     }
     computeDependentCouplings( g_s.data(), couplings.data(), rounded_count );
 
