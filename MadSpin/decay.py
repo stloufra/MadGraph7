@@ -6,7 +6,10 @@ from madgraph.interface import reweight_interface
 from six.moves import map
 from six.moves import range
 from six.moves import zip
-import numpy as np
+try:
+    import numpy as np
+except ImportError:
+    np = None
 import pickle
 
 ################################################################################
@@ -289,7 +292,7 @@ class Event:
         for line in self.inputfile:
             origline = line
             line = line.lower()
-            if line=="":
+            if line.strip()=="":
                 continue 
             # Find special tag in the line
             if line[0]=="#":
@@ -2066,7 +2069,10 @@ class decay_all_events(object):
                 self.save_to_file(pickle_info,
                                           (self.all_ME,self.all_decay,self.width_estimator))                
         
-        if not self.options["onlyhelicity"] and self.options['spinmode'] not in  ['onshell', 'density']:
+        if not self.options["onlyhelicity"] and \
+            self.options['spinmode'] not in  ['PA', 'onshell', 'density'] and \
+            self.options['ME_mode'] == 'decay_chain':
+            
             resonances = self.width_estimator.resonances
             logger.debug('List of resonances: %s' % resonances)
             self.extract_resonances_mass_width(resonances) 
@@ -4411,7 +4417,9 @@ class decay_all_events_onshell(decay_all_events):
         i=0
         for processes in self.list_branches.values():
             for proc in processes:
-                commandline+="add process %s @%i --no_warning=duplicate --standalone;" % (proc,i)
+                newproc = "add process %s @%i --no_warning=duplicate --standalone;" % (proc,i)
+                commandline += self.adapt_decay(newproc) 
+                #commandline+="add process %s @%i --no_warning=duplicate --standalone;" % (proc,i)
                 i+=1 
         return commandline
 
@@ -4446,22 +4454,59 @@ class decay_all_events_density(decay_all_events_onshell):
         self.density_matrix = True
         return super().__init__(*args, **opts)
 
-    def adapt_production(self, line):
-        to_decay = list(self.mscmd.list_branches.keys())
-        #misc.sprint(to_decay)
-        return line
 
     #def get_full_matrix_command(self, processes): 
     #    "No need of full matrix-element in this mode"
     #    return ""
     
     def adapt_production(self, line):
-        return line
+        """If allowing offshell matrix element add * to the decaying particle."""
+
+        if self.options['density_pole_approximation']:
+             return line
+    
+        out = []
+        input = line.split(';')
+        for oneline in input:
+            if not oneline.strip():
+                continue
+            misc.sprint(oneline)
+            init, final = oneline.rsplit('>',maxsplit=1)
+            end = len(final)
+            if "[" in final:
+                end = min(end, final.index('['))
+            if "$" in final:
+                end = min(end, final.index('$'))
+            if "/" in final:
+                end = min(end, final.index('/'))
+            particle, final = final[:end], final[end:]
+            new_particle = []
+            for p in particle.split():
+                new_particle.append('%s*' % p)
+            out.append("%s > %s %s;" % (init, ' '.join(new_particle), final))
+        misc.sprint(' '.join(out)) 
+        return ' '.join(out)
+
     
     def adapt_decay(self, line):
-        return line
+        '''If allowing offshell matrix element add * to the decaying particle.'''
+        if self.options['density_pole_approximation']:
+             return line
+        
+        out = []
+        input = line.split(';')
+        for oneline in input:
+            if not oneline.strip():
+                continue
+            init, final = oneline.split('>',maxsplit=1)
+            end = len(init)
+            out.append("%s* > %s;" % (init.strip(), final))
+
+        return ' '.join(out)
 
     def save_to_file(self, *args):
+
+        misc.sprint(args)
         import sys
         with misc.stdchannel_redirected(sys.stdout, os.devnull):
             return super(decay_all_events_onshell,self).save_to_file(*args) 
@@ -4485,11 +4530,23 @@ class DensityMatrix:
     - Cache diagonal masks per basis_id (trace becomes cheap)
     - Cache tensor-product helicity tables per tensor-product basis_id, so tensor_product
        only recomputes VALUES per event (outer product / kron), not helicity labels.
+
+    Invariants
+    ----------
+    - helicities[k] and values[k] always refer to the same matrix element.
+    - for map-built instances, row order is deterministic from get_map_density_matrix().
+    - scalar_multiplication fast-path is valid only when map_density_matrix_ind is
+      the same cached object.
     """
 
     # Cache for the helicity-index map.
     # Key: (tuple(allowed_hel), n_changing)
     _map_cache = {}
+
+    # Cache for map-built basis templates.
+    # Key: (tuple(allowed_hel), n_changing)
+    # Value: (helicities[int32], source_idx[int64], needs_conjugation[bool])
+    _map_template_cache = {}
 
     # Cache for sort permutations by basis_id.
     # basis_id is stable across events for the same helicity basis.
@@ -4517,7 +4574,7 @@ class DensityMatrix:
         all_helicity_combinations : list[int] or np.ndarray
             Flat list of allowed helicities (Fortran-style ordering) used to build the map.
         dimension : int
-            Dimension used for trace diagonal indexing (your original convention).
+            Dimension used for packed-triangular diagonal indexing.
         """
         self.nchanging = int(nchanging)
         self.all_helicity_combinations = all_helicity_combinations
@@ -4545,22 +4602,15 @@ class DensityMatrix:
             self.helicities = array["helicities"].astype(np.int32, copy=False)
             self.values = array["values"].astype(np.complex64, copy=False)
         else:
-            # Build helicities + values in map iteration order (preallocated)
-            keys = list(self.map_density_matrix_ind.keys())  # list of tuples
-            n = len(keys)
-            L = len(keys[0])
-
-            hel = np.empty((n, L), dtype=np.int32)
-            val = np.empty(n, dtype=np.complex64)
-
-            for i, key in enumerate(keys):
-                is_in_array, pos = self.map_density_matrix_ind[key]
-                hel[i, :] = key
-                v = array[pos]
-                val[i] = v if is_in_array else np.conjugate(v)
-
-            self.helicities = hel
-            self.values = val
+            hel_template, src_idx, conj_mask = DensityMatrix.get_map_template(
+                all_helicity_combinations, self.nchanging
+            )
+            values = np.asarray(array)[src_idx]
+            if conj_mask.any():
+                values = values.copy()
+                values[conj_mask] = np.conjugate(values[conj_mask])
+            self.helicities = hel_template
+            self.values = values.astype(np.complex64, copy=False)
 
         # Diagonal mask is cached per basis_id
         self._diag_mask = self._get_diag_mask_cached()
@@ -4571,6 +4621,12 @@ class DensityMatrix:
 
     @classmethod
     def get_map_density_matrix(cls, allowed_hel, n_changing):
+        """Build/cache mapping: helicity label tuple -> (is_direct, inter_index).
+
+        allowed_hel is the flat Fortran ALLOW_HEL buffer of length
+        n_comb*n_changing. Direct entries are filled for I<=J; conjugate labels
+        reuse the same INTER index.
+        """
         # allowed_hel can be list/np array: make it hashable
         cache_key = (tuple(allowed_hel), int(n_changing))
         cached = cls._map_cache.get(cache_key)
@@ -4622,6 +4678,32 @@ class DensityMatrix:
         cls._map_cache[cache_key] = map_density
         return map_density
 
+    @classmethod
+    def get_map_template(cls, allowed_hel, n_changing):
+        """Return cached (helicities, src_idx, conj_mask) for vectorized reconstruction.
+
+        helicities is shared cached data and should not be mutated in place.
+        src_idx selects packed INTER entries; conj_mask marks entries that need
+        complex conjugation.
+        """
+        cache_key = (tuple(allowed_hel), int(n_changing))
+        cached = cls._map_template_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        map_density = cls.get_map_density_matrix(allowed_hel, n_changing)
+        keys = list(map_density.keys())
+        helicities = np.asarray(keys, dtype=np.int32)
+        src_idx = np.fromiter(
+            (map_density[key][1] for key in keys), dtype=np.int64, count=len(keys)
+        )
+        conj_mask = np.fromiter(
+            (not map_density[key][0] for key in keys), dtype=np.bool_, count=len(keys)
+        )
+        out = (helicities, src_idx, conj_mask)
+        cls._map_template_cache[cache_key] = out
+        return out
+
     # -------------------------------------------------------------------------
     # Construction helper for tensor products
     # -------------------------------------------------------------------------
@@ -4629,7 +4711,10 @@ class DensityMatrix:
     @staticmethod
     def from_components(helicities, values, nchanging, all_helicity_combinations, dimension, basis_id):
         """
-        Construct a DensityMatrix from already-built arrays.
+        Construct from prebuilt arrays (typically tensor products).
+
+        No map is attached (map_density_matrix_ind=None), so scalar contraction
+        uses the sorted-alignment path.
         """
         obj = object.__new__(DensityMatrix)
         obj.nchanging = int(nchanging)
@@ -4741,6 +4826,7 @@ class DensityMatrix:
         Helicities:
           - cached per tensor-product basis_id (basis-dependent, not event-dependent)
         """
+        # Cache key is basis-structure dependent and remains bounded per process setup.
         basis_id = ("tp", self._basis_id, other._basis_id)
 
         # --- helicities: cache per basis_id ---

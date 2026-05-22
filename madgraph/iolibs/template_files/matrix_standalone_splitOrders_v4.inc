@@ -493,7 +493,10 @@ C
           DO J = I, NCOLOR
               CF_INDEX = CF_INDEX +1
               DO N = 1, NAMPSO
-                 INTER(%(proc_prefix)sSQSOINDEX(M,N)) = INTER(%(proc_prefix)sSQSOINDEX(M,N)) + CF(CF_INDEX)*(DCONJG(JAMP_2(I,N))*JAMP_1(J,M)+DCONJG(JAMP_2(J,N))*JAMP_1(I,M))
+                 INTER(%(proc_prefix)sSQSOINDEX(M,N)) = 
+     $            INTER(%(proc_prefix)sSQSOINDEX(M,N)) + 
+     $            %(proc_prefix)sCF(CF_INDEX)*(DCONJG(JAMP_2(I,N))*
+     $            JAMP_1(J,M)+DCONJG(JAMP_2(J,N))*JAMP_1(I,M))             
               ENDDO
            ENDDO
         ENDDO

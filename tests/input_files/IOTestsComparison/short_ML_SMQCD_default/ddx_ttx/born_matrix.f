@@ -332,6 +332,7 @@ C
       COMPLEX*16 W(20,NWAVEFUNCS)
       COMPLEX*16 DUM0,DUM1
       DATA DUM0, DUM1/(0D0, 0D0), (1D0, 0D0)/
+      DOUBLE PRECISION BWCUTOFF
 C     
 C     GLOBAL VARIABLES
 C     
@@ -339,6 +340,7 @@ C
 
 C     
 C     
+      BWCUTOFF=15  ! use if $ syntax is defined in the process
       CALL IXXXXX(P(0,1),ZERO,NHEL(1),+1*IC(1),W(1,1))
       CALL OXXXXX(P(0,2),ZERO,NHEL(2),-1*IC(2),W(1,2))
       CALL OXXXXX(P(0,3),MDL_MT,NHEL(3),+1*IC(3),W(1,3))
@@ -485,9 +487,10 @@ C
       INTEGER POS(*)
       INTEGER ALLOW_HEL(*)
       DOUBLE PRECISION ALPHAS
-      DOUBLE COMPLEX INTER(99)
-      DOUBLE COMPLEX TMP_INTER(99)
+      DOUBLE COMPLEX INTER(*)
+      INTEGER NINTER
       INTEGER NB_NHEL
+      DOUBLE COMPLEX, ALLOCATABLE :: TMP_INTER(:)
       PARAMETER (NB_NHEL=16)
 C     LOCAL
       INTEGER I,IHEL,IPART
@@ -501,6 +504,9 @@ C     include coupling definition to update the value of alphas
 C     
       INCLUDE 'coupl.inc'
 
+      NINTER = N_COMB*(N_COMB+1)/2
+      ALLOCATE(TMP_INTER(NINTER))
+      TMP_INTER(:) = (0D0, 0D0)
 
       DO I=1, N_COMB*(N_COMB+1)/2
         INTER(I) = 0
@@ -524,6 +530,7 @@ C
         ENDDO
  10   ENDDO
       RETURN
+      DEALLOCATE(TMP_INTER)
       END
 
       SUBROUTINE  ML5_0_GET_ALL_INTER(P, NHEL, POS, N_CHANGING,
@@ -555,7 +562,7 @@ C
       INTEGER N_CHANGING, N_COMB
       INTEGER POS(*)
       INTEGER ALLOW_HEL(*)
-      DOUBLE COMPLEX INTER(99)
+      DOUBLE COMPLEX INTER(*)
 C     
 C     Intermediate array
 C     
@@ -566,12 +573,22 @@ C
       INTEGER IC(NEXTERNAL)
 
       DOUBLE COMPLEX AMP(NGRAPHS)
-      DOUBLE COMPLEX JAMP(NCOLOR, 3*NEXTERNAL)
+      DOUBLE COMPLEX, ALLOCATABLE, SAVE :: JAMP(:,:)
+      INTEGER, SAVE :: S_NCOMB = 0
+
 C     
 C     LOCAL
 C     
       INTEGER I,J,SOL,N
 
+      IF (ALLOCATED(JAMP) .AND. S_NCOMB.NE.N_COMB) THEN
+        DEALLOCATE(JAMP)
+      ENDIF
+
+      IF (.NOT.ALLOCATED(JAMP)) THEN
+        S_NCOMB=N_COMB
+        ALLOCATE(JAMP(NCOLOR, N_COMB))
+      ENDIF
 C     ----------
 C     BEGIN CODE
 C     ----------

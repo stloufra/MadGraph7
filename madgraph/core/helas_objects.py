@@ -1598,7 +1598,15 @@ class HelasWavefunction(base_objects.PhysicsObject):
               
         output['out'] = self.get('me_id') - flip
         output['M'] = self.get('mass')
+        #if self.get('onshell') is False:
+        #    output['W'] = '%s*BWCUTOFF' % self.get('width')
+        #else:
         output['W'] = self.get('width')
+        if self.get('onshell') is False:
+            output['bwcutoff'] = 'BWCUTOFF,'
+        else:
+            output['bwcutoff'] = ''
+
         output['propa'] = self.get('particle').get('propagator')
         if output['propa'] not in ['', None]:
             output['propa'] = 'P%s' % output['propa']
@@ -1712,6 +1720,8 @@ class HelasWavefunction(base_objects.PhysicsObject):
 
         res.append(tuple(self.get('polarization')) )
         res.append(self.get('offshell'))
+        res.append(self.get('onshell'))
+
         # Check if we need to append a charge conjugation flag
         if self.needs_hermitian_conjugate():
             res.append(self.get('conjugate_indices'))
@@ -1854,6 +1864,9 @@ class HelasWavefunction(base_objects.PhysicsObject):
                 tags.append('P1M')
             else:
                 raise InvalidCmd( 'polarization not handle for decay particle')
+        if self.get('onshell') is False:
+            tags.append('P1D') # D is for DOLLAR
+            #misc.sprint(self.get('onshell'), )
 
         return (tuple(self.get('lorentz')),tuple(tags),self.find_outgoing_number())
 
@@ -3220,6 +3233,7 @@ class HelasAmplitude(base_objects.PhysicsObject):
 
         output['out'] = self.get('number') - flip
         output['propa'] = ''
+        output['bwcutoff'] = ''
         output.update(opt)
         return output
 
@@ -5066,7 +5080,7 @@ class HelasMatrixElement(base_objects.PhysicsObject):
         for wa in self.get_all_wavefunctions() + self.get_all_amplitudes():
             if wa.get('interaction_id') in [0,-1]:
                 continue
-            output.append(wa.get_aloha_info());
+            output.append(wa.get_aloha_info())
 
         return output
 
