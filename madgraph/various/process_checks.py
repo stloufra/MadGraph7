@@ -57,6 +57,7 @@ import madgraph.core.color_amp as color_amp
 import madgraph.core.helas_objects as helas_objects
 import madgraph.core.diagram_generation as diagram_generation
 
+import contextlib
 import madgraph.various.rambo as rambo
 import madgraph.various.misc as misc
 import madgraph.various.progressbar as pbar
@@ -3628,9 +3629,12 @@ def check_flavor(process_definition, param_card=None, options=None,
     # process share the same matrix class (the merged PDG codes give the same
     # shell_string), and flavor is a runtime argument passed to smatrix, so
     # the class can safely be reused across different flavor evaluations.
+    # Keep reuse disabled here: Matrix_* classes are module globals keyed only
+    # by process shell string, so reusing across the merged/unmerged evaluators
+    # can pick up a class generated with the other model.
     evaluator_merged = MatrixElementEvaluator(merged_model, param_card,
                                               cmd=cmd,
-                                              auth_skipping=False, reuse=True)
+                                              auth_skipping=False, reuse=False)
     if not cmass_scheme and multiprocess.get('perturbation_couplings') == []:
         logger.info('Setting all widths to zero for flavor check')
         for particle in evaluator_merged.full_model.get('particles'):
@@ -3648,7 +3652,7 @@ def check_flavor(process_definition, param_card=None, options=None,
 
     evaluator_unmerged = MatrixElementEvaluator(unmerged_model, param_card,
                                                 cmd=cmd,
-                                                auth_skipping=False, reuse=True)
+                                                auth_skipping=False, reuse=False)
     if not cmass_scheme:
         for particle in evaluator_unmerged.full_model.get('particles'):
             if particle.get('width') != 'ZERO':
@@ -3875,12 +3879,123 @@ def output_flavor(comparison_results, output='text'):
 
 
 #===============================================================================
+# Marsaglia-Zaman RNG matching the check_sa Fortran/C++ template seed
+#===============================================================================
+class _Ranmar(object):
+    """Marsaglia-Zaman RNG used in the check_sa Fortran/C++ templates.
+
+    Initialising with the same seeds as the templates (``ij=1802, kl=9373``)
+    and drawing numbers in the same sequence gives identical RAMBO phase-space
+    points, allowing the Python backend in ``check_language`` to compare
+    against Fortran/C++ results without relying on printed momenta.
+    """
+
+    def __init__(self, ij=1802, kl=9373):
+        self.ranu = [0.0] * 98
+        self.rmarin(ij, kl)
+
+    def rmarin(self, ij, kl):
+        i = (ij // 177) % 177 + 2
+        j = ij % 177 + 2
+        k = (kl // 169) % 178 + 1
+        l = kl % 169
+        for ii in range(1, 98):
+            s = 0.0
+            t = 0.5
+            for _ in range(24):
+                m = ((i * j) % 179 * k) % 179
+                i, j, k = j, k, m
+                l = (53 * l + 1) % 169
+                if (l * m) % 64 >= 32:
+                    s += t
+                t *= 0.5
+            self.ranu[ii] = s
+        self.ranc = 362436.0 / 16777216.0
+        self.rancd = 7654321.0 / 16777216.0
+        self.rancm = 16777213.0 / 16777216.0
+        self.iranmr = 97
+        self.jranmr = 33
+
+    def ranmar(self):
+        uni = self.ranu[self.iranmr] - self.ranu[self.jranmr]
+        if uni < 0.0:
+            uni += 1.0
+        self.ranu[self.iranmr] = uni
+        self.iranmr -= 1
+        self.jranmr -= 1
+        if self.iranmr == 0:
+            self.iranmr = 97
+        if self.jranmr == 0:
+            self.jranmr = 97
+        self.ranc -= self.rancd
+        if self.ranc < 0.0:
+            self.ranc += self.rancm
+        uni -= self.ranc
+        if uni < 0.0:
+            uni += 1.0
+        return uni
+
+    def rn(self):
+        out = self.ranmar()
+        while out < 1e-16:
+            out = self.ranmar()
+        return out
+
+
+@contextlib.contextmanager
+def _seeded_rambo_rng(ij=1802, kl=9373):
+    """Context manager that temporarily replaces ``rambo.random_nb`` with a
+    fresh Marsaglia-Zaman RNG seeded with *(ij, kl)*.
+
+    This gives a deterministic RAMBO phase-space point that matches the one
+    produced by the check_sa Fortran/C++ binaries, which use the same seed
+    convention.
+
+    .. warning::
+        This patches a module-level function and is therefore **not
+        thread-safe**.  It should only be used in single-threaded context such
+        as the interactive check command.
+    """
+    rng = _Ranmar(ij, kl)
+    old_random_nb = rambo.random_nb
+    rambo.random_nb = lambda _dummy: rng.rn()
+    try:
+        yield rng
+    finally:
+        rambo.random_nb = old_random_nb
+
+
+def _get_seeded_python_momenta(proc, evaluator_obj, energy_value):
+    """Generate Python momenta with the same RAMBO RNG seed as check_sa.
+
+    Uses :func:`_seeded_rambo_rng` to temporarily replace ``rambo.random_nb``
+    with a fresh Marsaglia-Zaman RNG (seeds ``1802, 9373``) identical to those
+    hard-coded in the Fortran/C++ check_sa templates, so that all three
+    backends in ``check_language`` share the same phase-space point without
+    relying on parsed printed output.
+
+    Returns ``None`` on any error.
+    """
+    if evaluator_obj is None:
+        return None
+    try:
+        with _seeded_rambo_rng(1802, 9373):
+            seeded_options = {'energy': float(energy_value),
+                              'events': None,
+                              'skip_evt': 0}
+            p_seeded, _ = evaluator_obj.get_momenta(proc, seeded_options)
+        return p_seeded
+    except Exception:
+        return None
+
+
+#===============================================================================
 # check_language
 #===============================================================================
 def check_language(process_definition, param_card=None, options=None,
                    cmd=FakeInterface()):
-    """Compare Fortran SA and C++ SA matrix elements for each process in
-    *process_definition*.
+    """Compare Fortran SA, C++ SA and Python matrix elements for each process
+    in *process_definition*.
 
     For each process the function:
 
@@ -3888,8 +4003,11 @@ def check_language(process_definition, param_card=None, options=None,
        ``./check <energy>`` where *energy* is fixed so that both backends use
        the same RAMBO seed → identical phase-space points.
     2. Does the same with the C++ SA back-end.
-    3. Parses both outputs, extracts the per-flavor |M|² values, and compares
-       them.
+    3. Evaluates the matrix element in pure Python using the phase-space
+       point printed by the SA binaries (so all three backends see the same
+       momenta).
+    4. Parses the outputs, extracts the per-flavor |M|² values, and compares
+       all three backends.
 
     The centre-of-mass energy defaults to 1000 GeV and can be overridden via
     ``options['energy']``.
@@ -3913,6 +4031,7 @@ def check_language(process_definition, param_card=None, options=None,
         ``'process'``       – :class:`base_objects.Process`,
         ``'value_fortran'`` – ``{'m2': float}`` or ``None``,
         ``'value_cpp'``     – ``{'m2': float}`` or ``None``,
+        ``'value_python'``  – ``{'m2': float}`` or ``None``,
         ``'momenta'``       – phase-space point (list of 4-vectors) or ``None``.
     """
     import madgraph.iolibs.export_v4 as export_v4
@@ -3980,6 +4099,24 @@ def check_language(process_definition, param_card=None, options=None,
                     result[key] = val
                 current_pdgs = None
         return result
+
+    def _parse_momenta(text):
+        """Parse the phase-space point printed once per SA run.
+
+        Returns the first contiguous block of momentum lines (stopping at the
+        first non-matching line), so the per-flavor matrix element values that
+        follow do not leak into the list.
+        """
+        momenta = []
+        started = False
+        for line in text.split('\n'):
+            m = _mom_re.match(line)
+            if m:
+                momenta.append([float(x) for x in m.groups()[:4]])
+                started = True
+            elif started:
+                break
+        return momenta
 
     def _pdg_tuple_to_label(pdg_tuple, m, proc):
         """Convert a tuple of PDG codes to a human-readable process label.
@@ -4075,6 +4212,25 @@ def check_language(process_definition, param_card=None, options=None,
         'f2py_compiler':    'f2py',
         'output_dependencies': 'external',
     }
+
+    # ── Python evaluator (always available – pure-Python back-end) ────────────
+    has_python = True
+    evaluator = None
+    try:
+        # Keep reuse disabled to avoid reusing Matrix_* globals generated in a
+        # previous check command with a different model.
+        evaluator = MatrixElementEvaluator(model, param_card, cmd=cmd,
+                                           auth_skipping=False, reuse=False)
+    except Exception as err:
+        logger.info("Language check: Python evaluator setup failed: %s" % err)
+        has_python = False
+
+    # Merged-particle map used to set per-leg flavor tags when the SA output
+    # iterates over individual flavors of a merged multi-leg.
+    try:
+        merged_particles = model.get('merged_particles') or {}
+    except Exception:
+        merged_particles = {}
 
     results = []
     # Cache SA output text (stdout of ./check <energy>) keyed by the leg-id
@@ -4212,9 +4368,79 @@ def check_language(process_definition, param_card=None, options=None,
         flavors_f   = _parse_all_flavors_dict(out_f_text)   if out_f_text   else _OD()
         flavors_cpp = _parse_all_flavors_dict(out_cpp_text) if out_cpp_text else _OD()
 
+        # Build the Python phase-space point using the same RAMBO RNG seed as
+        # check_sa (Fortran/C++), so all backends compare on the same point.
+        sa_momenta = _get_seeded_python_momenta(proc, evaluator, energy)
+        if not sa_momenta:
+            # Fallback to parsing the point printed by SA when seeded generation
+            # is unavailable.
+            if out_f_text:
+                sa_momenta = _parse_momenta(out_f_text)
+            if not sa_momenta and out_cpp_text:
+                sa_momenta = _parse_momenta(out_cpp_text)
+            if not sa_momenta:
+                sa_momenta = None
+
         # Union of PDG keys in order: Fortran first, then any C++-only keys.
         all_keys = list(dict.fromkeys(
             list(flavors_f.keys()) + list(flavors_cpp.keys())))
+
+        # ── Python evaluation per PDG tuple ───────────────────────────────────
+        # Run the Python back-end with the same phase-space point as Fortran/
+        # C++.  For merged-particle processes the leg flavor tags are set to
+        # the individual PDG codes before each call so that smatrix selects
+        # the matching FLV-coupling component.  We rebuild the Process from
+        # scratch (rather than deep-copying) because the SA exporters mutate
+        # internal color-algebra objects on the legs in a way that breaks
+        # color_amp.create_color_dict_list when re-evaluated.
+        py_values = {}
+        if has_python and sa_momenta and all_keys:
+            keys_for_python = all_keys if all_keys != [None] else [None]
+            orig_legs = list(proc.get('legs'))
+            for key in keys_for_python:
+                new_legs = base_objects.LegList()
+                for idx, src_leg in enumerate(orig_legs):
+                    leg_data = {
+                        'id':     src_leg.get('id'),
+                        'state':  src_leg.get('state'),
+                        'number': idx + 1,
+                    }
+                    if (key is not None and
+                            abs(src_leg.get('id')) in merged_particles):
+                        leg_data['flavor'] = [abs(key[idx])]
+                    new_legs.append(base_objects.Leg(leg_data))
+                proc_py = base_objects.Process({
+                    'legs':  new_legs,
+                    'model': model,
+                    'orders': proc.get('orders'),
+                    'forbidden_particles': proc.get('forbidden_particles'),
+                    'forbidden_onsh_s_channels':
+                        proc.get('forbidden_onsh_s_channels'),
+                    'forbidden_s_channels': proc.get('forbidden_s_channels'),
+                    'perturbation_couplings':
+                        proc.get('perturbation_couplings'),
+                })
+                try:
+                    amp_py = diagram_generation.Amplitude(proc_py)
+                    if not amp_py.get('diagrams'):
+                        continue
+                    me_py_obj = helas_objects.HelasMatrixElement(amp_py,
+                                                                 gen_color=True)
+                    result = evaluator.evaluate_matrix_element(
+                        me_py_obj, p=sa_momenta, options=options)
+                    if result is None:
+                        continue
+                    if isinstance(result, tuple):
+                        m2_py = result[0]
+                    elif isinstance(result, dict):
+                        m2_py = result.get('m2')
+                    else:
+                        m2_py = result
+                    py_values[key] = m2_py
+                except Exception as err:
+                    logger.info(
+                        "Language check: Python eval failed for %s: %s"
+                        % (proc.nice_string(), err))
 
         if not all_keys:
             # Neither backend ran → one placeholder entry so the process still
@@ -4224,12 +4450,14 @@ def check_language(process_definition, param_card=None, options=None,
                 'process_label':  proc.base_string(),
                 'value_fortran':  None,
                 'value_cpp':      None,
-                'momenta':        None,
+                'value_python':   None,
+                'momenta':        sa_momenta,
             })
         else:
             for key in all_keys:
                 me_f_val   = flavors_f.get(key)
                 me_cpp_val = flavors_cpp.get(key)
+                me_py_val  = py_values.get(key)
 
                 if key is None:
                     label = proc.base_string()
@@ -4241,7 +4469,8 @@ def check_language(process_definition, param_card=None, options=None,
                     'process_label':  label,
                     'value_fortran':  {'m2': me_f_val}   if me_f_val   is not None else None,
                     'value_cpp':      {'m2': me_cpp_val} if me_cpp_val is not None else None,
-                    'momenta':        None,
+                    'value_python':   {'m2': me_py_val}  if me_py_val  is not None else None,
+                    'momenta':        sa_momenta,
                 })
 
     clean_added_globals(ADDED_GLOBAL)
@@ -4249,7 +4478,7 @@ def check_language(process_definition, param_card=None, options=None,
 
 
 def output_language(comparison_results, output='text'):
-    """Present the results of a Fortran SA / C++ SA language cross-check.
+    """Present the results of a Fortran SA / C++ SA / Python cross-check.
 
     Parameters
     ----------
@@ -4268,7 +4497,7 @@ def output_language(comparison_results, output='text'):
         if len(proc) + 1 > proc_col_size:
             proc_col_size = len(proc) + 1
 
-    col_size = 18
+    col_size = 16
     process_header = "Process"
 
     pass_proc = 0
@@ -4280,7 +4509,8 @@ def output_language(comparison_results, output='text'):
     res_str = (fixed_string_length(process_header, proc_col_size) +
                fixed_string_length("Fortran SA", col_size) +
                fixed_string_length("C++ SA", col_size) +
-               fixed_string_length("F/C++ rel.diff.", col_size) +
+               fixed_string_length("Python", col_size) +
+               fixed_string_length("max rel.diff.", col_size) +
                "Result")
 
     def _fmt(v):
@@ -4301,26 +4531,37 @@ def output_language(comparison_results, output='text'):
         proc    = entry.get('process_label', entry['process'].base_string())
         val_f   = entry['value_fortran']
         val_cpp = entry['value_cpp']
+        val_py  = entry.get('value_python')
 
         me_f   = val_f['m2']   if val_f   is not None else None
         me_cpp = val_cpp['m2'] if val_cpp is not None else None
+        me_py  = val_py['m2']  if val_py  is not None else None
 
-        diff = _reldiff(me_f, me_cpp)
+        # Pairwise relative differences across the available backends.
+        diffs = [d for d in (
+            _reldiff(me_f, me_cpp),
+            _reldiff(me_f, me_py),
+            _reldiff(me_cpp, me_py),
+        ) if d is not None]
+        max_diff = max(diffs) if diffs else None
 
         row = ('\n' + fixed_string_length(proc, proc_col_size) +
                fixed_string_length(_fmt(me_f),   col_size) +
-               fixed_string_length(_fmt(me_cpp),  col_size) +
-               fixed_string_length(_fmt_diff(diff), col_size))
+               fixed_string_length(_fmt(me_cpp), col_size) +
+               fixed_string_length(_fmt(me_py),  col_size) +
+               fixed_string_length(_fmt_diff(max_diff), col_size))
 
-        if me_f is None and me_cpp is None:
+        n_available = sum(v is not None for v in (me_f, me_cpp, me_py))
+
+        if n_available == 0:
             no_check_proc += 1
             no_check_list.append(proc)
-            res_str += row + "No compiled backend"
-        elif diff is None:
+            res_str += row + "No backend available"
+        elif n_available == 1:
             no_check_proc += 1
             no_check_list.append(proc)
             res_str += row + "Only one backend available"
-        elif diff < 1e-4:
+        elif max_diff is not None and max_diff < 1e-4:
             pass_proc += 1
             res_str += row + "Passed"
         else:
