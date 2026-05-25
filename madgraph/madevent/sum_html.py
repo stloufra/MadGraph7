@@ -742,8 +742,20 @@ function UrlExists(url) {
 </script>
 """ 
 
-def collect_result(cmd, folder_names=[], jobs=None, main_dir=None):
-    """ """ 
+def collect_result(cmd, folder_names=[], jobs=None, main_dir=None, apply_symmetry=True):
+    """Collect subprocess integration results.
+
+    Args:
+        cmd: MadEvent command interface.
+        folder_names: Optional glob-like folder suffix patterns to read.
+        jobs: Optional explicit job descriptors.
+        main_dir: Optional base directory override for readonly/gridpack modes.
+        apply_symmetry: If False, do not apply symfact.dat multiplicative
+            factors when attaching channel results.
+
+    Returns:
+        Combine_results: Aggregated run result object with subprocess entries.
+    """ 
 
     run = cmd.results.current['run_name']
     all = Combine_results(run)
@@ -768,7 +780,8 @@ def collect_result(cmd, folder_names=[], jobs=None, main_dir=None):
                             dir = folder.replace('*', name)
                         else:
                             dir = folder.replace('*', '_G' + name)
-                        P_comb.add_results(dir, pjoin(Pdir,dir,'results.dat'), mfactor)
+                        sym_factor = mfactor if apply_symmetry else 1
+                        P_comb.add_results(dir, pjoin(Pdir,dir,'results.dat'), sym_factor)
                 if jobs:
                     for job in [j for j in jobs if j['p_dir'] == Pdir]:
                         P_comb.add_results(os.path.basename(job['dirname']),\
@@ -783,7 +796,8 @@ def collect_result(cmd, folder_names=[], jobs=None, main_dir=None):
                         path = pjoin(main_dir, os.path.basename(Pdir), os.path.basename(G),'results.dat')
                     else:
                         path = pjoin(G,'results.dat')
-                    P_comb.add_results(os.path.basename(G), path, mfactors[G])
+                    sym_factor = mfactors[G] if apply_symmetry else 1
+                    P_comb.add_results(os.path.basename(G), path, sym_factor)
 
         P_comb.compute_values()
         all.append(P_comb)
@@ -835,4 +849,3 @@ def make_all_html_results(cmd, folder_names = [], jobs=[], get_attr=None):
         return getattr(Presults, get_attr)
 
             
-
