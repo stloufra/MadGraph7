@@ -5420,6 +5420,20 @@ class HelasMatrixElement(base_objects.PhysicsObject):
            Such that all those with has_flavor = False can be trimmed later on.
         """
         if debug: misc.sprint('checking flavor for all diagrams:', real_pdgs)
+        # Drop any stale `flavortag` left on wavefunctions/amplitudes by a
+        # previous call (with a different real_pdgs).  HelasDiagram.check_flavor
+        # only resets the tag for wavefunctions in its own ['wavefunctions']
+        # list, but in a HELAS-optimised matrix element later diagrams reuse
+        # wavefunctions that were *introduced* by earlier diagrams.  Those
+        # shared mothers stay tagged with the previous flavor, and
+        # propagate_flavor_tag will then silently reuse the stale tag instead
+        # of recomputing it -- causing valid diagrams for the new flavor to be
+        # rejected (and trimmed) by remove_diagrams_without_flavor.
+        for wfct in self.get_all_wavefunctions() + self.get_all_amplitudes():
+            try:
+                del wfct['flavortag']
+            except Exception:
+                pass
         for i, diag in enumerate(self.get('diagrams')):
             if not diag.has_flavor:
                 if diag.check_flavor(real_pdgs, model, debug=debug):

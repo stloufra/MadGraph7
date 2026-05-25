@@ -755,6 +755,95 @@ class TestCmdShell2(unittest.TestCase,
         for val, sol in zip(me_groups, solutions):
             self.assertAlmostEqual(float(val), float(sol), 5)
 
+    def test_standalone_merged_flavor_uq_zuq(self):
+        """Regression test for grouped flavor filtering with mixed initial legs.
+
+        Generates ``u q > Z u q QCD=0`` (q = u, d) so the initial state
+        mixes a fixed u leg with a merged-quark leg, and asserts that the
+        standalone matrix elements for the two surviving flavor
+        assignments match the reference values obtained by running each
+        flavor as its own explicit process:
+
+            u d > Z u d  ->  1.4704291881825141E-006
+            u u > Z u u  ->  3.5590322244693227E-008
+
+        The same checks are repeated with ``--mask=False`` so the
+        regression is guarded both with and without the per-flavor
+        masking optimisation.  A previous bug in
+        HelasMatrixElement.check_flavor_for_all_diagrams left stale
+        ``flavortag`` attributes on shared wavefunctions across flavor
+        iterations, which caused two diagrams that contribute only when
+        all four external quarks are identical (the u u > Z u u case)
+        to be wrongly trimmed.  That produced a u u matrix element that
+        was 2x the correct value while the u d entry happened to be
+        unaffected.
+        """
+
+        references = {
+            (2, 1, 23, 2, 1): 1.4704291881825141e-06,
+            (2, 2, 23, 2, 2): 3.5590322244693227e-08,
+        }
+
+        me_re = re.compile(
+            r'PDG\s+([-+0-9 ]+?)\n[^\n]*Matrix element\s*=\s*'
+            r'(?P<value>[\d\.eE\+-]+)', re.IGNORECASE)
+        devnull = open(os.devnull, 'w')
+
+        for mask_flag, label in [('', 'with mask'),
+                                 ('--mask=False', 'without mask')]:
+            if os.path.isdir(self.out_dir):
+                shutil.rmtree(self.out_dir)
+
+            # Re-create the MasterCmd each iteration so the second pass
+            # starts from a clean process list.
+            self.cmd = Cmd.MasterCmd()
+            self.do('import model sm')
+            self.do('define q = u d')
+            self.do('generate u q > Z u q QCD=0')
+            output_cmd = 'output standalone %s' % self.out_dir
+            if mask_flag:
+                output_cmd += ' ' + mask_flag
+            self.do(output_cmd + ' -f')
+
+            sub_root = pjoin(self.out_dir, 'SubProcesses')
+            proc_candidates = [d for d in os.listdir(sub_root)
+                               if d.startswith('P') and 'uQ_zuQ' in d]
+            self.assertTrue(
+                proc_candidates,
+                '%s: no P*_uQ_zuQ subprocess directory generated'
+                % label)
+            proc_dir = pjoin(sub_root, sorted(proc_candidates)[0])
+
+            subprocess.call(['make'], stdout=devnull, stderr=devnull,
+                            cwd=pjoin(self.out_dir, 'Source'))
+            subprocess.call(['make', 'check'], stdout=devnull,
+                            stderr=devnull, cwd=proc_dir)
+            self.assertTrue(
+                os.path.isfile(pjoin(proc_dir, 'check')),
+                '%s: ./check did not build for u q > Z u q' % label)
+
+            p = subprocess.Popen('./check', stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE,
+                                 cwd=proc_dir, shell=True)
+            (log_output, _err) = p.communicate()
+            log_output = log_output.decode()
+
+            results = {}
+            for match in me_re.finditer(log_output):
+                pdg = tuple(int(x) for x in match.group(1).split())
+                results[pdg] = float(match.group('value'))
+
+            for pdg, expected in references.items():
+                self.assertIn(pdg, results,
+                              '%s: missing PDG %s in check output'
+                              % (label, pdg,))
+                self.assertAlmostEqual(
+                    results[pdg], expected,
+                    delta=abs(expected) * 1e-7,
+                    msg=('%s: matrix element for PDG %s is %s, '
+                         'expected %s' % (label, pdg,
+                                          results[pdg], expected)))
+
     def test_standalone_flavor_mask(self):
         """Acceptance test for the per-flavor masking optimization.
 
