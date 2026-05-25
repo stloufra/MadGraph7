@@ -251,10 +251,10 @@ C
 C     
 C     COLOR DATA
 C     
-      DATA DENOM/1/
-      DATA (CF(I),I=  1,  2) /9,6/
+      DATA MG5_1_DENOM/1/
+      DATA (MG5_1_CF(I),I=  1,  2) /9,6/
 C     1 T(2,1) T(3,4)
-      DATA (CF(I),I=  3,  3) /9/
+      DATA (MG5_1_CF(I),I=  3,  3) /9/
 C     1 T(2,4) T(3,1)
 C     ----------
 C     BEGIN CODE
@@ -382,10 +382,10 @@ C
 C     
 C     COLOR DATA
 C     
-      DATA DENOM/1/
-      DATA (CF(I),I=  1,  2) /9,6/
+      DATA MG5_1_DENOM/1/
+      DATA (MG5_1_CF(I),I=  1,  2) /9,6/
 C     1 T(2,1) T(3,4)
-      DATA (CF(I),I=  3,  3) /9/
+      DATA (MG5_1_CF(I),I=  3,  3) /9/
 C     1 T(2,4) T(3,1)
 C     ----------
 C     BEGIN CODE

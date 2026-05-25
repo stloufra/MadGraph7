@@ -2628,6 +2628,9 @@ class CompleteForCmd(cmd.CompleteCmd):
                     return self.aloha_complete_output(text, line, begidx, endidx)
                 except Exception as error:
                     print(error)
+            if 'standalone' in args:
+                possible_options_full = list(possible_options_full) + ['--prefix=int', '--prefix=proc', '--density=']
+
             # Directory continuation
             if args[-1].endswith(os.path.sep):
                 return [name for name in self.path_completion(text,
@@ -5118,6 +5121,12 @@ This implies that with decay chains:
                 state = True
                 continue
 
+            if part_name.endswith('*'):
+                part_name = part_name[:-1]
+                offshell = True
+            else:
+                offshell = False
+
             # check if the particle is tagged (!PART!)
             if part_name.startswith('!') and part_name.endswith('!'):
                 part_name = part_name[1:-1]
@@ -5343,7 +5352,8 @@ This implies that with decay chains:
                         myleglist.append(base_objects.MultiLeg({'ids':mylegids,
                                                             'state':state,
                                                             'polarization': polarization,
-                                                            'flavor': flavor }))
+                                                            'flavor': flavor,
+                                                            'offshell': offshell}))
                     else:
                         myleglist.append(fks_tag.MultiTagLeg({'ids':mylegids,
                                                           'state':state,
@@ -8948,7 +8958,13 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
         """Set the number of core to be used for parallelized tasks.
         Example: set nb_core 4
         """
-        return self.set_default('nb_core', args, log=log)   
+        
+        if args[0] in ['None', None, '0', 0]:
+            import multiprocessing
+            self.options['nb_core'] = multiprocessing.cpu_count()
+        else:
+            self.options['nb_core'] = int(args[0])
+       
     
     def set2_cluster_type(self, args, log=True):
         """Set the cluster type to be used for cluster jobs submission.
