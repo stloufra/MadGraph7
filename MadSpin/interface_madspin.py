@@ -2116,7 +2116,6 @@ class MadSpinInterface(extended_cmd.Cmd):
         iden_p = prod_static['iden_p']
         sym_factor_prod_ident = prod_static['sym_factor_prod_ident']
         init_part = prod_static['init_part']
-        nchanging = prod_static['nchanging']
         position = prod_static['position']
         helicities = prod_static['helicities']
         allowed_hel = prod_static['allowed_hel']
@@ -2132,7 +2131,6 @@ class MadSpinInterface(extended_cmd.Cmd):
 
         density_prod = self.get_density(production,
                                         position,
-                                        nchanging,
                                         allowed_hel,
                                         ncomb,
                                         dimension) \
@@ -2200,7 +2198,6 @@ class MadSpinInterface(extended_cmd.Cmd):
                 density_dec_tmp = self.get_density(
                     current_decay_event,
                     position=[1],
-                    nchanging=1,
                     allow_hel=helicities[decaying_idx + i_decay_event],
                     ncomb=len(helicities[decaying_idx + i_decay_event]),
                     dimension=len(helicities[decaying_idx + i_decay_event])
@@ -2278,7 +2275,7 @@ class MadSpinInterface(extended_cmd.Cmd):
         self._allowed_hel_cache[key] = out
         return out  
 
-    def get_density(self, event, position, nchanging, allow_hel, ncomb, dimension):
+    def get_density(self, event, position, allow_hel, ncomb, dimension):
         orig_order = getattr(event, '_ms_orig_order_for_density', None)
         if orig_order is None:
             _, orig_order, _, _ = self.get_pdir(event)
@@ -2294,6 +2291,11 @@ class MadSpinInterface(extended_cmd.Cmd):
             p = all_p[0]
         P = rwgt_interface.ReweightInterface.invert_momenta(p) 
         pdgs =list(orig_order[0])+list(orig_order[1])
+        n_changing = len(position)
+        if n_changing == 0:
+            raise ValueError("Error in get_density: 'position' must contain at least one position index")
+        if len(allow_hel) % n_changing != 0:
+            raise ValueError("Error in get_density: inconsistent 'allow_hel' and 'position' lengths")
         density_array = self.f2py_module.py_get_density(pdgs=pdgs, 
                                                         procid=-1, 
                                                         p=P, 
@@ -2304,7 +2306,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                                                         npdg=len(pdgs))      
         #print(f"density_array = {density_array}") 
         density_matrix = madspin.DensityMatrix(density_array, 
-                                               nchanging, 
+                                               n_changing, 
                                                allow_hel, 
                                                dimension)
         return density_matrix
