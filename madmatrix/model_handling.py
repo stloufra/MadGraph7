@@ -1766,15 +1766,15 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
     //if( debug ) printf( \"calculate_jamps: ievt00=%d ihel=%2d\\n\", ievt00, ihel );
 #else
     //const int ievt = blockDim.x * blockIdx.x + threadIdx.x;
+    //debug = ( ievt == 0 );
+    //if( debug ) printf( \"calculate_jamps: ievt=%6d ihel=%2d\\n\", ievt, ihel );
     if (processAllHelicities) {
       int ighel = blockIdx.y;
       ihel = dcGoodHel[ighel];
       allJamps = allJamps + ighel * nevt;
-      allNumerators = allNumerators + ighel * nevt;
+      allNumerators = allNumerators + ighel * nevt * processConfig::ndiagrams;
       allDenominators = allDenominators + ighel * nevt;
     }
-    //debug = ( ievt == 0 );
-    //if( debug ) printf( \"calculate_jamps: ievt=%6d ihel=%2d\\n\", ievt, ihel );
 #endif /* clang-format on */""")
             nwavefuncs = self.matrix_elements[0].get_number_of_wavefunctions()
             ret_lines.append("""

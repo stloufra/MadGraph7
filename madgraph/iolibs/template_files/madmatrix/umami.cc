@@ -615,12 +615,6 @@ extern "C"
   UmamiStatus umami_free( UmamiHandle handle )
   {
     InterfaceInstance* instance = static_cast<InterfaceInstance*>( handle );
-#ifdef MGONGPUCPP_GPUIMPL
-    for( int ihel = 0; ihel < CPPProcess::ncomb; ihel++ )
-    {
-      if( instance->hel_streams[ihel] ) gpuStreamDestroy( instance->hel_streams[ihel] );
-    }
-#endif
     delete instance;
     return UMAMI_SUCCESS;
   }
