@@ -25,10 +25,7 @@ import shutil
 import sys
 import time
 import glob
-import six
-from six.moves import range
 from itertools import chain, filterfalse, product
-
 pjoin = os.path.join
 if '__main__' == __name__:
     import sys
@@ -142,22 +139,45 @@ class MadSpinOptions(banner.ConfigFile):
 
 class MadSpinInterface(extended_cmd.Cmd):
     """Basic interface for madspin"""
-    
+
     prompt = 'MadSpin>'
     debug_output = 'MS_debug'
-    
-    
+
+    # Process-wide counter used to make each MadSpinInterface instance use
+    # its own ``madspin_me`` output subdirectory. The actual fortran/f2py
+    # artefacts (the ``.so`` extension and the ``liball_2me`` shared
+    # library) are recompiled to that subdirectory each call, and
+    # ``dlopen`` caches loaded libraries by absolute path: without a fresh
+    # path the second MadSpin call in the same process (e.g. inline
+    # MadSpin followed by ``decay_events``) keeps the *first* call's
+    # matrix elements in memory and ``pdg2prefix`` ends up missing the
+    # second card's decay channels (KeyError in ``get_pdir``).
+    _ms_run_counter = 0
+
+
     @misc.mute_logger()
     def __init__(self, event_path=None, *completekey, **stdin):
         """initialize the interface with potentially an event_path"""
-        
+
         cmd_logger.info('************************************************************')
         cmd_logger.info('*                                                          *')
         cmd_logger.info('*           W E L C O M E  to  M A D S P I N               *')
         cmd_logger.info('*                                                          *')
         cmd_logger.info('************************************************************')
         extended_cmd.Cmd.__init__(self, *completekey, **stdin)
-        
+
+        MadSpinInterface._ms_run_counter += 1
+        self._ms_run_id = MadSpinInterface._ms_run_counter
+        # First call keeps the historical ``madspin_me`` name (the
+        # decay/import code still hard-codes that in a few places and the
+        # vast majority of MadSpin uses only sees one run per process).
+        # Subsequent calls use a unique suffix so dlopen sees a fresh
+        # file path.
+        if self._ms_run_id == 1:
+            self.ms_me_subdir = 'madspin_me'
+        else:
+            self.ms_me_subdir = 'madspin_me_%d' % self._ms_run_id
+
         self.decay = madspin.decay_misc()
         self.model = None
         #self.mode = "madspin" # can be flat/bridge change the way the decay is done.
@@ -185,13 +205,67 @@ class MadSpinInterface(extended_cmd.Cmd):
            We go here if they are no banner.
            -> this requires that a command import model appears in the card!
         """
-        
+
         logger.info("Setup the code for pure decay mode")
         self.proc_option = []
         self.final_state_full = ''
         self.final_state_compact = ''
         self.prod_branches = ''
         self.final_state = set()
+
+    def _load_f2py_matrix_module(self, sp_path):
+        """Load the freshly-compiled ``all_matrix2py`` extension under
+        ``sp_path``.
+
+        Each MadSpin run compiles its matrix elements into its own
+        ``madspin_me_<N>`` subdir, and (from the second call onwards)
+        ``decay.compile()`` overrides the makefile's ``PROCNAME`` so the
+        resulting Fortran shared library
+        (``liball<PROCNAME>_2me.{so,dylib}``) has a unique SONAME /
+        install_name. The combination of a unique wrapper path *and* a
+        unique dependent-library identity is what stops the dynamic
+        loader from returning the first call's already-loaded matrix
+        elements on the second call.
+
+        This helper just picks the loadable ``.so`` and loads it via
+        ``importlib.util.spec_from_file_location`` to bypass the
+        ``sys.modules`` cache (which would otherwise short-circuit
+        ``__import__('all_matrix2py')`` to the first call's module
+        object).
+        """
+        import importlib.util
+        import glob
+
+        # The actual loadable file is the cpython-tagged ``.so``; on some
+        # builds the unsuffixed ``all_matrix2py.so`` is a 0-byte stub. Pick
+        # the largest matching file so we always load real code.
+        patterns = [
+            'all_matrix2py.cpython*.so',
+            'all_matrix2py.cpython*.dylib',
+            'all_matrix2py.so',
+            'all_matrix2py.dylib',
+        ]
+        candidates = []
+        for pat in patterns:
+            for hit in glob.glob(pjoin(sp_path, pat)):
+                if os.path.getsize(hit) > 0:
+                    candidates.append(hit)
+        if not candidates:
+            # Fall back to the historical ``__import__`` so we at least
+            # produce a meaningful error if nothing got compiled.
+            return __import__('all_matrix2py')
+        candidates.sort(key=os.path.getsize, reverse=True)
+        so_path = candidates[0]
+
+        # Load via spec_from_file_location to bypass the sys.modules cache
+        # while keeping the module name as ``all_matrix2py`` (the .so's
+        # PyInit_all_matrix2py init symbol is baked in at compile time).
+        spec = importlib.util.spec_from_file_location('all_matrix2py', so_path)
+        if spec is None or spec.loader is None:
+            return __import__('all_matrix2py')
+        mymod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mymod)
+        return mymod
 
     def _log_lhe_timers(self):
         if not getattr(lhe_parser, "_ENABLE_LHE_TIMERS", False):
@@ -662,11 +736,14 @@ class MadSpinInterface(extended_cmd.Cmd):
                 out = self.run_onshell(line, density_method=True)
             self._log_lhe_timers()
             return out
-        elif self.options["spinmode"] in ["PA", "madspin"]:
+        elif self.options["spinmode"] == "PA":
             self.options['density_pole_approximation'] = True
             out = self.run_onshell(line, density_method=True)
             self._log_lhe_timers()
             return out
+        elif self.options["spinmode"] == "madspin":
+            # legacy MadSpin / decay-chain path: fall through to decay_all_events below
+            pass
         elif self.options["spinmode"] == "full":
             if self.options['ME_mode'] in ['auto', 'density']:
                 self.options['density_pole_approximation'] = False 
@@ -1542,6 +1619,11 @@ class MadSpinInterface(extended_cmd.Cmd):
                 mg5.exec_cmd("import model %s" % modelpath)      
             evt_decayfile = {}
             br = 1.
+            # pdg -> br_pdg for the "mixed final-state" case (events do not
+            # all share the same set of decaying particles). Filled in the
+            # else-branch below and consumed after the loop to compute the
+            # per-pdg drop probability that equalizes BRs across productions.
+            mixed_pdgs_br = {}
             for pdg, nb_needed in to_decay.items():
                 # muliply by expected effeciency of generation
                 spin = self.model.get_particle(pdg).get('spin')
@@ -1584,11 +1666,47 @@ class MadSpinInterface(extended_cmd.Cmd):
                             pwidth = totwidth
                         br *= (pwidth / totwidth)**nb_mult                      
                 else:
+                    # Mixed case: events do not all share the same final-state
+                    # particles to be decayed. We collect this pdg here and, once
+                    # the loop is done, equalize BRs via the legacy
+                    # add_loose_decay mechanism (drop events sampled to the
+                    # "fake" decay channel so the output stays unweighted).
                     part = self.model.get_particle(pdg)
                     name = part.get_name()
                     if name not in self.list_branches or len(self.list_branches[name]) == 0:
                         continue
-                    raise self.InvalidCmd("The onshell mode of MadSpin does not support event files where events do not *all* share the same set of final state particles to be decayed.")
+                    nb_gen = (int(efficiency*nb_needed) + nevents_for_max) \
+                                * self.options['decay_event_mult']
+                    evt_decayfile[pdg], pwidth = self.generate_events(
+                        pdg, nb_gen, mg5, cumul=True, output_width=True)
+                    if pwidth > 1.01*totwidth:
+                        logger.warning('partial width (%s) larger than total width (%s) --from param_card--', pwidth, totwidth)
+                    elif pwidth > totwidth:
+                        pwidth = totwidth
+                    mixed_pdgs_br[pdg] = pwidth / totwidth
+
+        # Equalize branching ratios across mixed productions (legacy
+        # add_loose_decay mechanism): pick max_br as the global BR factor and
+        # drop, per event, with probability 1 - br_pdg / max_br so the output
+        # sample stays unweighted. The banner cross-section is corrected after
+        # the decay loop (below) once the actual number of kept events is
+        # known.
+        drop_prob_per_pdg = {}
+        if mixed_pdgs_br:
+            max_mixed_br = max(mixed_pdgs_br.values())
+            br *= max_mixed_br
+            for pdg, pdg_br in mixed_pdgs_br.items():
+                drop_prob_per_pdg[pdg] = 1.0 - pdg_br / max_mixed_br
+            if any(d > 1e-9 for d in drop_prob_per_pdg.values()):
+                logger.warning(
+                    "Mixed-pdg production processes have different total BRs "
+                    "(per-pdg BR=%s, max=%g). Equalizing by dropping events; "
+                    "the output sample stays unweighted and the banner "
+                    "cross-section reflects the effective BR.",
+                    {k: '%.4g' % v for k, v in mixed_pdgs_br.items()},
+                    max_mixed_br,
+                )
+        mixed_pdgs_set = set(drop_prob_per_pdg.keys())
 
         self.branching_ratio = br
         self.efficiency = 1
@@ -1638,6 +1756,7 @@ class MadSpinInterface(extended_cmd.Cmd):
         
         self.efficiency =1.
         nb_try = 0
+        nb_loose_skip = 0  # events dropped to equalize BRs (fake-decay path)
         #nb_event = len(orig_lhe)
         nb_event = orig_lhe.get_banner().run_card['nevents']
 
@@ -1648,6 +1767,25 @@ class MadSpinInterface(extended_cmd.Cmd):
                 production, counterevt = production[0], production[1:]
             if curr_event and self.efficiency and curr_event % 10 == 0 and float(str(curr_event)[1:]) == 0:
                 logger.info("decaying event number %s. Efficiency: %s [%s s]" % (curr_event, 1/self.efficiency, time.time()-start))
+
+            # BR-equalization: drop this event with probability
+            # 1 - br_pdg / max_br when this production process has a smaller
+            # total BR than the largest one in the mixed sample. Done before
+            # any matrix-element work so dropped events are cheap.
+            if drop_prob_per_pdg:
+                evt_mixed_pdgs = [p.pid for p in production
+                                  if int(p.status) == 1 and p.pid in mixed_pdgs_set]
+                if len(evt_mixed_pdgs) == 1:
+                    drop = drop_prob_per_pdg[evt_mixed_pdgs[0]]
+                    if drop > 0 and random.random() < drop:
+                        nb_loose_skip += 1
+                        continue
+                elif len(evt_mixed_pdgs) > 1:
+                    raise self.InvalidCmd(
+                        "BR equalization for events with more than one "
+                        "mixed-pdg decaying particle is not implemented yet "
+                        "(event %d has pdgs=%s). Please report this case." %
+                        (curr_event, evt_mixed_pdgs))
 
             # Per-production-event cache reused across rejection retries.
             prod_density_cached = None
@@ -1714,18 +1852,123 @@ class MadSpinInterface(extended_cmd.Cmd):
                     wgts[key] *= self.branching_ratio            
             
             output_lhe.write_events(full_evt)
-            
-        output_lhe.write('</LesHouchesEvents>\n')   
+
+        output_lhe.write('</LesHouchesEvents>\n')
         # Log unweighting efficiency (can be turned off)
-        accepted = curr_event + 1
-        eff = float(accepted) / nb_try if nb_try else 0.0
+        n_processed = curr_event + 1
+        n_written = n_processed - nb_loose_skip
+        eff = float(n_written) / nb_try if nb_try else 0.0
         logger.critical(
-            "MadSpin unweight efficiency: %.4f (%d accepted / %d trials, %.2f trials/event)",
-            eff, accepted, nb_try, (1.0 / eff if eff else float("inf"))
+            "MadSpin unweight efficiency: %.4f (%d written / %d trials, %.2f trials/event)",
+            eff, n_written, nb_try, (1.0 / eff if eff else float("inf"))
         )
-        self.efficiency = 1 # to let me5 to write the correct number of events
+        if nb_loose_skip > 0:
+            # Rewrite the banner with the corrected cross-section so it
+            # matches the actual sum of kept-event weights. Each kept event
+            # already has wgt = orig_wgt * max_br; we need the banner to read
+            # σ * max_br * (n_written / n_processed) ≈ σ * <br>.
+            br_correction = float(n_written) / n_processed
+            self._rewrite_lhe_banner_cross(output_lhe.name, br_correction,
+                                           n_written=n_written)
+            self.branching_ratio *= br_correction
+            self.cross *= br_correction
+            self.error *= br_correction
+            logger.info(
+                "BR equalization: dropped %d/%d events (effective BR rescale = %.4g).",
+                nb_loose_skip, n_processed, br_correction,
+            )
+            # Downstream sets nb_event = int(original_nb_event * efficiency)
+            # so the kept-fraction needs to be communicated as the efficiency.
+            self.efficiency = br_correction
+        else:
+            self.efficiency = 1 # to let me5 to write the correct number of events
+        # Re-gzip the input events file (gunzipped at the start of this
+        # routine) and the decayed output, matching the legacy MadSpin path
+        # so downstream code (banners, crossx.html) finds the *.lhe.gz files
+        # it expects.
+        try:
+            output_lhe.close()
+        except Exception:
+            pass
+        try:
+            input_evt_path = self.events_file.name
+            if input_evt_path.endswith('.lhe') and os.path.exists(input_evt_path):
+                misc.gzip(input_evt_path)
+        except Exception as exc:
+            logger.warning('Could not re-gzip MadSpin input file %s: %s',
+                           getattr(self.events_file, 'name', '?'), exc)
+        try:
+            decayed_path = output_lhe.name
+            if decayed_path.endswith('.lhe') and os.path.exists(decayed_path):
+                misc.gzip(decayed_path)
+        except Exception as exc:
+            logger.warning('Could not gzip MadSpin decayed output %s: %s',
+                           output_lhe.name, exc)
         logger.info('Done so far. output written in %s' % output_lhe.name)
         logger.critical(f"Time for decay = {time.time()-start:.2f} sec")
+
+    def _rewrite_lhe_banner_cross(self, path, ratio, n_written=None):
+        """Rewrite an already-written LHE file, multiplying every <init> line
+        cross-section / error / xmax by ``ratio`` and (optionally) replacing
+        the ``Number of Events`` entry in the MGGenerationInfo block with
+        ``n_written``. Mirrors decay_all_events.write_banner_information for
+        the PA-mode (run_onshell) code path."""
+
+        tmp_path = path + '.tmp_brfix'
+        shutil.move(path, tmp_path)
+        with open(tmp_path, 'r') as src, open(path, 'w') as dst:
+            in_init = False
+            in_mggen = False
+            for line in src:
+                stripped = line.strip()
+                lstripped = stripped.lower()
+                if lstripped.startswith('<init'):
+                    in_init = True
+                    dst.write(line)
+                    continue
+                if in_init:
+                    if lstripped.startswith('</init'):
+                        in_init = False
+                        dst.write(line)
+                        continue
+                    parts = stripped.split()
+                    if len(parts) == 4:
+                        try:
+                            xsec, xerr, xmax = (float(parts[0]), float(parts[1]), float(parts[2]))
+                            pid = int(parts[3])
+                            dst.write("   %+13.7e %+13.7e %+13.7e %i\n" %
+                                      (ratio*xsec, ratio*xerr, ratio*xmax, pid))
+                            continue
+                        except ValueError:
+                            pass
+                    dst.write(line)
+                    continue
+                # MGGenerationInfo block: update Number of Events and any
+                # ":" -separated numeric field with the BR correction ratio.
+                if lstripped.startswith('<mggenerationinfo'):
+                    in_mggen = True
+                    dst.write(line)
+                    continue
+                if in_mggen:
+                    if lstripped.startswith('</mggenerationinfo'):
+                        in_mggen = False
+                        dst.write(line)
+                        continue
+                    if 'Number of Events' in line and n_written is not None:
+                        dst.write('#  Number of Events        :       %i\n' % n_written)
+                        continue
+                    if ':' in line:
+                        head, tail = line.rsplit(':', 1)
+                        try:
+                            value = float(tail.strip())
+                            dst.write('%s : %s\n' % (head, value * ratio))
+                            continue
+                        except ValueError:
+                            pass
+                    dst.write(line)
+                    continue
+                dst.write(line)
+        os.remove(tmp_path)
 
     def get_decay_from_file(self,production, evt_decayfile, nb_remain):
         """return a dictionary PDG -> list of associated decay"""
@@ -2003,11 +2246,11 @@ class MadSpinInterface(extended_cmd.Cmd):
         # Load f2py module and build pdg2prefix map if needed (unchanged logic)
         # ------------------------------------------------------------------
         if not hasattr(self, 'f2py_module'):
-            sp_path = pjoin(self.path_me, 'madspin_me', 'SubProcesses')
+            sp_path = pjoin(self.path_me, self.ms_me_subdir, 'SubProcesses')
             if sys.path[0] != sp_path:
                 sys.path.insert(0, sp_path)
 
-            mymod = __import__('all_matrix2py')
+            mymod = self._load_f2py_matrix_module(sp_path)
             self.f2py_module = mymod
 
             all_prefix = self.f2py_module.get_prefix()
@@ -2119,7 +2362,6 @@ class MadSpinInterface(extended_cmd.Cmd):
         iden_p = prod_static['iden_p']
         sym_factor_prod_ident = prod_static['sym_factor_prod_ident']
         init_part = prod_static['init_part']
-        nchanging = prod_static['nchanging']
         position = prod_static['position']
         helicities = prod_static['helicities']
         allowed_hel = prod_static['allowed_hel']
@@ -2135,7 +2377,6 @@ class MadSpinInterface(extended_cmd.Cmd):
 
         density_prod = self.get_density(production,
                                         position,
-                                        nchanging,
                                         allowed_hel,
                                         ncomb,
                                         dimension) \
@@ -2203,7 +2444,6 @@ class MadSpinInterface(extended_cmd.Cmd):
                 density_dec_tmp = self.get_density(
                     current_decay_event,
                     position=[1],
-                    nchanging=1,
                     allow_hel=helicities[decaying_idx + i_decay_event],
                     ncomb=len(helicities[decaying_idx + i_decay_event]),
                     dimension=len(helicities[decaying_idx + i_decay_event])
@@ -2281,7 +2521,7 @@ class MadSpinInterface(extended_cmd.Cmd):
         self._allowed_hel_cache[key] = out
         return out  
 
-    def get_density(self, event, position, nchanging, allow_hel, ncomb, dimension):
+    def get_density(self, event, position, allow_hel, ncomb, dimension):
         orig_order = getattr(event, '_ms_orig_order_for_density', None)
         if orig_order is None:
             _, orig_order, _, _ = self.get_pdir(event)
@@ -2297,6 +2537,11 @@ class MadSpinInterface(extended_cmd.Cmd):
             p = all_p[0]
         P = rwgt_interface.ReweightInterface.invert_momenta(p) 
         pdgs =list(orig_order[0])+list(orig_order[1])
+        n_changing = len(position)
+        if n_changing == 0:
+            raise ValueError("Error in get_density: 'position' must contain at least one position index")
+        if len(allow_hel) % n_changing != 0:
+            raise ValueError("Error in get_density: inconsistent 'allow_hel' and 'position' lengths")
         density_array = self.f2py_module.py_get_density(pdgs=pdgs, 
                                                         procid=-1, 
                                                         p=P, 
@@ -2304,11 +2549,10 @@ class MadSpinInterface(extended_cmd.Cmd):
                                                         allow_hel=allow_hel, 
                                                         n_comb=ncomb, 
                                                         alphas=event.aqcd, 
-                                                        n_changing=nchanging, 
                                                         npdg=len(pdgs))      
         #print(f"density_array = {density_array}") 
         density_matrix = madspin.DensityMatrix(density_array, 
-                                               nchanging, 
+                                               n_changing, 
                                                allow_hel, 
                                                dimension)
         return density_matrix
@@ -2467,53 +2711,48 @@ class MadSpinInterface(extended_cmd.Cmd):
             else:
                 return out
         else:
-            if sys.path[0] != pjoin(self.path_me, 'madspin_me', 'SubProcesses'):
-                sys.path.insert(0, pjoin(self.path_me, 'madspin_me', 'SubProcesses'))
+            # First time we see a new ``pdir`` for this MadSpin instance:
+            # load the freshly-compiled f2py extension once and cache a
+            # smatrixhel lambda per pdir. The .so / pdg2prefix only need
+            # to be loaded the first time we hit this branch — subsequent
+            # ``pdir``s reuse ``self.f2py_module`` so we don't re-trigger
+            # the spec-from-file-location load (which is fine on Linux
+            # but wasteful, and on macOS would re-walk the install_name
+            # bookkeeping every time).
+            if not hasattr(self, 'f2py_module'):
+                sp_path = pjoin(self.path_me, self.ms_me_subdir, 'SubProcesses')
+                if sys.path[0] != sp_path:
+                    sys.path.insert(0, sp_path)
 
-            mymod = __import__('all_matrix2py')
-            self.f2py_module = mymod
+                mymod = self._load_f2py_matrix_module(sp_path)
+                self.f2py_module = mymod
 
-            
-            all_prefix = self.f2py_module.get_prefix()
-            all_pdg, all_procid = self.f2py_module.get_pdg_order()
-            self.pdg2prefix = {}
-            for i, pdg in enumerate(all_pdg):
-                pdg = tuple([x for x in pdg if x != 0])
-                self.pdg2prefix[tuple(pdg)] = (str(all_prefix[i].decode()).strip(),i)
+                all_prefix = self.f2py_module.get_prefix()
+                all_pdg, all_procid = self.f2py_module.get_pdg_order()
+                self.pdg2prefix = {}
+                for i, pdg in enumerate(all_pdg):
+                    pdg = tuple([x for x in pdg if x != 0])
+                    self.pdg2prefix[tuple(pdg)] = (str(all_prefix[i].decode()).strip(), i)
 
-
-
-
-            #if mymod.__path__[0] != pjoin(self.path_me, 'madspin_me', 'SubProcesses'):
-            #    from importlib import reload
-            #    mymod = reload(mymod)
-
-            #if Rpath linking is not working the below code can be an alternative:
-            #import ctypes
-            #exts = ['so','dylib','dll'] 
-            #for ext in exts:
-            #    me_library = pjoin(self.path_me, 'madspin_me', 'SubProcesses', pdir, 'libme%s.%s' % (pdir, ext))
-            #    if os.path.exists(me_library):
-            #        break
-            # ctypes.CDLL(me_library)
-
-            #with misc.chdir(pjoin(self.path_me, 'madspin_me', 'SubProcesses')):
-            #    #misc.compile(['matrix2py.so'], cwd=pdir)                
-            #    mymod = __import__("%s.allmatrix2py" % pdir)
-            #    from importlib import reload
-            #    reload(mymod)
-
-            #mymod = getattr(mymod, 'matrix2py')  
-
-            if self.model_init:
-                self.model_init = False
-                with misc.chdir(pjoin(self.path_me, 'madspin_me', 'SubProcesses')):
-                    #with misc.stdchannel_redirected(sys.stdout, os.devnull):
+                if self.model_init:
+                    self.model_init = False
+                    with misc.chdir(sp_path):
                         if not os.path.exists(pjoin(self.path_me, 'Cards','param_card.dat')) and \
                                 os.path.exists(pjoin(self.path_me,'param_card.dat')):
                             mymod.initialise(pjoin(self.path_me,'param_card.dat'))
                         else:
                             mymod.initialise(pjoin(self.path_me, 'Cards','param_card.dat'))
+            mymod = self.f2py_module
+
+            #if Rpath linking is not working the below code can be an alternative:
+            #import ctypes
+            #exts = ['so','dylib','dll']
+            #for ext in exts:
+            #    me_library = pjoin(self.path_me, self.ms_me_subdir, 'SubProcesses', pdir, 'libme%s.%s' % (pdir, ext))
+            #    if os.path.exists(me_library):
+            #        break
+            # ctypes.CDLL(me_library)
+
             pdg = list(orig_order[0]) + list(orig_order[1])
             self.all_f2py[pdir] = lambda *args : mymod.smatrixhel(pdg, 0, *args)
             return self.calculate_matrix_element(event)

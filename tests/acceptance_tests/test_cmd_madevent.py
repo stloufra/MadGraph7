@@ -81,12 +81,19 @@ class TestMECmdShell(unittest.TestCase):
             os.mkdir(pjoin(MG5DIR, "tmp_test"))
         else:
             self.path = tempfile.mkdtemp(prefix='acc_test_mg5')
-        self.run_dir = pjoin(self.path, 'MGPROC') 
+        self.run_dir = pjoin(self.path, 'MGPROC')
+
+        if logging.getLogger('madgraph').level >= 20:
+            self.stdout = open(os.devnull, 'w')
+        else:
+            self.stdout = sys.stdout
     
     def tearDown(self):
 
         if self.path != pjoin(MG5DIR, "tmp_test"):
             shutil.rmtree(self.path)
+        if logging.getLogger('madgraph').level <= 20:
+            self.stdout.close() 
     
     def generate(self, process, model):
         """Create a process"""
@@ -147,6 +154,42 @@ class TestMECmdShell(unittest.TestCase):
         """ exec a line in the cmd under test """        
         self.cmd_line.run_cmd(line)
         
+    def test_madevent_dy3j_mlm(self):
+        """ Test that biasing LO event generation works as intended. """
+        self.out_dir = self.run_dir
+
+        if not self.debugging or not os.path.isdir(pjoin(MG5DIR,'BackUp_tmp_test')):
+            self.generate('u g > l+ l- u u u~', 'sm')
+
+            run_card = banner.RunCardLO(pjoin(self.out_dir, 'Cards', 'run_card.dat'))
+            run_card.set('ickkw', 1, user=True)
+            run_card.set('xqcut', 10.0, user=True)
+            run_card.write(pjoin(self.out_dir, 'Cards', 'run_card.dat'))
+            
+            # Compile the code
+            subprocess.Popen(['make'], cwd=pjoin(self.out_dir, 'Source'), stdout=self.stdout, stderr=self.stdout).wait()
+            subprocess.Popen(['make', 'madevent_forhel'],                         
+                             cwd=pjoin(self.out_dir, 'SubProcesses', 'P1_qg_llqqq'),
+                             stdout=self.stdout, stderr=self.stdout).wait()
+            with open(pjoin(self.out_dir, 'SubProcesses', 'P1_qg_llqqq', 'run_config.txt'), 'w') as fsock:  
+                fsock.write('1000 5 3\n')  
+                fsock.write('0.1\n')       # Accuracy
+                fsock.write('2\n')         # Grid Adjustment 0=none, 2=adjust   
+                fsock.write('1\n')         # Suppress Amplitude 1=yes
+                fsock.write('0\n')         # Helicity Sum/event 0=exact
+                fsock.write('      86\n')
+            fsock.close()
+            
+        return_code = subprocess.Popen(
+            ['./madevent_forhel'],
+            cwd=pjoin(self.out_dir, 'SubProcesses', 'P1_qg_llqqq'),
+            stdin=open(pjoin(self.out_dir, 'SubProcesses', 'P1_qg_llqqq', 'run_config.txt')),
+            stdout=self.stdout, stderr=self.stdout
+        ).wait()
+            
+        self.assertEqual(return_code, 0)
+
+
 
     def test_madevent_ptj_bias(self):
         """ Test that biasing LO event generation works as intended. """
@@ -154,6 +197,7 @@ class TestMECmdShell(unittest.TestCase):
 
         if not self.debugging or not os.path.isdir(pjoin(MG5DIR,'BackUp_tmp_test')):
             self.generate('d d~ > u u~', 'sm')
+
             run_card = banner.RunCardLO(pjoin(self.out_dir, 'Cards','run_card.dat'))
             # Some test checking that some cut are absent/present by default
             self.assertIn('ptj', run_card.user_set)
@@ -481,8 +525,8 @@ class TestMECmdShell(unittest.TestCase):
         self.do('generate_events -f')
         val1 = self.cmd_line.results.current['cross']
         err1 = self.cmd_line.results.current['error']
-        
-        target = 3932.0
+        # 100k value is 3933.1 +- 3 
+        target = 3933.1
         self.assertLess(
             abs(val1 - target) / (err1+1.7),
             2.,
@@ -847,14 +891,17 @@ C
         self.assertIn('mue_ref_fixed', run_card.user_set)
         self.assertIn('mue_over_ref', run_card.user_set)
 
+        run_card['nevents'] = 10000
+        run_card.write('%s/Cards/run_card.dat' % self.run_dir)
         
         self.do('generate_events -f')
         val1 = self.cmd_line.results.current['cross']
         err1 = self.cmd_line.results.current['error']
 
         #target = 166.36114 # value used as reference before changing sde_strategy
-        target = 165.7 # computed with sde_strategy #165.8 +- 0.02099 pb
-        self.assertTrue(abs(val1 - target) / err1 < 2., 'large diference between %s and %s +- %s'%
+        # 100k value is 165.84 +- 0.05
+        target = 165.84
+        self.assertTrue(abs(val1 - target) / err1 < 1., 'large diference between %s and %s +- %s'%
                         (target, val1, err1))
 
         
@@ -866,7 +913,8 @@ C
         self.do('generate_events -f')
         val1 = self.cmd_line.results.current['cross']
         err1 = self.cmd_line.results.current['error']
-        target = 165.7 
+        # 100k value is  165.71 +- 0.06
+        target = 165.71
         self.assertTrue(abs(val1 - target) / err1 < 1., 'large diference between %s and %s +- %s'%
                         (target, val1, err1))
 
@@ -1242,13 +1290,169 @@ class TestMEfromfile(unittest.TestCase):
         #logger.info('\nMS info: the number of events in the html file is not (always) correct after MS\n')
         self.check_parton_output('run_01_decayed_2', cross=100521.52517, error=8e+02,target_event=1000)
         self.check_pythia_output(run_name='run_01_decayed_1')
-        
+
         #check the first decayed events for energy-momentum conservation.
-        
-        
+
+
         self.assertEqual(cwd, os.getcwd())
-        
-        
+
+
+    def test_w_production_with_PA_decay(self):
+        """A run to test MadSpin PA (pole-approximation/density) mode on p p > w+ / w-.
+
+        Inline-only counterpart of test_w_production_with_PA_decay_inline_then_offline.
+        Exercises the new PA path through run_onshell(density_method=True).
+        The madspin card has different BRs for w+ (-> j j) vs w- (-> e- ve~)
+        and therefore exercises the BR-equalization / loose-decay branch
+        (events with the smaller-BR pdg are dropped to keep the output
+        unweighted).
+        """
+
+        cwd = os.getcwd()
+
+        if logging.getLogger('madgraph').level <= 20:
+            stdout=None
+            stderr=None
+        else:
+            devnull =open(os.devnull,'w')
+            stdout=devnull
+            stderr=devnull
+
+        if logging.getLogger('madgraph').level > 20:
+            stdout = devnull
+        else:
+            stdout= None
+
+        #
+        #  START REAL CODE
+        #
+        command = open(pjoin(self.path, 'cmd'), 'w')
+        command.write("""import model sm
+        set automatic_html_opening False --no_save
+        set notification_center False --no_save
+        generate p p > w+
+        add process p p > w-
+        output %(path)s
+        launch
+        madspin=ON
+        analysis=OFF
+        shower=OFF
+        %(path)s/../madspin_card.dat
+        set nevents 1000
+        set lhaid 10042
+        set pdlabel lhapdf
+        """ % {'path':self.run_dir})
+        command.close()
+
+        fsock = open(pjoin(self.path, 'madspin_card.dat'), 'w')
+        fsock.write("""set spinmode PA
+        decay w+ > j j
+        decay w- > e- ve~
+        launch
+        """)
+        fsock.close()
+        subprocess.call([sys.executable, pjoin(_file_path, os.path.pardir,'bin','mg5_aMC'),
+                         pjoin(self.path, 'cmd')],
+                         cwd=pjoin(_file_path, os.path.pardir),
+                        stdout=stdout,stderr=stdout)
+
+        # Parton-level production reference (unchanged from the madspin test).
+        self.check_parton_output(cross=150770.0, error=7.4e+02, target_event=1000)
+        # Mixed-BR case: BR equalization drops the w- -> e- ve~ events so the
+        # effective BR is ~ (sigma_w+ * BR(w+->jj) + sigma_w- * BR(w-->eve)) / sigma_tot,
+        # matching the legacy madspin result up to MC noise.
+        self.check_parton_output('run_01_decayed_1', cross=66344.2066122, error=1.5e+03,
+                                 target_event=666, delta_event=80)
+
+        self.assertEqual(cwd, os.getcwd())
+
+
+    def test_w_production_with_PA_decay_inline_then_offline(self):
+        """PA-mode MadSpin run inline first with one set of decay channels,
+        then again offline via ``decay_events`` with a different set of
+        channels, on a mixed w+/w- sample.
+
+        Mirrors ``test_w_production_with_ms_decay`` (same inline+offline
+        sequence on the legacy ``spinmode=madspin`` path).
+
+        Used to raise ``KeyError: (-24, 1, -2)`` in ``get_pdir`` because
+        every MadSpin instance compiled its matrix elements to the same
+        ``madspin_me/SubProcesses/`` directory, and macOS' ``dlopen``
+        caches loaded libraries by install_name
+        (``@rpath/liball_2me.dylib``) — the second run kept reusing the
+        first run's already-loaded matrix elements regardless of what was
+        on disk. Fixed by giving each MadSpinInterface instance a unique
+        ``madspin_me_<N>`` output subdir and patching the dylib's
+        install_name with ``install_name_tool`` so each run gets a fresh
+        in-memory library.
+        """
+
+        cwd = os.getcwd()
+
+        if logging.getLogger('madgraph').level <= 20:
+            stdout=None
+            stderr=None
+        else:
+            devnull =open(os.devnull,'w')
+            stdout=devnull
+            stderr=devnull
+
+        if logging.getLogger('madgraph').level > 20:
+            stdout = devnull
+        else:
+            stdout= None
+
+        command = open(pjoin(self.path, 'cmd'), 'w')
+        command.write("""import model sm
+        set automatic_html_opening False --no_save
+        set notification_center False --no_save
+        generate p p > w+
+        add process p p > w-
+        output %(path)s
+        launch
+        madspin=ON
+        analysis=OFF
+        shower=OFF
+        %(path)s/../madspin_card.dat
+        set nevents 1000
+        set lhaid 10042
+        set pdlabel lhapdf
+        launch -i
+        decay_events run_01
+        %(path)s/../madspin_card2.dat
+        """ % {'path':self.run_dir})
+        command.close()
+
+        fsock = open(pjoin(self.path, 'madspin_card.dat'), 'w')
+        fsock.write("""set spinmode PA
+        decay w+ > j j
+        decay w- > e- ve~
+        launch
+        """)
+        fsock.close()
+        fsock = open(pjoin(self.path, 'madspin_card2.dat'), 'w')
+        fsock.write("""set spinmode PA
+        decay w+ > j j
+        decay w- > j j
+        launch
+        """)
+        fsock.close()
+        subprocess.call([sys.executable, pjoin(_file_path, os.path.pardir,'bin','mg5_aMC'),
+                         pjoin(self.path, 'cmd')],
+                         cwd=pjoin(_file_path, os.path.pardir),
+                        stdout=stdout,stderr=stdout)
+
+        self.check_parton_output(cross=150770.0, error=7.4e+02, target_event=1000)
+        # Mixed-BR card: BR equalization drops part of the w- -> e- ve~ events.
+        self.check_parton_output('run_01_decayed_1', cross=66344.2066122, error=1.5e+03,
+                                 target_event=666, delta_event=80)
+        # Identical-BR card: no drops.
+        self.check_parton_output('run_01_decayed_2', cross=100521.52517, error=8e+02,
+                                 target_event=1000)
+
+        self.assertEqual(cwd, os.getcwd())
+
+
     def test_DY_onejet(self):
         """
         This test is checking that the scale in auto_dsig are correctly assigned
@@ -1361,6 +1565,125 @@ class TestMEfromfile(unittest.TestCase):
         #a=rwa_input('freeze')
         self.check_parton_output(cross= 4.117e+08, error=1.413e+06,target_event=1000)
 
+    def test_polarization_top_decay(self):
+        """check that polarized process t{X} > w+{Y} b{Z}, w+ > ta+ vt gives the correct results
+        Test 1: check that various permutations can be called
+        Test 2: check helicity-flipping process (massive limit)
+        Test 3: check helicity-flipping process (massless limit)
+        """
+
+        cwd = os.getcwd()
+
+        if logging.getLogger('madgraph').level <= 20:
+            stdout=None
+            stderr=None
+        else:
+            devnull =open(os.devnull,'w')
+            stdout=devnull
+            stderr=devnull
+
+        if logging.getLogger('madgraph').level > 20:
+            stdout = devnull
+        else:
+            stdout= None
+
+        #
+        #  START REAL CODE (1/3)
+        #
+        command = open(pjoin(self.path, 'cmd'), 'w')
+        command.write("""set group_subprocesses False
+        import model loop_sm
+        set automatic_html_opening False --no_save
+        set notification_center False --no_save
+        generate    t{L} > w+{0} b{R}, w+ > ta+ vt
+        add process t{L} > w+{T} b{L}, w+ > ta+ vt
+        add process t{L} > w+{A} b{R}, w+ > ta+ vt
+        add process t{R} > w+{S} b{L}, w+ > ta+ vt
+        add process t{R} > w+{0S} b{R}, w+ > ta+ vt
+        add process t{L} > w+{S0} b{L}, w+ > ta+ vt
+        add process t{L} > w+{G} b{R}, w+ > ta+ vt
+        add process t{L} > w+{H} b{L}, w+ > ta+ vt
+        add process t{R} > w+{Q} b{R}, w+ > ta+ vt
+        add process t{R} > w+{W} b{L}, w+ > ta+ vt
+        output %(path)s
+        launch
+        analysis=off
+        set no_parton_cut
+        set nevents 40k
+        set me_frame [1]
+        set nhel 1
+        set bwcutoff 100
+        """ % {'path':self.run_dir})
+        command.close()
+
+        subprocess.call([sys.executable, pjoin(_file_path, os.path.pardir,'bin','mg5_aMC'),
+                         pjoin(self.path, 'cmd')],
+                         cwd=pjoin(_file_path, os.path.pardir),
+                        stdout=stdout,stderr=stdout)
+
+        # Width : 0.53881 ± 0.000343 (GeV) for 40k events
+        tolerance = 1.1
+        self.check_parton_output(cross= 0.53881, error=tolerance*0.000343,target_event=40000)
+
+        #
+        #  START REAL CODE (2/3)
+        #
+        command = open(pjoin(self.path, 'cmd'), 'w')
+        command.write("""set group_subprocesses False
+        import model loop_sm
+        set automatic_html_opening False --no_save
+        set notification_center False --no_save
+        generate    t > w+{A} b, w+ > ta+ vt
+        add process t > w+{S} b, w+ > ta+ vt
+        output %(path)s
+        launch
+        analysis=off
+        set no_parton_cut
+        set nevents 40k
+        set me_frame [1]
+        set nhel 1
+        set bwcutoff 100
+        """ % {'path':self.run_dir})
+        command.close()
+
+        subprocess.call([sys.executable, pjoin(_file_path, os.path.pardir,'bin','mg5_aMC'),
+                         pjoin(self.path, 'cmd')],
+                         cwd=pjoin(_file_path, os.path.pardir),
+                        stdout=stdout,stderr=stdout)
+
+        # Width : 1.3303e-05 ± 2.1e-08 (GeV) for 40k events
+        self.check_parton_output(cross= 1.3303e-05, error=tolerance*2.1e-08,target_event=40000)
+
+        #
+        #  START REAL CODE (3/3)
+        #
+        command = open(pjoin(self.path, 'cmd'), 'w')
+        command.write("""set group_subprocesses False
+        import model loop_sm
+        set automatic_html_opening False --no_save
+        set notification_center False --no_save
+        generate    t > w+{A} b, w+ > ta+ vt
+        add process t > w+{S} b, w+ > ta+ vt
+        output %(path)s
+        launch
+        analysis=off
+        set mta 1e-3
+        set no_parton_cut
+        set nevents 40k
+        set me_frame [1]
+        set nhel 1
+        set bwcutoff 100
+        set mmnl 5.0
+        """ % {'path':self.run_dir})
+        command.close()
+
+        subprocess.call([sys.executable, pjoin(_file_path, os.path.pardir,'bin','mg5_aMC'),
+                         pjoin(self.path, 'cmd')],
+                         cwd=pjoin(_file_path, os.path.pardir),
+                        stdout=stdout,stderr=stdout)
+
+        # Width : 3.9311e-12 ± 6.86e-15  (GeV) for 40k events
+        self.check_parton_output(cross=3.9311e-12, error=tolerance*6.86e-15,target_event=40000)
 
     def test_generation_from_file_1(self):
         """ """

@@ -11,10 +11,6 @@ import copy
 import os
 import shutil
 import sys
-import six
-from six.moves import filter
-from six.moves import range
-from six.moves import zip
 from functools import reduce
 
 pjoin = os.path.join
@@ -71,9 +67,6 @@ def get_lhe_timers():
 def reset_lhe_timers():
     _LHE_TIMERS.clear()
     _LHE_TIMER_COUNTS.clear()
-
-if six.PY3:
-    six.text_type = str
 
 class Particle(object):
     """ """
@@ -838,7 +831,7 @@ class EventFile(object):
                 return event.wgt
             get_wgt  = weight
             unwgt_name = "central weight"
-        elif isinstance(get_wgt, (str,six.text_type)):
+        elif isinstance(get_wgt, str):
             unwgt_name =get_wgt 
             def get_wgt(event):
                 event.parse_reweight()
@@ -1686,7 +1679,7 @@ class MultiEventFile(EventFile):
         (stop to write event when target is reached)
         """
 
-        if isinstance(get_wgt, (str,six.text_type)):
+        if isinstance(get_wgt, str):
             unwgt_name =get_wgt 
             def get_wgt_multi(event):
                 event.parse_reweight()
@@ -1738,11 +1731,7 @@ class MultiEventFile(EventFile):
     def write(self, path, random=False, banner=None, get_info=False):
         """ """
         
-        try:
-            str_type = (str,six.text_type)
-        except NameError:
-            str_type = (str)
-        
+        str_type = str
         if isinstance(path, str_type):
             out = EventFile(path, 'w')
             if self.parsefile and not banner:    
@@ -3098,6 +3087,7 @@ class Event(list):
 
 
     nb_reshuffle_issue=0
+    _warned_2to1_reshuffle = False
     def reshuffle_production(self):
         """ particle that need new mass have the "new_mass" attribute
         """
@@ -3111,7 +3101,28 @@ class Event(list):
         old_momenta = [FourMomentum(p) for p in production if p.status!=-1]
         new_masses = [getattr(p, 'new_mass', p.mass) for p in production if p.status!=-1]
         sqrts = self.sqrts
-        
+
+        # 2 -> 1 production: the single final-state mass is fully determined
+        # by sqrt(shat), so RAMBO has no phase-space to redistribute and
+        # mass_shuffle would divide by zero. Skip reshuffling, drop any
+        # new_mass attribute so callers fall back to the original momenta,
+        # and return jac = 1 (treat as narrow-width approximation at the
+        # production-determined virtuality, i.e. equivalent to running with
+        # density_do_reshuffle=False for this event).
+        if len(old_momenta) <= 1:
+            for p in production:
+                if hasattr(p, 'new_mass'):
+                    del p.new_mass
+            if not Event._warned_2to1_reshuffle:
+                import logging as _logging
+                _logging.getLogger('decay.stdout').info(
+                    "PA reshuffling skipped for 2 -> 1 production: there is "
+                    "no phase space to redistribute via RAMBO. Keeping the "
+                    "production-determined virtuality (NWA-style)."
+                )
+                Event._warned_2to1_reshuffle = True
+            return 1
+
         if sum(new_masses,0) <=  sqrts:
             # apply the RAMBO algo
             new_mom, jac = self.mass_shuffle(old_momenta, sqrts, new_masses)
@@ -3520,7 +3531,7 @@ class Event(list):
                     continue
                 replace = {}
                 replace['values'] = self.syscalc_data[k]
-                if isinstance(k, (str, six.text_type)):
+                if isinstance(k, str):
                     replace['key'] = k
                     replace['opts'] = ''
                 else:
@@ -3865,7 +3876,7 @@ class FourMomentum(object):
             px = obj[1]
             py = obj[2] 
             pz = obj[3]
-        elif  isinstance(obj, (str, six.text_type)):
+        elif  isinstance(obj, str):
             obj = [float(i) for i in obj.split()]
             assert len(obj) ==4
             E = obj[0]
@@ -4417,7 +4428,7 @@ class OneNLOWeight(object):
         """ """
 
         self.real_type = real_type
-        if isinstance(input, (str, six.text_type)):
+        if isinstance(input, str):
             self.parse(input)
         
     def __str__(self, mode='display'):
@@ -4792,7 +4803,7 @@ class NLO_PARTIALWEIGHT(object):
         self.modified = False #set on True if we decide to change internal infor
                               # that need to be written in the event file.
                               #need to be set manually when this is the case
-        if isinstance(input, (str,six.text_type)):
+        if isinstance(input, str):
             self.parse(input)
         
             

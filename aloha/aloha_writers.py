@@ -1,5 +1,4 @@
 from __future__ import absolute_import
-from six.moves import range
 try:
     import madgraph.iolibs.file_writers as writers 
     import madgraph.various.q_polynomial as q_polynomial
@@ -18,7 +17,7 @@ from numbers import Number
 from collections import defaultdict
 from fractions import Fraction
 # fast way to deal with string
-from six import StringIO
+from io import StringIO
 # Look at http://www.skymind.com/~ocrow/python_string/ 
 # For knowing how to deal with long strings efficiently.
 import itertools
@@ -2215,7 +2214,9 @@ class ALOHAWriterForPython(WriteALOHA):
             shift = 0
         else:
             shift = -1 + self.momentum_size
-            
+            if aloha.unitary_gauge == 3 and match.group('var').startswith('S'):
+                shift += 4
+             
         return '%s[%s]' % (match.group('var'), int(match.group('num')) + shift)
 
     def change_var_format(self, name): 
@@ -2330,14 +2331,22 @@ class ALOHAWriterForPython(WriteALOHA):
                 coeff = 'COUP'
                 
             for ind in numerator.listindices():
+                shift = 0
+                if aloha.unitary_gauge == 3 and self.outname.startswith('S'):
+                    shift = 4
                 out.write('    %s[%d]= %s*%s\n' % (self.outname, 
-                                        self.pass_to_HELAS(ind), coeff, 
+                                        self.pass_to_HELAS(ind) + shift, coeff, 
                                         self.write_obj(numerator.get_rep(ind))))
         return out.getvalue()
     
-    def get_foot_txt(self):
+    def get_foot_txt(self, combine=False):
         if not self.offshell:
             return '    return vertex\n\n'
+        elif not combine and aloha.unitary_gauge == 3 and \
+             self.outname.startswith(('V','S')) and \
+             'P1N' not in self.tag:
+            return '    %(out)s = wavefunctions.multiply_propagator_factor(%(out)s, M%(num)s)\n    return %(out)s\n\n' % \
+                   {'out': self.outname, 'num': self.outgoing}
         else:
             return '    return %s\n\n' % (self.outname)
             
@@ -2392,7 +2401,11 @@ class ALOHAWriterForPython(WriteALOHA):
                 self.get_one_momenta_def(i+1, out)             
              
         # define the resulting momenta
-        if self.offshell:
+        bypass = False
+        if 'P1N' in self.tag and self.offshell and \
+           not self.declaration.is_used('P%s' % (self.outgoing)):
+            bypass = True
+        if self.offshell and not bypass:
             type = self.particles[self.outgoing-1]
             out.write('    %s%s = wavefunctions.WaveFunction(size=%s)\n' % (type, self.outgoing, out_size))
             if aloha.loop_mode:
@@ -2406,6 +2419,10 @@ class ALOHAWriterForPython(WriteALOHA):
                                              ''.join(p) % dict_energy))
             
             self.get_one_momenta_def(self.outgoing, out)
+            if "P1T" in self.tag or "P1L" in self.tag:
+                for i, value in zip(range(1,4), ("1e-30", "0.0", "1e-15")):
+                    out.write("    if abs(P%(P)s[0])*1e-10 > abs(P%(P)s[%(i)s]): P%(P)s[%(i)s] = %(val)s\n"
+                              % {"P": self.outgoing, "i": i, "val": value})
 
                
         # Returning result
@@ -2509,7 +2526,7 @@ class ALOHAWriterForPython(WriteALOHA):
                     text.write("    for i in range(%s,%s):\n" % (self.momentum_size, self.momentum_size+size))
                     text.write("        %(main)s[i] += tmp[i]\n" %{'main': main})
         
-        text.write(self.get_foot_txt())
+        text.write(self.get_foot_txt(combine=True))
 
         #ADD SYMETRY
         if sym:
@@ -2621,4 +2638,3 @@ class WriterFactory(object):
 #        ff = open(pjoin(output_dir, 'additional_aloha_function.f'), 'a')
 #        ff.write(unknow_fct_template % dico)
 #        ff.close()
-
