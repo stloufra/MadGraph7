@@ -10,6 +10,7 @@ import logging
 from dataclasses import dataclass
 from typing import Literal, NamedTuple
 import tomllib
+import resource
 
 if "LHAPDF_DATA_PATH" in os.environ:
     PDF_PATH = os.environ["LHAPDF_DATA_PATH"]
@@ -1167,7 +1168,7 @@ class MadgraphSubprocess:
     def build_discrete(
         self, permutation_count: int, flavor_count: int, prefix: str
     ) -> tuple[ms.DiscreteSampler | None, ms.DiscreteSampler | None]:
-        return None, None
+        #return None, None
         discrete_before = None
         #if permutation_count > 1:
         #    discrete_before = ms.DiscreteSampler(
@@ -1346,6 +1347,10 @@ def main() -> None:
     args = parser.parse_args()
     if args.ask_edit_cards:
         ask_edit_cards()
+
+    # Remove soft limit on number of open files as it can be quite low on some systems
+    soft_lim, hard_lim = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (hard_lim, hard_lim))
 
     process = MadgraphProcess()
     process.survey()

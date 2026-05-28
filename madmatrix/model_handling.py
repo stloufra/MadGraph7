@@ -2308,10 +2308,11 @@ class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
       // Scalar iflavor for the current event
       // for GPU it is an int
       // for SIMD it is also an int, since it is constant across the SIMD vector
-      const uint_sv iflavor_sv = F_ACCESS::kernelAccessConst( iflavorVec );
 #ifdef MGONGPUCPP_GPUIMPL
-      const unsigned int iflavor = iflavor_sv;
+      const unsigned int iflavor = F_ACCESS::kernelAccessConst( iflavorVec );
 #else
+      const unsigned int* iflavor_rec = F_ACCESS::ieventAccessRecordConst( iflavorVec, ievt0 );
+      const uint_sv iflavor_sv = F_ACCESS::kernelAccessConst( iflavor_rec );
       const unsigned int iflavor = reinterpret_cast<const unsigned int*>(&iflavor_sv)[0];
 #endif
 """)
