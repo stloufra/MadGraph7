@@ -51,6 +51,10 @@ def trace_distance(Matrix1: list[complex, complex], Matrix2: list[complex, compl
        Input: Matrix1, Matrix2 -> 2 square matrices
        Output: trace distance between the two matrices
     """
+    if isinstance(Matrix1, list):
+        Matrix1 = np.array(Matrix1)
+    if isinstance(Matrix2, list):
+        Matrix2 = np.array(Matrix2)
     aux1 = Matrix1 - Matrix2
     aux2 = np.dot(np.conjugate(np.transpose(aux1)), aux1)
     eigvals, eigvecs = la.eigh(np.array(aux2))
@@ -452,6 +456,9 @@ class DensityMatrixObservables(list):
         """
         rho = self.square_matrix()
 
+        if isinstance(rho, list):
+            rho = np.array(rho)
+
         if rho.shape[0] != rho.shape[1]:
             raise ValueError('Asked the partial trace of a non-square matrix, problem')
         
@@ -524,7 +531,7 @@ class DensityMatrixObservables(list):
     def Negativity(self, particle_type:list[str], epsilon=1e-10) -> tuple[float, float]:
             """
             Input:  self -> density matrix
-                    pdg_pos -> list of the pdg code of the particles in the density matrix
+                    particle_type -> list of the particle type: "fermion" or "boson"
             Output: negativity and logarithmic negativity
             This functions computes the negativity of a density matrix composed of any two particles.
             """
