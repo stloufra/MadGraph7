@@ -6,26 +6,28 @@
 
 using namespace madspace;
 
-Unweighter::Unweighter(const NamedVector<Type>& types, bool use_quantile) :
+Unweighter::Unweighter(const NamedVector<Type>& types, double quantile) :
     FunctionGenerator(
         "Unweighter",
         [&] {
             NamedVector<Type> arg_types = types;
-            arg_types.push_back(use_quantile ? "quantile" : "max_weight", single_float);
+            if (quantile == 0) {
+                arg_types.push_back("max_weight", single_float);
+            }
             return arg_types;
         }(),
         types
     ),
-    _use_quantile(use_quantile) {}
+    _quantile(quantile) {}
 
 NamedVector<Value> Unweighter::build_function_impl(
     FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
     Value max_weight =
-        _use_quantile ? fb.quantile(args.at(0), args.back()) : args.back();
-    auto [uw_indices, uw_weights] = fb.unweight(args.at(0), args.back());
+        _quantile == 0.0 ? args.back() : fb.quantile(args.at(0), _quantile);
+    auto [uw_indices, uw_weights] = fb.unweight(args.at(0), max_weight);
     ValueVec output{uw_weights};
-    for (auto arg : std::span(args.begin() + 1, args.end() - 1)) {
+    for (auto arg : std::span(args.begin() + 1, args.end() - (_quantile == 0.))) {
         output.push_back(fb.batch_gather(uw_indices, arg));
     }
     return {return_types().keys(), output};

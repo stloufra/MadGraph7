@@ -133,6 +133,17 @@ void MadnisTraining::build_runtimes_and_optimizer() {
         for (auto& channel : _channels) {
             channel.generator_runtime =
                 build_runtime(channel.integrand->function(), _generator_context, false);
+            if (_config.buffer_capacity > 0) {
+                channel.unweighter_runtime = build_runtime(
+                    Unweighter(
+                        channel.integrand->return_types(),
+                        _config.buffer_unweighting_quantile
+                    )
+                        .function(),
+                    _generator_context,
+                    false
+                );
+            }
         }
     } else {
         std::vector<std::shared_ptr<Integrand>> integrands;
@@ -145,6 +156,9 @@ void MadnisTraining::build_runtimes_and_optimizer() {
             _generator_context,
             false
         );
+        if (_config.buffer_capacity > 0) {
+            throw std::logic_error("not implemented");
+        }
     }
 }
 
@@ -302,17 +316,20 @@ void MadnisTraining::start_single_job(
 ) {
     std::size_t job_id = _job_id;
     ++_job_id;
-    auto& job =
-        std::get<0>(_running_jobs.emplace(job_id, std::make_unique<SampleBatch>()))
-            ->second;
+    auto& job = std::get<0>(_running_jobs.emplace(job_id, SampleJob{}))->second;
     _generator_context->thread_pool().submit(
         [this, channel_index, batch_size, job_id, &job]() {
-            job->tensors = permute_tensors(
-                _channels.at(channel_index)
-                    .generator_runtime->run({Tensor({batch_size})})
-            );
-            job->size = job->tensors.at(0).size(0);
-            job->channel_index = channel_index;
+            auto& channel = _channels.at(channel_index);
+            auto samples = channel.generator_runtime->run({Tensor({batch_size})});
+            job.samples.tensors = permute_tensors(samples);
+            job.samples.size = samples.at(0).size(0);
+            job.samples.channel_index = channel_index;
+            if (channel.unweighter_runtime) {
+                auto unw_samples = channel.unweighter_runtime->run(samples);
+                job.unweighted_samples.tensors = permute_tensors(unw_samples);
+                job.unweighted_samples.size = unw_samples.at(0).size(0);
+                job.unweighted_samples.channel_index = channel_index;
+            }
             return job_id;
         }
     );
@@ -321,13 +338,11 @@ void MadnisTraining::start_single_job(
 void MadnisTraining::start_multi_job(const std::vector<std::size_t> batch_sizes) {
     std::size_t job_id = _job_id;
     ++_job_id;
-    auto& job =
-        std::get<0>(_running_jobs.emplace(job_id, std::make_unique<SampleBatch>()))
-            ->second;
+    auto& job = std::get<0>(_running_jobs.emplace(job_id, SampleJob{}))->second;
     _generator_context->thread_pool().submit([this, batch_sizes, job_id, &job]() {
         auto result = _multi_channel_generator->run({Tensor(batch_sizes)});
-        job->tensors = permute_tensors(result);
-        job->channel_sizes = result.back().batch_sizes();
+        job.samples.tensors = permute_tensors(result);
+        job.samples.channel_sizes = result.back().batch_sizes();
         return job_id;
     });
 }
@@ -349,55 +364,55 @@ MadnisTraining::build_online_training_batch(const std::vector<size_t>& counts) {
     for (auto [channel, count] : zip(_channels, counts)) {
         auto& first_batch = channel.sample_batches.at(0);
         std::size_t consumed_batches = 0;
-        if (first_batch->size - first_batch->consumed_count >= count) {
-            for (auto& tensor : first_batch->tensors) {
+        if (first_batch.size - first_batch.consumed_count >= count) {
+            for (auto& tensor : first_batch.tensors) {
                 training_batch.push_back(tensor.slice(
-                    0, first_batch->consumed_count, first_batch->consumed_count + count
+                    0, first_batch.consumed_count, first_batch.consumed_count + count
                 ));
             }
-            if (first_batch->size - first_batch->consumed_count == count) {
+            if (first_batch.size - first_batch.consumed_count == count) {
                 consumed_batches = 1;
             } else {
-                first_batch->consumed_count += count;
+                first_batch.consumed_count += count;
             }
             channel.sample_count -= count;
         } else {
-            for (auto& tensor : first_batch->tensors) {
+            for (auto& tensor : first_batch.tensors) {
                 Sizes shape = tensor.shape();
                 shape[0] = count;
                 training_batch.emplace_back(tensor.dtype(), shape, tensor.device());
             }
             std::size_t remaining_count = count;
             for (auto& batch : channel.sample_batches) {
-                std::size_t batch_size = batch->size - batch->consumed_count;
+                std::size_t batch_size = batch.size - batch.consumed_count;
                 std::size_t offset = count - remaining_count;
                 if (batch_size >= remaining_count) {
                     for (auto [tensor_out, tensor_in] :
                          zip(std::span(
-                                 training_batch.end() - batch->tensors.size(),
+                                 training_batch.end() - batch.tensors.size(),
                                  training_batch.end()
                              ),
-                             batch->tensors)) {
+                             batch.tensors)) {
                         tensor_out.slice(0, offset, offset + remaining_count)
                             .copy_from(tensor_in.slice(
                                 0,
-                                batch->consumed_count,
-                                batch->consumed_count + remaining_count
+                                batch.consumed_count,
+                                batch.consumed_count + remaining_count
                             ));
                     }
-                    batch->consumed_count += remaining_count;
+                    batch.consumed_count += remaining_count;
                     channel.sample_count -= remaining_count;
                     break;
                 } else {
                     for (auto [tensor_out, tensor_in] :
                          zip(std::span(
-                                 training_batch.end() - batch->tensors.size(),
+                                 training_batch.end() - batch.tensors.size(),
                                  training_batch.end()
                              ),
-                             batch->tensors)) {
+                             batch.tensors)) {
                         tensor_out.slice(0, offset, offset + batch_size)
                             .copy_from(
-                                tensor_in.slice(0, batch->consumed_count, batch->size)
+                                tensor_in.slice(0, batch.consumed_count, batch.size)
                             );
                     }
                     remaining_count -= batch_size;
@@ -420,28 +435,66 @@ MadnisTraining::build_buffered_training_batch(const std::vector<size_t>& counts)
 void MadnisTraining::process_job_results(const std::vector<std::size_t>& job_ids) {
     for (auto job_id : job_ids) {
         auto job = std::move(_running_jobs.extract(job_id).mapped());
-        if (job->channel_sizes.size() == 0) {
-            auto& channel = _channels.at(job->channel_index);
-            channel.sample_count += job->size;
-            channel.sample_batches.push_back(std::move(job));
+        if (job.samples.channel_sizes.size() == 0) {
+            auto& channel = _channels.at(job.samples.channel_index);
+            channel.sample_count += job.samples.size;
+            channel.sample_batches.push_back(std::move(job.samples));
+            if (job.unweighted_samples.size > 0) {
+                buffer_store(channel, job.unweighted_samples);
+            }
         } else {
             std::size_t offset = 0;
-            for (auto [channel, chan_size] : zip(_channels, job->channel_sizes)) {
+            for (auto [channel, chan_size] :
+                 zip(_channels, job.samples.channel_sizes)) {
                 if (chan_size == 0) {
                     continue;
                 }
                 channel.sample_count += chan_size;
-                channel.sample_batches.push_back(std::make_unique<SampleBatch>());
+                channel.sample_batches.emplace_back();
                 auto& batch = channel.sample_batches.back();
-                batch->tensors.reserve(job->tensors.size());
-                for (auto& tensor : job->tensors) {
-                    batch->tensors.push_back(
+                batch.tensors.reserve(job.samples.tensors.size());
+                for (auto& tensor : job.samples.tensors) {
+                    batch.tensors.push_back(
                         tensor.slice(0, offset, offset + chan_size)
                     );
                 }
-                batch->size = chan_size;
+                batch.size = chan_size;
                 offset += chan_size;
             }
+        }
+    }
+}
+
+void MadnisTraining::buffer_store(ChannelData& channel, SampleBatch& samples) {
+    std::size_t empty_count = _config.buffer_capacity - channel.buffer.size;
+
+    std::size_t size = std::min(samples.size, _config.buffer_capacity);
+    std::size_t end_index = channel.buffer.consumed_count + size;
+    std::size_t store_begin1, store_end1, load_begin1, load_end1;
+    std::size_t store_begin2 = 0, store_end2 = 0, load_begin2 = 0, load_end2 = 0;
+    if (end_index < _config.buffer_capacity) {
+        store_begin1 = channel.buffer.consumed_count;
+        store_end1 = end_index;
+        load_begin1 = 0;
+        load_end1 = size;
+    } else {
+        store_begin1 = channel.buffer.consumed_count;
+        store_end1 = _config.buffer_capacity;
+        load_begin1 = 0;
+        load_end1 = _config.buffer_capacity - channel.buffer.consumed_count;
+        store_begin2 = 0;
+        store_end2 = end_index - _config.buffer_capacity;
+        load_begin2 = _config.buffer_capacity - channel.buffer.consumed_count;
+        load_end2 = size;
+    }
+    channel.buffer.consumed_count = end_index % _config.buffer_capacity;
+    channel.buffer.size = std::min(channel.buffer.size + size, _config.buffer_capacity);
+    for (auto [buf, tensor] : zip(channel.buffer.tensors, samples.tensors)) {
+        buf.slice(0, store_begin1, store_end1) =
+            tensor.slice(0, load_begin1, load_end1);
+        if (load_end2 - load_begin2 > 0) {
+            buf.slice(0, store_begin2, store_end2) =
+                tensor.slice(0, load_begin2, load_end2);
         }
     }
 }

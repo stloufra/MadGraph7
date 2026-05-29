@@ -62,15 +62,20 @@ private:
         std::size_t size = 0;
         std::size_t channel_index = 0;
     };
+    struct SampleJob {
+        SampleBatch samples;
+        SampleBatch unweighted_samples;
+    };
     struct ChannelData {
         std::size_t index;
-        std::vector<std::unique_ptr<SampleBatch>> sample_batches;
+        std::vector<SampleBatch> sample_batches;
         std::vector<std::tuple<std::size_t, double, double>> integration_history;
         std::size_t history_index = 0;
         std::size_t sample_count = 0;
         std::shared_ptr<Integrand> integrand;
         std::shared_ptr<IntegrandProbability> integrand_prob;
         RuntimePtr generator_runtime;
+        RuntimePtr unweighter_runtime = nullptr;
         SampleBatch buffer;
     };
 
@@ -86,6 +91,7 @@ private:
     TensorVec build_online_training_batch(const std::vector<size_t>& counts);
     TensorVec build_buffered_training_batch(const std::vector<size_t>& counts);
     void process_job_results(const std::vector<std::size_t>& job_ids);
+    void buffer_store(ChannelData& channel, SampleBatch& samples);
     void
     update_history(const TensorVec& results, const std::vector<std::size_t>& counts);
     void drop_channels();
@@ -95,10 +101,11 @@ private:
     ContextPtr _optimizer_context;
     std::optional<ChannelWeightNetwork> _cwnet;
     Config _config;
-    RuntimePtr _multi_channel_generator;
+    RuntimePtr _multi_channel_generator = nullptr;
+    RuntimePtr _multi_channel_unweighter = nullptr;
     std::optional<AdamOptimizer> _optimizer;
     std::vector<ChannelData> _channels;
-    std::unordered_map<std::size_t, std::unique_ptr<SampleBatch>> _running_jobs;
+    std::unordered_map<std::size_t, SampleJob> _running_jobs;
     std::vector<double> _loss_history;
     std::size_t _loss_history_index = 0;
     std::size_t _job_id = 0;

@@ -572,7 +572,7 @@ void op_quantile(
     const CpuRuntime::Instruction& instruction, TensorVec& locals, const D& device
 ) {
     auto& input = locals[instruction.input_indices[0]];
-    auto& q = locals[instruction.input_indices[0]];
+    auto& q = locals[instruction.input_indices[1]];
     auto& output = locals[instruction.output_indices[0]];
     output = Tensor(DataType::dt_float, {1}, device);
 
