@@ -105,6 +105,7 @@ private:
     Tensor _generator_params;
     std::vector<std::size_t> _arg_permutation;
     bool _buffer_ready = false;
+    std::vector<std::size_t> _active_flavors_count;
 };
 
 class MultiMadnisTraining {

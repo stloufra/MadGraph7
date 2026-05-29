@@ -32,6 +32,13 @@ MadnisTraining::MadnisTraining(
                 _arg_permutation.push_back(integ_args.at(key));
             }
         }
+        auto& active_flavors = integrand->active_flavors();
+        for (std::size_t flav_index : active_flavors) {
+            if (_active_flavors_count.size() <= flav_index) {
+                _active_flavors_count.resize(flav_index + 1);
+            }
+            ++_active_flavors_count.at(flav_index);
+        }
         ++index;
     }
     build_runtimes_and_optimizer();
@@ -509,6 +516,25 @@ void MadnisTraining::drop_channels() {
             break;
         }
         auto& channel = _channels.at(chan_index);
+
+        if (_active_flavors_count.size() > 0) {
+            auto& active_flavors = channel.integrand->active_flavors();
+            if (std::any_of(
+                    active_flavors.begin(),
+                    active_flavors.end(),
+                    [&](std::size_t flav_index) {
+                        return _active_flavors_count.at(flav_index) == 0;
+                    }
+                )) {
+                // cannot drop this channel because one of its flavors is not
+                // available in any other channel
+                continue;
+            }
+            for (std::size_t flav_index : active_flavors) {
+                --_active_flavors_count.at(flav_index);
+            }
+        }
+
         for (me_int_t index : channel.integrand->channel_indices()) {
             if (index < 0 || index > mask_view.size()) {
                 throw std::out_of_range("channel index out of bounds");

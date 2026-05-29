@@ -73,6 +73,7 @@ class MultiChannelData(NamedTuple):
     channel_weight_indices: list[list[list[int]]]
     diagram_indices: list[list[int]]
     diagram_color_indices: list[list[list[int]]]
+    active_flavors: list[list[int]]
 
 
 @dataclass
@@ -631,6 +632,7 @@ class MadgraphProcess:
                 _,
                 diagram_indices,
                 diagram_color_indices,
+                active_flavors,
             ) = subproc.build_multi_channel_data()
             subproc_args.append(
                 ms.SubprocArgs(
@@ -840,6 +842,7 @@ class MadgraphSubprocess:
         channel_weight_indices = []
         diagram_indices = []
         diagram_color_indices = []
+        active_flavors = []
         channel_index = 0
 
         for channel_id, channel in enumerate(self.meta["channels"]):
@@ -891,6 +894,7 @@ class MadgraphSubprocess:
             ])
             diagram_indices.append([d["diagram"] for d in diagrams])
             diagram_color_indices.append([d["active_colors"] for d in diagrams])
+            active_flavors.append(channel["active_flavors"])
         self.multi_channel_data = MultiChannelData(
             amp2_remap,
             symfact,
@@ -900,6 +904,7 @@ class MadgraphSubprocess:
             channel_weight_indices,
             diagram_indices,
             diagram_color_indices,
+            active_flavors,
         )
         return self.multi_channel_data
 
@@ -913,14 +918,15 @@ class MadgraphSubprocess:
             channel_weight_indices,
             diagram_indices,
             _,
+            all_active_flavors,
         ) = self.build_multi_channel_data()
 
         channels = []
         t_channel_mode = self.t_channel_mode(
             self.process.run_card["phasespace"]["t_channel"]
         )
-        for channel_id, (chan_topologies, chan_permutations, chan_indices) in enumerate(zip(
-            topologies, permutations, channel_weight_indices
+        for channel_id, (chan_topologies, chan_permutations, chan_indices, active_flavors) in enumerate(zip(
+            topologies, permutations, channel_weight_indices, all_active_flavors
         )):
             topo_count = len(chan_topologies)
             for topo_index, (topo, indices) in enumerate(zip(chan_topologies, chan_indices)):
@@ -946,7 +952,7 @@ class MadgraphSubprocess:
                     discrete_after = discrete_after,
                     channel_weight_indices = indices,
                     name = f"{channel_id}",
-                    active_flavors = [], #TODO: properly initialize
+                    active_flavors = active_flavors,
                 ))
 
         chan_weight_remap = list(range(len(symfact))) #TODO: only construct if necessary

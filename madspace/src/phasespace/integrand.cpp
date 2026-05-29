@@ -168,7 +168,8 @@ Integrand::Integrand(
         diff_xs.has_mirror()                 // flipped initial state
     ),
     _flavor_remap(flavor_remap.begin(), flavor_remap.end()),
-    _flavor_factors(flavor_factors) {
+    _flavor_factors(flavor_factors),
+    _active_flavors(active_flavors) {
     if (pdf_grid) {
         for (std::size_t i = 0; i < 2; ++i) {
             std::set<int> pids;
@@ -184,9 +185,9 @@ Integrand::Integrand(
         }
         if (active_flavors.size() > 0 &&
             active_flavors.size() < diff_xs.pid_options().size()) {
-            _active_flavors.resize(diff_xs.pid_options().size());
+            _active_flavors_mask.resize(diff_xs.pid_options().size());
             for (auto index : active_flavors) {
-                _active_flavors.at(index) = 1.;
+                _active_flavors_mask.at(index) = 1.;
             }
         }
     }
@@ -363,8 +364,8 @@ Integrand::ChannelResult Integrand::build_channel_part(
             }
         }
         result.pdf_prior() = fb.product(pdf_priors);
-        if (_active_flavors.size() > 0) {
-            result.pdf_prior() = fb.mul(result.pdf_prior(), _active_flavors);
+        if (_active_flavors_mask.size() > 0) {
+            result.pdf_prior() = fb.mul(result.pdf_prior(), _active_flavors_mask);
         }
         result.scale_cache() = scales.at(0);
     }
