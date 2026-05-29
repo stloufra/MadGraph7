@@ -131,6 +131,7 @@ add_library(
     src/compgraphs/optimizer.cpp
     src/compgraphs/instruction_set_mixin.inc
     src/phasespace/base.cpp
+    src/phasespace/batch_sampler.cpp
     src/phasespace/invariants.cpp
     src/phasespace/two_particle.cpp
     src/phasespace/three_particle.cpp
@@ -184,6 +185,7 @@ add_library(
     include/madspace/compgraphs/optimizer.hpp
     include/madspace/phasespace.hpp
     include/madspace/phasespace/base.hpp
+    include/madspace/phasespace/batch_sampler.hpp
     include/madspace/phasespace/invariants.hpp
     include/madspace/phasespace/two_particle.hpp
     include/madspace/phasespace/three_particle.hpp

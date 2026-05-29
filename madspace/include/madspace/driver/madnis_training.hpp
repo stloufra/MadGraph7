@@ -74,7 +74,7 @@ private:
         std::size_t sample_count = 0;
         std::shared_ptr<Integrand> integrand;
         std::shared_ptr<IntegrandProbability> integrand_prob;
-        RuntimePtr generator_runtime;
+        RuntimePtr generator_runtime = nullptr;
         RuntimePtr unweighter_runtime = nullptr;
         SampleBatch buffer;
     };
@@ -87,7 +87,8 @@ private:
     TensorVec permute_tensors(const TensorVec& tensors) const;
     void start_single_job(std::size_t channel_index, std::size_t batch_size);
     void start_multi_job(const std::vector<std::size_t> batch_sizes);
-    bool check_training_batch(const std::vector<std::size_t>& channel_sizes);
+    bool check_online_training_batch(const std::vector<std::size_t>& channel_sizes);
+    bool check_buffered_training_batch(const std::vector<std::size_t>& channel_sizes);
     TensorVec build_online_training_batch(const std::vector<size_t>& counts);
     TensorVec build_buffered_training_batch(const std::vector<size_t>& counts);
     void process_job_results(const std::vector<std::size_t>& job_ids);
@@ -103,6 +104,7 @@ private:
     Config _config;
     RuntimePtr _multi_channel_generator = nullptr;
     RuntimePtr _multi_channel_unweighter = nullptr;
+    RuntimePtr _multi_channel_sampler = nullptr;
     std::optional<AdamOptimizer> _optimizer;
     std::vector<ChannelData> _channels;
     std::unordered_map<std::size_t, SampleJob> _running_jobs;

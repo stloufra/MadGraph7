@@ -48,18 +48,24 @@ void MadnisTraining::train_step(std::size_t batch_index) {
     auto& gen_thread_pool = _generator_context->thread_pool();
     _abort_check_function();
     std::vector<std::size_t> channel_sizes = compute_channel_sizes();
+    bool try_buffered =
+        _config.buffer_capacity > 0 && batch_index % (_config.buffered_steps + 1) != 0;
+    TensorVec training_batch;
     while (true) {
         start_generator_jobs(channel_sizes);
-        if (check_training_batch(channel_sizes)) {
+        if (try_buffered) {
+            if (check_buffered_training_batch(channel_sizes)) {
+                training_batch = build_buffered_training_batch(channel_sizes);
+                break;
+            }
+            try_buffered = false;
+        } else if (check_online_training_batch(channel_sizes)) {
+            training_batch = build_online_training_batch(channel_sizes);
             break;
         }
         process_job_results(gen_thread_pool.wait_multiple());
     }
-    TensorVec results = _optimizer->step(
-        !_buffer_ready || batch_index % (_config.buffered_steps + 1) == 0
-            ? build_online_training_batch(channel_sizes)
-            : build_buffered_training_batch(channel_sizes)
-    );
+    TensorVec results = _optimizer->step(training_batch);
     update_history(results, channel_sizes);
     if (_channels.size() > 0 && _cwnet &&
         (batch_index + 1) % _config.channel_dropping_interval == 0) {
@@ -159,6 +165,13 @@ void MadnisTraining::build_runtimes_and_optimizer() {
         if (_config.buffer_capacity > 0) {
             throw std::logic_error("not implemented");
         }
+    }
+    if (_config.buffer_capacity > 0) {
+        /*_multi_channel_sampler = build_runtime(
+            BatchSampler(),
+            _optimizer_context,
+            false
+        );*/
     }
 }
 
@@ -347,11 +360,22 @@ void MadnisTraining::start_multi_job(const std::vector<std::size_t> batch_sizes)
     });
 }
 
-bool MadnisTraining::check_training_batch(
+bool MadnisTraining::check_online_training_batch(
     const std::vector<std::size_t>& channel_sizes
 ) {
     for (auto [channel, count] : zip(_channels, channel_sizes)) {
         if (count > channel.sample_count) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool MadnisTraining::check_buffered_training_batch(
+    const std::vector<std::size_t>& channel_sizes
+) {
+    for (auto [channel, count] : zip(_channels, channel_sizes)) {
+        if (count > channel.buffer.size) {
             return false;
         }
     }
@@ -430,7 +454,15 @@ MadnisTraining::build_online_training_batch(const std::vector<size_t>& counts) {
 }
 
 TensorVec
-MadnisTraining::build_buffered_training_batch(const std::vector<size_t>& counts) {}
+MadnisTraining::build_buffered_training_batch(const std::vector<size_t>& counts) {
+    TensorVec args{Tensor(counts)};
+    for (auto& channel : _channels) {
+        args.insert(
+            args.end(), channel.buffer.tensors.begin(), channel.buffer.tensors.end()
+        );
+    }
+    return _multi_channel_sampler->run(args);
+}
 
 void MadnisTraining::process_job_results(const std::vector<std::size_t>& job_ids) {
     for (auto job_id : job_ids) {

@@ -770,10 +770,10 @@ TypeVec RandomIntInstruction::signature(const ValueVec& args) const {
             std::format("{}, argument 1: expected single batch size", name())
         );
     }
-    if (max_type.dtype != DataType::dt_int || max_type.batch_size != BatchSize::one ||
-        max_type.shape.size() != 0) {
+    if (max_type.dtype != DataType::batch_sizes ||
+        max_type.batch_size_list.size() != 1) {
         throw std::invalid_argument(
-            std::format("{}, argument 2: expected single int", name())
+            std::format("{}, argument 2: expected single batch size", name())
         );
     }
     return {{DataType::dt_int, batch_size_type.batch_size_list.at(0), {}}};

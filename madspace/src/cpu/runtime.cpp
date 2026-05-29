@@ -625,7 +625,7 @@ void op_random_int(
     const CpuRuntime::Instruction& instruction, TensorVec& locals, const D& device
 ) {
     auto batch_size = locals[instruction.input_indices[0]].batch_sizes()[0];
-    me_int_t max_val = locals[instruction.input_indices[1]].index_value();
+    auto max_val = locals[instruction.input_indices[1]].batch_sizes()[0];
     auto& output = locals[instruction.output_indices[0]];
     output = Tensor(DataType::dt_float, {batch_size}, device);
     auto flat_view = output.flat_view<me_int_t, 1>(0);
