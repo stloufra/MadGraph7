@@ -25,7 +25,7 @@ import shutil
 import sys
 import time
 import glob
-from itertools import product
+from itertools import chain, filterfalse, product
 
 pjoin = os.path.join
 if '__main__' == __name__:
