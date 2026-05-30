@@ -2544,33 +2544,48 @@ class MadSpinInterface(extended_cmd.Cmd):
             _, orig_order, _, _ = self.get_pdir(event)
             event._ms_orig_order_for_density = orig_order
 
-        # Fast path: single-point momentum extraction without permutation construction.
+        # Fast path: single-point momentum extraction without permutation
+        # construction. With apply_flavor_grouping, orig_order contains the
+        # merged-particle PDGs (e.g. 81) while the event carries the raw
+        # PDGs (e.g. 1, 2, 3): get_momenta must be told about the merge so
+        # that final.index(pdg) succeeds.
         try:
-            p = event.get_momenta(orig_order)
+            p = event.get_momenta(orig_order, merged_map=self._revert_merged or None)
         except Exception:
             # Safety fallback for unusual event structures.
-            all_p = event.get_all_momenta(orig_order)
+            all_p = event.get_all_momenta(orig_order, merged_map=self._revert_merged or None)
             assert len(all_p) == 1, "Error: get_density can only be called for a single phase-space point"
             p = all_p[0]
-        P = rwgt_interface.ReweightInterface.invert_momenta(p) 
-        pdgs =list(orig_order[0])+list(orig_order[1])
+        P = rwgt_interface.ReweightInterface.invert_momenta(p)
+        # f77_density runs `flavormapping` on the pdgs we pass: when the ME
+        # legs use merged-particle IDs, we must pass the concrete raw PDGs
+        # from the event for this permutation so the flavormapping picks
+        # the right per-particle flavor index for GET_DENSITY. Same logic
+        # as calculate_matrix_element's pdg_for_call handling.
+        pdg_template = list(orig_order[0]) + list(orig_order[1])
+        merged_particles = self.model.get('merged_particles') or {}
+        need_raw_pdg = (self._revert_merged and
+                        any(abs(pid) in merged_particles for pid in pdg_template))
+        if need_raw_pdg:
+            pdgs = event.get_pdg(p)
+        else:
+            pdgs = pdg_template
         n_changing = len(position)
         if n_changing == 0:
             raise ValueError("Error in get_density: 'position' must contain at least one position index")
         if len(allow_hel) % n_changing != 0:
             raise ValueError("Error in get_density: inconsistent 'allow_hel' and 'position' lengths")
-        density_array = self.f2py_module.py_get_density(pdgs=pdgs, 
-                                                        procid=-1, 
-                                                        p=P, 
-                                                        pos=position, 
-                                                        allow_hel=allow_hel, 
-                                                        n_comb=ncomb, 
-                                                        alphas=event.aqcd, 
-                                                        npdg=len(pdgs))      
-        #print(f"density_array = {density_array}") 
-        density_matrix = madspin.DensityMatrix(density_array, 
-                                               n_changing, 
-                                               allow_hel, 
+        density_array = self.f2py_module.py_get_density(pdgs=pdgs,
+                                                        procid=-1,
+                                                        p=P,
+                                                        pos=position,
+                                                        allow_hel=allow_hel,
+                                                        n_comb=ncomb,
+                                                        alphas=event.aqcd,
+                                                        npdg=len(pdgs))
+        density_matrix = madspin.DensityMatrix(density_array,
+                                               n_changing,
+                                               allow_hel,
                                                dimension)
         return density_matrix
 
@@ -2662,9 +2677,13 @@ class MadSpinInterface(extended_cmd.Cmd):
 
 
 
-    def get_pdir(self,event): 
-        tag, order = event.get_tag_and_order()
-#        print(order)
+    def get_pdir(self,event):
+        # Use the merged-PDG tag (same as calculate_matrix_element). MadSpin's
+        # all_me is keyed by the merged-particle representation when
+        # apply_flavor_grouping is on; passing raw event PDGs here would miss
+        # the lookup with KeyError, e.g. ((-2, 2), (21, 23)) when the table
+        # is keyed by ((-81, 81), (21, 23)).
+        tag, order = event.get_tag_and_order(self._revert_merged or None)
         try:
             orig_order = self.all_me[tag]['order']
         except Exception:
