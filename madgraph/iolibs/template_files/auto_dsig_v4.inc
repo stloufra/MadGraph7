@@ -189,13 +189,13 @@ C     Continue only if IMODE is 0, 4 or 5
      %(get_flavor)s
 
      channel = %(get_channel)s
-     
+
      call ranmar(RHEL)
      call ranmar(RCOL)
 
 C     Select a flavor combination (need to do here for right sign)
           CALL RANMAR(R)
-          IPSEL = 0 
+          IPSEL = 0
           DO WHILE (R.GT.0D0)
              IPSEL=IPSEL+1
              R=R-DABS(PD(IPSEL))/PD(0)
@@ -206,11 +206,11 @@ C     Select a flavor combination (need to do here for right sign)
       rwgt_value=REWGT(PP,FLAVOR, 1)
 
      CALL SMATRIX%(proc_id)s(P1, IFLAV, RHEL, RCOL,channel,1, DSIGUU, selected_hel(1), selected_col(1))
-         
+
      DSIGUU = DSIGUU* rwgt_value
-     
+
          IF (IMODE.EQ.5) THEN
-            IF (DSIGUU.LT.1D199) THEN        
+            IF (DSIGUU.LT.1D199) THEN
               DSIG%(proc_id)s = DSIGUU*CONV
             else
               DSIG%(proc_id)s = 0.0d0
