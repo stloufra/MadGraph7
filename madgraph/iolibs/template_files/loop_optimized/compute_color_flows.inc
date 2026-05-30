@@ -845,8 +845,8 @@ ENDDO
 C Compute the Loop ME from the loop color flow amplitudes (JAMPL)
 DO I=1,NLOOPFLOWS
   DO J=I,NLOOPFLOWS
-    COLOR_COEF=DCMPLX(LoopColorFlowMatrix(I,J)%%Num/DBLE(ABS(LoopColorFlowMatrix(I,J)%%Denom)),0.0d0)
-    IF (LoopColorFlowMatrix(I,J)%%Denom.LT.0) COLOR_COEF=COLOR_COEF*IMAG1
+    COLOR_COEF=DCMPLX(LoopColorFlowMatrix(I,J)%Num/DBLE(ABS(LoopColorFlowMatrix(I,J)%Denom)),0.0d0)
+    IF (LoopColorFlowMatrix(I,J)%Denom.LT.0) COLOR_COEF=COLOR_COEF*IMAG1
     DO M=1,NLOOPAMPSO
       IF (I.eq.J) THEN
         LOWERBOUND = M
