@@ -55,11 +55,14 @@ C      symmetric one)
   INTEGER POS(*)
   INTEGER ALLOW_HEL(*)
   DOUBLE COMPLEX INTER(*)
+  integer flavor(%(maxpart)i),I
 C     Update is done insider the direct density call functions
+
+%(flavormapping)s
 
 %(density_splitter)s
 
-            return 
+            return
             end
 
   subroutine %(f2py_prefix)sf77_get_all_inter(pdgs, procid, npdg, P, POS, N_CHANGING, ALLOW_HEL, N_COMB, INTER)
@@ -81,13 +84,16 @@ C      symmetric one)
   INTEGER POS(*)
   INTEGER ALLOW_HEL(*)
   DOUBLE COMPLEX INTER(*)
+  integer flavor(%(maxpart)i),I
 C     Update is done insider the direct density call functions
 
 C     Update is done insider the direct density call functions
+
+%(flavormapping)s
 
 %(inter_splitter)s
 
-            return 
+            return
             end
 
       SUBROUTINE %(f2py_prefix)sf77_INITIALISE(PATH)

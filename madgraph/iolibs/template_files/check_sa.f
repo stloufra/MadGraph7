@@ -114,7 +114,11 @@ c
       enddo
 
       if (%(use_density)s)then
-          call get_density_matrix(P)
+         do I=1, MAXFLAVOR
+            write (*,*) "==== density matrix for flavor", I,
+     .                  " (PDG ", PDG_FOR_FLAVOR(:,I), ") ===="
+            call get_density_matrix(P, FLAVOR(1,I))
+         enddo
       endif
 cc
 cc      Copy down here (or read in) the four momenta as a string. 
@@ -149,26 +153,27 @@ c      write (*,*) "-------------------------------------------------"
 
       end
     
-       SUBROUTINE get_density_matrix(P)
+       SUBROUTINE get_density_matrix(P, FLAVOR)
        implicit none
 C---  integer nexternal ! number particles (incoming+outgoing) in the me
        INCLUDE "nexternal.inc"
        REAL*8 P(0:3,NEXTERNAL)   ! four momenta. Energy is the zeroth component.
+       INTEGER FLAVOR(NEXTERNAL) ! per-particle merged-flavor index (1-based)
        INTEGER NHEL(NEXTERNAL)
        INTEGER N_CHANGING  ! might need changing
        PARAMETER (N_CHANGING=%(dens_nchanging)i)
        INTEGER N_COMB
-       PARAMETER (N_COMB=%(dens_ncomb)i) ! total number of different helicity  combination to consider 
+       PARAMETER (N_COMB=%(dens_ncomb)i) ! total number of different helicity  combination to consider
        INTEGER POS(N_CHANGING)
        INTEGER ALLOW_HEL(N_CHANGING*N_COMB)
        DOUBLE COMPLEX INTER((N_COMB*(N_COMB+1))/2)
-       
+
        INTEGER I,J, SOL
        INTEGER K
 
        %(dens_pos)s
 
-c      density matrix helicity index value for particle  
+c      density matrix helicity index value for particle
        %(dens_allow_hel)s
 c        ALLOW_HEL(3) = +1
 c        ALLOW_HEL(4) = -1
@@ -177,7 +182,7 @@ c        ALLOW_HEL(6) = +1
 c        ALLOW_HEL(7) = -1
 c        ALLOW_HEL(8) = -1
 c     (last zero avoid to update as, otherwise new value for as can be  provided
-       call %(prefix)sGET_DENSITY(P,  POS, N_CHANGING, ALLOW_HEL, N_COMB, 0d0, INTER)
+       call %(prefix)sGET_DENSITY(P,  POS, N_CHANGING, ALLOW_HEL, N_COMB, FLAVOR, 0d0, INTER)
        
        SOL=0
        DO I=1, N_COMB
