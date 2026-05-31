@@ -1619,7 +1619,8 @@ class ReweightInterface(extended_cmd.Cmd):
             relevant_model = getattr(self, 'original_model', None) or self.model
         else:
             relevant_model = self.model
-        self.revert_merged = self._get_revert_merged_for(relevant_model)
+        if relevant_model:
+            self.revert_merged = self._get_revert_merged_for(relevant_model)
 
         tag_orig, order = event.get_tag_and_order(None)
         tag, order = event.get_tag_and_order(self.revert_merged)
@@ -1679,7 +1680,7 @@ class ReweightInterface(extended_cmd.Cmd):
         else:
             nhel = -1
         pdg = list(orig_order[0])+list(orig_order[1])
-        relevant_merged = relevant_model.get('merged_particles') if relevant_model else {}
+        relevant_merged = relevant_model.get('merged_particles') if relevant_model else self.merged_particles
         if relevant_merged and any(p in relevant_merged for p in pdg):
             pdg = event.get_pdg(all_p[0])
 
@@ -2614,6 +2615,8 @@ class ReweightInterface(extended_cmd.Cmd):
         to_save['all_cross_section'] = self.all_cross_section
         to_save['processes'] = self.processes
         to_save['second_process'] = self.second_process
+        to_save['merged_map'] = self._get_revert_merged_for(self.model)
+        to_save['merged_particles'] = self.model.get('merged_particles') if self.model else None
         if self.second_model:
             to_save['second_model'] =True
         else:
@@ -2652,7 +2655,10 @@ class ReweightInterface(extended_cmd.Cmd):
         self.options['allow_missing_finalstate'] = obj['allow_missing_finalstate']
         self.options['identical_particle_in_prod_and_decay'] = obj['identical_particle_in_prod_and_decay']
         old_rwgt = obj['rwgt_dir']
-           
+        self.revert_merged = obj['merged_map']
+        self.merged_particles = obj['merged_particles']
+        if not self.revert_merged:
+            self.revert_merged = self._get_revert_merged_for(self.model) 
         # path to fortran executable
         self.id_to_path = {}
         for key , (order, Pdir, hel_dict) in obj['id_to_path'].items():

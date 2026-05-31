@@ -2272,6 +2272,15 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                 mycluster.wait(self.me_dir,update_status)
                 devnull.close()
                 logger.info("Collect and combine the various output file.")
+                try:
+                    os.remove(new_args[0])
+                except OSError:
+                    pass
+                if new_args[0].endswith('.gz') and os.path.exists(new_args[0][:-3]):
+                    try:
+                        os.remove(new_args[0][:-3])
+                    except OSError:
+                        pass
 
                 lhe = lhe_parser.MultiEventFile(all_lhe, parse=False)
                 nb_event, cross_sections = lhe.write(new_args[0], get_info=True)
