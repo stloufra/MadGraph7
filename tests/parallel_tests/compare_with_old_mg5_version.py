@@ -204,7 +204,8 @@ class OLDMG5Comparator(unittest.TestCase):
         # add the default value to the comparison
         my_comp.results.append(values)
         my_comp.me_runners =(my_comp.me_runners[0], madevent_comparator.FakeRunner())
-        
+        import madgraph.various.misc as misc
+        misc.sprint(my_comp.results) 
         # Assert that all process comparisons passed the tolerance cut
         my_comp.assert_processes(self, tolerance)
             
