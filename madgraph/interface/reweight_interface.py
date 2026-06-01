@@ -2750,6 +2750,12 @@ class DensityInterface(ReweightInterface):
             data['mg_names'] = True
         super().load_model(data['model_name'], data['mg_names'], complex_mass)
 
+    def _reweight_use_flavor_grouping(self):
+        """Density-matrix computation is per-flavor: merging quark flavors
+        into a single generic tag would sum subprocesses and break the
+        density matrix interpretation. Disable flavor grouping in this
+        mode regardless of the user's global setting."""
+        return False
 
     def do_change(self, line):
         """Method called to read the reweight card, redirects to the correct do_change_ method"""
@@ -3156,17 +3162,25 @@ class DensityInterface(ReweightInterface):
         """
         import madgraph.various.Density_functions as dens
 
-        tag, order = event.get_tag_and_order()
+        relevant_model = getattr(self, 'original_model', None) or self.model
+        if relevant_model:
+            self.revert_merged = self._get_revert_merged_for(relevant_model)
+
+        tag, order = event.get_tag_and_order(self.revert_merged)
         if self.keep_ordering:
             old_tag = tuple(tag)
-            tag = (tag[0], tuple(order[1])) 
-        
-        try:
+            tag = (tag[0], tuple(order[1]))
+
+        if tag in self.id_to_path:
             orig_order, Pdir, hel_dict = self.id_to_path[tag]
-        except KeyError:
-            misc.sprint(tag)
-            misc.sprint(self.id_to_path)
-            raise KeyError('Try to fix it')
+        else:
+            cross_tag = self.get_crossing_tag(tag)
+            try:
+                orig_order, Pdir, hel_dict = self.id_to_path[cross_tag]
+            except KeyError:
+                misc.sprint(tag)
+                misc.sprint(self.id_to_path)
+                raise KeyError('Try to fix it')
 
         base = os.path.basename(os.path.dirname(Pdir))
 
@@ -3178,9 +3192,9 @@ class DensityInterface(ReweightInterface):
         module = self.f2pylib[moduletag]
 
         if self.keep_ordering:
-            all_p = [event.get_momenta(orig_order)]
+            all_p = [event.get_momenta(orig_order, merged_map=self.revert_merged)]
         else:
-            all_p = event.get_all_momenta(orig_order)
+            all_p = event.get_all_momenta(orig_order, merged_map=self.revert_merged)
 
             if len(all_p) >1:
                 if self.helicity_reweighting:
@@ -3188,13 +3202,16 @@ class DensityInterface(ReweightInterface):
                 self.helicity_reweighting = False
 
         # add helicity information
-        hel_order = event.get_helicity(orig_order)
+        hel_order = event.get_helicity(orig_order, merged_map=self.revert_merged)
         if self.helicity_reweighting and 9 not in hel_order:
             nhel = hel_dict[tuple(hel_order)]
         else:
             nhel = -1
 
         pdg = list(orig_order[0])+list(orig_order[1])
+        relevant_merged = relevant_model.get('merged_particles') if relevant_model else self.merged_particles
+        if relevant_merged and any(p in relevant_merged for p in pdg):
+            pdg = event.get_pdg(all_p[0])
 
         #list_properties is the list of properties of the class FourMomentum that we can use to rank particles
         list_properties = [p for p in dir(lhe_parser.FourMomentum) if isinstance(getattr(lhe_parser.FourMomentum,p),property)]
@@ -3268,7 +3285,7 @@ class DensityInterface(ReweightInterface):
                     prefix = prefix_cor[k]
 
         me_value = 0
-        get_density = lambda *args: module.py_get_density(orig_order[0]+orig_order[1], *args)  
+        get_density = lambda *args: module.py_get_density(pdg, *args)
         for i in range(len(all_p)):
             pinv = self.invert_momenta(all_p[i])
             production_matrix = get_density(-1, pinv, pos_corrected, #self.number_changing_helicities,
@@ -3331,9 +3348,9 @@ class DensityInterface(ReweightInterface):
 
         new_event.boost(pboost)
         if self.keep_ordering:
-            new_all_p = [new_event.get_momenta(orig_order)]
+            new_all_p = [new_event.get_momenta(orig_order, merged_map=self.revert_merged)]
         else:
-            new_all_p = new_event.get_all_momenta(orig_order)
+            new_all_p = new_event.get_all_momenta(orig_order, merged_map=self.revert_merged)
         if len(new_all_p) > 1:
             logger.critical("due to ordering ambiguity, the boost used might not be consistent. please ensure that this is not an issue")
 
