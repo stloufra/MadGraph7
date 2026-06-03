@@ -2129,11 +2129,26 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         else:
             multicore=False
             
+        #We are checking if the reweight card exists and is in density mode
+        density_card_flag = False #flag is False if the reweight card is not in mode density
+        reweight_card_present = True
+        try:
+            with open(pjoin(self.me_dir,"Cards", "reweight_card.dat"), 'r') as reweight_card_data:
+                text =reweight_card_data.readlines()
+                for elem in text:
+                    if 'change particle_in_density_matrix' in elem:
+                        density_card_flag = True
+                        break
+        except:
+            reweight_card_present = False
 
 
-            
+        if reweight_mode == 'density' and not density_card_flag: #we are in density mode but the reweight card does not exist or does not contain the correct information
+            shutil.copyfile(pjoin(self.me_dir, "Cards", "density_card_default.dat"), pjoin(self.me_dir, "Cards", "reweight_card.dat"))
+        elif reweight_mode == 'ON' and (density_card_flag or not reweight_card_present): #we are in reweight mode but the reweight card is in mode density
+            shutil.copyfile(pjoin(self.me_dir, "Cards", "reweight_card_default.dat"), pjoin(self.me_dir, "Cards", "reweight_card.dat"))
 
-        
+
         if not '-from_cards' in line:
             self.keep_cards(['reweight_card.dat'], ignore=['*'])
             self.ask_edit_cards(['reweight_card.dat'], 'fixed', plot=False)        
@@ -2182,6 +2197,8 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                     command += args
                 if '-from_cards' not in command:
                     command.append('-from_cards')
+                if reweight_mode == 'density':
+                    command.append('--mode=density')
                 p = misc.Popen(command, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, cwd=os.getcwd())
                 while p.poll() is None:
                     line = p.stdout.readline().decode(errors='ignore')
@@ -2259,6 +2276,9 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                         new_command.append('-from_cards')
                     if plugin:
                         new_command.append('--plugin=%s' % plugin)
+                    if reweight_mode == 'density':
+                        new_command.append('--mode=density')
+                    
                     if i==0:
                         if __debug__:
                             stdout = None
@@ -2276,7 +2296,10 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                 devnull.close()
                 logger.info("Collect and combine the various output file.")
 
-                lhe = lhe_parser.MultiEventFile(all_lhe, parse=False)
+                if reweight_mode == 'density':
+                    lhe = lhe_parser.MultiEventFile(all_lhe, parse=False, parse_LHE=False)
+                else:
+                    lhe = lhe_parser.MultiEventFile(all_lhe, parse=False, parse_LHE=True)
                 nb_event, cross_sections = lhe.write(new_args[0], get_info=True)
                 if any(os.path.exists('%s_%s_debug.log' % (f, self.run_tag)) for f in all_lhe):
                     for f in all_lhe:
