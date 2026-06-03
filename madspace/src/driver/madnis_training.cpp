@@ -1,5 +1,7 @@
 #include "madspace/driver/madnis_training.hpp"
 
+#include "madspace/phasespace/batch_sampler.hpp"
+
 using namespace madspace;
 
 MadnisTraining::MadnisTraining(
@@ -167,11 +169,30 @@ void MadnisTraining::build_runtimes_and_optimizer() {
         }
     }
     if (_config.buffer_capacity > 0) {
-        /*_multi_channel_sampler = build_runtime(
-            BatchSampler(),
-            _optimizer_context,
-            false
-        );*/
+        std::vector<NamedVector<Type>> types;
+        for (auto& channel : _channels) {
+            auto& chan_types = types.emplace_back();
+            auto& ret_types_named = channel.integrand->return_types();
+            auto ret_keys = ret_types_named.keys();
+            auto& ret_types = ret_types_named.values();
+            bool buffer_needs_init = channel.buffer.tensors.size() == 0;
+            for (std::size_t index : _arg_permutation) {
+                auto& type = ret_types.at(index);
+                chan_types.push_back(ret_keys.at(index), type);
+                if (buffer_needs_init) {
+                    Sizes full_shape(type.shape.size() + 1);
+                    full_shape[0] = _config.buffer_capacity;
+                    std::copy(
+                        type.shape.begin(), type.shape.end(), full_shape.begin() + 1
+                    );
+                    channel.buffer.tensors.emplace_back(
+                        type.dtype, full_shape, _optimizer_context->device()
+                    );
+                }
+            }
+        }
+        _multi_channel_sampler =
+            build_runtime(BatchSampler(types).function(), _optimizer_context, false);
     }
 }
 
@@ -375,7 +396,8 @@ bool MadnisTraining::check_buffered_training_batch(
     const std::vector<std::size_t>& channel_sizes
 ) {
     for (auto [channel, count] : zip(_channels, channel_sizes)) {
-        if (count > channel.buffer.size) {
+        if (count > channel.buffer.size ||
+            channel.buffer.size < _config.minimum_buffer_size) {
             return false;
         }
     }
@@ -455,12 +477,13 @@ MadnisTraining::build_online_training_batch(const std::vector<size_t>& counts) {
 
 TensorVec
 MadnisTraining::build_buffered_training_batch(const std::vector<size_t>& counts) {
-    TensorVec args{Tensor(counts)};
+    TensorVec args;
     for (auto& channel : _channels) {
-        args.insert(
-            args.end(), channel.buffer.tensors.begin(), channel.buffer.tensors.end()
-        );
+        for (auto& tensor : channel.buffer.tensors) {
+            args.push_back(tensor.slice(0, 0, channel.buffer.size));
+        }
     }
+    args.emplace_back(counts);
     return _multi_channel_sampler->run(args);
 }
 
@@ -522,11 +545,11 @@ void MadnisTraining::buffer_store(ChannelData& channel, SampleBatch& samples) {
     channel.buffer.consumed_count = end_index % _config.buffer_capacity;
     channel.buffer.size = std::min(channel.buffer.size + size, _config.buffer_capacity);
     for (auto [buf, tensor] : zip(channel.buffer.tensors, samples.tensors)) {
-        buf.slice(0, store_begin1, store_end1) =
-            tensor.slice(0, load_begin1, load_end1);
+        buf.slice(0, store_begin1, store_end1)
+            .copy_from(tensor.slice(0, load_begin1, load_end1));
         if (load_end2 - load_begin2 > 0) {
-            buf.slice(0, store_begin2, store_end2) =
-                tensor.slice(0, load_begin2, load_end2);
+            buf.slice(0, store_begin2, store_end2)
+                .copy_from(tensor.slice(0, load_begin2, load_end2));
         }
     }
 }

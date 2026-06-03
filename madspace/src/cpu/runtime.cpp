@@ -634,7 +634,7 @@ void op_random_int(
         flat_view.shape[0],
         [flat_view, max_val, &runtime](std::size_t count, std::size_t offset) mutable {
             auto output_view = TensorView<me_int_t, 1>(flat_view);
-            std::uniform_int_distribution<me_int_t> dist(0, max_val);
+            std::uniform_int_distribution<me_int_t> dist(0, max_val - 1);
             auto& rand_gen = runtime.rand_gen();
             for (std::size_t i = offset; i < offset + count; ++i) {
                 output_view[i] = dist(rand_gen);

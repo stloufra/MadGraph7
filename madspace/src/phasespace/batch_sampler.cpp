@@ -26,7 +26,12 @@ BatchSampler::BatchSampler(const std::vector<NamedVector<Type>>& types) :
             }
             return ret_types;
         }()
-    ) {}
+    ) {
+    _channel_tensor_counts.reserve(types.size());
+    for (auto& chan_types : types) {
+        _channel_tensor_counts.push_back(chan_types.size());
+    }
+}
 
 NamedVector<Value> BatchSampler::build_function_impl(
     FunctionBuilder& fb, const NamedVector<Value>& args

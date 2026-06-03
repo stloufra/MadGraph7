@@ -1,8 +1,10 @@
 #pragma once
 
 #include "phasespace/base.hpp"
+#include "phasespace/batch_sampler.hpp"
 #include "phasespace/channel_weight_network.hpp"
 #include "phasespace/channel_weights.hpp"
+#include "phasespace/color_ordered_mapping.hpp"
 #include "phasespace/cross_section.hpp"
 #include "phasespace/cuts.hpp"
 #include "phasespace/discrete_flow.hpp"
@@ -22,7 +24,6 @@
 #include "phasespace/rambo.hpp"
 #include "phasespace/scale.hpp"
 #include "phasespace/t_propagator_mapping.hpp"
-#include "phasespace/color_ordered_mapping.hpp"
 #include "phasespace/three_particle.hpp"
 #include "phasespace/topology.hpp"
 #include "phasespace/two_particle.hpp"

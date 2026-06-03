@@ -165,7 +165,7 @@ std::ostream& madspace::operator<<(std::ostream& out, const Type& type) {
 
 Type madspace::batch_size_array(int count) {
     std::vector<BatchSize> batch_sizes;
-    for (std::size_t i = 0; i < count - 1; ++i) {
+    for (std::size_t i = 0; i < count; ++i) {
         batch_sizes.emplace_back(std::format("channel_size_{}", i));
     }
     return batch_sizes;
