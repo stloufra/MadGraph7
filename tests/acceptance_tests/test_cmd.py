@@ -1625,6 +1625,7 @@ set boost_choice [6, -6]
             rho_avg = []
             for i in range(len(data)):
                 aux = data[i].strip("\t\n[]").split(",")
+                print(aux)
                 rho_avg.append([complex(aux[i].strip(" ()")) for i in range(len(aux))])
             
         for i in range(len(rho_avg)):
