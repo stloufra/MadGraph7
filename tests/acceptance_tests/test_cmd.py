@@ -1629,7 +1629,11 @@ set boost_choice [6, -6]
                     rho_avg.append([complex(aux[i].strip(" ()")) for i in range(len(aux))])
                 except: #if the values are like 'np.complex128(value)'
                     aux2 = [aux[i].strip(" ()[]").replace("np.complex128","").strip("'").strip("'") for i in range(len(aux))]
-                    rho_avg.append([complex(aux2[i]) for i in range(len(aux2))])
+                    try:
+                        rho_avg.append([complex(aux2[i]) for i in range(len(aux2))])
+                    except:
+                        print(aux2)
+                        raise ValueError
             
 
         for i in range(len(rho_avg)):
