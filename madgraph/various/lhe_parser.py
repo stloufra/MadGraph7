@@ -11,10 +11,6 @@ import copy
 import os
 import shutil
 import sys
-import six
-from six.moves import filter
-from six.moves import range
-from six.moves import zip
 from functools import reduce
 
 pjoin = os.path.join
@@ -71,9 +67,6 @@ def get_lhe_timers():
 def reset_lhe_timers():
     _LHE_TIMERS.clear()
     _LHE_TIMER_COUNTS.clear()
-
-if six.PY3:
-    six.text_type = str
 
 class Particle(object):
     """ """
@@ -823,13 +816,14 @@ class EventFile(object):
                 self.write('</eventgroup>\n')
     
     def unweight(self, outputpath, get_wgt=None, max_wgt=0, trunc_error=0, 
-                 event_target=0, log_level=logging.INFO, normalization='average'):
+                 event_target=0, log_level=logging.INFO, normalization='average',
+                 keep_overshoot=False):
         """unweight the current file according to wgt information wgt.
         which can either be a fct of the event or a tag in the rwgt list.
         max_wgt allow to do partial unweighting. 
         trunc_error allow for dynamical partial unweighting
         event_target reweight for that many event with maximal trunc_error.
-        (stop to write event when target is reached)
+        (stop to write event when target is reached but if keep_overshoot is True)
         """
         self.parsing = 'wgt_only'
 
@@ -838,7 +832,7 @@ class EventFile(object):
                 return event.wgt
             get_wgt  = weight
             unwgt_name = "central weight"
-        elif isinstance(get_wgt, (str,six.text_type)):
+        elif isinstance(get_wgt, str):
             unwgt_name =get_wgt 
             def get_wgt(event):
                 event.parse_reweight()
@@ -962,7 +956,7 @@ class EventFile(object):
                         nb_keep += 1
                         if abs(wgt) > max_wgt:
                             trunc_cross += abs(wgt) - max_wgt
-                        if outputpath and (event_target == 0 or nb_keep <= event_target):
+                        if outputpath and (event_target == 0 or keep_overshoot or nb_keep <= event_target):
                             final_wgt = written_weight(max(wgt, max_wgt))
                             try:
                                 outfile.write(self._rewrite_raw_event_weight(raw_event, final_wgt, header_meta))
@@ -975,7 +969,7 @@ class EventFile(object):
                         nb_keep += 1
                         if abs(wgt) > max_wgt:
                             trunc_cross += abs(wgt) - max_wgt
-                        if outputpath and (event_target == 0 or nb_keep <= event_target):
+                        if outputpath and (event_target == 0 or keep_overshoot or nb_keep <= event_target):
                             final_wgt = -1 * written_weight(max(abs(wgt), max_wgt))
                             try:
                                 outfile.write(self._rewrite_raw_event_weight(raw_event, final_wgt, header_meta))
@@ -995,7 +989,7 @@ class EventFile(object):
                         event.wgt = written_weight(max(wgt, max_wgt))
                         if abs(wgt) > max_wgt:
                             trunc_cross += abs(wgt) - max_wgt 
-                        if event_target ==0 or nb_keep <= event_target:
+                        if event_target ==0 or keep_overshoot or nb_keep <= event_target:
                             if outputpath:                         
                                 outfile.write(str(event))
 
@@ -1004,7 +998,7 @@ class EventFile(object):
                         event.wgt =     -1* written_weight(max(abs(wgt), max_wgt))
                         if abs(wgt) > max_wgt:
                             trunc_cross += abs(wgt) - max_wgt
-                        if outputpath and (event_target ==0 or nb_keep <= event_target):
+                        if outputpath and (event_target ==0 or keep_overshoot or nb_keep <= event_target):
                             outfile.write(str(event))
             
             if event_target and nb_keep > event_target:
@@ -1037,7 +1031,7 @@ class EventFile(object):
 #        logger.log(log_level, "Final maximum weight used for final "+\
 #                    "unweighting is %s yielding %s events." % (max_wgt,nb_keep))
             
-        if event_target:
+        if event_target and not keep_overshoot:
             nb_events_unweighted = nb_keep
             nb_keep = min( event_target, nb_keep)
         else:
@@ -1687,7 +1681,7 @@ class MultiEventFile(EventFile):
         (stop to write event when target is reached)
         """
 
-        if isinstance(get_wgt, (str,six.text_type)):
+        if isinstance(get_wgt, str):
             unwgt_name =get_wgt 
             def get_wgt_multi(event):
                 event.parse_reweight()
@@ -1725,6 +1719,8 @@ class MultiEventFile(EventFile):
         elif 'write_init' in opts and opts['write_init']:
             self.define_init_banner(0,0, proc_charac=proc_charac)
             del opts['write_init']
+
+
         force_header_only = EventFile._can_use_header_only_initialize(get_wgt)
         old_force = getattr(self, '_force_header_only_initialize', False)
         old_fast = getattr(self, '_force_fast_unweight_wgt_only', False)
@@ -1739,11 +1735,7 @@ class MultiEventFile(EventFile):
     def write(self, path, random=False, banner=None, get_info=False):
         """ """
         
-        try:
-            str_type = (str,six.text_type)
-        except NameError:
-            str_type = (str)
-        
+        str_type = str
         if isinstance(path, str_type):
             out = EventFile(path, 'w')
             if self.parsefile and not banner:    
@@ -3105,6 +3097,7 @@ class Event(list):
 
 
     nb_reshuffle_issue=0
+    _warned_2to1_reshuffle = False
     def reshuffle_production(self):
         """ particle that need new mass have the "new_mass" attribute
         """
@@ -3118,7 +3111,28 @@ class Event(list):
         old_momenta = [FourMomentum(p) for p in production if p.status!=-1]
         new_masses = [getattr(p, 'new_mass', p.mass) for p in production if p.status!=-1]
         sqrts = self.sqrts
-        
+
+        # 2 -> 1 production: the single final-state mass is fully determined
+        # by sqrt(shat), so RAMBO has no phase-space to redistribute and
+        # mass_shuffle would divide by zero. Skip reshuffling, drop any
+        # new_mass attribute so callers fall back to the original momenta,
+        # and return jac = 1 (treat as narrow-width approximation at the
+        # production-determined virtuality, i.e. equivalent to running with
+        # density_do_reshuffle=False for this event).
+        if len(old_momenta) <= 1:
+            for p in production:
+                if hasattr(p, 'new_mass'):
+                    del p.new_mass
+            if not Event._warned_2to1_reshuffle:
+                import logging as _logging
+                _logging.getLogger('decay.stdout').info(
+                    "PA reshuffling skipped for 2 -> 1 production: there is "
+                    "no phase space to redistribute via RAMBO. Keeping the "
+                    "production-determined virtuality (NWA-style)."
+                )
+                Event._warned_2to1_reshuffle = True
+            return 1
+
         if sum(new_masses,0) <=  sqrts:
             # apply the RAMBO algo
             new_mom, jac = self.mass_shuffle(old_momenta, sqrts, new_masses)
@@ -3527,7 +3541,7 @@ class Event(list):
                     continue
                 replace = {}
                 replace['values'] = self.syscalc_data[k]
-                if isinstance(k, (str, six.text_type)):
+                if isinstance(k, str):
                     replace['key'] = k
                     replace['opts'] = ''
                 else:
@@ -3872,7 +3886,7 @@ class FourMomentum(object):
             px = obj[1]
             py = obj[2] 
             pz = obj[3]
-        elif  isinstance(obj, (str, six.text_type)):
+        elif  isinstance(obj, str):
             obj = [float(i) for i in obj.split()]
             assert len(obj) ==4
             E = obj[0]
@@ -4424,7 +4438,7 @@ class OneNLOWeight(object):
         """ """
 
         self.real_type = real_type
-        if isinstance(input, (str, six.text_type)):
+        if isinstance(input, str):
             self.parse(input)
         
     def __str__(self, mode='display'):
@@ -4799,7 +4813,7 @@ class NLO_PARTIALWEIGHT(object):
         self.modified = False #set on True if we decide to change internal infor
                               # that need to be written in the event file.
                               #need to be set manually when this is the case
-        if isinstance(input, (str,six.text_type)):
+        if isinstance(input, str):
             self.parse(input)
         
             

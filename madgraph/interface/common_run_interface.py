@@ -33,12 +33,9 @@ import subprocess
 import sys
 import time
 import traceback
-import six.moves.urllib.request, six.moves.urllib.parse, six.moves.urllib.error
+import urllib.request, urllib.parse, urllib.error
 import glob
-from six.moves import range
-from six.moves import input
-import six
-StringIO = six
+import io
 try:
     import readline
     GNU_SPLITTING = ('GNU' in readline.__doc__)
@@ -679,7 +676,8 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                        'cluster_status_update': (600, 30),
                        'cluster_nb_retry':1,
                        'cluster_local_path': None,
-                       'cluster_retry_wait':300}
+                       'cluster_retry_wait':300,
+                       'heptools_install_dir': pjoin(root_path,'HEPTools'),}
 
     options_madgraph= {'stdout_level':None}
 
@@ -713,7 +711,7 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         else:
             self.me_dir = pjoin(os.getcwd(),me_dir)
             
-        self.options = options
+        self.options = dict(options)
         
         self.param_card_iterator = [] #an placeholder containing a generator of paramcard for scanning
 
@@ -2287,8 +2285,7 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                         new_command.append('--multicore=create')
                     else:
                         stdout = devnull
-                        if six.PY3:
-                            stdout = subprocess.DEVNULL
+                        stdout = subprocess.DEVNULL
                         #stdout = open(pjoin(self.me_dir,'Events', self.run_name, 'reweight%s.log' % i),'w')
                         new_command.append('--multicore=wait')
                     mycluster.submit(prog=command[0], argument=new_command[1:], stdout=stdout, cwd=os.getcwd())
@@ -2682,7 +2679,7 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         except Exception as e:
             logger.warning("MadAnalysis5 failed to run the commands for task "+
                              "'%s'. Madanalys5 analysis will be skipped."%MA5_runtag)
-            error=StringIO.StringIO()
+            error=io.StringIO()
             traceback.print_exc(file=error)
             logger.debug('MadAnalysis5 error was:')
             logger.debug('-'*60)
@@ -2731,11 +2728,11 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                                                      LoggerStream=logstream,forced=forced, 
                                                      no_compilation=not compilation)
         except Exception as e:
-            if six.PY3 and not __debug__:
+            if not __debug__:
                 logger.info('MadAnalysis5 instalation not python3 compatible')
                 return None
             logger.warning('MadAnalysis5 failed to start so that MA5 analysis will be skipped.')
-            error=StringIO.StringIO()
+            error=io.StringIO()
             traceback.print_exc(file=error)
             logger.debug('MadAnalysis5 error was:')
             logger.debug('-'*60)
@@ -3675,9 +3672,7 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
             self.options[args[0]] = tmp 
         elif args[0].startswith('f2py_compiler'):
             to_do = True
-            if args[0].endswith('_py2') and six.PY3:
-                to_do = False
-            elif args[0].endswith('_py3') and six.PY2:
+            if args[0].endswith('_py2'):
                 to_do = False
             if to_do:
                 if args[1] == 'None':
@@ -3687,9 +3682,7 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                     self.options['f2py_compiler'] = args[1]
         elif args[0].startswith('lhapdf'):
             to_do = True
-            if args[0].endswith('_py2') and six.PY3:
-                to_do = False
-            elif args[0].endswith('_py3') and six.PY2:
+            if args[0].endswith('_py2'):
                 to_do = False
             if to_do and args[1] != 'None':
                 self.options['lhapdf'] = args[1]
@@ -4609,10 +4602,59 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         return self.proc_characteristics
 
 
+    @staticmethod
+    def patch_lhapdf_info_file(pdfset_dir):
+        """Inject AlphaS_FlavorScheme / AlphaS_NumFlavors into a PDF set
+        .info file when the keys are missing but their non-AlphaS_*
+        counterparts are present. Older LHAPDF metadata sometimes ships
+        without these keys, which makes recent LHAPDF abort at PDF load
+        time (e.g. when setting up the shower or MadSpin at NLO).
+        """
+        if not pdfset_dir or not os.path.isdir(pdfset_dir):
+            return
+        try:
+            info_names = [n for n in os.listdir(pdfset_dir) if n.endswith('.info')]
+        except OSError:
+            return
+        for name in info_names:
+            path = pjoin(pdfset_dir, name)
+            try:
+                with open(path, 'r') as f:
+                    content = f.read()
+            except (OSError, IOError):
+                continue
+            present = set()
+            mirror = {}
+            for line in content.split('\n'):
+                stripped = line.strip()
+                if not stripped or stripped.startswith('#') or ':' not in stripped:
+                    continue
+                key = stripped.split(':', 1)[0].strip()
+                present.add(key)
+                if key in ('FlavorScheme', 'NumFlavors'):
+                    mirror[key] = stripped.split(':', 1)[1].strip()
+            extra = []
+            if 'AlphaS_FlavorScheme' not in present and 'FlavorScheme' in mirror:
+                extra.append('AlphaS_FlavorScheme: %s' % mirror['FlavorScheme'])
+            if 'AlphaS_NumFlavors' not in present and 'NumFlavors' in mirror:
+                extra.append('AlphaS_NumFlavors: %s' % mirror['NumFlavors'])
+            if not extra:
+                continue
+            logger.info('Patching LHAPDF metadata in %s: adding %s',
+                        path, ', '.join(e.split(':')[0] for e in extra))
+            try:
+                with open(path, 'a') as f:
+                    if content and not content.endswith('\n'):
+                        f.write('\n')
+                    f.write('\n'.join(extra) + '\n')
+            except (OSError, IOError) as e:
+                logger.debug('Could not patch %s: %s', path, e)
+
+
     def copy_lhapdf_set(self, lhaid_list, pdfsets_dir, require_local=True):
-        """copy (if needed) the lhapdf set corresponding to the lhaid in lhaid_list 
+        """copy (if needed) the lhapdf set corresponding to the lhaid in lhaid_list
         into lib/PDFsets.
-        if require_local is False, just ensure that the pdf is in pdfsets_dir 
+        if require_local is False, just ensure that the pdf is in pdfsets_dir
         """
 
         if not hasattr(self, 'lhapdf_pdfsets'):
@@ -4711,7 +4753,9 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                     files.cp(pjoin(pdfsets_dir, pdfset), pjoin(self.me_dir, 'lib', 'PDFsets'))
                 elif os.path.exists(pjoin(os.path.dirname(pdfsets_dir), pdfset)):
                     files.cp(pjoin(os.path.dirname(pdfsets_dir), pdfset), pjoin(self.me_dir, 'lib', 'PDFsets'))
-            
+
+            self.patch_lhapdf_info_file(pjoin(self.me_dir, 'lib', 'PDFsets', pdfset))
+
     def install_lhapdf_pdfset(self, pdfsets_dir, filename):
         """idownloads and install the pdfset filename in the pdfsets_dir"""
         lhapdf_version = self.get_lhapdf_version()
@@ -4985,6 +5029,19 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                          stdout = subprocess.PIPE).stdout.read().decode(errors='ignore').strip()
 
         return libdir
+
+    def reset_iseed_in_run_card(self):
+        """If iseed is set to a non-zero value in the run_card, reset it to 0
+        and write the updated run_card to disk.  This ensures that subsequent
+        runs will use an automatically-generated (independent) seed rather than
+        repeating the same one."""
+        iseed = self.run_card['iseed']
+        if iseed != 0:
+            self.run_card['iseed'] = 0
+            # Reset seed in run_card to 0, to ensure that following runs
+            # will be statistically independent
+            self.run_card.write(pjoin(self.me_dir, 'Cards', 'run_card.dat'),
+                                template=pjoin(self.me_dir, 'Cards', 'run_card.dat'))
 
 class AskforEditCard(cmd.OneLinePathCompletion):
     """A class for asking a question where in addition you can have the
@@ -5891,7 +5948,7 @@ class AskforEditCard(cmd.OneLinePathCompletion):
                 possibilities['Param Card Block' ] = \
                                        self.list_completion(text, allowed_block)
                 
-            elif isinstance(allowed['block'], six.string_types):
+            elif isinstance(allowed['block'], str):
                 block = self.param_card[allowed['block']].param_dict
                 ids = [str(i[0]) for i in block
                           if (allowed['block'], i) not in self.restricted_value]
@@ -5921,7 +5978,7 @@ class AskforEditCard(cmd.OneLinePathCompletion):
                 allowed_block = [i for i in self.mw_card.keys() if 'comment' not in i]
                 possibilities['MadWeight Block' ] = \
                                        self.list_completion(text, allowed_block)
-            elif isinstance(allowed['mw_block'], six.string_types):
+            elif isinstance(allowed['mw_block'], str):
                 block = self.mw_card[allowed['mw_block']]
                 ids = [str(i[0]) if isinstance(i, tuple) else str(i) for i in block]
                 possibilities['MadWeight Card id' ] = self.list_completion(text, ids)
@@ -7341,7 +7398,7 @@ class AskforEditCard(cmd.OneLinePathCompletion):
             import tempfile
             fsock, path = tempfile.mkstemp()
             try:
-                text = six.moves.urllib.request.urlopen(line.strip())
+                text = urllib.request.urlopen(line.strip())
                 url = line.strip()
             except Exception:
                 logger.error('fail to load the file')

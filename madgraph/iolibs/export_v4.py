@@ -14,15 +14,12 @@
 ################################################################################
 from __future__ import absolute_import, division
 from madgraph.iolibs.helas_call_writers import HelasCallWriter
-from six.moves import range
-from six.moves import zip
-import six
 from madgraph.core import base_objects
 """Methods and classes to export matrix elements to v4 format."""
 
 import copy
 import math, cmath
-from six import StringIO
+from io import StringIO
 import itertools
 import fractions
 import glob
@@ -1475,10 +1472,7 @@ param_card.inc: ../Cards/param_card.dat\n\t../bin/madevent treatcards param\n'''
             ampnumbers_list=[coefficient[1]*(-1 if coefficient[0][2] else 1) \
                               for coefficient in coeff_list]
             # Find the common denominator.  
-            if six.PY2:    
-                commondenom=abs(reduce(fractions.gcd, coefs_list).denominator)
-            else:
-                commondenom=abs(reduce(math.gcd, coefs_list).denominator)
+            commondenom=abs(reduce(math.gcd, coefs_list).denominator)
             num_list=[(coefficient*commondenom).numerator \
                       for coefficient in coefs_list]
             res_list.append("DATA NCONTRIBAMPS%s(%i)/%i/"%(tag_letter,\
@@ -3240,7 +3234,7 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
                 logger.debug("Warning: The export format %s is not "+\
                   " available for individual ME evaluation of given coupl. orders."+\
                   " Only the total ME will be computed.", self.opt['export_format'])
-            elif  self.opt['export_format'] in ['madloop_matchbox']:
+            elif  self.opt['export_format'] in ['madloop_matchbox', 'matchbox']:
                 replace_dict["color_information"] = self.get_color_string_lines(matrix_element)
                 matrix_template = "matrix_standalone_matchbox_splitOrders_v4.inc"
             else:
