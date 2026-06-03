@@ -1,24 +1,34 @@
-import numpy as np
-from numpy import linalg as la
-from typing import Union
+#We add a try/except to the import of numpy because all the unittests need to pass without numpy
+try:
+    import numpy as np
+    from numpy import linalg as la
 
-#%% Global variables for fermions and bosons
-Identity2 = np.array([[1, 0], [0, 1]])
-sigma1 = np.array([[0, 1], [1, 0]])
-sigma2 = np.array([[0, -1j], [1j, 0]])
-sigma3 = np.array([[1, 0], [0, -1]])
-sigma = [sigma1, sigma2, sigma3]
+    #%% Global variables for fermions and bosons
+    Identity2 = np.array([[1, 0], [0, 1]])
+    sigma1 = np.array([[0, 1], [1, 0]])
+    sigma2 = np.array([[0, -1j], [1j, 0]])
+    sigma3 = np.array([[1, 0], [0, -1]])
+    sigma = [sigma1, sigma2, sigma3]
 
-Identity3 = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
-Lambda1 = np.array([[0, 1, 0], [1, 0, 0], [0, 0, 0]])
-Lambda2 = np.array([[0, -1j, 0], [1j, 0, 0], [0, 0, 0]])
-Lambda3 = np.array([[1, 0, 0], [0, -1, 0], [0, 0, 0]])
-Lambda4 = np.array([[0, 0, 1], [0, 0, 0], [1, 0, 0]])
-Lambda5 = np.array([[0, 0, -1j], [0, 0, 0], [1j, 0, 0]])
-Lambda6 = np.array([[0, 0, 0], [0, 0, 1], [0, 1, 0]])
-Lambda7 = np.array([[0, 0, 0], [0, 0, -1j], [0, 1j, 0]])
-Lambda8 = np.array([[1, 0, 0], [0, 1, 0], [0, 0, -2]])/np.sqrt(3)
-Lambda = [Lambda1, Lambda2, Lambda3, Lambda4, Lambda5, Lambda6, Lambda7, Lambda8]
+    Identity3 = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
+    Lambda1 = np.array([[0, 1, 0], [1, 0, 0], [0, 0, 0]])
+    Lambda2 = np.array([[0, -1j, 0], [1j, 0, 0], [0, 0, 0]])
+    Lambda3 = np.array([[1, 0, 0], [0, -1, 0], [0, 0, 0]])
+    Lambda4 = np.array([[0, 0, 1], [0, 0, 0], [1, 0, 0]])
+    Lambda5 = np.array([[0, 0, -1j], [0, 0, 0], [1j, 0, 0]])
+    Lambda6 = np.array([[0, 0, 0], [0, 0, 1], [0, 1, 0]])
+    Lambda7 = np.array([[0, 0, 0], [0, 0, -1j], [0, 1j, 0]])
+    Lambda8 = np.array([[1, 0, 0], [0, 1, 0], [0, 0, -2]])/np.sqrt(3)
+    Lambda = [Lambda1, Lambda2, Lambda3, Lambda4, Lambda5, Lambda6, Lambda7, Lambda8]
+
+except:
+    pass
+
+try:
+    from typing import Union
+except:
+    pass
+
 
 # Momenta operations
 def opp_momentum(p: list[float]) -> list[float]:
