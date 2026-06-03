@@ -3096,8 +3096,8 @@ class DensityInterface(ReweightInterface):
         logger.info("Average density matrix:")
         for i in range(len(rho_avg_square)):
             print("\t",list(rho_avg_square[i]))
-        file_density = open(pjoin(os.path.dirname(self.event_path), 'Average_density_matrix.txt'), 'w')
-        file_density.write('Average density matrix:\n')
+        file_density = open(pjoin(os.path.dirname(self.event_path), f"Average_density_matrix_{os.path.basename(self.lhe_input.name)[:-4]}.txt"), 'w')
+        file_density.write(f'Average density matrix of LHE file {os.path.basename(self.lhe_input.name)[:-4]}:\n')
         for i in range(len(rho_avg_square)):
                 file_density.write('\t' + str(list(rho_avg_square[i])) + '\n')
         file_density.close()
