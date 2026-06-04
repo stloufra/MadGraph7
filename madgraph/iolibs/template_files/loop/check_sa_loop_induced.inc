@@ -58,8 +58,6 @@ C sqrt(s)= center of mass energy
 
       INTEGER NLOOPFLOWS
       PARAMETER (NLOOPFLOWS=1)
-      INTEGER    NLOOPAMPSO
-      PARAMETER (NLOOPAMPSO=%(nAmpSO)d)
       INTEGER NCOMB
       PARAMETER (NCOMB=%(ncomb)d)
       INTEGER N_CHANGING
@@ -76,8 +74,6 @@ C sqrt(s)= center of mass energy
       integer HEL_MULT
       parameter (HEL_MULT = 1)
       integer H1, H2
-      DOUBLE COMPLEX JAMPL_ALL(3,NLOOPFLOWS,NLOOPAMPSO,NCOMB)
-      COMMON/%(proc_prefix)sDENSITY_MATRIX/JAMPL_ALL  
 
 C
 C     GLOBAL VARIABLES
@@ -227,16 +223,7 @@ C
 C     Now we can call the matrix element
 C
       CALL %(proc_prefix)sSLOOPMATRIX_THRES(P,MATELEM,-1.0d0,PREC_FOUND,RETURNCODE)
-C
-C     This part is temporary, you still need to change by hand the values of NCOMB and NCHANGING as well as to fill in NHEL, POS and ALLOW_HEL
-C
 
-
-c       The sum of interferences corresponds to the cross section with a normalisation factor of 256 precisely.
-c       256 = 4 helicity states * 8^2 colour states for the gluon ?
-c       Also all the non-finite contributions are zero, which was expected.
-
-C       This small block checks that %(proc_prefix)sCOMPUTE_RES_FROM_JAMP works properly. It gives the matrix element of the last JAMP computed (so here for H = 4)
       CALL %(proc_prefix)sCOMPUTE_RES_FROM_JAMP(RES,HEL_MULT)
 C      WRITE(*,*) "%(proc_prefix)sCOMPUTE_RES_FROM_JAMP", RES(1:3,0)
 
@@ -376,10 +363,11 @@ C      write (*,*) "-------------------------------------------------"
 C     This subrouitne allows to compute the trace of a density matrix to
 C     check that is is equal to the matrix element
       implicit none
+      include "nsquaredSO.inc"
+
       INTEGER N_COMB_RHO
       PARAMETER (N_COMB_RHO=%(dens_ncomb)i)
-      INTEGER NSQUAREDSO
-      PARAMETER (NSQUAREDSO=%(nSquaredSO)d)
+
 
       DOUBLE COMPLEX RHO((N_COMB_RHO*(N_COMB_RHO+1))/2)
       DOUBLE PRECISION TRACE
@@ -404,6 +392,7 @@ C     check that is is equal to the matrix element
 
       %(include_vector)s
       INCLUDE "coupl.inc"
+      include "nsquaredSO.inc"
 
       INTEGER N_CHANGING
       PARAMETER (N_CHANGING=%(dens_nchanging)i)
@@ -411,8 +400,6 @@ C     check that is is equal to the matrix element
       PARAMETER (N_COMB_RHO=%(dens_ncomb)i) ! total number of different helicity combination to consider
       INTEGER NEXTERNAL
       PARAMETER (NEXTERNAL=%(nexternal)d)
-      INTEGER NSQUAREDSO
-      PARAMETER (NSQUAREDSO=%(nSquaredSO)d)
 
       INTEGER POS(N_CHANGING)
       INTEGER ALLOW_HEL(N_CHANGING*N_COMB_RHO)
