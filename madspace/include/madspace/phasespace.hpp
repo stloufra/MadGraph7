@@ -27,4 +27,5 @@
 #include "phasespace/three_particle.hpp"
 #include "phasespace/topology.hpp"
 #include "phasespace/two_particle.hpp"
+#include "phasespace/unweighter.hpp"
 #include "phasespace/vegas.hpp"

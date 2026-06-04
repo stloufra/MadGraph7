@@ -148,6 +148,7 @@ add_library(
     src/phasespace/histograms.cpp
     src/phasespace/chili.cpp
     src/phasespace/integrand.cpp
+    src/phasespace/unweighter.cpp
     src/phasespace/vegas.cpp
     src/phasespace/mlp.cpp
     src/phasespace/flow.cpp
@@ -202,6 +203,7 @@ add_library(
     include/madspace/phasespace/histograms.hpp
     include/madspace/phasespace/chili.hpp
     include/madspace/phasespace/integrand.hpp
+    include/madspace/phasespace/unweighter.hpp
     include/madspace/phasespace/vegas.hpp
     include/madspace/phasespace/mlp.hpp
     include/madspace/phasespace/flow.hpp

@@ -9,22 +9,11 @@
 #include "madspace/phasespace/matrix_element.hpp"
 #include "madspace/phasespace/pdf.hpp"
 #include "madspace/phasespace/phasespace.hpp"
+#include "madspace/phasespace/unweighter.hpp"
 #include "madspace/phasespace/vegas.hpp"
 #include "madspace/util.hpp"
 
 namespace madspace {
-
-class Unweighter : public FunctionGenerator {
-public:
-    Unweighter(const NamedVector<Type>& types, double quantile = 0.0);
-
-private:
-    NamedVector<Value> build_function_impl(
-        FunctionBuilder& fb, const NamedVector<Value>& args
-    ) const override;
-
-    double _quantile;
-};
 
 class Integrand : public FunctionGenerator {
 public:
@@ -130,7 +119,7 @@ private:
         Value max_weight;
     };
     struct ChannelResult {
-        std::array<Value, 21> values;
+        std::array<Value, 23> values;
 
         Value& r() { return values[0]; }
         Value& latent() { return values[1]; }
@@ -147,9 +136,11 @@ private:
         Value& indices_acc() { return values[14]; }
         Value& weight_before_cuts() { return values[15]; }
         Value& weight_after_cuts() { return values[16]; }
-        Value& adaptive_prob() { return values[17]; }
-        Value& pdf_cache(std::size_t pdf_index) { return values[18 + pdf_index]; }
-        Value& scale_cache() { return values[20]; }
+        Value& extra_weight_before_cuts() { return values[17]; }
+        Value& extra_weight_after_cuts() { return values[18]; }
+        Value& adaptive_prob() { return values[19]; }
+        Value& pdf_cache(std::size_t pdf_index) { return values[20 + pdf_index]; }
+        Value& scale_cache() { return values[21]; }
     };
 
     NamedVector<Value> build_function_impl(

@@ -6,33 +6,6 @@
 
 using namespace madspace;
 
-Unweighter::Unweighter(const NamedVector<Type>& types, double quantile) :
-    FunctionGenerator(
-        "Unweighter",
-        [&] {
-            NamedVector<Type> arg_types = types;
-            if (quantile == 0) {
-                arg_types.push_back("max_weight", single_float);
-            }
-            return arg_types;
-        }(),
-        types
-    ),
-    _quantile(quantile) {}
-
-NamedVector<Value> Unweighter::build_function_impl(
-    FunctionBuilder& fb, const NamedVector<Value>& args
-) const {
-    Value max_weight =
-        _quantile == 0.0 ? args.back() : fb.quantile(args.at(0), _quantile);
-    auto [uw_indices, uw_weights] = fb.unweight(args.at(0), max_weight);
-    ValueVec output{uw_weights};
-    for (auto arg : std::span(args.begin() + 1, args.end() - (_quantile == 0.))) {
-        output.push_back(fb.batch_gather(uw_indices, arg));
-    }
-    return {return_types().keys(), output};
-}
-
 Integrand::Integrand(
     const PhaseSpaceMapping& mapping,
     const DifferentialCrossSection& diff_xs,
@@ -76,7 +49,12 @@ Integrand::Integrand(
         }(),
         [&] {
             NamedVector<Type> ret_types;
-            ret_types.push_back("weight", batch_float);
+            if (flags & exclude_adaptive_and_chan_weight) {
+                ret_types.push_back("full_weight", batch_float);
+                ret_types.push_back("weight", batch_float);
+            } else {
+                ret_types.push_back("weight", batch_float);
+            }
             if (flags & return_momenta) {
                 ret_types.push_back(
                     "momenta", batch_four_vec_array(mapping.particle_count())
@@ -238,6 +216,7 @@ Integrand::ChannelResult Integrand::build_channel_part(
     ChannelResult result;
     ValueVec mapping_conditions;
     ValueVec weights_before_cuts, weights_after_cuts, adaptive_probs;
+    ValueVec extra_weights_before_cuts, extra_weights_after_cuts;
 
     // split up random numbers depending on discrete degrees of freedom
     Value chan_random, flavor_random, mirror_random;
@@ -274,7 +253,9 @@ Integrand::ChannelResult Integrand::build_channel_part(
                     auto discrete_result =
                         discrete_before.build_forward(fb, {chan_random}, {});
                     result.chan_index_in_group() = discrete_result.at(0);
-                    if (!(_flags & exclude_adaptive_and_chan_weight)) {
+                    if (_flags & exclude_adaptive_and_chan_weight) {
+                        extra_weights_before_cuts.push_back(discrete_result["det"]);
+                    } else {
                         weights_before_cuts.push_back(discrete_result["det"]);
                     }
                     adaptive_probs.push_back(discrete_result["det"]);
@@ -311,7 +292,9 @@ Integrand::ChannelResult Integrand::build_channel_part(
                 auto admap_result = admap.build_forward(fb, {result.r()}, cond);
                 result.latent() = admap_result["data"];
                 adaptive_probs.push_back(admap_result["det"]);
-                if (!(_flags & exclude_adaptive_and_chan_weight)) {
+                if (_flags & exclude_adaptive_and_chan_weight) {
+                    extra_weights_before_cuts.push_back(admap_result["det"]);
+                } else {
                     weights_before_cuts.push_back(admap_result["det"]);
                 }
                 flow_conditions.push_back(result.latent());
@@ -339,6 +322,9 @@ Integrand::ChannelResult Integrand::build_channel_part(
 
     // filter out events that did not pass cuts
     result.weight_before_cuts() = fb.product(weights_before_cuts);
+    if (extra_weights_before_cuts.size() > 0) {
+        result.extra_weight_before_cuts() = fb.product(extra_weights_before_cuts);
+    }
     result.indices_acc() = fb.nonzero(result.weight_before_cuts());
     result.momenta_acc() = fb.batch_gather(result.indices_acc(), result.momenta());
     for (std::size_t i = 0; i < 2; ++i) {
@@ -413,7 +399,9 @@ Integrand::ChannelResult Integrand::build_channel_part(
                         fb, {flavor_random_acc}, discrete_condition
                     );
                     result.flavor_id() = discrete_result.at(0);
-                    if (!(_flags & exclude_adaptive_and_chan_weight)) {
+                    if (_flags & exclude_adaptive_and_chan_weight) {
+                        extra_weights_after_cuts.push_back(discrete_result["det"]);
+                    } else {
                         weights_after_cuts.push_back(discrete_result["det"]);
                     }
                     auto ones = fb.full({1., args.batch_size});
@@ -500,6 +488,10 @@ NamedVector<Value> Integrand::build_common_part(
             fb.mul(diff_xs_acc, fb.gather(result.flavor_id(), _flavor_factors));
     }
     ValueVec weights_after_cuts{result.weight_after_cuts(), diff_xs_acc};
+    ValueVec extra_weights_after_cuts;
+    if (result.extra_weight_after_cuts()) {
+        extra_weights_after_cuts.push_back(result.extra_weight_after_cuts());
+    }
     if (!_prop_chan_weights) {
         chan_weights_acc = dxs_vec.at(1);
     }
@@ -535,7 +527,12 @@ NamedVector<Value> Integrand::build_common_part(
     if (channel_count > 1 && !(_flags & exclude_adaptive_and_chan_weight)) {
         Value chan_index_acc =
             fb.batch_gather(result.indices_acc(), result.chan_index());
-        weights_after_cuts.push_back(fb.gather(chan_index_acc, chan_weights_acc));
+        Value w = fb.gather(chan_index_acc, chan_weights_acc);
+        if (_flags & exclude_adaptive_and_chan_weight) {
+            extra_weights_after_cuts.push_back(w);
+        } else {
+            weights_after_cuts.push_back(w);
+        }
     }
     auto weight = fb.mul(
         result.weight_before_cuts(),
@@ -548,7 +545,26 @@ NamedVector<Value> Integrand::build_common_part(
 
     // return results based on _flags
     NamedVector<Value> outputs;
-    outputs.push_back("weight", optional_cut(fb, result, weight));
+    if (_flags & exclude_adaptive_and_chan_weight) {
+        Value full_weight = weight;
+        if (extra_weights_after_cuts.size() > 0) {
+            full_weight = fb.mul(
+                weight,
+                fb.batch_scatter(
+                    result.indices_acc(),
+                    full_weight,
+                    fb.product(extra_weights_after_cuts)
+                )
+            );
+        }
+        if (result.extra_weight_before_cuts()) {
+            full_weight = fb.mul(full_weight, result.extra_weight_before_cuts());
+        }
+        outputs.push_back("full_weight", optional_cut(fb, result, full_weight));
+        outputs.push_back("weight", optional_cut(fb, result, weight));
+    } else {
+        outputs.push_back("weight", optional_cut(fb, result, weight));
+    }
     if (_flags & return_momenta) {
         outputs.push_back(
             "momenta",

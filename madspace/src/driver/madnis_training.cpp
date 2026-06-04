@@ -143,7 +143,7 @@ void MadnisTraining::build_runtimes_and_optimizer() {
                 build_runtime(channel.integrand->function(), _generator_context, false);
             if (_config.buffer_capacity > 0) {
                 channel.unweighter_runtime = build_runtime(
-                    Unweighter(
+                    BufferUnweighter(
                         channel.integrand->return_types(),
                         _config.buffer_unweighting_quantile
                     )
