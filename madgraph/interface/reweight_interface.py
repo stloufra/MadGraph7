@@ -3098,8 +3098,13 @@ class DensityInterface(ReweightInterface):
             print("\t",list(rho_avg_square[i]))
         file_density = open(pjoin(os.path.dirname(self.event_path), f"Average_density_matrix_{os.path.basename(self.lhe_input.name)[:-4]}.txt"), 'w')
         file_density.write(f'Average density matrix of LHE file {os.path.basename(self.lhe_input.name)[:-4]}:\n')
+        # Cast each entry to a plain Python ``complex`` so that the file is
+        # written in the legacy ``(re+imj)`` repr regardless of the underlying
+        # numpy dtype (newer numpy prints np.complex64 values with a
+        # ``np.complex64(...)`` wrapper which the consumer parser cannot read).
         for i in range(len(rho_avg_square)):
-                file_density.write('\t' + str(list(rho_avg_square[i])) + '\n')
+                row = [complex(v) for v in rho_avg_square[i]]
+                file_density.write('\t' + str(row) + '\n')
         file_density.close()
 
 

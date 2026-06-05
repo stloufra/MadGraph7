@@ -97,13 +97,43 @@ CF2PY INTENT(IN) :: ALPHAS
       end
 
       SUBROUTINE PY_%(proc_prefix)sINITIALISEMODEL(PATH)
-C     ROUTINE FOR F2PY to read the benchmark point.    
-      IMPLICIT NONE   
+C     ROUTINE FOR F2PY to read the benchmark point.
+      IMPLICIT NONE
       CHARACTER*512 PATH
-CF2PY INTENT(IN) :: PATH 
-      call setpara(PATH)  !first call to setup the paramaters    
-      return 
-      end      
+CF2PY INTENT(IN) :: PATH
+      call setpara(PATH)  !first call to setup the paramaters
+      return
+      end
+
+      SUBROUTINE PY_%(proc_prefix)sGET_DENSITY(P, POS, N_CHANGING,
+     &     ALLOW_HEL, N_COMB, FLAVOR, ALPHAS, INTER)
+C     F2PY wrapper around %(proc_prefix)sGET_DENSITY so the density-matrix
+C     computation is exposed in the standalone matrix2py module.
+      IMPLICIT NONE
+C     ARGUMENTS
+      INTEGER    NEXTERNAL
+      PARAMETER (NEXTERNAL=%(nexternal)d)
+      INTEGER    NCOMB
+      PARAMETER (NCOMB=%(ncomb)d)
+      REAL*8 P(0:3,NEXTERNAL)
+      INTEGER N_CHANGING, N_COMB
+      INTEGER POS(N_CHANGING)
+      INTEGER ALLOW_HEL(N_CHANGING*N_COMB)
+      INTEGER FLAVOR(NEXTERNAL)
+      DOUBLE PRECISION ALPHAS
+      DOUBLE COMPLEX INTER(N_COMB*(N_COMB+1)/2)
+CF2PY INTENT(IN) :: P(0:3,NEXTERNAL)
+CF2PY INTENT(IN) :: POS(N_CHANGING)
+CF2PY INTENT(IN) :: N_CHANGING
+CF2PY INTENT(IN) :: ALLOW_HEL(N_CHANGING*N_COMB)
+CF2PY INTENT(IN) :: N_COMB
+CF2PY INTENT(IN) :: FLAVOR(NEXTERNAL)
+CF2PY INTENT(IN) :: ALPHAS
+CF2PY INTENT(OUT) :: INTER(N_COMB*(N_COMB+1)/2)
+      CALL %(proc_prefix)sGET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL,
+     &     N_COMB, FLAVOR, ALPHAS, INTER)
+      RETURN
+      END
 
       LOGICAL FUNCTION PY_%(proc_prefix)sIS_BORN_HEL_SELECTED(HELID)
       IMPLICIT NONE

@@ -2045,13 +2045,13 @@ class TestCmdShell2(unittest.TestCase,
         import matrix2py
         #os.chdir(os.path.join(mdir, 'SubProcesses', Pdir))
         with misc.chdir(os.path.join(mdir, 'SubProcesses', Pdir)):
-            matrix2py.m0_initialisemodel('../../Cards/param_card.dat')
+            matrix2py.py_m0_initialisemodel('../../Cards/param_card.dat')
 
             p = [[x.E, x.px, x.py, x.pz] for x in p]
             P =self.invert_momenta(p)
             alphas = 0.118
-            nhel = -1 # means sum over all helicity                                                                                                                                                                   
-            me2 = matrix2py.m0_get_value(P, alphas, nhel)
+            nhel = -1 # means sum over all helicity
+            me2 = matrix2py.py_m0_get_value(P, alphas, nhel)
             misc.sprint('fortran: ', fortran_me, ' f2py: ', me2)
             # compute density matrix
             self.assertAlmostEqual(fortran_me/me2, 1., places=5)
@@ -2068,7 +2068,7 @@ class TestCmdShell2(unittest.TestCase,
             # (matches the SMATRIX/GET_AMP flavor-grouping plumbing).
             # Single-flavor processes use 1 for every particle.
             flavor = [1] * len(P[0])
-            f2py_dens = matrix2py.m0_get_density(P, pos, n_changing, allow_hel, ncomb, flavor, alphas)
+            f2py_dens = matrix2py.py_m0_get_density(P, pos, n_changing, allow_hel, ncomb, flavor, alphas)
             misc.sprint('fortran: ', fortran_dens)
             misc.sprint('f2py:    ', f2py_dens)
             for i in range(9*5):
