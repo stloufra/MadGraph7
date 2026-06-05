@@ -1,99 +1,111 @@
-      SUBROUTINE PY_%(proc_prefix)sSMATRIXHEL(P,HEL,ANS)
+      SUBROUTINE PY_%(proc_prefix)sSMATRIXHEL(P,HEL,FLAVOR,ANS)
       IMPLICIT NONE
 C
 C CONSTANT
 C
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=%(nexternal)d)
-      INTEGER                 NCOMB         
+      INTEGER                 NCOMB
       PARAMETER (             NCOMB=%(ncomb)d)
 CF2PY INTENT(OUT) :: ANS
 CF2PY INTENT(IN) :: HEL
-CF2PY INTENT(IN) :: P(0:3,NEXTERNAL)  
+CF2PY INTENT(IN) :: P(0:3,NEXTERNAL)
+CF2PY INTENT(IN) :: FLAVOR(NEXTERNAL)
 
-C  
-C ARGUMENTS 
-C  
+C
+C ARGUMENTS
+C
       REAL*8 P(0:3,NEXTERNAL),ANS
-	  INTEGER HEL
+      INTEGER HEL
+      INTEGER FLAVOR(NEXTERNAL)
 
-      CALL %(proc_prefix)sSMATRIXHEL(P,HEL,ANS)
-	  END
+      CALL %(proc_prefix)sSMATRIXHEL(P,HEL,FLAVOR,ANS)
+      END
 
-      SUBROUTINE PY_%(proc_prefix)sSMATRIX(P,ANS)
-C  
-C 
+      SUBROUTINE PY_%(proc_prefix)sSMATRIX(P,FLAVOR,ANS)
+C
+C
 C MadGraph5_aMC@NLO StandAlone Version
-C 
+C
 C Returns amplitude squared summed/avg over colors
 c and helicities
 c for the point in phase space P(0:3,NEXTERNAL)
-C  
+C
 %(process_lines)s
-C  
+C
       IMPLICIT NONE
-C  
+C
 C CONSTANTS
-C  
+C
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=%(nexternal)d)
-	  INTEGER    NINITIAL 
+      INTEGER    NINITIAL
       PARAMETER (NINITIAL=%(nincoming)d)
-C  
-C ARGUMENTS 
-C  
+C
+C ARGUMENTS
+C
       REAL*8 P(0:3,NEXTERNAL),ANS
+      INTEGER FLAVOR(NEXTERNAL)
 CF2PY INTENT(OUT) :: ANS
 CF2PY INTENT(IN) :: P(0:3,NEXTERNAL)
-      call %(proc_prefix)sSMATRIX(P,ANS)
-	  END
-       
-       
-      REAL*8 FUNCTION PY_%(proc_prefix)sMATRIX(P,NHEL,IC)
-C  
+CF2PY INTENT(IN) :: FLAVOR(NEXTERNAL)
+      call %(proc_prefix)sSMATRIX(P,FLAVOR,ANS)
+      END
+
+
+      REAL*8 FUNCTION PY_%(proc_prefix)sMATRIX(P,NHEL,IC,FLAVOR)
+C
 C
 C Returns amplitude squared -- no average over initial state/symmetry factor
 c for the point with external lines W(0:6,NEXTERNAL)
-C  
+C
 %(process_lines)s
-C  
+C
       IMPLICIT NONE
-C  
+C
 C CONSTANTS
-C  
+C
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=%(nexternal)d)
-C  
-C ARGUMENTS 
-C  
+C
+C ARGUMENTS
+C
       REAL*8 P(0:3,NEXTERNAL)
       INTEGER NHEL(NEXTERNAL), IC(NEXTERNAL)
+      INTEGER FLAVOR(NEXTERNAL)
+CF2PY INTENT(IN) :: P(0:3,NEXTERNAL)
+CF2PY INTENT(IN) :: NHEL(NEXTERNAL)
+CF2PY INTENT(IN) :: IC(NEXTERNAL)
+CF2PY INTENT(IN) :: FLAVOR(NEXTERNAL)
 C
 C  FUNCTIONS
 C
       real*8 %(proc_prefix)sMATRIX
-      PY_%(proc_prefix)sMATRIX = %(proc_prefix)sMATRIX(P,NHEL,IC)
+      PY_%(proc_prefix)sMATRIX = %(proc_prefix)sMATRIX(P,NHEL,IC,FLAVOR)
       END
 
-      SUBROUTINE PY_%(proc_prefix)sGET_value(P, ALPHAS, NHEL ,ANS)
-      IMPLICIT NONE   
+      SUBROUTINE PY_%(proc_prefix)sGET_value(P, ALPHAS, NHEL,
+     &     FLAVOR, ANS)
+      IMPLICIT NONE
 C
 C CONSTANT
 C
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=%(nexternal)d)
-C  
-C ARGUMENTS 
-C  
+C
+C ARGUMENTS
+C
       REAL*8 P(0:3,NEXTERNAL),ANS
       INTEGER NHEL
-      DOUBLE PRECISION ALPHAS 
-CF2PY INTENT(OUT) :: ANS  
-CF2PY INTENT(IN) :: NHEL   
-CF2PY INTENT(IN) :: P(0:3,NEXTERNAL) 
+      INTEGER FLAVOR(NEXTERNAL)
+      DOUBLE PRECISION ALPHAS
+CF2PY INTENT(OUT) :: ANS
+CF2PY INTENT(IN) :: NHEL
+CF2PY INTENT(IN) :: P(0:3,NEXTERNAL)
 CF2PY INTENT(IN) :: ALPHAS
-      call %(proc_prefix)sGET_value(P, ALPHAS, NHEL ,ANS)
-      return 
+CF2PY INTENT(IN) :: FLAVOR(NEXTERNAL)
+      call %(proc_prefix)sGET_value(P, ALPHAS, NHEL, FLAVOR, ANS)
+      return
       end
 
       SUBROUTINE PY_%(proc_prefix)sINITIALISEMODEL(PATH)

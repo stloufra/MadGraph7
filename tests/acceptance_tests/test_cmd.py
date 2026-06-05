@@ -2051,7 +2051,11 @@ class TestCmdShell2(unittest.TestCase,
             P =self.invert_momenta(p)
             alphas = 0.118
             nhel = -1 # means sum over all helicity
-            me2 = matrix2py.py_m0_get_value(P, alphas, nhel)
+            # GET_value / SMATRIX now take a per-particle merged-flavor index
+            # array (matches the flavor-grouping plumbing). Single-flavor
+            # processes use 1 for every particle.
+            flavor_value = [1] * len(P[0])
+            me2 = matrix2py.py_m0_get_value(P, alphas, nhel, flavor_value)
             misc.sprint('fortran: ', fortran_me, ' f2py: ', me2)
             # compute density matrix
             self.assertAlmostEqual(fortran_me/me2, 1., places=5)
