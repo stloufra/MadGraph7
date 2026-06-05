@@ -1976,6 +1976,24 @@ jobs:
             cd $GITHUB_WORKSPACE
             ./tests/test_manager.py test_standalone_density -pA -t0 -l INFO
 
+      - name: test test_standalone_density_dd (ZZ density vs analytic decay)
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py test_standalone_density_dd -pA -t0 -l INFO
+
+      - name: test test_standalone_density_uu
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py test_standalone_density_uu -pA -t0 -l INFO
+
+      - name: test test_standalone_density_f2py (f2py density wrapper)
+        run: |
+            cd $GITHUB_WORKSPACE
+            sudo pip install numpy
+            which f2py
+            echo "f2py_compiler = $(which f2py)" >> input/mg5_configuration.txt
+            ./tests/test_manager.py test_standalone_density_f2py -pA -t0 -l INFO
+
 
   acceptancetest_density_interface:
     # The type of runner that the job will run on

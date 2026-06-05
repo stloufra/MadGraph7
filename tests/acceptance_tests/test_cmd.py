@@ -292,10 +292,26 @@ class TestCmdShell2(unittest.TestCase,
 
     def do(self, line, force=False):
         """ exec a line in the cmd under test """
-        if force:        
+        if force:
             self.cmd.exec_cmd(line, force=force)
-        else:   
-           self.cmd.exec_cmd(line) 
+        else:
+           self.cmd.exec_cmd(line)
+
+    @staticmethod
+    def _dens_value_for_key(dm, key):
+        """Return the complex value of DensityMatrix entry whose helicity label
+        tuple matches ``key``.
+
+        Replaces the old ``dm.matrix[ind][1]`` indexing, which relied on the
+        legacy structured-array storage that was removed when DensityMatrix
+        was refactored to parallel ``helicities`` / ``values`` arrays.
+        """
+        import numpy as np
+        key_arr = np.asarray(key, dtype=np.int32)
+        matches = np.where((dm.helicities == key_arr).all(axis=1))[0]
+        if len(matches) == 0:
+            raise KeyError('helicity key %s not found in DensityMatrix' % (key,))
+        return complex(dm.values[matches[0]])
     
     def test_output_madevent_directory(self):
         """Test outputting a MadEvent directory"""
@@ -1805,8 +1821,8 @@ class TestCmdShell2(unittest.TestCase,
         madspin_report_dict = dict(((tuple(x), y) for x,y in madspin_report))
 
         for key in madspin_report_dict:
-            ind = prod_dens.map_density_matrix_ind[key][1]
-            self.assertAlmostEqual(madspin_report_dict[key].real/prod_dens.matrix[ind][1].real, 1, places=4)
+            ref_val = self._dens_value_for_key(prod_dens, key)
+            self.assertAlmostEqual(madspin_report_dict[key].real/ref_val.real, 1, places=4)
 
 
         madspin_report = [([-1, -1], 296.70587 -7.1793691e-15j),
@@ -1821,8 +1837,8 @@ class TestCmdShell2(unittest.TestCase,
         madspin_report_dict = dict(((tuple(x), y) for x,y in madspin_report))
 
         for key in madspin_report_dict:
-            ind = prod_dec1.map_density_matrix_ind[key][1]
-            self.assertAlmostEqual(madspin_report_dict[key].real/prod_dec1.matrix[ind][1].real, 1, places=4) 
+            ref_val = self._dens_value_for_key(prod_dec1, key)
+            self.assertAlmostEqual(madspin_report_dict[key].real/ref_val.real, 1, places=4)
 
         madspin_report =[([-1, -1],  332.7482   -3.3880889e-16j),
                         ([-1,  0],  -84.79217  +1.5662439e+02j),
@@ -1836,8 +1852,8 @@ class TestCmdShell2(unittest.TestCase,
         madspin_report_dict = dict(((tuple(x), y) for x,y in madspin_report))
 
         for key in madspin_report_dict:
-            ind = prod_dec2.map_density_matrix_ind[key][1]
-            self.assertAlmostEqual(madspin_report_dict[key].real/prod_dec2.matrix[ind][1].real, 1, places=4) 
+            ref_val = self._dens_value_for_key(prod_dec2, key)
+            self.assertAlmostEqual(madspin_report_dict[key].real/ref_val.real, 1, places=4)
 
 
         madspin_report = [([-1, -1, -1, -1],  9.8728344e+04-2.4894488e-12j),
@@ -1924,16 +1940,8 @@ class TestCmdShell2(unittest.TestCase,
         madspin_report_dict = dict(((tuple(x), y) for x,y in madspin_report))
 
         for key in madspin_report_dict:
-            ind =-1
-            for i, (key2, value) in enumerate(prod_dec.matrix):
-                if key == tuple(key2):
-                    ind = i
-                    break
-            if ind == -1:
-                raise Exception('key %s not found in density matrix' % str(key))
-            
-            #ind = prod_dec.map_density_matrix_ind[key][1]
-            self.assertAlmostEqual(madspin_report_dict[key].real/prod_dec.matrix[ind][1].real, 1, places=4) 
+            ref_val = self._dens_value_for_key(prod_dec, key)
+            self.assertAlmostEqual(madspin_report_dict[key].real/ref_val.real, 1, places=4)
                                                                              
                                                                              
     def test_standalone_density_f2py(self):       
@@ -2021,11 +2029,19 @@ class TestCmdShell2(unittest.TestCase,
 
         # Do the computation via f2py linking
         sys.path.insert(0, os.path.join(mdir, 'SubProcesses', Pdir))
-        subprocess.call(['make', 'matrix2py.so'],
-                            #stdout=devnull, stderr=devnull, 
+        make_rc = subprocess.call(['make', 'matrix2py.so'],
+                            #stdout=devnull, stderr=devnull,
                             cwd=os.path.join(mdir, 'SubProcesses',
                                              Pdir))
+        so_path = os.path.join(mdir, 'SubProcesses', Pdir, 'matrix2py.so')
+        self.assertEqual(make_rc, 0,
+            'make matrix2py.so failed (rc=%s); check that f2py is configured.' % make_rc)
+        self.assertTrue(os.path.exists(so_path),
+            'matrix2py.so was not produced at %s' % so_path)
 
+        # Force re-import in case a stale module from another test is cached
+        if 'matrix2py' in sys.modules:
+            del sys.modules['matrix2py']
         import matrix2py
         #os.chdir(os.path.join(mdir, 'SubProcesses', Pdir))
         with misc.chdir(os.path.join(mdir, 'SubProcesses', Pdir)):
@@ -2062,7 +2078,7 @@ class TestCmdShell2(unittest.TestCase,
             import MadSpin.decay as madspin
             density_matrix = madspin.DensityMatrix(f2py_dens, n_changing, allow_hel, ncomb)
             self.assertAlmostEqual(density_matrix.trace()/9./4./2./fortran_me, 1,4)  #9 color , 4 spin, 2 symmetry factor (
-            misc.sprint(density_matrix.matrix[1], fortran_dens[1])
+            misc.sprint(density_matrix.values[1], fortran_dens[1])
 
 
     def test_density_mode_user_interface(self):
