@@ -1,6 +1,3 @@
-%(python_information)s
-
-
 C this is a f2py wrapper for reweight mode at loop-induced level
 
 

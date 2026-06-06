@@ -565,7 +565,7 @@ C
       END
 
       SUBROUTINE  GET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL, N_COMB,
-     $  ALPHAS, INTER_SUM)
+     $  ALPHAS, MU_R2, INTER_SUM)
 C     P momenta
 C     NHEL base of helicity that are not changing
 C     POS(N_CHNGING): position of the changing helicity
@@ -600,7 +600,7 @@ C
       INTEGER POS(*)
       INTEGER ALLOW_HEL(*)
       DOUBLE COMPLEX, ALLOCATABLE :: TMP_INTER(:,:)
-      DOUBLE PRECISION ALPHAS
+      DOUBLE PRECISION ALPHAS, MU_R2
       DOUBLE COMPLEX INTER_SUM(*)
 C     LOCAL
       INTEGER I,IHEL,IPART

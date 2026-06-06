@@ -2553,8 +2553,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                                                         pos=position, 
                                                         allow_hel=allow_hel, 
                                                         n_comb=ncomb, 
-                                                        alphas=event.aqcd, 
-                                                        npdg=len(pdgs))      
+                                                        alphas=event.aqcd)
         #print(f"density_array = {density_array}") 
         density_matrix = madspin.DensityMatrix(density_array, 
                                                n_changing, 

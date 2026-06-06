@@ -1,5 +1,3 @@
-%(python_information)s
-
 C this is a f2py wrapper for reweight mode at tree level
 
       SUBROUTINE %(f2py_prefix)sSMATRIXHEL(PDGS, PROCID, NPDG, P, ALPHAS, SCALE2,

@@ -1,6 +1,3 @@
-%(python_information)s
-
-
 C this is a f2py wrapper for reweight mode at tree level
 
   subroutine %(f2py_prefix)sf77_smatrixhel(pdgs, procid, npdg, p, ALPHAS, SCALE2, nhel, ANS)
