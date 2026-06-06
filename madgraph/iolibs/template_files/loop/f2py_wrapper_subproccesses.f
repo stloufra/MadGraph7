@@ -1,5 +1,8 @@
 %(python_information)s
 
+C this is a f2py wrapper for reweight mode at loop-induced level
+
+
       SUBROUTINE INITIALISE(PATH)
 C     ROUTINE FOR F2PY to read the benchmark point.
       IMPLICIT NONE
@@ -107,7 +110,7 @@ CF2PY DOUBLE PRECISION, INTENT(IN) :: P(0:3, NEXTERNAL)
       RETURN
       END
 
-      SUBROUTINE %(f2py_prefix)sPY_GET_DENSITY(PDGS, PROCID, P, POS, ALLOW_HEL, ALPHAS, SCALE2, INTER, N_CHANGING, N_COMB)
+      SUBROUTINE %(f2py_prefix)sPY_GET_DENSITY(PDGS, PROCID, P, POS, ALLOW_HEL, ALPHAS, SCALE2, INTER, N_CHANGING, N_COMB, NPDG)
 
 CF2PY double precision, intent(in) :: p
 CF2PY integer, intent(in) :: pdgs
@@ -119,8 +122,9 @@ CF2PY double precision INTENT(IN) :: SCALE2
 CF2PY double complex INTENT(OUT), dimension(N_COMB*(N_COMB+1)/2) :: INTER
 CF2PY integer, intent(hide), depend(allow_hel, pos) :: N_COMB = len(ALLOW_HEL)/len(pos)
 CF2PY integer, intent(hide), depend(pos) :: N_CHANGING = len(pos)
+CF2PY integer, intent(hide), depend(pdgs) :: NPDG = len(pdgs)
 
-      INTEGER PDGS(*), N_CHANGING
+      INTEGER PDGS(*), N_CHANGING, NPDG
       INTEGER PROCID
       INTEGER POS(N_CHANGING)
       DOUBLE PRECISION ALPHAS, SCALE2
@@ -128,7 +132,7 @@ CF2PY integer, intent(hide), depend(pos) :: N_CHANGING = len(pos)
       DOUBLE COMPLEX INTER(N_COMB*(N_COMB+1)/2) !what value instead of 0:1
       DOUBLE PRECISION P(0:3,*)
 
-      CALL %(f2py_prefix)sF77_DENSITY(PDGS, PROCID, P, POS, ALLOW_HEL, ALPHAS, SCALE2, N_CHANGING, N_COMB, INTER)
+      CALL %(f2py_prefix)sF77_DENSITY(PDGS, NPDG, PROCID, P, POS, ALLOW_HEL, ALPHAS, SCALE2, N_CHANGING, N_COMB, INTER)
 
       RETURN
       END

@@ -1,4 +1,8 @@
 %(python_information)s
+
+
+C this is a f2py wrapper for reweight mode at tree level
+
   subroutine %(f2py_prefix)sf77_smatrixhel(pdgs, procid, npdg, p, ALPHAS, SCALE2, nhel, ANS)
   IMPLICIT NONE
 C ALPHAS is given at scale2 (SHOULD be different of 0 for loop induced, ignore for LO)  
@@ -30,7 +34,7 @@ CF2PY double precision, intent(in) :: SCALE2
       return
       end
   
-  subroutine %(f2py_prefix)sf77_density(pdgs, procid, P, POS, N_CHANGING, ALLOW_HEL, N_COMB, ALPHAS, SCALE2, INTER)
+  subroutine %(f2py_prefix)sf77_density(pdgs, npdg, procid, P, POS, N_CHANGING, ALLOW_HEL, N_COMB, ALPHAS, SCALE2, INTER)
   IMPLICIT NONE
 CF2PY double precision, intent(in) :: p
 CF2PY integer, intent(in) :: pdgs
@@ -42,9 +46,13 @@ CF2PY double precision INTENT(IN) :: SCALE2
 CF2PY double complex INTENT(OUT), dimension(N_COMB*(N_COMB+1)/2) :: INTER
 CF2PY integer, intent(in) :: N_COMB
 CF2PY integer, intent(in) :: N_CHANGING
-C  scale is a dummy argument added to have the same syntax as in loop-induced
+CF2PY integer, intent(in) :: NPDG
+C     scale is a dummy argument added to have the same syntax as in loop-induced
+C
+C     Some variables seem unused but they are necessary for density_splitter
+C
 
-  integer pdgs(*), procid, n_changing, n_comb
+  integer pdgs(*), procid, n_changing, n_comb, npdg
   double precision p(0:3,*)
   double precision ALPHAS, SCALE2
   INTEGER POS(n_changing)

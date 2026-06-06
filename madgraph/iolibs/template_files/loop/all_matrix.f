@@ -1,5 +1,9 @@
 %(python_information)s
 
+
+C this is a f2py wrapper for reweight mode at loop-induced level
+
+
       SUBROUTINE f77_INITIALISE(PATH)
 C     ROUTINE FOR F2PY to read the benchmark point.
       IMPLICIT NONE
@@ -188,7 +192,7 @@ c If the momentum is anything else:
       ENDIF
       END
 
-      SUBROUTINE %(f2py_prefix)sF77_DENSITY(PDGS, PROCID, P, POS, ALLOW_HEL, ALPHAS, SCALE2, N_CHANGING, N_COMB, INTER)
+      SUBROUTINE %(f2py_prefix)sF77_DENSITY(PDGS, NPDG, PROCID, P, POS, ALLOW_HEL, ALPHAS, SCALE2, N_CHANGING, N_COMB, INTER)
       IMPLICIT NONE
 CF2PY double precision, intent(in) :: p
 CF2PY integer, intent(in) :: pdgs
@@ -200,12 +204,15 @@ CF2PY double precision INTENT(IN) :: SCALE2
 CF2PY double complex INTENT(OUT), dimension(N_COMB*(N_COMB+1)/2) :: INTER
 CF2PY integer, intent(in) :: N_COMB
 CF2PY integer, intent(in) :: N_CHANGING
-
+CF2PY integer, intent(in) :: NPDG
+C
+C     Some variables seem unused but they are necessary for density_splitter
+C
       INTEGER PDGS(*)
       INTEGER PROCID
       DOUBLE PRECISION P(0:3, *)
       DOUBLE PRECISION ALPHAS, SCALE2
-      INTEGER N_CHANGING, N_COMB
+      INTEGER N_CHANGING, N_COMB, NPDG
       INTEGER POS(N_CHANGING)
       INTEGER ALLOW_HEL(N_CHANGING*N_COMB)
       DOUBLE COMPLEX INTER(N_COMB*(N_COMB+1)/2)    

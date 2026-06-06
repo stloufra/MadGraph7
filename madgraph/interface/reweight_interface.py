@@ -3131,6 +3131,7 @@ class DensityInterface(ReweightInterface):
         get_density = lambda *args: module.py_get_density(orig_order[0]+orig_order[1], *args)
         for i in range(len(all_p)):
             pinv = self.invert_momenta(all_p[i])
+            # npdg = len(all_p[i]) #number of particles in the event
             # the argument event.scale**2 is a dummy argument for LO processes, else it is taken as the value given in the LHE file
             production_matrix = get_density(-1, pinv, pos_corrected, #self.number_changing_helicities,
                                             self.allowed_helicities, event.aqcd, event.scale**2)

@@ -1,9 +1,7 @@
+%(python_information)s
 
-C     PY ((21, 21), (-6, 6)) : (21, 21, 6, -6) # M0_ 1
-C     PY ((2, -2), (-6, 6)) : (2, -2, 6, -6) # M1_ 1
-C     PY ((4, -4), (-6, 6)) : (4, -4, 6, -6) # M1_ 1
-C     PY ((1, -1), (-6, 6)) : (1, -1, 6, -6) # M1_ 1
-C     PY ((3, -3), (-6, 6)) : (3, -3, 6, -6) # M1_ 1
+C this is a f2py wrapper for reweight mode at tree level
+
       SUBROUTINE %(f2py_prefix)sSMATRIXHEL(PDGS, PROCID, NPDG, P, ALPHAS, SCALE2,
      $  NHEL, ANS)
       IMPLICIT NONE
@@ -27,7 +25,7 @@ CF2PY double precision, intent(in) :: SCALE2
       RETURN
       END
 
-      SUBROUTINE %(f2py_prefix)sPY_GET_DENSITY(PDGS, PROCID, P, POS, ALLOW_HEL, ALPHAS, SCALE2, INTER, N_CHANGING, N_COMB)
+      SUBROUTINE %(f2py_prefix)sPY_GET_DENSITY(PDGS, PROCID, P, POS, ALLOW_HEL, ALPHAS, SCALE2, INTER, N_CHANGING, N_COMB, NPDG)
       IMPLICIT NONE
 CF2PY double precision, intent(in) :: p
 CF2PY integer, intent(in) :: pdgs
@@ -39,14 +37,15 @@ CF2PY double precision INTENT(IN) :: SCALE2
 CF2PY double complex INTENT(OUT), dimension(N_COMB*(N_COMB+1)/2) :: INTER
 CF2PY integer, intent(hide), depend(allow_hel, pos) :: N_COMB = len(ALLOW_HEL)/len(pos)
 CF2PY integer, intent(hide), depend(pos) :: N_CHANGING = len(pos)
+CF2PY integer, intent(hide), depend(PDGS) :: NPDG = len(PDGS)
 
-      INTEGER PDGS(*)
-      INTEGER PROCID, N_CHANGING, N_COMB
+      INTEGER PDGS(NPDG)
+      INTEGER PROCID, N_CHANGING, N_COMB, NPDG
       INTEGER POS(N_CHANGING)
       DOUBLE PRECISION ALPHAS, SCALE2, P(0:3,*)
       INTEGER ALLOW_HEL(N_CHANGING*N_COMB)
       DOUBLE COMPLEX INTER(N_COMB*(N_COMB+1)/2)
-      call %(f2py_prefix)sf77_density(PDGS, PROCID, P, POS, N_CHANGING, ALLOW_HEL, N_COMB, ALPHAS, SCALE2, INTER)
+      call %(f2py_prefix)sf77_density(PDGS, NPDG, PROCID, P, POS, N_CHANGING, ALLOW_HEL, N_COMB, ALPHAS, SCALE2, INTER)
 
       return 
       end
