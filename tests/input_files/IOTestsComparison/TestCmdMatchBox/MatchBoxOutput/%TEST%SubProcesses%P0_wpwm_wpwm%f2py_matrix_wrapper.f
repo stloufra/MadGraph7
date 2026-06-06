@@ -122,8 +122,18 @@ CF2PY INTENT(IN) :: PATH
 C     F2PY wrapper around MG5_0_GET_DENSITY so the density-matrix
 C     computation is exposed in the standalone matrix2py module.
 C     The CF2PY directives mirror the working pattern used by the
-C     auto-generated allmatrix2py PY_GET_DENSITY wrapper.
+C     auto-generated allmatrix2py PY_GET_DENSITY wrapper: they must
+C     appear before the Fortran type declarations so that f2py can pick
+C     up the per-argument intent/dimension overrides.
       IMPLICIT NONE
+CF2PY double precision, intent(in), dimension(0:3,4) :: P
+CF2PY integer, intent(in), dimension(*) :: POS
+CF2PY integer, intent(in) :: N_CHANGING
+CF2PY integer, intent(in), dimension(N_CHANGING*N_COMB) :: ALLOW_HEL
+CF2PY integer, intent(in) :: N_COMB
+CF2PY integer, intent(in), dimension(4) :: FLAVOR
+CF2PY double precision, intent(in) :: ALPHAS
+CF2PY double complex, intent(out), dimension(N_COMB*(N_COMB+1)/2) :: INTER
 C     ARGUMENTS
       INTEGER    NEXTERNAL
       PARAMETER (NEXTERNAL=4)
@@ -134,14 +144,6 @@ C     ARGUMENTS
       INTEGER FLAVOR(NEXTERNAL)
       DOUBLE PRECISION ALPHAS
       DOUBLE COMPLEX INTER(*)
-CF2PY double precision, intent(in), dimension(0:3,4) :: P
-CF2PY integer, intent(in), dimension(*) :: POS
-CF2PY integer, intent(in) :: N_CHANGING
-CF2PY integer, INTENT(IN) :: ALLOW_HEL(N_CHANGING*N_COMB)
-CF2PY integer INTENT(IN) :: N_COMB
-CF2PY integer, intent(in), dimension(4) :: FLAVOR
-CF2PY double precision INTENT(IN) :: ALPHAS
-CF2PY double complex INTENT(OUT) :: INTER(N_COMB*(N_COMB+1)/2)
       CALL MG5_0_GET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL,
      &     N_COMB, FLAVOR, ALPHAS, INTER)
       RETURN
