@@ -363,7 +363,8 @@ class LoopProcessExporterFortranSA(LoopExporterFortran,
         # Build IDENS entries ONCE per ME slot (must align 1-to-1 with get_pdg_order / allids).
 
         formatting = {'python_information':'\n'.join(info), 
-                      'smatrixhel': '\n'.join(text) % {'fct_name': 'smatrixhel(p, nhel, ans)'},
+                    #   'smatrixhel': '\n'.join(text) % {'fct_name': 'smatrixhel(p, nhel, ans)'},
+                      'smatrixhel': '\n'.join(text) % {'fct_name': 'get_me(p, ALPHAS, DSQRT(SCALES2), NHEL, ANS, RETURNCODE)'},
                       'maxpart': max_nexternal,
                       'nb_me': len(allids),
                       'pdgs': ','.join([str(pdg[i]) if i<len(pdg) else '0' 
