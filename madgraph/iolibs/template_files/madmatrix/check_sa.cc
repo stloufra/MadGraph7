@@ -57,7 +57,7 @@ namespace
 #endif
 
   // Fixed physics inputs
-  constexpr fptype kEnergy = 1500.;                  // Ecms = 1.5 TeV
+  fptype kEnergy = 1500.;                  // Ecms = 1.5 TeV and changed for the matrix mode to 1TeV
   constexpr unsigned long long kSeed = 20200805ULL;  // reproducible RAMBO seed
 
   // Matrix-mode always runs 8 events on a single flavor index.
@@ -575,6 +575,7 @@ namespace
 
 int main( int argc, char** argv )
 {
+
   Mode mode = MODE_MATRIX;
   bool verbose = false;
   unsigned int flavorID = 0;
@@ -611,6 +612,8 @@ int main( int argc, char** argv )
     else
       return usage( argv[0] );
   }
+//ENERGY CHANGE FOR THE MATRIX MODE
+  if( mode == MODE_MATRIX ) kEnergy = 1000.;
 
   if( mode == MODE_MATRIX )
   {
