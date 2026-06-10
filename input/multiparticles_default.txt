@@ -12,8 +12,8 @@
 #
 ################################################################################
 # Syntax: label = particles (separated by spaces)
-p = g _quark _anti_quark
-j = g _quark _anti_quark
+p = g u u~ d d~ c c~ s s~
+j = g u u~ d d~ c c~ s s~
 l+ = e+ mu+
 l- = e- mu-
 vl = ve vm vt
