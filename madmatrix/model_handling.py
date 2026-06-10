@@ -190,7 +190,7 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
             if combined:
                 output = output + ', ' + '\n%(indent)s%(doublec)s alltmp[]' % {'doublec': self.type2def['double'], 'indent': indent}
             comment_output = 'amplitude \'vertex\''
-            template = 'template<class W_ACCESS, class A_ACCESS, class C_ACCESS>'
+            template = 'template<class W_ACCESS, class A_ACCESS, class C_ACCESS, bool DENOM%s>' % ('=false' if 'is_h' in mode else '')
         else:
             alohatype = 'aloha%s' % self.particles[self.outgoing -1]
             output = '%(doublec)s %(aloha_ref)s %(spin)s%(id)d' % {
@@ -207,14 +207,16 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
                     )
             ###self.declaration.add(('list_complex', output)) # AV BUG FIX - THIS IS NOT NEEDED AND IS WRONG (adds name 'cxtype_sv V3[]')
             comment_output = 'wavefunction \'%s%d[6]\'' % ( self.particles[self.outgoing -1], self.outgoing ) # AV (wavefuncsize=6)
-            template = 'template<class W_ACCESS, class C_ACCESS>'
+            template = 'template<class W_ACCESS, class C_ACCESS, bool DENOM%s>' % ('=false' if 'is_h' in mode else '')
         comment = '// Compute the output %s from the input wavefunctions %s' % ( comment_output, ', '.join(comment_inputs) ) # AV
-        out.write('  %(comment)s\n  %(template)s\n  %(prefix)s void\n  %(name)s( const %(args)s,\n%(indent)s%(output)s )%(suffix)s' %
+        denom_fp_default = ' = nullptr' if 'is_h' in mode else ''
+        out.write('  %(comment)s\n  %(template)s\n  %(prefix)s void\n  %(name)s( const %(args)s,\n%(indent)s%(output)s, fptype* denom_fp%(denom_fp_default)s )%(suffix)s' %
                   {'comment': comment, # AV - add comment
                    'template': template, # AV - add template
                    'prefix': self.prefix + ( ' INLINE' if 'is_h' in mode else '' ), # AV - add INLINE
                    'suffix': ( ' ALWAYS_INLINE' if 'is_h' in mode else '' ), # AV - add ALWAYS_INLINE
                    'indent':indent, 'output':output, 'name': name,
+                   'denom_fp_default': denom_fp_default,
                    'args': (',\n' + indent + 'const ').join(args)}) # AV - add const, add indent
         if 'is_h' in mode:
             out.write(';\n')
@@ -248,6 +250,13 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
         """
         out = StringIO()
         out.write('    mgDebug( 0, __FUNCTION__ );\n') # AV
+        # For amplitude functions, DENOM=true is a no-op (no propagator in amplitude vertices)
+        if not self.offshell:
+            out.write('    if constexpr ( DENOM )\n')
+            out.write('    {\n')
+            out.write('      mgDebug( 1, __FUNCTION__ );\n')
+            out.write('      return;\n')
+            out.write('    }\n')
         ###argument_var = [name for type,name in self.call_arg] # UNUSED
         for type, name in self.call_arg:
             ###out.write('    %s %s;\n' % ( type, name ) ) # FOR DEBUGGING
@@ -583,7 +592,7 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
             OffShellParticle = '%s%d' % (self.particles[self.offshell-1],\
                                                                   self.offshell)
             if 'L' not in self.tag:
-                coeff = 'denom'
+                coeff = 'nom' # FS: was 'denom'; now use 'nom = Ccoeff*COUP' (without dividing by propagator)
                 mydict = {}
                 if self.type2def['pointer_coup'] in ['*']:
                     mydict['pre_coup'] = '(*'
@@ -593,30 +602,33 @@ class MadMatrixALOHAWriter(aloha_writers.ALOHAWriterForGPU):
                     mydict['post_coup'] = ''
                 mydict['coup'] = coup_name
                 mydict['i'] = self.outgoing
-                if self.nodeclare:
-                    mydict['declnamedenom'] = 'const %s denom' % self.type2def['complex_v'] # AV
-                else:
-                    mydict['declnamedenom'] = 'denom' # AV
-                    self.declaration.add(('complex','denom'))
                 # Need to add the unary operator before the coupling (OM fix for #825)
                 if mydict['coup'] != 'one': # but in case where the coupling is not used (one)
                     mydict['pre_coup'] = 'Ccoeff * %s' % mydict['pre_coup']
+                # Build propagator denominator expression for the DENOM=true early-return block
                 if not aloha.complex_mass:
-                    # This affects 'denom = COUP' in HelAmps_sm.cc
                     if self.routine.denominator:
                         if self.routine.denominator == '1':
-                            out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s;\n' % mydict) # AV
+                            prop_expr = '( fptype(1.) )'  # no actual propagator denominator
                         else:
                             mydict['denom'] = self.routine.denominator
-                            out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( %(denom)s );\n' % mydict) # AV
+                            prop_expr = '( %(denom)s )' % mydict
                     else:
-                        out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( ( P%(i)s[0] * P%(i)s[0] ) - ( P%(i)s[1] * P%(i)s[1] ) - ( P%(i)s[2] * P%(i)s[2] ) - ( P%(i)s[3] * P%(i)s[3] ) - M%(i)s * ( M%(i)s - cI * W%(i)s ) );\n' % mydict) # AV
+                        prop_expr = '( ( P%(i)s[0] * P%(i)s[0] ) - ( P%(i)s[1] * P%(i)s[1] ) - ( P%(i)s[2] * P%(i)s[2] ) - ( P%(i)s[3] * P%(i)s[3] ) - M%(i)s * ( M%(i)s - cI * W%(i)s ) )' % mydict
                 else:
                     if self.routine.denominator:
                         raise Exception('modify denominator are not compatible with complex mass scheme')
-                    # This affects 'denom = COUP' in HelAmps_sm.cc
-                    out.write('    %(declnamedenom)s = %(pre_coup)s%(coup)s%(post_coup)s / ( ( P%(i)s[0] * P%(i)s[0] ) - ( P%(i)s[1] *P%(i)s[1] ) - ( P%(i)s[2] * P%(i)s[2] ) - ( P%(i)s[3] * P%(i)s[3] ) - ( M%(i)s * M%(i)s ) );\n' % mydict) # AV
-                ###self.declaration.add(('complex','denom')) # AV moved earlier (or simply removed)
+                    prop_expr = '( ( P%(i)s[0] * P%(i)s[0] ) - ( P%(i)s[1] *P%(i)s[1] ) - ( P%(i)s[2] * P%(i)s[2] ) - ( P%(i)s[3] * P%(i)s[3] ) - ( M%(i)s * M%(i)s ) )' % mydict
+                # DENOM=true: accumulate propagator denominator into denom_fp and return early
+                out.write('    if constexpr ( DENOM )\n') # FS
+                out.write('    {\n') # FS
+                out.write('      const cxtype_sv prop_denom = %s;\n' % prop_expr) # FS
+                out.write('      *reinterpret_cast<cxtype_sv*>( denom_fp ) = *reinterpret_cast<cxtype_sv*>( denom_fp ) * prop_denom;\n') # FS
+                out.write('      mgDebug( 1, __FUNCTION__ );\n') # FS
+                out.write('      return;\n') # FS
+                out.write('    }\n') # FS
+                # DENOM=false: coupling numerator only (no division by propagator)
+                out.write('    const cxtype_sv nom = %(pre_coup)s%(coup)s%(post_coup)s;\n' % mydict) # FS
                 if aloha.loop_mode: ptype = 'list_complex'
                 else: ptype = 'list_double'
                 self.declaration.add((ptype,'P%s' % self.outgoing))
@@ -1795,7 +1807,12 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
     ALOHAOBJ aloha_obj[nwf];
     for( int iwf = 0; iwf < nwf; iwf++ ) aloha_obj[iwf] = ALOHAOBJ{pvec_sv[iwf], w_sv[iwf]};
     fptype* amp_fp;
-    amp_fp = reinterpret_cast<fptype*>( amp_sv );""")
+    amp_fp = reinterpret_cast<fptype*>( amp_sv );
+    // Per-wavefunction propagator denominators for the DENOM scheme
+    cxtype_sv denom_sv[nwf];        // per-wf propagator denominator (DENOM=true stores it here)
+    fptype*   denom_fp[nwf];         // reinterpret pointers into denom_sv (passed to HELAS calls)
+    cxtype_sv denom_cur;             // product of transitive propagator denoms for current amplitude
+    for( int i = 0; i < nwf; i++ ) denom_fp[i] = reinterpret_cast<fptype*>( &denom_sv[i] );""")
             if fd_gauge:
                 ret_lines.append("""
     // special temporary ALOHAOBJ to hold F/Vtmp values in the combined vertex functions while using the FD gauge
@@ -2250,6 +2267,24 @@ class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
     def format_call(call):
         return call.replace('(','( ').replace(')',' )').replace(',',', ')
 
+    @staticmethod
+    def _transitive_denom_deps(input_ks, current_deps):
+        """Return the set of all intermediate wf slot indices that are transitive propagator
+        ancestors of the given input_ks, tracing through current_deps (which maps each
+        intermediate slot k -> set of its direct intermediate inputs).
+        Only slots that appear as keys in current_deps are considered intermediate."""
+        result = set()
+        stack = [k for k in input_ks if k in current_deps]
+        while stack:
+            k = stack.pop()
+            if k in result:
+                continue
+            result.add(k)
+            for parent in current_deps.get(k, set()):
+                if parent in current_deps and parent not in result:
+                    stack.append(parent)
+        return result
+
     # AV - replace helas_call_writers.GPUFOHelasCallWriter method (improve formatting)
     def super_get_matrix_element_calls(self, matrix_element, color_amplitudes, multi_channel_map):
         """Return a list of strings, corresponding to the Helas calls for the matrix element"""
@@ -2336,12 +2371,40 @@ class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
             diag_to_config[amp[0]] = config
         ###misc.sprint(diag_to_config)
         id_amp = 0
+        current_deps = {} # FS: k -> set of direct intermediate inputs; tracks DENOM propagator ancestry
         for diagram in matrix_element.get('diagrams'):
             ###print('DIAGRAM %3d: #wavefunctions=%3d, #diagrams=%3d' %
             ###      (diagram.get('number'), len(diagram.get('wavefunctions')), len(diagram.get('amplitudes')) )) # AV - FOR DEBUGGING
             res.append('\n      // *** DIAGRAM %d OF %d ***' % (diagram.get('number'), len(matrix_element.get('diagrams'))) ) # AV
             res.append('\n      // Wavefunction(s) for diagram number %d' % diagram.get('number')) # AV
-            res.extend([ self.get_wavefunction_call(wf) for wf in diagram.get('wavefunctions') ]) # AV new: avoid format_call
+            # FS: DENOM scheme - split each internal wf call into init + DENOM=true + DENOM=false
+            for wf in diagram.get('wavefunctions'):
+                mothers = wf.get('mothers')
+                if not mothers:
+                    # External wavefunction (ixxxxx/oxxxxx/vxxxxx): no propagator, emit unchanged
+                    res.append(self.get_wavefunction_call(wf))
+                else:
+                    # Internal wavefunction: apply per-wf denominator scheme
+                    output_k = wf.get('me_id') - 1  # 0-based wf slot index
+                    input_ks = [m.get('me_id') - 1 for m in mothers]
+                    # Register direct intermediate (non-external) inputs of this slot
+                    current_deps[output_k] = {k for k in input_ks if k in current_deps}
+                    # Get the base wf call string (e.g. "FFV1P0_3<W_ACCESS, CD_ACCESS>( ... );")
+                    wf_call = self.get_wavefunction_call(wf).rstrip()
+                    # Init denominator accumulator for this slot
+                    res.append('denom_sv[%d] = cxtype_sv( fptype(1.) );' % output_k)
+                    # DENOM=true call: inserts DENOM=true in template spec and appends denom_fp[k]
+                    true_call  = re.sub(r'<(W_ACCESS, (?:CD|CI)_ACCESS)>',
+                                        r'<\1, true>', wf_call)
+                    true_call  = re.sub(r'\s*\)\s*;\s*$',
+                                        ', denom_fp[%d] );' % output_k, true_call)
+                    res.append(true_call)
+                    # DENOM=false call: same without denominator division; wf[k] = D_k * wf_original[k]
+                    false_call = re.sub(r'<(W_ACCESS, (?:CD|CI)_ACCESS)>',
+                                        r'<\1, false>', wf_call)
+                    false_call = re.sub(r'\s*\)\s*;\s*$',
+                                        ', denom_fp[%d] );' % output_k, false_call)
+                    res.append(false_call)
             if len(diagram.get('wavefunctions')) == 0 : res.append('// (none)') # AV
             if res[-1][-1] == '\n' : res[-1] = res[-1][:-1]
             res.append('\n      // Amplitude(s) for diagram number %d' % diagram.get('number'))
@@ -2349,7 +2412,19 @@ class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
                 id_amp +=1
                 namp = amplitude.get('number')
                 amplitude.set('number', 1)
-                res.append(self.get_amplitude_call(amplitude)) # AV new: avoid format_call
+                # FS: DENOM=false amplitude call (amplitude functions carry no propagator denominator)
+                amp_call = self.get_amplitude_call(amplitude) # AV new: avoid format_call
+                amp_call_false = re.sub(r'<(W_ACCESS, A_ACCESS, (?:CD|CI)_ACCESS)>',
+                                        r'<\1, false>', amp_call.rstrip())
+                res.append(amp_call_false)
+                # FS: divide amp by product of transitive propagator denominators
+                amp_input_ks = [m.get('me_id') - 1 for m in amplitude.get('mothers')]
+                denom_set = self._transitive_denom_deps(amp_input_ks, current_deps)
+                sorted_ks = sorted(denom_set)
+                denom_expr = (' * '.join('denom_sv[%d]' % k for k in sorted_ks)
+                              if sorted_ks else 'cxtype_sv( fptype(1.) )')
+                res.append('denom_cur = %s;' % denom_expr)
+                res.append('amp_sv[0] = amp_sv[0] / denom_cur;')
                 if id_amp in diag_to_config:
                     ###res.append("if( channelId == %i ) numerators_sv += cxabs2( amp_sv[0] );" % diag_to_config[id_amp]) # BUG #472
                     ###res.append("if( channelId == %i ) numerators_sv += cxabs2( amp_sv[0] );" % id_amp) # wrong fix for BUG #472
