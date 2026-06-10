@@ -208,13 +208,46 @@ class OLDMG5Comparator(unittest.TestCase):
         misc.sprint(my_comp.results) 
         # Assert that all process comparisons passed the tolerance cut
         my_comp.assert_processes(self, tolerance)
-            
+
         # Do some cleanup
         my_comp.cleanup()
-    
-    ############################################################################    
+
+    def compare_cross_section_mg7_to_values(self, values, my_proc_list=[],
+                        orders={}, model='sm', tolerance=5e-2):
+        """Cross-check the *total* cross-section produced by the current default
+        ('mg7') exporter against the reference ``values`` (the same per-channel
+        reference used by :meth:`compare_cross_section_to_values`).
+
+        The mg7 path is a different (madnis) integrator with its own default
+        statistics, so only the integrated cross-section -- summed over the
+        reference channels -- is compared, within a loose relative tolerance.
+
+        Skipped when the mg7 runtime stack (madspace + LHAPDF data) is not
+        available in the current environment.
+        """
+        if 'v4' in model:
+            raise Exception('Not implemented')
+        if not madevent_comparator.MG7Runner.is_available():
+            self.skipTest('mg7 runtime stack (madspace/LHAPDF) not available')
+
+        runner = madevent_comparator.MG7Runner()
+        runner.setup(MG5DIR)
+        result = runner.run(my_proc_list, model, orders)
+
+        mg7_cross = float(result['cross'])
+        ref_cross = sum(float(v) for k, v in values.items()
+                        if k.startswith('cross_'))
+        runner.cleanup()
+
+        self.assertGreater(ref_cross, 0., 'reference total cross-section is zero')
+        rel = abs(mg7_cross - ref_cross) / ref_cross
+        self.assertLess(rel, tolerance,
+                        'mg7 total cross-section disagrees with reference: '
+                        'mg7=%g ref=%g rel=%g' % (mg7_cross, ref_cross, rel))
+
+    ############################################################################
     #  ROUTINE FOR CREATING THE SHORT TEST (USE by the release script)
-    ############################################################################    
+    ############################################################################
     def test_create_all_pickle(self):
         """re-create all the pickle for the short test (those call in the release).
            Note that if you need to redo this, this is potentially due to a change
@@ -468,10 +501,20 @@ class OLDMG5Comparator(unittest.TestCase):
                   'cross_P0_qq_ttx': '0.65258E+02', 
                   'cross_P0_gg_ttx': '0.43817E+03'}
 
-        # Store list of non-zero processes and results in file                                                                                                                          
+        # Store list of non-zero processes and results in file
         self.compare_cross_section_to_values(values, my_proc_list,
                              orders = {'QED':99, 'QCD':99},
                              filename = "short_cs_sm1.log")
+
+    def test_short_cross_sm1_mg7(self):
+        """Same as test_short_cross_sm1, but exercising the current default
+        ('mg7') exporter and comparing the integrated cross-section."""
+        my_proc_list = ['p p > t t~']
+        values = {'number_of_P0': '2',
+                  'cross_P0_qq_ttx': '0.65258E+02',
+                  'cross_P0_gg_ttx': '0.43817E+03'}
+        self.compare_cross_section_mg7_to_values(values, my_proc_list,
+                             orders = {'QED':99, 'QCD':99})
 
     def test_short_cross_sqso1(self):
         """Test a process with definite squared order constraints. In this case

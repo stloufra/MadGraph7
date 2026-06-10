@@ -21,6 +21,7 @@ from __future__ import absolute_import
 import datetime
 import glob
 import itertools
+import json
 import logging
 import os
 import re
@@ -578,6 +579,124 @@ class MG5Runner(MadEventRunner):
 
         
         return output
+
+
+class MG7Runner(MG5Runner):
+    """Runner object for the MadGraph7 default ('mg7') exporter.
+
+    Unlike :class:`MG5Runner` (which produces a Fortran madevent directory and
+    integrates through ``launch -i``), this runner exercises the current
+    default output mode of MadGraph7: it generates an ``mg7`` directory and
+    drives its ``bin/generate_events`` survey, then reads the total
+    cross-section from the madspace status file ``Events/<run>_NN/info.json``
+    (key ``process.mean`` -- see madspace EventGenerator::write_status).
+
+    The result dictionary only carries the integrated cross-section under the
+    key ``cross`` (the mg7 output layout has no per-subprocess Fortran
+    ``results.dat`` to mirror the madevent key scheme).
+    """
+
+    name = 'MadGraph7 mg7'
+    type = 'mg7'
+    output_format = 'mg7'
+
+    @staticmethod
+    def resolve_lhapdf_data_path():
+        """Return a usable LHAPDF data dir (env var or via lhapdf-config), or None."""
+        if os.environ.get('LHAPDF_DATA_PATH'):
+            return os.environ['LHAPDF_DATA_PATH']
+        lhapdf_config = misc.which('lhapdf-config')
+        if not lhapdf_config:
+            return None
+        try:
+            datadir = subprocess.check_output(
+                [lhapdf_config, '--datadir']).decode().strip()
+        except Exception:
+            return None
+        return datadir or None
+
+    @classmethod
+    def is_available(cls):
+        """True if the mg7 runtime stack can plausibly run here.
+
+        Requires the madspace python module with the API the mg7 launcher uses
+        (``ChannelEventGenerator``), and a resolvable LHAPDF data path for
+        hadronic PDFs.
+        """
+        try:
+            import madspace
+        except ImportError:
+            return False
+        if not hasattr(madspace, 'ChannelEventGenerator'):
+            return False
+        return cls.resolve_lhapdf_data_path() is not None
+
+    def format_mg5_proc_card(self, proc_list, model, orders):
+        """proc_card that only *generates* the mg7 directory (no madevent launch)."""
+        if model != 'mssm':
+            v5_string = "import model %s\n" % os.path.join(self.model_dir, model)
+        else:
+            v5_string = "import model %s\n" % model
+        v5_string += "set automatic_html_opening False\n"
+        couplings = ' ' if orders == {} else \
+            me_comparator.MERunner.get_coupling_definitions(orders)
+        for i, proc in enumerate(proc_list):
+            v5_string += 'add process ' + proc + ' ' + couplings + '@%i' % i + '\n'
+        v5_string += "output %s %s -f\n" % \
+                     (self.output_format,
+                      os.path.join(self.mg5_path, self.temp_dir_name))
+        return v5_string
+
+    def run(self, proc_list, model, orders={}):
+        """Generate the mg7 directory, run its survey, return the cross-section."""
+        self.res_list = []
+        self.proc_list = proc_list
+        self.model = model
+        self.orders = orders
+
+        dir_name = os.path.join(self.mg5_path, self.temp_dir_name)
+        proc_card_location = os.path.join(self.mg5_path,
+                                          'proc_card_%s.dat' % self.temp_dir_name)
+        with open(proc_card_location, 'w') as f:
+            f.write(self.format_mg5_proc_card(proc_list, model, orders))
+
+        cmd = cmd_interface.MasterCmd()
+        cmd.no_notification()
+        cmd.exec_cmd('import command %s' % proc_card_location)
+        os.remove(proc_card_location)
+
+        # Drive the mg7 survey directly (bin/generate_events), with a resolved
+        # LHAPDF data path so hadronic PDFs load without the python lhapdf module.
+        env = dict(os.environ)
+        datadir = self.resolve_lhapdf_data_path()
+        if datadir:
+            env['LHAPDF_DATA_PATH'] = datadir
+        gen = os.path.join(dir_name, 'bin', 'generate_events')
+        log_path = os.path.join(dir_name, 'mg7_survey.log')
+        with open(log_path, 'w') as logf:
+            ret = subprocess.call([sys.executable, gen, '-f'],
+                                  cwd=dir_name, stdout=logf, stderr=subprocess.STDOUT)
+        if ret != 0:
+            raise self.MERunnerException(
+                'mg7 generate_events failed (see %s)' % log_path)
+
+        values = self.get_values()
+        self.res_list.append(values)
+        return values
+
+    def get_values(self):
+        """Read the integrated cross-section from the mg7 info.json status file."""
+        dir_name = os.path.join(self.mg5_path, self.temp_dir_name)
+        info_files = sorted(glob.glob(
+            os.path.join(dir_name, 'Events', '*', 'info.json')))
+        if not info_files:
+            raise self.MERunnerException(
+                'no mg7 info.json produced under %s/Events' % dir_name)
+        with open(info_files[-1]) as f:
+            info = json.load(f)
+        cross = info['process']['mean']
+        return {'cross': repr(float(cross))}
+
 
 class MG5OldRunner(MG5Runner):
     """Runner object for the MG5 Matrix Element generator."""
