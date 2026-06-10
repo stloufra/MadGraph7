@@ -9,6 +9,7 @@ else
     ROOT = ..
 endif
 LIBDIR = $(abspath $(ROOT))/lib/
+FFLAGS += -I../../Source/MODEL -I../../Source/DHELAS 
 
 PROG   = check
 all : $(PROG)

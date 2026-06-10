@@ -4885,7 +4885,8 @@ This implies that with decay chains:
         args.insert(0, 'process')
         self.do_add(" ".join(args))
 
-    def extract_process(self, line, proc_number = 0, overall_orders = {}):
+    def extract_process(self, line, proc_number = 0, overall_orders = {},
+                        avoid_squared_orders=False):
         """Extract a process definition from a string. Returns
         a ProcessDefinition."""
 
@@ -5019,14 +5020,14 @@ This implies that with decay chains:
                     orders[name] = value
                 elif type == "==":
                     constrained_orders[name] = (value, type)
-                    if name not in squared_orders:
+                    if not avoid_squared_orders and name not in squared_orders:
                         squared_orders[name] = (2 * value,'==')
                     if True:#name not in orders:
                         orders[name] = value
                     
                 elif type == ">":
                     constrained_orders[name] = (value, type)
-                    if name not in squared_orders:
+                    if not avoid_squared_orders and name not in squared_orders:
                         squared_orders[name] = (2 * value,'>')
             
             line = '%s %s' % (order_re.group('before'),order_re.group('after')) 
@@ -5805,10 +5806,10 @@ This implies that with decay chains:
 
         if min_index > -1:
             core_process = self.extract_process(line[:min_index], proc_number,
-                                                overall_orders)
+                                                overall_orders, avoid_squared_orders=True)
         else:
             core_process = self.extract_process(line, proc_number,
-                                                overall_orders)
+                                                overall_orders, avoid_squared_orders=True)
 
         #level_down = False
 
@@ -6035,6 +6036,7 @@ This implies that with decay chains:
         for amp in amplitudes:
             mother = [l.get('id') for l in amp['process'].get('legs') \
                                                         if not l.get('state')]
+            misc.sprint(mother)
             if 1 == len(mother):
                 try:
                     decay_table = decay_tables[abs(mother[0])]
@@ -6044,24 +6046,54 @@ This implies that with decay chains:
                 # create the tuple associate to the decay mode
                 child = [l.get('id') for l in amp['process'].get('legs') \
                                                               if l.get('state')]
+                                        
                 if not mother[0] > 0:
                     child = [x if self._curr_model.get_particle(x)['self_antipart']
                              else -x for x in child]
                 child.sort()
                 child.insert(0, len(child))
+                misc.sprint(child)
+                misc.sprint(list(decay_table.keys()))  
                 #check if the decay is present or not:
                 if tuple(child) not in list(decay_table.keys()):
-                    to_remove.append(amp)
-
-        def remove_amp(amps):
+                    if any(id in self._curr_model.get('merged_particles') for id in child):
+                        all_keys =[list(k) for k in decay_table.keys()]
+                        misc.sprint(all_keys)
+                        for one_key in all_keys:
+                            for i,pid in enumerate(one_key):
+                                if i ==0:
+                                    continue
+                                for mid,pdgs in self._curr_model.get('merged_particles').items():
+                                    if pid in pdgs:
+                                        one_key[i] = mid
+                                    if -pid in pdgs:
+                                        one_key[i] = -mid
+                        misc.sprint(all_keys)
+                        for i,k in enumerate(all_keys):
+                            misc.sprint(k)
+                            new_k = list(k[1:])
+                            new_k.sort()
+                            new_k.insert(0, k[0])
+                            misc.sprint(new_k) 
+                            all_keys[i] = tuple(new_k)            
+                        misc.sprint(all_keys)
+                        if tuple(child) not in all_keys:
+                            misc.sprint('to rm' , child)
+                            to_remove.append(amp)
+                    else:
+                        misc.sprint('to rm' , child)
+                        to_remove.append(amp)
+        def remove_amp(amps, to_remove):
             for amp in amps[:]:
                 if amp in to_remove:
                     amps.remove(amp)
                 if isinstance(amp, diagram_generation.DecayChainAmplitude):
-                    remove_amp(amp.get('decay_chains'))
+                    remove_amp(amp.get('decay_chains'),to_remove)
                     for decay in amp.get('decay_chains'):
-                        remove_amp(decay.get('amplitudes'))
-        remove_amp(self._curr_amps)
+                        remove_amp(decay.get('amplitudes'), to_remove)
+        remove_amp(self._curr_amps, to_remove)
+        misc.sprint("Removed %s amplitudes that are not in the decay table" % len(to_remove))
+        misc.sprint("Remaining amplitudes: %s" % len(self._curr_amps))
 
 
     def import_ufo_model(self, model_name):
@@ -7524,7 +7556,6 @@ os.system('%s  -O -W ignore::DeprecationWarning %s %s --mode={0}' %(sys.executab
                 if name not in ['mg5_path', 'f2py_compiler', 'f2py_compiler_py2','f2py_compiler_py3', 'lhapdf']:
                     self.options[name] = value
                 elif hasattr(self, 'set2_%s' % name) and value:
-                    misc.sprint('set configuration option %s to %s' % (name, value) )
                     func = getattr(self, 'set2_%s' % name)
                     func(value.split())
                 if value.lower() == "none" or value=="":

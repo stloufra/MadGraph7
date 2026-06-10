@@ -1,4 +1,5 @@
       program madspin
+      use model_object 
       implicit none
 
 C---  integer    n_max_cg
@@ -537,6 +538,7 @@ c     common
 
 
       subroutine set_parameters(p,Ecollider)
+      use model_object 
       implicit none
 
       double precision ZERO
@@ -617,6 +619,7 @@ c Make sure have enough mass for external particles
 
 
       subroutine merge_itree(itree,qmass,qwidth,  p_ext,mapext2res)
+      use model_object 
       implicit none
       !include 'genps.inc'
       include 'coupl.inc'

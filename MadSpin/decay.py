@@ -899,30 +899,67 @@ class AllMatrixElement(dict):
     def get_br(self, proc):
         # get the branching ratio associated to a process
        
+        def branching_ratio_for_pdg(pid, lhaid, proc):
+            misc.sprint('get BR for %s > %s' % (pid, lhaid[1:]))
+            if any(abs(fid) in proc.get('model').get('merged_particles') for fid in lhaid):
+                pids = [l.get('id') for l in proc.get('legs')]
+                misc.sprint('initial pids', pids)
+                for i,fid in enumerate(pids):
+                    if abs(fid) in proc.get('model').get('merged_particles'):
+                        l = proc.get('legs')[i]
+                        if l.get('flavor'):
+                            pids[i] = l.get('flavor')
+                        elif fid in proc.get('model').get('merged_particles'):
+                            pids[i] = proc.get('model').get('merged_particles')[abs(fid)] 
+                        else:
+                            pids[i] = [-x for x in proc.get('model').get('merged_particles')[abs(fid)]]
+                    else:
+                        pids[i] = [fid]
+                misc.sprint(pids)    
+
+                all_combinations = list(itertools.product(*pids))
+                br = 0
+                for lhaid in itertools.product(*pids[1:]):
+                    lhaid = tuple([len(lhaid)] + sorted(lhaid))
+                    if pid in self.banner.param_card['decay'].decay_table:
+                        try:
+                            br += self.banner.param_card['decay'].decay_table[pid].get(lhaid).value
+                        except (KeyError, TypeError):
+                            pass
+                    elif -pid in self.banner.param_card['decay'].decay_table:
+                        lhaid=[x if self.model.get_particle(x)['self_antipart'] else -x for x in lhaid[1:]]
+                        lhaid.sort()
+                        lhaid = tuple([len(lhaid)] + lhaid)
+                        try:
+                            br += self.banner.param_card['decay'].decay_table[-pid].get(lhaid).value
+                        except (KeyError, TypeError):
+                            pass
+                if not br:
+                    misc.sprint('no valid decay for %s > %s' % (pid, lhaid[1:]))
+                    misc.sprint(self.banner.param_card['decay'].decay_table[pid])
+                return br
+
+            elif pid in self.banner.param_card['decay'].decay_table:
+                return self.banner.param_card['decay'].decay_table[pid].get(lhaid).value
+            elif -pid in self.banner.param_card['decay'].decay_table:
+                pid = -pid
+                lhaid=[x if self.model.get_particle(x)['self_antipart'] else -x
+                       for x in lhaid]
+                lhaid.sort()
+                lhaid = tuple([len(lhaid)] + lhaid)
+                return self.banner.param_card['decay'].decay_table[pid].get(lhaid).value
+            else:
+                return 0
         br = 1
         ids = collections.defaultdict(list) #check for identical decay
         for decay in proc.get('decay_chains'):
             init, final = decay.get_initial_final_ids()
             lhaid = tuple([len(final)] + [x for x in final])
             ids[init[0]].append(decay)
-            if init[0] in self.banner.param_card['decay'].decay_table:
-                br *= self.banner.param_card['decay'].decay_table[init[0]].get(lhaid).value
-                br *= self.get_br(decay)
-            elif -init[0] in self.banner.param_card['decay'].decay_table:
-                init = -init[0]
-                lhaid=[x if self.model.get_particle(x)['self_antipart'] else -x
-                       for x in final]
-                lhaid.sort()
-                lhaid = tuple([len(final)] + lhaid)
-                br *= self.banner.param_card['decay'].decay_table[init].get(lhaid).value
-                br *= self.get_br(decay)
-            elif init[0] not in self.decay_ids and -init[0] not in self.decay_ids:
-                logger.warning("No Branching ratio applied for %s. Please check if this is expected" % init[0])
-                br *= self.get_br(decay)
-            else:
+            br *= branching_ratio_for_pdg(init[0], lhaid, decay)
+            if br == 0:
                 raise MadGraph5Error("No valid decay for %s. No 2 body decay for that particle. (three body are not supported by MadSpin)" % init[0])
-
-                
+            br *= self.get_br(decay)
 
         for decays in ids.values():
             if len(decays) == 1:
@@ -2615,6 +2652,8 @@ class decay_all_events(object):
         for ((nbody, pid, finals),decays) in nbody_to_decay.items():
             if len(decays) == 1:
                 continue  
+            misc.sprint(nbody, pid, finals, len(decays))
+            misc.sprint(type(decays[0]))
             mom_init = momentum(self.pid2mass(pid), 0, 0, 0)
             
             # create an object for the validation, keeping the ratio between

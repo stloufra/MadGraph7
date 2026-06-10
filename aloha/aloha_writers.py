@@ -725,9 +725,7 @@ class ALOHAWriterForFortran(WriteALOHA):
         if self.offshell and aloha.unitary_gauge == 3: # FD gauge
             type = self.particles[self.outgoing-1]
             if type in ["S","V"]: 
-                out.write("      DO I = 3, 7\n")
-                out.write(" %(type)s%(out)s(I) = CZERO \n" % {'type': type, 'out':self.outgoing}) 
-                out.write(" ENDDO\n")      
+                out.write(" %(type)s%(out)s %% W(:) = CZERO \n" % {'type': type, 'out':self.outgoing}) 
 
         # Returning result
         return out.getvalue()
@@ -820,7 +818,11 @@ class ALOHAWriterForFortran(WriteALOHA):
             # a flat integer offset (+momentum_size) into a plain COMPLEX*16
             # array; now all wavefunctions (including those inside loop ALOHA
             # routines) are passed as type(aloha) objects.
-            return '%s %% W(%s)' % (match.group('var'), int(match.group('num')))
+            shift = 0
+            if aloha.unitary_gauge == 3 and match.group('var').startswith('S'):
+                shift += 4 # In FD gauge Scalar indices goes to 5 (not 1)
+                           # to complement the vector 1-4
+            return '%s %% W(%s)' % (match.group('var'), int(match.group('num'))+ shift)
               
     def change_var_format(self, name): 
         """Formatting the variable name to Fortran format"""

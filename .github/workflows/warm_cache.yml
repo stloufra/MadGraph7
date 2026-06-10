@@ -6,6 +6,7 @@ permissions:
   contents: read
 on:
   push:
+    branches: [3.x, test_ci]
   schedule:
     - cron: '0 3 * * 0'    # every Sunday 3am
   workflow_dispatch:         

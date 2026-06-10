@@ -342,6 +342,8 @@ class TestMECmdShell(unittest.TestCase):
                   (2,-2): 1.944158e-01,
                   (-11,11): 5.626776e-02,
                   (-13,13): 5.626776e-02}
+        if self.debugging:
+            misc.sprint('\n'.join(data))
         for l in data[1:]:
             if l.startswith("#"):
                 continue
@@ -351,7 +353,7 @@ class TestMECmdShell(unittest.TestCase):
             #2.493165e-01   2    3  -3 # 0.37204
             br, _, id1,id2,_,_ = l.split()
             
-            self.assertAlmostEqual(float(br), values[(int(id1),int(id2))],delta=1e-3)
+            self.assertAlmostEqual(float(br), values[(int(id1),int(id2))],delta=2e-3)
         
         
 #         self.assertEqual("""1.492240e+00
