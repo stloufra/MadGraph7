@@ -9,12 +9,17 @@ namespace kernels {
 
 template <typename T>
 KERNELSPEC FVal<T> transverse_mass(FIn<T, 2> momenta) {
+    // Returns the sum of the transverse masses sqrt(E^2 - pz^2) of the final
+    // state (NOT squared): the callers below square it to form the scale^2
+    // (= mu^2), exactly like kernel_scale_transverse_energy. Returning the
+    // square here would double-square it into mu^4 and send the PDF/alphaS
+    // lookup far out of range (NaN).
     FVal<T> mt_sum(0.);
     for (std::size_t i = 2; i < momenta.size(); ++i) {
         auto p = momenta[i];
         mt_sum = mt_sum + sqrt(max(0., p[0] * p[0] - p[3] * p[3]));
     }
-    return mt_sum * mt_sum;
+    return mt_sum;
 }
 
 // Kernels
