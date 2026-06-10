@@ -696,48 +696,42 @@ class MG7Runner(MG5Runner):
         datadir = self.resolve_lhapdf_data_path(mg5_lhapdf)
         if datadir:
             env['LHAPDF_DATA_PATH'] = datadir
-        # Only the survey is needed for the cross-section: it writes the
-        # integrated result to Events/<run>_NN/info.json. Skip the (slow)
-        # madnis training + event unweighting that bin/generate_events would
-        # otherwise run after it.
-        survey_driver = (
-            "import os, sys\n"
-            "sys.path.append(%r)\n"
-            "from madgraph.iolibs.template_files.mg7.madevent import MadgraphProcess\n"
-            "MadgraphProcess().survey()\n"
-        ) % MG5DIR
+        # Run the full pipeline (survey + integration): the aggregated,
+        # converged cross-section ends up in process.mean of info.json. The
+        # survey-only estimate is far too biased to use here.
+        gen = os.path.join(dir_name, 'bin', 'generate_events')
         log_path = os.path.join(dir_name, 'mg7_survey.log')
         with open(log_path, 'w') as logf:
-            ret = subprocess.call([sys.executable, '-c', survey_driver],
+            ret = subprocess.call([sys.executable, gen, '-f'],
                                   cwd=dir_name, env=env,
                                   stdout=logf, stderr=subprocess.STDOUT)
         if ret != 0:
             raise self.MERunnerException(
-                'mg7 survey failed (see %s)' % log_path)
+                'mg7 generate_events failed (see %s)' % log_path)
 
         values = self.get_values()
         self.res_list.append(values)
         return values
 
-    @staticmethod
-    def _patch_run_card_toml(toml_path):
-        """Switch the mg7 run_card.toml to the dynamical HT/2 scale."""
+    # Reduced event target so the full survey+generation converges quickly
+    # (the survey-only estimate is too biased to use as a cross-section).
+    n_events = 2000
+
+    def _patch_run_card_toml(self, toml_path):
+        """Switch the mg7 run_card.toml to the dynamical HT/2 scale and trim the
+        event count for a fast but converged integration."""
         if not os.path.exists(toml_path):
             return
         with open(toml_path) as f:
             text = f.read()
         text = text.replace('fixed_ren_scale = true', 'fixed_ren_scale = false')
         text = text.replace('fixed_fact_scale = true', 'fixed_fact_scale = false')
+        text = re.sub(r'events = \d+', 'events = %d' % self.n_events, text)
         with open(toml_path, 'w') as f:
             f.write(text)
 
     def get_values(self):
-        """Read the integrated cross-section from the mg7 info.json status file.
-
-        The aggregated ``process.mean`` is only filled once the run is fully
-        combined; after a survey it is still 0, so fall back to the sum of the
-        per-channel means (the multichannel total cross-section).
-        """
+        """Read the converged cross-section (process.mean) from info.json."""
         dir_name = os.path.join(self.mg5_path, self.temp_dir_name)
         info_files = sorted(glob.glob(
             os.path.join(dir_name, 'Events', '*', 'info.json')))
@@ -747,9 +741,6 @@ class MG7Runner(MG5Runner):
         with open(info_files[-1]) as f:
             info = json.load(f)
         cross = info.get('process', {}).get('mean') or 0.0
-        if not cross:
-            cross = sum((c.get('mean') or 0.0)
-                        for c in info.get('channels', []))
         return {'cross': repr(float(cross))}
 
 
@@ -767,8 +758,6 @@ class MG5RunnerMG7Aligned(MG5Runner):
 
     name = 'MadGraph madevent (mg7-aligned)'
     type = 'v5_mg7aligned'
-    # lhaid for NNPDF23_lo_as_0130_qed (the mg7 run_card.toml default PDF).
-    lhaid = 247000
 
     def format_mg5_proc_card(self, proc_list, model, orders):
         if model != 'mssm':
@@ -789,8 +778,11 @@ class MG5RunnerMG7Aligned(MG5Runner):
         # --- align with the mg7 run_card.toml -------------------------------
         v5_string += "set ebeam1 6500\n"
         v5_string += "set ebeam2 6500\n"
-        v5_string += "set pdlabel lhapdf\n"
-        v5_string += "set lhaid %d\n" % self.lhaid
+        # nn23lo1 is the internal NNPDF2.3 LO set, matching the mg7
+        # run_card.toml default NNPDF23_lo_as_0130_qed without going through
+        # the Fortran LHAPDF interface (which trips on a missing
+        # AlphaS_FlavorScheme metadata key for that set here).
+        v5_string += "set pdlabel nn23lo1\n"
         v5_string += "set dynamical_scale_choice 3\n"   # HT/2 (= half_transverse_mass)
         v5_string += "set auto_ptj_mjj False\n"
         v5_string += "set ptj 20.0\n"
