@@ -5688,6 +5688,32 @@ This implies that with decay chains:
 
         return line, proc_option
 
+    def _expand_merged_pdgs(self, pid_set):
+        """Expand merged-particle PDG codes (e.g. _quark=81) into the signed
+        individual-flavor PDGs defined by the model's ``merged_particles`` map.
+
+        ``get_final_part`` must report the *real* final-state PDG ids (MadSpin
+        matches them against the actual particles in the events). With the
+        merged-flavor multiparticles now used by default (``j = g _quark
+        _anti_quark``), the raw ids would otherwise be the merged codes
+        (81/-81), which never appear in the events.
+        """
+        try:
+            merged = self._curr_model.get('merged_particles') or {}
+        except Exception:
+            merged = {}
+        if not merged:
+            return set(pid_set)
+        result = set()
+        for pid in pid_set:
+            base = abs(pid)
+            if base in merged:
+                sign = 1 if pid > 0 else -1
+                result.update(sign * real for real in merged[base])
+            else:
+                result.add(pid)
+        return result
+
     def get_final_part(self, procline):
         """Takes a valid process and return
            a set of id of final states particles. [Used by MadSpin]
@@ -5741,6 +5767,9 @@ This implies that with decay chains:
                     pid = set(self._multiparticles[first])
                 else:
                     raise Exception('invalid particle name: %s. ' % first)
+                # work in real-PDG space so the removal matches the (already
+                # expanded) core final state for merged-flavor labels.
+                pid = self._expand_merged_pdgs(pid)
                 core_final.difference_update(pid)
                 core_final.update(self.get_final_part(one_decay))
 
@@ -5761,9 +5790,9 @@ This implies that with decay chains:
                 if particle[1:] in pids:
                     final.add(pids[particle[1:]])
                 elif particle in self._multiparticles:
-                    final.update(set(self._multiparticles[particle[1:]]))                
+                    final.update(set(self._multiparticles[particle[1:]]))
 
-        return final
+        return self._expand_merged_pdgs(final)
 
     def extract_particle_ids(self, args, crash_on_duplication=False):
         """Extract particle ids from a list of particle names. If
