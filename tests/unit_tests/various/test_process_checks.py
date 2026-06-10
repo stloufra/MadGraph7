@@ -585,6 +585,18 @@ class TestFlavorCheck(unittest.TestCase):
                                     "Fortran/C++ disagree for %s: F=%g C++=%g "
                                     "rel=%g" % (label, me_f, me_cpp, rel))
 
+            # MG7 SA must also match Fortran per flavor when it ran.
+            vm = entry.get('value_mg7')
+            if vf is not None and vm is not None:
+                me_f   = vf['m2']
+                me_mg7 = vm['m2']
+                ref = abs(me_f) if me_f != 0 else abs(me_mg7)
+                if ref > 0:
+                    rel = abs(me_f - me_mg7) / ref
+                    self.assertLess(rel, 1e-4,
+                                    "Fortran/MG7 disagree for %s: F=%g MG7=%g "
+                                    "rel=%g" % (label, me_f, me_mg7, rel))
+
     def test_output_flavor_summary(self):
         """output_flavor returns a string with summary line."""
         q_id = 81
@@ -634,6 +646,11 @@ class TestMultiLanguageComparison(unittest.TestCase):
 
         cls.has_fortran = bool(_misc.which('gfortran'))
         cls.has_cpp = bool(_misc.which('g++'))
+        try:
+            import madmatrix.output  # noqa: F401
+            cls.has_mg7 = cls.has_cpp and bool(_misc.which('make'))
+        except ImportError:
+            cls.has_mg7 = False
 
         cls.model = import_ufo.import_model(
             'sm', options={'apply_flavor_grouping': False})
@@ -961,6 +978,7 @@ class TestMultiLanguageComparison(unittest.TestCase):
         entry = results[0]
         self.assertIn('value_fortran', entry)
         self.assertIn('value_cpp', entry)
+        self.assertIn('value_mg7', entry)
         self.assertIn('value_python', entry)
 
         if not (self.has_fortran or self.has_cpp):
@@ -968,13 +986,17 @@ class TestMultiLanguageComparison(unittest.TestCase):
 
         me_f   = entry['value_fortran']['m2'] if entry['value_fortran'] else None
         me_cpp = entry['value_cpp']['m2']      if entry['value_cpp']     else None
+        me_mg7 = entry['value_mg7']['m2']      if entry['value_mg7']     else None
         me_py  = entry['value_python']['m2']   if entry['value_python']  else None
 
         # Every pair of available backends must agree within 1e-4 relative.
         for a, b, na, nb in (
             (me_f,   me_cpp, 'Fortran', 'C++'),
+            (me_f,   me_mg7, 'Fortran', 'MG7'),
             (me_f,   me_py,  'Fortran', 'Python'),
+            (me_cpp, me_mg7, 'C++',     'MG7'),
             (me_cpp, me_py,  'C++',     'Python'),
+            (me_mg7, me_py,  'MG7',     'Python'),
         ):
             if a is None or b is None:
                 continue
@@ -984,9 +1006,15 @@ class TestMultiLanguageComparison(unittest.TestCase):
                             '%s/%s disagree: %s=%g %s=%g rel=%g'
                             % (na, nb, na, a, nb, b, rel))
 
-        # output_language must at least contain a Summary line.
+        # MG7 SA must be available when the madmatrix backend is present.
+        if self.has_mg7:
+            self.assertIsNotNone(entry['value_mg7'],
+                                 'MG7 SA value missing though madmatrix present')
+
+        # output_language must at least contain a Summary line + MG7 column.
         text = process_checks.output_language(results)
         self.assertIn('Summary', text)
+        self.assertIn('MG7 SA', text)
 
     def test_check_language_gg_ttx_cpp_ps_point(self):
         """g g > t t~: Fortran SA and C++ SA must agree within 1e-4 rel.
@@ -1021,6 +1049,7 @@ class TestMultiLanguageComparison(unittest.TestCase):
         entry = results[0]
         self.assertIn('value_fortran', entry)
         self.assertIn('value_cpp', entry)
+        self.assertIn('value_mg7', entry)
         self.assertIn('value_python', entry)
 
         if entry['value_fortran'] is None:
@@ -1030,6 +1059,7 @@ class TestMultiLanguageComparison(unittest.TestCase):
 
         me_f   = entry['value_fortran']['m2']
         me_cpp = entry['value_cpp']['m2']
+        me_mg7 = entry['value_mg7']['m2'] if entry['value_mg7'] else None
         me_py  = entry['value_python']['m2'] if entry['value_python'] else None
 
         self.assertGreater(abs(me_cpp), 0., 'C++ ME is zero – unexpected')
@@ -1038,6 +1068,14 @@ class TestMultiLanguageComparison(unittest.TestCase):
                         'Fortran and C++ SA disagree for g g > t t~: '
                         'F=%g  C++=%g  rel_diff=%g'
                         % (me_f, me_cpp, rel_diff))
+
+        # MG7 SA must agree with Fortran when the madmatrix backend ran.
+        if me_mg7 is not None:
+            rel_mg7_f = abs(me_f - me_mg7) / abs(me_f)
+            self.assertLess(rel_mg7_f, 1e-4,
+                            'MG7 and Fortran SA disagree for g g > t t~: '
+                            'MG7=%g  F=%g  rel_diff=%g'
+                            % (me_mg7, me_f, rel_mg7_f))
 
         # Python must also agree if it ran successfully.
         self.assertIsNotNone(me_py, 'Python evaluation failed for g g > t t~')

@@ -4031,6 +4031,7 @@ def check_language(process_definition, param_card=None, options=None,
         ``'process'``       – :class:`base_objects.Process`,
         ``'value_fortran'`` – ``{'m2': float}`` or ``None``,
         ``'value_cpp'``     – ``{'m2': float}`` or ``None``,
+        ``'value_mg7'``     – ``{'m2': float}`` or ``None``,
         ``'value_python'``  – ``{'m2': float}`` or ``None``,
         ``'momenta'``       – phase-space point (list of 4-vectors) or ``None``.
     """
@@ -4054,6 +4055,17 @@ def check_language(process_definition, param_card=None, options=None,
                         cmd.options.get('fortran_compiler')) or 'gfortran'
     cpp_compiler     = (hasattr(cmd, 'options') and
                         cmd.options.get('cpp_compiler'))     or 'g++'
+
+    # MG7 (standalone_mg7 / madmatrix) availability: needs the madmatrix
+    # package, a C++ compiler and make.  Its check_sa.exe "matrix" mode
+    # evaluates the same phase-space point as the Fortran/C++ drivers and
+    # prints the per-flavor PDG / matrix-element lines in the same format.
+    try:
+        from madmatrix import output as madmatrix_output
+        from madmatrix import model_handling as madmatrix_model_handling
+        has_mg7 = has_cpp and bool(misc.which('make'))
+    except ImportError:
+        has_mg7 = False
 
     # Ensure Template/LO/Source/make_opts exists (written on first MG5 run).
     make_opts     = pjoin(MG5DIR, 'Template', 'LO', 'Source', 'make_opts')
@@ -4237,6 +4249,8 @@ def check_language(process_definition, param_card=None, options=None,
     # tuple.  All individual-flavor procs share the same matrix element code.
     sa_f_output_cache   = {}
     sa_cpp_output_cache = {}
+    # Cache of MG7 (standalone_mg7) check_sa.exe matrix-mode output text.
+    sa_mg7_output_cache = {}
 
     energy_str = str(energy)
 
@@ -4360,13 +4374,65 @@ def check_language(process_definition, param_card=None, options=None,
 
             out_cpp_text = sa_cpp_output_cache.get(sa_key)
 
+        # ── MG7 SA (standalone_mg7 / madmatrix) ──────────────────────────────
+        out_mg7_text = None
+        if has_mg7:
+            if sa_key not in sa_mg7_output_cache:
+                sa_mg7_output_cache[sa_key] = None
+                parent_mg7 = tempfile.mkdtemp(prefix='mg5_langcheck_mg7_')
+                sa_dir_mg7 = pjoin(parent_mg7, 'sa_mg7')
+                try:
+                    opt_mg7 = {'export_format': 'standalone_mg7',
+                               'mp': False, 'v5_model': True,
+                               'cpp_compiler': cpp_compiler,
+                               'output_options': {}}
+                    exporter_mg7 = madmatrix_output.\
+                        ProcessExporterMadMatrixStandalone(sa_dir_mg7, opt_mg7)
+                    mg7_writer = madmatrix_model_handling.\
+                        MadMatrixUFOHelasCallWriter(model)
+                    exporter_mg7.copy_template(model)
+                    me_mg7 = copy.deepcopy(me)
+                    exporter_mg7.generate_subprocess_directory(me_mg7,
+                                                               mg7_writer, 0)
+                    exporter_mg7.convert_model(model, wl, wc)
+                    exporter_mg7.finalize({'matrix_elements': [me_mg7]}, '',
+                                          mg5opt, ['nojpeg'])
+                    p_dirs_mg7 = sorted([
+                        d for d in os.listdir(pjoin(sa_dir_mg7, 'SubProcesses'))
+                        if d.startswith('P') and
+                        os.path.isdir(pjoin(sa_dir_mg7, 'SubProcesses', d))])
+                    if p_dirs_mg7:
+                        check_dir_mg7 = pjoin(sa_dir_mg7, 'SubProcesses',
+                                              p_dirs_mg7[0])
+                        with open(os.devnull, 'w') as devnull:
+                            ret = subprocess.call(['make'], cwd=check_dir_mg7,
+                                                  stdout=devnull,
+                                                  stderr=devnull)
+                        if ret == 0:
+                            try:
+                                out_mg7 = subprocess.check_output(
+                                    ['./check_sa.exe', 'matrix', energy_str],
+                                    cwd=check_dir_mg7,
+                                    stderr=subprocess.STDOUT).decode()
+                                sa_mg7_output_cache[sa_key] = out_mg7
+                            except Exception:
+                                pass
+                except Exception as err:
+                    logger.info("Language check: MG7 SA failed for %s: %s"
+                                % (proc.nice_string(), err))
+                finally:
+                    shutil.rmtree(parent_mg7, ignore_errors=True)
+
+            out_mg7_text = sa_mg7_output_cache.get(sa_key)
+
         # ── per-flavor comparison ─────────────────────────────────────────────
-        # Parse ALL PDG blocks from both SA outputs and match by PDG tuple so
+        # Parse ALL PDG blocks from the SA outputs and match by PDG tuple so
         # that merged-particle processes (e.g. _quark _anti_quark > z g) are
         # compared flavor-by-flavor: u u~ > z g, d d~ > z g, etc.
         from collections import OrderedDict as _OD
         flavors_f   = _parse_all_flavors_dict(out_f_text)   if out_f_text   else _OD()
         flavors_cpp = _parse_all_flavors_dict(out_cpp_text) if out_cpp_text else _OD()
+        flavors_mg7 = _parse_all_flavors_dict(out_mg7_text) if out_mg7_text else _OD()
 
         # Build the Python phase-space point using the same RAMBO RNG seed as
         # check_sa (Fortran/C++), so all backends compare on the same point.
@@ -4381,9 +4447,11 @@ def check_language(process_definition, param_card=None, options=None,
             if not sa_momenta:
                 sa_momenta = None
 
-        # Union of PDG keys in order: Fortran first, then any C++-only keys.
+        # Union of PDG keys in order: Fortran first, then any keys seen only
+        # by the C++ or MG7 backends.
         all_keys = list(dict.fromkeys(
-            list(flavors_f.keys()) + list(flavors_cpp.keys())))
+            list(flavors_f.keys()) + list(flavors_cpp.keys()) +
+            list(flavors_mg7.keys())))
 
         # ── Python evaluation per PDG tuple ───────────────────────────────────
         # Run the Python back-end with the same phase-space point as Fortran/
@@ -4450,6 +4518,7 @@ def check_language(process_definition, param_card=None, options=None,
                 'process_label':  proc.base_string(),
                 'value_fortran':  None,
                 'value_cpp':      None,
+                'value_mg7':      None,
                 'value_python':   None,
                 'momenta':        sa_momenta,
             })
@@ -4457,6 +4526,7 @@ def check_language(process_definition, param_card=None, options=None,
             for key in all_keys:
                 me_f_val   = flavors_f.get(key)
                 me_cpp_val = flavors_cpp.get(key)
+                me_mg7_val = flavors_mg7.get(key)
                 me_py_val  = py_values.get(key)
 
                 if key is None:
@@ -4469,6 +4539,7 @@ def check_language(process_definition, param_card=None, options=None,
                     'process_label':  label,
                     'value_fortran':  {'m2': me_f_val}   if me_f_val   is not None else None,
                     'value_cpp':      {'m2': me_cpp_val} if me_cpp_val is not None else None,
+                    'value_mg7':      {'m2': me_mg7_val} if me_mg7_val is not None else None,
                     'value_python':   {'m2': me_py_val}  if me_py_val  is not None else None,
                     'momenta':        sa_momenta,
                 })
@@ -4478,7 +4549,7 @@ def check_language(process_definition, param_card=None, options=None,
 
 
 def output_language(comparison_results, output='text'):
-    """Present the results of a Fortran SA / C++ SA / Python cross-check.
+    """Present the results of a Fortran SA / C++ SA / MG7 SA / Python cross-check.
 
     Parameters
     ----------
@@ -4509,6 +4580,7 @@ def output_language(comparison_results, output='text'):
     res_str = (fixed_string_length(process_header, proc_col_size) +
                fixed_string_length("Fortran SA", col_size) +
                fixed_string_length("C++ SA", col_size) +
+               fixed_string_length("MG7 SA", col_size) +
                fixed_string_length("Python", col_size) +
                fixed_string_length("max rel.diff.", col_size) +
                "Result")
@@ -4531,27 +4603,33 @@ def output_language(comparison_results, output='text'):
         proc    = entry.get('process_label', entry['process'].base_string())
         val_f   = entry['value_fortran']
         val_cpp = entry['value_cpp']
+        val_mg7 = entry.get('value_mg7')
         val_py  = entry.get('value_python')
 
         me_f   = val_f['m2']   if val_f   is not None else None
         me_cpp = val_cpp['m2'] if val_cpp is not None else None
+        me_mg7 = val_mg7['m2'] if val_mg7 is not None else None
         me_py  = val_py['m2']  if val_py  is not None else None
 
         # Pairwise relative differences across the available backends.
         diffs = [d for d in (
             _reldiff(me_f, me_cpp),
+            _reldiff(me_f, me_mg7),
             _reldiff(me_f, me_py),
+            _reldiff(me_cpp, me_mg7),
             _reldiff(me_cpp, me_py),
+            _reldiff(me_mg7, me_py),
         ) if d is not None]
         max_diff = max(diffs) if diffs else None
 
         row = ('\n' + fixed_string_length(proc, proc_col_size) +
                fixed_string_length(_fmt(me_f),   col_size) +
                fixed_string_length(_fmt(me_cpp), col_size) +
+               fixed_string_length(_fmt(me_mg7), col_size) +
                fixed_string_length(_fmt(me_py),  col_size) +
                fixed_string_length(_fmt_diff(max_diff), col_size))
 
-        n_available = sum(v is not None for v in (me_f, me_cpp, me_py))
+        n_available = sum(v is not None for v in (me_f, me_cpp, me_mg7, me_py))
 
         if n_available == 0:
             no_check_proc += 1
