@@ -423,6 +423,10 @@ class MG5Runner(MadEventRunner):
     mg5_path = ""
     name = 'MadGraph v5'
     type = 'v5'
+    # Output mode passed to the ``output`` command. Pinned to the Fortran
+    # madevent exporter here; subclasses may override to exercise another
+    # exporter (e.g. the current default 'mg7').
+    output_format = 'madevent'
         
 
     def setup(self, mg5_path, temp_dir=None):
@@ -494,8 +498,12 @@ class MG5Runner(MadEventRunner):
             v5_string += 'add process ' + proc + ' ' + couplings + \
                          '@%i' % i + '\n'
 
-        v5_string += "output %s -f\n" % \
-                     os.path.join(self.mg5_path, self.temp_dir_name)
+        # Force the Fortran madevent exporter: this runner drives the output
+        # through ``launch -i`` and parses madevent cross-sections, so it must
+        # not use MadGraph7's default output mode (now 'mg7').
+        v5_string += "output %s %s -f\n" % \
+                     (self.output_format,
+                      os.path.join(self.mg5_path, self.temp_dir_name))
         v5_string += "launch -i --multicore\n"
         v5_string += " set automatic_html_opening False\n"
         v5_string += "edit_cards\n"
