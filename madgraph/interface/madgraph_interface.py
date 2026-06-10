@@ -1745,6 +1745,9 @@ This will take effect only in a NEW terminal
         if args and args[0] == 'madweight':
             raise self.InvalidCmd('output madweight is no longer supported; please use a different output mode')
 
+        if args and args[0] == 'pythia8':
+            raise self.InvalidCmd('output pythia8 is no longer supported; please use a different output mode')
+
         if args and args[0] in self._export_formats:
             self._export_format = args.pop(0)
         elif args:
@@ -3061,7 +3064,7 @@ class MadGraphCmd(HelpToCmd, CheckValidForCmd, CompleteForCmd, CmdExtended):
 
     _v4_export_formats = ['madevent', 'standalone', 'standalone_msP','standalone_msF',
                           'matrix', 'standalone_rw']
-    _export_formats = _v4_export_formats + ['standalone_cpp', 'pythia8', 'aloha',
+    _export_formats = _v4_export_formats + ['standalone_cpp', 'aloha',
                                             'matchbox_cpp', 'matchbox', 'mg7_v5', 'mg7',
                                             'standalone_mg7']
     _set_options = ['group_subprocesses',
@@ -3259,7 +3262,7 @@ class MadGraphCmd(HelpToCmd, CheckValidForCmd, CompleteForCmd, CmdExtended):
 
         self._v4_export_formats = ['madevent', 'standalone','standalone_msP','standalone_msF',
                                    'matrix', 'standalone_rw']
-        self._export_formats = self._v4_export_formats + ['standalone_cpp', 'pythia8', 'mg7_v5', 'mg7', 'standalone_mg7']
+        self._export_formats = self._v4_export_formats + ['standalone_cpp', 'mg7_v5', 'mg7', 'standalone_mg7']
         self._nlo_modes_for_completion = ['all','virt','real']
 
     def do_quit(self, line):
