@@ -1953,9 +1953,9 @@ class TestMEfromfile(unittest.TestCase):
         set automatic_html_opening False --no_save
         set notification_center False --no_save
         generate p p > mu+ mu- j
-        output %(path)s
+        output madevent %(path)s
         launch
-        shower=OFF    
+        shower=OFF
         set nevents 10000
         set ickkw 1
         set xqcut 10
