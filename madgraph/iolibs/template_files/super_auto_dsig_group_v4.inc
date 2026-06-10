@@ -200,7 +200,7 @@ C      all, then we pick a point based on PDF only.
         DO J=1,SYMCONF(0)
           DO I=1,MAXSPROC
             IF(INIT_MODE.OR.CONFSUB(I,SYMCONF(J)).NE.0) THEN
-              DO K=1,NB_FLAV(IPROC)
+              DO K=1,NB_FLAV(I)
                 DO L=1,2
                   TOTWGT=TOTWGT+SELPROC(L,K,I,J)
                   IF(R.LT.TOTWGT)THEN
@@ -367,7 +367,7 @@ c     ENDIF
          DO I=(CURR_WARP-1)*WARP_SIZE+1,CURR_WARP*WARP_SIZE
         IF(ALL_OUT(I).GT.0d0)THEN
 C     Update summed weight and number of events
-             SUMWGT(IMIRROR_VEC(CURR_WARP),IPROC,IFLAV_VEC(CURR_WARP),ICONF_VEC(CURR_WARP))=SUMWGT(IMIRROR_VEC(CURR_WARP),IFLAV_VEC(CURR_WARP),IPROC,ICONF_VEC(CURR_WARP))+DABS(ALL_OUT(I)*ALL_WGT(I))
+             SUMWGT(IMIRROR_VEC(CURR_WARP),IFLAV_VEC(CURR_WARP),IPROC,ICONF_VEC(CURR_WARP))=SUMWGT(IMIRROR_VEC(CURR_WARP),IFLAV_VEC(CURR_WARP),IPROC,ICONF_VEC(CURR_WARP))+DABS(ALL_OUT(I)*ALL_WGT(I))
              NUMEVTS(IMIRROR_VEC(CURR_WARP),IFLAV_VEC(CURR_WARP),IPROC,ICONF_VEC(CURR_WARP))=NUMEVTS(IMIRROR_VEC(CURR_WARP),IFLAV_VEC(CURR_WARP),IPROC,ICONF_VEC(CURR_WARP))+1
             ENDIF  
          ENDDO
@@ -472,6 +472,10 @@ C      COMMON/TO_PDF/LHAID,PDLABEL,EPA_LABEL
       include 'vector.inc' ! defines VECSIZE_MEMMAX
       include 'coupl.inc' ! needs VECSIZE_MEMMAX (defined in vector.inc)
       include 'run.inc'
+C     multi_channel controls whether to apply multi-channel permutations
+      INTEGER ISUM_HEL
+      LOGICAL MULTI_CHANNEL
+      COMMON/TO_MATRIX/ISUM_HEL, MULTI_CHANNEL
 C   ICONFIG has this config number
       INTEGER MAPCONFIG(0:LMAXCONFIGS), ICONFIG
       COMMON/TO_MCONFIGS/MAPCONFIG, ICONFIG
@@ -525,6 +529,10 @@ C       Set up process information from file symfact
         LUN=NEXTUNOPEN()
         IPROC=1
         SYMCONF(IPROC)=ICONFIG
+        IF (.NOT.MULTI_CHANNEL) THEN
+          SYMCONF(0)=IPROC
+          RETURN
+        ENDIF
         OPEN(UNIT=LUN,FILE='../symfact.dat',STATUS='OLD',ERR=20)
         DO WHILE(.TRUE.)
           READ(LUN,*,ERR=10,END=10) XDUM, ICONF

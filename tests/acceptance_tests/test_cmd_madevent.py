@@ -94,8 +94,21 @@ class TestMECmdShell(unittest.TestCase):
 
         if self.path != pjoin(MG5DIR, "tmp_test"):
             shutil.rmtree(self.path)
-        if logging.getLogger('madgraph').level <= 20:
+        stdout = getattr(self, 'stdout', None)
+        if stdout not in [None, sys.stdout, sys.stderr] and not stdout.closed:
             self.stdout.close() 
+
+    def get_stdout(self):
+        stdout = getattr(self, 'stdout', None)
+        if logging.getLogger('madgraph').level >= 20:
+            if stdout is None or stdout.closed:
+                self.stdout = open(os.devnull, 'w')
+        elif getattr(sys.stdout, 'closed', False):
+            if stdout is None or stdout.closed or stdout == sys.stdout:
+                self.stdout = open(os.devnull, 'w')
+        else:
+            self.stdout = sys.stdout
+        return self.stdout
     
     def generate(self, process, model):
         """Create a process"""
@@ -169,10 +182,11 @@ class TestMECmdShell(unittest.TestCase):
             run_card.write(pjoin(self.out_dir, 'Cards', 'run_card.dat'))
             
             # Compile the code
-            subprocess.Popen(['make'], cwd=pjoin(self.out_dir, 'Source'), stdout=self.stdout, stderr=self.stdout).wait()
+            stdout = self.get_stdout()
+            subprocess.Popen(['make'], cwd=pjoin(self.out_dir, 'Source'), stdout=stdout, stderr=stdout).wait()
             subprocess.Popen(['make', 'madevent_forhel'],                         
                              cwd=pjoin(self.out_dir, 'SubProcesses', 'P1_qg_llqqq'),
-                             stdout=self.stdout, stderr=self.stdout).wait()
+                             stdout=stdout, stderr=stdout).wait()
             with open(pjoin(self.out_dir, 'SubProcesses', 'P1_qg_llqqq', 'run_config.txt'), 'w') as fsock:  
                 fsock.write('1000 5 3\n')  
                 fsock.write('0.1\n')       # Accuracy
@@ -180,13 +194,13 @@ class TestMECmdShell(unittest.TestCase):
                 fsock.write('1\n')         # Suppress Amplitude 1=yes
                 fsock.write('0\n')         # Helicity Sum/event 0=exact
                 fsock.write('      86\n')
-            fsock.close()
             
+        stdout = self.get_stdout()
         return_code = subprocess.Popen(
             ['./madevent_forhel'],
             cwd=pjoin(self.out_dir, 'SubProcesses', 'P1_qg_llqqq'),
             stdin=open(pjoin(self.out_dir, 'SubProcesses', 'P1_qg_llqqq', 'run_config.txt')),
-            stdout=self.stdout, stderr=self.stdout
+            stdout=stdout, stderr=stdout
         ).wait()
             
         self.assertEqual(return_code, 0)
@@ -496,6 +510,197 @@ class TestMECmdShell(unittest.TestCase):
         #check precision
         self.assertLess(err2 / val2, 0.005)
         self.assertLess(err1 / val1, 0.005)
+
+    def test_madevent_flavor_zjj(self):
+        """Cross-section and initial-state flavor composition for
+        q q > z q q QCD=0 with q = u d (madevent backend).
+
+        With q a merged u/d multiparticle, the grouped matrix element
+        carries per-flavor identical-particle corrections (the BROKEN_SYM
+        factor) and a per-group symmetry/symfact treatment. This pins the
+        total cross-section and the average number of initial-state u and d
+        quarks per event (two partons per event) so a mis-applied symmetry
+        factor is caught.
+        """
+
+        mg_cmd = MGCmd.MasterCmd()
+        mg_cmd.no_notification()
+        mg_cmd.exec_cmd('set automatic_html_opening False --no_save')
+        mg_cmd.exec_cmd('import model sm')
+        mg_cmd.exec_cmd('define q = u d')
+        mg_cmd.exec_cmd('generate q q > z q q QCD=0')
+        mg_cmd.exec_cmd('output %s' % self.run_dir)
+
+        self.cmd_line = MECmd.MadEventCmdShell(me_dir=self.run_dir)
+        self.cmd_line.no_notification()
+        self.cmd_line.exec_cmd('set automatic_html_opening False')
+
+        run_card = banner.RunCardLO(pjoin(self.run_dir, 'Cards', 'run_card.dat'))
+        run_card.set('nevents', 1000, user=True)
+        run_card.write(pjoin(self.run_dir, 'Cards', 'run_card.dat'))
+
+        self.do('launch -f')
+
+        cross = self.cmd_line.results.current['cross']
+        error = self.cmd_line.results.current['error']
+        # Reference 6.124 pb is the sum of the three single-flavor
+        # subprocesses run separately (u u > z u u = 0.353, u d > z u d =
+        # 5.691, d d > z d d = 0.092), i.e. the result free of the merged-q
+        # grouping machinery.
+        self.assertAlmostEqual(cross, 6.124, delta=max(0.1, 5 * error))
+
+        events = lhe_parser.EventFile(pjoin(self.run_dir, 'Events', 'run_01',
+                                            'unweighted_events.lhe.gz'))
+        n_u = n_d = n_events = 0
+        for event in events:
+            n_events += 1
+            for particle in (event[0], event[1]):
+                if abs(particle.pid) == 2:
+                    n_u += 1
+                elif abs(particle.pid) == 1:
+                    n_d += 1
+        self.assertGreater(n_events, 0)
+        # q = u d only: every initial-state parton is a u or a d quark.
+        self.assertEqual(n_u + n_d, 2 * n_events)
+        self.assertAlmostEqual(n_u / n_events, 1.042, delta=0.1)
+        self.assertAlmostEqual(n_d / n_events, 0.958, delta=0.1)
+
+    def test_madevent_flavor_zud(self):
+        """Cross-section and initial-state flavor composition for
+        u q > z u q QCD=0 with q = u d (madevent backend).
+
+        One initial leg is fixed u, the other a merged u/d
+        multiparticle, so the grouped subprocess covers the u u and
+        u d initial states. The grouped matrix element carries per-
+        flavor identical-particle corrections and a per-group
+        symmetry/symfact treatment. This pins the total cross-section
+        and the average number of initial-state u and d quarks per
+        event (two partons per event) so a mis-applied symmetry
+        factor on the u q pattern is caught.
+        """
+
+        mg_cmd = MGCmd.MasterCmd()
+        mg_cmd.no_notification()
+        mg_cmd.exec_cmd('set automatic_html_opening False --no_save')
+        mg_cmd.exec_cmd('import model sm')
+        mg_cmd.exec_cmd('define q = u d')
+        mg_cmd.exec_cmd('generate u q > z u q QCD=0')
+        mg_cmd.exec_cmd('output %s' % self.run_dir)
+
+        self.cmd_line = MECmd.MadEventCmdShell(me_dir=self.run_dir)
+        self.cmd_line.no_notification()
+        self.cmd_line.exec_cmd('set automatic_html_opening False')
+
+        run_card = banner.RunCardLO(pjoin(self.run_dir, 'Cards', 'run_card.dat'))
+        run_card.set('nevents', 1000, user=True)
+        run_card.write(pjoin(self.run_dir, 'Cards', 'run_card.dat'))
+
+        self.do('launch -f')
+
+        cross = self.cmd_line.results.current['cross']
+        error = self.cmd_line.results.current['error']
+        # Reference 3.215 pb is u u > z u u (0.353) + u d > z u d
+        # (2.862) run as separate single-flavor processes, i.e. the
+        # result free of the merged-q grouping machinery on the u q
+        # pattern.
+        self.assertAlmostEqual(cross, 3.215, delta=max(0.1, 5 * error))
+
+        events = lhe_parser.EventFile(pjoin(self.run_dir, 'Events', 'run_01',
+                                            'unweighted_events.lhe.gz'))
+        n_u = n_d = n_events = 0
+        for event in events:
+            n_events += 1
+            for particle in (event[0], event[1]):
+                if abs(particle.pid) == 2:
+                    n_u += 1
+                elif abs(particle.pid) == 1:
+                    n_d += 1
+        self.assertGreater(n_events, 0)
+        # q = u d only: every initial-state parton is a u or a d quark.
+        self.assertEqual(n_u + n_d, 2 * n_events)
+        # One beam is always u; the other is u with weight
+        # 0.353/3.215 and d with weight 2.862/3.215.
+        self.assertAlmostEqual(n_u / n_events, 1+0.353/3.215, delta=0.1)
+        self.assertAlmostEqual(n_d / n_events, 2.862/3.215, delta=0.1)
+
+    def test_madevent_flavor_zud_nogroup(self):
+        """Same physics as test_madevent_flavor_zud with
+        group_subprocesses=False. With grouping disabled, the single-
+        flavor subprocesses run independently and the reference still
+        matches sigma(u u > z u u) + sigma(u d > z u d) ~ 3.215 pb.
+        """
+
+        mg_cmd = MGCmd.MasterCmd()
+        mg_cmd.no_notification()
+        mg_cmd.exec_cmd('set automatic_html_opening False --no_save')
+        mg_cmd.exec_cmd('set group_subprocesses False')
+        mg_cmd.exec_cmd('import model sm')
+        mg_cmd.exec_cmd('define q = u d')
+        mg_cmd.exec_cmd('generate u q > z u q QCD=0')
+        mg_cmd.exec_cmd('output %s' % self.run_dir)
+
+        self.cmd_line = MECmd.MadEventCmdShell(me_dir=self.run_dir)
+        self.cmd_line.no_notification()
+        self.cmd_line.exec_cmd('set automatic_html_opening False')
+
+        run_card = banner.RunCardLO(pjoin(self.run_dir, 'Cards', 'run_card.dat'))
+        run_card.set('nevents', 1000, user=True)
+        run_card.write(pjoin(self.run_dir, 'Cards', 'run_card.dat'))
+
+        self.do('launch -f')
+
+        cross = self.cmd_line.results.current['cross']
+        error = self.cmd_line.results.current['error']
+        self.assertAlmostEqual(cross, 3.215, delta=max(0.1, 5 * error))
+
+        events = lhe_parser.EventFile(pjoin(self.run_dir, 'Events', 'run_01',
+                                            'unweighted_events.lhe.gz'))
+        n_u = n_d = n_events = 0
+        for event in events:
+            n_events += 1
+            for particle in (event[0], event[1]):
+                if abs(particle.pid) == 2:
+                    n_u += 1
+                elif abs(particle.pid) == 1:
+                    n_d += 1
+        self.assertGreater(n_events, 0)
+        self.assertEqual(n_u + n_d, 2 * n_events)
+        self.assertAlmostEqual(n_u / n_events, 1+0.353/3.215, delta=0.1)
+        self.assertAlmostEqual(n_d / n_events, 2.862/3.215, delta=0.1)
+
+    def test_madevent_merged_flavor_uq(self):
+        """Cross-section for u q > u q QCD=0 with q = u d (madevent backend).
+
+        One initial leg is a fixed u, the other a merged u/d multiparticle,
+        so the subprocess covers the u u and u d initial states. Running the
+        two flavors separately (no merged multiparticle) gives 4428 pb; the
+        merged-flavor path must reproduce that. This pins the cross-section
+        so a mis-applied PDF convolution or symmetry factor is caught.
+        """
+
+        mg_cmd = MGCmd.MasterCmd()
+        mg_cmd.no_notification()
+        mg_cmd.exec_cmd('set automatic_html_opening False --no_save')
+        mg_cmd.exec_cmd('import model sm')
+        mg_cmd.exec_cmd('define q = u d')
+        mg_cmd.exec_cmd('generate u q > u q QCD=0')
+        mg_cmd.exec_cmd('output %s' % self.run_dir)
+
+        self.cmd_line = MECmd.MadEventCmdShell(me_dir=self.run_dir)
+        self.cmd_line.no_notification()
+        self.cmd_line.exec_cmd('set automatic_html_opening False')
+
+        run_card = banner.RunCardLO(pjoin(self.run_dir, 'Cards', 'run_card.dat'))
+        run_card.set('nevents', 1000, user=True)
+        run_card.write(pjoin(self.run_dir, 'Cards', 'run_card.dat'))
+
+        self.do('launch -f')
+
+        cross = self.cmd_line.results.current['cross']
+        error = self.cmd_line.results.current['error']
+        # Reference 4428 pb is u u > u u plus u d > u d run as separate
+        # single-flavor processes (no merged multiparticle).
+        self.assertAlmostEqual(cross, 4428.0, delta=max(30.0, 5 * error))
 
     def test_flavor_grouping_consistency(self):
         """Check that the four combinations of 'apply_flavor_grouping' and
@@ -923,7 +1128,8 @@ class TestMECmdShell(unittest.TestCase):
         val1 = self.cmd_line.results.current['cross']
         err1 = self.cmd_line.results.current['error']
         
-        target = 0.003795
+        #target = 0.003795
+        target =0.003837 # value from v3.7.2 for 250k events
         self.assertTrue(abs(val1 - target) / err1 < 2., 'large diference between %s and %s +- %s (%s sigma)'%
                         (target, val1, err1, abs(val1 - target) / err1))
 
@@ -1529,18 +1735,20 @@ class TestMEfromfile(unittest.TestCase):
         command.close()
         
         fsock = open(pjoin(self.path, 'madspin_card.dat'), 'w')
-        fsock.write("""decay w+ > j j
+        fsock.write("""set spinmode madspin
+        decay w+ > j j
         decay w- > e- ve~
         launch
         """)
         fsock.close()
         fsock = open(pjoin(self.path, 'madspin_card2.dat'), 'w')
-        fsock.write("""decay w+ > j j
+        fsock.write("""set spinmode madspin
+        decay w+ > j j
         decay w- > j j
         launch
         """)
-        fsock.close()                
-        subprocess.call([sys.executable, pjoin(_file_path, os.path.pardir,'bin','mg5_aMC'), 
+        fsock.close()
+        subprocess.call([sys.executable, pjoin(_file_path, os.path.pardir,'bin','mg5_aMC'),
                          pjoin(self.path, 'cmd')],
                          cwd=pjoin(_file_path, os.path.pardir),
                         stdout=stdout,stderr=stdout)     
@@ -1551,13 +1759,169 @@ class TestMEfromfile(unittest.TestCase):
         #logger.info('\nMS info: the number of events in the html file is not (always) correct after MS\n')
         self.check_parton_output('run_01_decayed_2', cross=100521.52517, error=8e+02,target_event=1000)
         self.check_pythia_output(run_name='run_01_decayed_1')
-        
+
         #check the first decayed events for energy-momentum conservation.
-        
-        
+
+
         self.assertEqual(cwd, os.getcwd())
-        
-        
+
+
+    def test_w_production_with_PA_decay(self):
+        """A run to test MadSpin PA (pole-approximation/density) mode on p p > w+ / w-.
+
+        Inline-only counterpart of test_w_production_with_PA_decay_inline_then_offline.
+        Exercises the new PA path through run_onshell(density_method=True).
+        The madspin card has different BRs for w+ (-> j j) vs w- (-> e- ve~)
+        and therefore exercises the BR-equalization / loose-decay branch
+        (events with the smaller-BR pdg are dropped to keep the output
+        unweighted).
+        """
+
+        cwd = os.getcwd()
+
+        if logging.getLogger('madgraph').level <= 20:
+            stdout=None
+            stderr=None
+        else:
+            devnull =open(os.devnull,'w')
+            stdout=devnull
+            stderr=devnull
+
+        if logging.getLogger('madgraph').level > 20:
+            stdout = devnull
+        else:
+            stdout= None
+
+        #
+        #  START REAL CODE
+        #
+        command = open(pjoin(self.path, 'cmd'), 'w')
+        command.write("""import model sm
+        set automatic_html_opening False --no_save
+        set notification_center False --no_save
+        generate p p > w+
+        add process p p > w-
+        output %(path)s
+        launch
+        madspin=ON
+        analysis=OFF
+        shower=OFF
+        %(path)s/../madspin_card.dat
+        set nevents 1000
+        set lhaid 10042
+        set pdlabel lhapdf
+        """ % {'path':self.run_dir})
+        command.close()
+
+        fsock = open(pjoin(self.path, 'madspin_card.dat'), 'w')
+        fsock.write("""set spinmode PA
+        decay w+ > j j
+        decay w- > e- ve~
+        launch
+        """)
+        fsock.close()
+        subprocess.call([sys.executable, pjoin(_file_path, os.path.pardir,'bin','mg5_aMC'),
+                         pjoin(self.path, 'cmd')],
+                         cwd=pjoin(_file_path, os.path.pardir),
+                        stdout=stdout,stderr=stdout)
+
+        # Parton-level production reference (unchanged from the madspin test).
+        self.check_parton_output(cross=150770.0, error=7.4e+02, target_event=1000)
+        # Mixed-BR case: BR equalization drops the w- -> e- ve~ events so the
+        # effective BR is ~ (sigma_w+ * BR(w+->jj) + sigma_w- * BR(w-->eve)) / sigma_tot,
+        # matching the legacy madspin result up to MC noise.
+        self.check_parton_output('run_01_decayed_1', cross=66344.2066122, error=1.5e+03,
+                                 target_event=666, delta_event=80)
+
+        self.assertEqual(cwd, os.getcwd())
+
+
+    def test_w_production_with_PA_decay_inline_then_offline(self):
+        """PA-mode MadSpin run inline first with one set of decay channels,
+        then again offline via ``decay_events`` with a different set of
+        channels, on a mixed w+/w- sample.
+
+        Mirrors ``test_w_production_with_ms_decay`` (same inline+offline
+        sequence on the legacy ``spinmode=madspin`` path).
+
+        Used to raise ``KeyError: (-24, 1, -2)`` in ``get_pdir`` because
+        every MadSpin instance compiled its matrix elements to the same
+        ``madspin_me/SubProcesses/`` directory, and macOS' ``dlopen``
+        caches loaded libraries by install_name
+        (``@rpath/liball_2me.dylib``) — the second run kept reusing the
+        first run's already-loaded matrix elements regardless of what was
+        on disk. Fixed by giving each MadSpinInterface instance a unique
+        ``madspin_me_<N>`` output subdir and patching the dylib's
+        install_name with ``install_name_tool`` so each run gets a fresh
+        in-memory library.
+        """
+
+        cwd = os.getcwd()
+
+        if logging.getLogger('madgraph').level <= 20:
+            stdout=None
+            stderr=None
+        else:
+            devnull =open(os.devnull,'w')
+            stdout=devnull
+            stderr=devnull
+
+        if logging.getLogger('madgraph').level > 20:
+            stdout = devnull
+        else:
+            stdout= None
+
+        command = open(pjoin(self.path, 'cmd'), 'w')
+        command.write("""import model sm
+        set automatic_html_opening False --no_save
+        set notification_center False --no_save
+        generate p p > w+
+        add process p p > w-
+        output %(path)s
+        launch
+        madspin=ON
+        analysis=OFF
+        shower=OFF
+        %(path)s/../madspin_card.dat
+        set nevents 1000
+        set lhaid 10042
+        set pdlabel lhapdf
+        launch -i
+        decay_events run_01
+        %(path)s/../madspin_card2.dat
+        """ % {'path':self.run_dir})
+        command.close()
+
+        fsock = open(pjoin(self.path, 'madspin_card.dat'), 'w')
+        fsock.write("""set spinmode PA
+        decay w+ > j j
+        decay w- > e- ve~
+        launch
+        """)
+        fsock.close()
+        fsock = open(pjoin(self.path, 'madspin_card2.dat'), 'w')
+        fsock.write("""set spinmode PA
+        decay w+ > j j
+        decay w- > j j
+        launch
+        """)
+        fsock.close()
+        subprocess.call([sys.executable, pjoin(_file_path, os.path.pardir,'bin','mg5_aMC'),
+                         pjoin(self.path, 'cmd')],
+                         cwd=pjoin(_file_path, os.path.pardir),
+                        stdout=stdout,stderr=stdout)
+
+        self.check_parton_output(cross=150770.0, error=7.4e+02, target_event=1000)
+        # Mixed-BR card: BR equalization drops part of the w- -> e- ve~ events.
+        self.check_parton_output('run_01_decayed_1', cross=66344.2066122, error=1.5e+03,
+                                 target_event=666, delta_event=80)
+        # Identical-BR card: no drops.
+        self.check_parton_output('run_01_decayed_2', cross=100521.52517, error=8e+02,
+                                 target_event=1000)
+
+        self.assertEqual(cwd, os.getcwd())
+
+
     def test_DY_onejet(self):
         """
         This test is checking that the scale in auto_dsig are correctly assigned
