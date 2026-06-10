@@ -19,7 +19,11 @@ else:
         lhapdf.setVerbosity(0)
         PDF_PATH = lhapdf.paths()[0]
     except ImportError:
-        raise RuntimeError("Can't load lhapdf module. Please set LHAPDF_DATA_PATH manually")
+        # Do not abort at import time: lhapdf is only needed when a PDF grid is
+        # actually loaded (see PdfGrid/AlphaSGrid below). Leave PDF_PATH unset
+        # so that code paths which do not require an external PDF still work;
+        # the missing-lhapdf error is raised lazily at the point of use.
+        PDF_PATH = None
 
 import madspace as ms
 from models.check_param_card import ParamCard
@@ -262,6 +266,8 @@ class MadgraphProcess:
         )
 
         pdf_set = beam_args["pdf"]
+        if PDF_PATH is None:
+            raise RuntimeError("Can't load lhapdf module. Please set LHAPDF_DATA_PATH manually")
         self.pdf_grid = ms.PdfGrid(os.path.join(PDF_PATH, pdf_set, f"{pdf_set}_0000.dat"))
         self.alphas_grid = ms.AlphaSGrid(os.path.join(PDF_PATH, pdf_set, f"{pdf_set}.info"))
         for context in self.contexts:

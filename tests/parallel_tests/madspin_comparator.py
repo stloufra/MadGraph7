@@ -280,7 +280,11 @@ class MadSpinFactory(object):
         for mp_name, mp_def in self.multiparticles.items():
             lines.append('define %s = %s' % (mp_name, mp_def))
         lines.append('generate %s' % self.production_process)
-        lines.append('output %s' % self.proc_dir)
+        # Force the Fortran madevent generator: these tests need a standard
+        # LHE production to feed MadSpin, and MadGraph7's default output mode
+        # is now 'mg7' (whose launcher requires lhapdf and does not produce a
+        # plain unweighted_events.lhe here).
+        lines.append('output madevent %s' % self.proc_dir)
         lines.append('launch %s' % self.proc_dir)
         lines.append('madspin=OFF')  # MadSpin runs separately, mode by mode
         lines.append('shower=OFF')
