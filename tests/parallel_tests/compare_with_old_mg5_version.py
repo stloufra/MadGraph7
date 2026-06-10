@@ -217,13 +217,11 @@ class OLDMG5Comparator(unittest.TestCase):
         """Cross-check the total cross-section of the current default ('mg7')
         exporter / madspace integrator against the Fortran madevent result for
         the same process, using a run_card matched to the mg7 defaults (13 TeV,
-        NNPDF23_lo, dynamical HT/2 scale, identical jet cuts).
+        same NNPDF23_lo LHAPDF set, dynamical HT/2 scale, identical jet cuts).
 
-        Skipped when the mg7 runtime stack is unavailable, or when the mg7
-        survey produces no valid cross-section (NaN/0 -- the dynamical-scale
-        path in madspace is not yet reliable for all processes).
+        Skipped only when the mg7 runtime stack is unavailable; a
+        finite-but-disagreeing mg7 result is a real failure.
         """
-        import math
         if 'v4' in model:
             raise Exception('Not implemented')
         if not madevent_comparator.MG7Runner.is_available():
@@ -235,11 +233,8 @@ class OLDMG5Comparator(unittest.TestCase):
             mg7_cross = float(mg7_runner.run(my_proc_list, model, orders)['cross'])
         except madevent_comparator.MadEventRunner.MERunnerException as err:
             mg7_runner.cleanup()
-            self.skipTest('mg7 survey did not run: %s' % err)
+            self.skipTest('mg7 run did not start: %s' % err)
         mg7_runner.cleanup()
-        if not math.isfinite(mg7_cross) or mg7_cross <= 0.:
-            self.skipTest('mg7 survey produced no valid cross-section '
-                          '(%r) -- madspace dynamical-scale issue' % mg7_cross)
 
         me_runner = madevent_comparator.MG5RunnerMG7Aligned()
         me_runner.setup(MG5DIR)
@@ -248,14 +243,6 @@ class OLDMG5Comparator(unittest.TestCase):
 
         self.assertGreater(me_cross, 0., 'madevent reference cross-section is zero')
         rel = abs(mg7_cross - me_cross) / me_cross
-        if rel >= tolerance:
-            # madspace dynamical-scale NaN is fixed (finite mg7 result), but the
-            # run_card-matched mg7/madevent cross-sections are not yet
-            # reconciled; surface as a skip rather than a hard failure.
-            self.skipTest('mg7/madevent cross-section not reconciled: '
-                          'mg7=%g madevent=%g (%.1fx)'
-                          % (mg7_cross, me_cross,
-                             max(mg7_cross, me_cross) / min(mg7_cross, me_cross)))
         self.assertLess(rel, tolerance,
                         'mg7 total cross-section disagrees with madevent: '
                         'mg7=%g madevent=%g rel=%g' % (mg7_cross, me_cross, rel))

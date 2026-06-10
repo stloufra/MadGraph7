@@ -758,6 +758,9 @@ class MG5RunnerMG7Aligned(MG5Runner):
 
     name = 'MadGraph madevent (mg7-aligned)'
     type = 'v5_mg7aligned'
+    # lhaid for NNPDF23_lo_as_0130_qed (the mg7 run_card.toml default PDF), so
+    # both sides use exactly the same LHAPDF set.
+    lhaid = 247000
 
     def format_mg5_proc_card(self, proc_list, model, orders):
         if model != 'mssm':
@@ -778,11 +781,11 @@ class MG5RunnerMG7Aligned(MG5Runner):
         # --- align with the mg7 run_card.toml -------------------------------
         v5_string += "set ebeam1 6500\n"
         v5_string += "set ebeam2 6500\n"
-        # nn23lo1 is the internal NNPDF2.3 LO set, matching the mg7
-        # run_card.toml default NNPDF23_lo_as_0130_qed without going through
-        # the Fortran LHAPDF interface (which trips on a missing
-        # AlphaS_FlavorScheme metadata key for that set here).
-        v5_string += "set pdlabel nn23lo1\n"
+        # Use exactly the mg7 run_card.toml PDF (NNPDF23_lo_as_0130_qed) via
+        # LHAPDF, now that the AlphaS_FlavorScheme metadata hotfix patches the
+        # source set in pdfsets_dir.
+        v5_string += "set pdlabel lhapdf\n"
+        v5_string += "set lhaid %d\n" % self.lhaid
         v5_string += "set dynamical_scale_choice 3\n"   # HT/2 (= half_transverse_mass)
         v5_string += "set auto_ptj_mjj False\n"
         v5_string += "set ptj 20.0\n"

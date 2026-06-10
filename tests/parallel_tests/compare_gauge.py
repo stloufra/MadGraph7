@@ -146,33 +146,26 @@ class GaugeComparator(unittest.TestCase):
         ('mg7') exporter -- driven by the madspace integrator -- against the
         Fortran madevent result for the same process.
 
-        Both runners use a *matched* run_card (e_cm = 13 TeV, NNPDF23_lo PDF,
-        the dynamical HT/2 scale, identical jet cuts), so the cross-sections
-        are directly comparable. The tolerance is loose-ish because the mg7
-        number comes from the survey only (default ~10% target precision).
+        Both runners use a *matched* run_card (e_cm = 13 TeV, the same
+        NNPDF23_lo LHAPDF set, the dynamical HT/2 scale, identical jet cuts),
+        so the cross-sections are directly comparable.
 
-        Skipped when the mg7 runtime stack (madspace + LHAPDF data) is not
-        available in the current environment.
+        Skipped only when the mg7 runtime stack (madspace + LHAPDF data) is not
+        available in the current environment; a finite-but-disagreeing mg7
+        result is a real failure.
         """
-        import math
         if not madevent_comparator.MG7Runner.is_available():
             self.skipTest('mg7 runtime stack (madspace/LHAPDF) not available')
 
-        # mg7 / madspace cross-section (survey).
+        # mg7 / madspace cross-section.
         mg7_runner = madevent_comparator.MG7Runner()
         mg7_runner.setup(MG5DIR)
         try:
             mg7_cross = float(mg7_runner.run(my_proc_list, model, orders)['cross'])
         except madevent_comparator.MadEventRunner.MERunnerException as err:
             mg7_runner.cleanup()
-            self.skipTest('mg7 survey did not run: %s' % err)
+            self.skipTest('mg7 run did not start: %s' % err)
         mg7_runner.cleanup()
-        if not math.isfinite(mg7_cross) or mg7_cross <= 0.:
-            # The dynamical HT/2 scale path in madspace currently surveys to
-            # NaN/0 for some processes; skip until that is fixed rather than
-            # reporting a spurious failure.
-            self.skipTest('mg7 survey produced no valid cross-section '
-                          '(%r) -- madspace dynamical-scale issue' % mg7_cross)
 
         # Fortran madevent reference cross-section, run_card aligned with mg7.
         me_runner = madevent_comparator.MG5RunnerMG7Aligned()
@@ -184,15 +177,6 @@ class GaugeComparator(unittest.TestCase):
                      me_cross, mg7_cross)
         self.assertGreater(me_cross, 0., 'madevent reference cross-section is zero')
         rel = abs(mg7_cross - me_cross) / me_cross
-        if rel >= tolerance:
-            # The madspace dynamical-scale NaN is fixed (mg7 now integrates to a
-            # finite value), but with run_card-matched settings the mg7 and
-            # madevent cross-sections still differ by a large factor that is not
-            # yet reconciled. Surface it as a skip rather than a hard failure.
-            self.skipTest('mg7/madevent cross-section not reconciled: '
-                          'mg7=%g madevent=%g (%.1fx)'
-                          % (mg7_cross, me_cross,
-                             max(mg7_cross, me_cross) / min(mg7_cross, me_cross)))
         self.assertLess(rel, tolerance,
                         'mg7 (madspace) cross-section disagrees with madevent: '
                         'mg7=%g madevent=%g rel=%g' % (mg7_cross, me_cross, rel))
