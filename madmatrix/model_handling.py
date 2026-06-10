@@ -1261,7 +1261,7 @@ class MadMatrixUFOModelConverter(export_cpp.UFOModelConverterGPU):
             replace_dict['dcoupoutdcoup2'] = ''
         # Require HRDCOD=1 in EFT and special handling in EFT for fptype=float using SIMD
         nbsmparam_indep_all_used = len( bsmparam_indep_real_used ) + 2 * len( bsmparam_indep_complex_used )
-        replace_dict['max_flavor'] = max(len(ids) for ids in self.model['merged_particles'].values())
+        replace_dict['max_flavor'] = max((len(ids) for ids in self.model['merged_particles'].values()), default=1)
         replace_dict['bsmdefine'] = '#define MGONGPUCPP_NBSMINDEPPARAM_GT_0 1' if nbsmparam_indep_all_used > 0 else '#undef MGONGPUCPP_NBSMINDEPPARAM_GT_0'
         replace_dict['nbsmip'] = nbsmparam_indep_all_used # NB this is now done also for 'sm' processes (no check on model name, see PR #824)
         replace_dict['hasbsmip'] = '' if nbsmparam_indep_all_used > 0 else '//'
@@ -2096,7 +2096,27 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
             # so we need to subtract 1 because FORTRAN indices starts from 1, and C++ from zero
             cpp_flavors = list(map(lambda f: f-1, flavors[0]))
             flavor_line_list.append( '{ ' + ', '.join(['%d'] * len(cpp_flavors)) % tuple(cpp_flavors) + ' }' )
-        return flavor_line + ',\n    '.join(flavor_line_list) + ' };'
+        out = flavor_line + ',\n    '.join(flavor_line_list) + ' };'
+        # Companion table with the true signed PDG ids of each flavor
+        # combination (same convention as the PDG lines printed by the
+        # Fortran/C++ standalone 'check' drivers); used by CPPProcess::flavorPDG.
+        model = matrix_element.get('processes')[0].get('model')
+        merged = model.get('merged_particles') or {}
+        all_pdgs = [l.get('id') for l in
+                    matrix_element.get('processes')[0].get('legs_with_decays')]
+        pdg_line_list = []
+        for flavors in matrix_element.get_external_flavors_with_iden():
+            row = []
+            for j, flv in enumerate(flavors[0]):
+                raw = all_pdgs[j]
+                if abs(raw) in merged:
+                    row.append(flv if raw >= 0 else -flv)
+                else:
+                    row.append(raw)
+            pdg_line_list.append( '{ ' + ', '.join('%d' % v for v in row) + ' }' )
+        out += ('\n  static constexpr int flavorPDGs[nmaxflavor][npar] = {\n    ' +
+                ',\n    '.join(pdg_line_list) + ' };')
+        return out
 
     def get_reset_jamp_lines(self, color_amplitudes):
         """Get lines to reset jamps"""

@@ -253,10 +253,10 @@ namespace mg5amcCpu
   //--------------------------------------------------------------------------
 
   // PDG id for the given flavor combination and particle index (host side).
-  short
+  int
   CPPProcess::flavorPDG( int iflavor, int ipar )
   {
-    return tFlavors[iflavor][ipar] + 1;
+    return flavorPDGs[iflavor][ipar];
   }
 
   //--------------------------------------------------------------------------
