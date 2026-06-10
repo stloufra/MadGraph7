@@ -2300,6 +2300,7 @@ class ProcessExporterCPP(VirtualExporter):
     
     oneprocessclass = OneProcessExporterCPP
     s= _file_path + 'iolibs/template_files/'
+    dirs_to_create = ['src', 'lib', 'Cards', 'SubProcesses']
     from_template = {'src': [s+'rambo.h', s+'rambo.cc', s+'read_slha.h', s+'read_slha.cc'],
                      'SubProcesses': []}
     to_link_in_P = ['Makefile']
@@ -2845,6 +2846,10 @@ class ProcessExporterMG7(ProcessExporterCPP):
 
     s= _file_path + 'iolibs/template_files/'
     dirs_to_create = ['bin', 'src', 'lib', 'Cards', 'SubProcesses']
+    # mg7_v5 builds api.so in the P* folders (instead of the standalone_cpp
+    # 'check' driver)
+    template_Sub_make = pjoin(_file_path, 'iolibs', 'template_files',
+                              'Makefile_sa_cpp_sp_api')
     from_template = {'src': [s+'read_slha.h', s+'read_slha.cc', s+'mg7/api.h'],
                      'SubProcesses': [s+'mg7/api.cpp'],
                      'Cards': [s+'mg7/run_card.toml']}

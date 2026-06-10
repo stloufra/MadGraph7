@@ -4,14 +4,14 @@ MODELLIB=model_%(model)s
 CXXFLAGS= -O3 -ffast-math -I$(INCDIR) -I. -fPIC
 LIBFLAGS= -L$(LIBDIR) -l$(MODELLIB)
 CXX=%(cpp_compiler)s
-main=check
+main=api.so
 
 all: $(main)
 
-objects=CPPProcess.o check_sa.o
+objects=CPPProcess.o api.o
 
 $(main): $(objects) $(LIBDIR)/lib$(MODELLIB).a
-	$(CXX) -o $@ $(objects) $(LIBFLAGS)
+	$(CXX) -shared -o $@ $(objects) $(LIBFLAGS)
 
 $(LIBDIR)/lib$(MODELLIB).a:
 	cd ../../src
@@ -22,4 +22,3 @@ $(LIBDIR)/lib$(MODELLIB).a:
 clean:
 	rm -f $(target)
 	rm -f $(objects)
-

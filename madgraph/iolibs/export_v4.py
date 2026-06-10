@@ -2708,13 +2708,15 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         flavor_text = ['        FLAVOR(:,:) =1']
         for i in range(1, maxflavor+1):
             for j in range(1,1+len(all_flavors[i-1])):
-                if all_flavors[i-1][j-1] != 1:
-                    pdg = all_flavors[i-1][j-1] * all_pdgs[j-1] // abs(all_pdgs[j-1])
-                    flavor_text.append('FLAVOR(%d,%d) = %d ! PDG = %d' % (j,i,pdg_to_flv_index[all_flavors[i-1][j-1]], all_flavors[i-1][j-1]))
+                # get_external_flavors returns the actual |PDG| for every leg,
+                # so key on whether the leg itself is a merged particle (same
+                # convention as the C++ exporter).
+                flv = all_flavors[i-1][j-1]
+                if abs(all_pdgs[j-1]) in self.model.get('merged_particles'):
+                    pdg = flv * all_pdgs[j-1] // abs(all_pdgs[j-1])
+                    if flv in pdg_to_flv_index:
+                        flavor_text.append('FLAVOR(%d,%d) = %d ! PDG = %d' % (j,i,pdg_to_flv_index[flv], flv))
                     flavor_text.append('PDG_FOR_FLAVOR(%d,%d) = %d' % (j,i,pdg))
-                elif abs(all_pdgs[j-1]) in self.model.get('merged_particles'):
-                    pdg = all_flavors[i-1][j-1] * all_pdgs[j-1] // abs(all_pdgs[j-1])
-                    flavor_text.append('PDG_FOR_FLAVOR(%d,%d) = %d' % (j,i,pdg)) 
                 else:
                     flavor_text.append('PDG_FOR_FLAVOR(%d,%d) = %d' % (j,i, all_pdgs[j-1]))
                     
