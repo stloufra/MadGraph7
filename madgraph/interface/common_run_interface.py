@@ -4721,6 +4721,12 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
             lhapdf_cluster_possibilities = []
 
         for pdfset in pdfsetname:
+            # Patch the *source* set (the one LHAPDF actually loads from its
+            # data path): LHAPDF resolves the set from pdfsets_dir, not from
+            # the local lib/PDFsets copy, so patching only the copy below is
+            # not enough to inject the missing AlphaS_FlavorScheme metadata.
+            # Done here (before the early 'continue's) so it always runs.
+            self.patch_lhapdf_info_file(pjoin(pdfsets_dir, pdfset))
         # Check if we need to copy the pdf
             if self.options["cluster_local_path"] and self.options["run_mode"] == 1 and \
                 any((os.path.exists(pjoin(d, pdfset)) for d in lhapdf_cluster_possibilities)):
