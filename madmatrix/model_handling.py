@@ -2132,6 +2132,11 @@ import madgraph.iolibs.helas_call_writers as helas_call_writers
 # (NB: enable this via ProcessExporterMadMatrix.helas_exporter in output.py - this fixes #341)
 class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
     """ A Custom HelasCallWriter """
+
+    # Flavor-mask optimization: skip wavefunction/amplitude calls that vanish
+    # for the selected flavor (see super_get_matrix_element_calls). Toggled by
+    # the output command's --mask=True|False; default on.
+    use_flavor_mask = True
     # Class structure information
     #  - object
     #  - dict(object) [built-in]
@@ -2355,30 +2360,53 @@ class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
                                    idiag in multi_channel_map[config]], [])]
             diag_to_config[amp[0]] = config
         ###misc.sprint(diag_to_config)
+
+        # Flavor masking (--mask): when merged-particle flavors give some
+        # diagrams that vanish for some flavor combinations, guard the
+        # corresponding wavefunction / amplitude calls with a runtime test on
+        # the scalar iflavor so they are skipped entirely (rather than computed
+        # and multiplied by a zero coupling). The runtime iflavor indexes the
+        # grouped flavors (get_external_flavors_with_iden), so the per-flavor
+        # masks set by compute_flavor_masks() are compressed onto those groups.
+        # NB: this relies on iflavor being constant across a SIMD vector.
+        diag_group_mask, wf_group_mask = self._compute_group_masks(matrix_element)
+
+        def _guard_open(group_mask):
+            # Emit the opening of an `if` guard for a non-full grouped mask.
+            return 'if( ( 0x%xULL >> iflavor ) & 0x1ULL ) {' % group_mask
+
         id_amp = 0
         for diagram in matrix_element.get('diagrams'):
             ###print('DIAGRAM %3d: #wavefunctions=%3d, #diagrams=%3d' %
             ###      (diagram.get('number'), len(diagram.get('wavefunctions')), len(diagram.get('amplitudes')) )) # AV - FOR DEBUGGING
             res.append('\n      // *** DIAGRAM %d OF %d ***' % (diagram.get('number'), len(matrix_element.get('diagrams'))) ) # AV
             res.append('\n      // Wavefunction(s) for diagram number %d' % diagram.get('number')) # AV
-            res.extend([ self.get_wavefunction_call(wf) for wf in diagram.get('wavefunctions') ]) # AV new: avoid format_call
+            for wf in diagram.get('wavefunctions'):
+                call = self.get_wavefunction_call(wf)
+                if call and call[-1] == '\n': call = call[:-1]
+                gmask = wf_group_mask.get(id(wf))
+                if gmask is not None:
+                    res.append(_guard_open(gmask))
+                    res.append(call)
+                    res.append('}')
+                else:
+                    res.append(call)
             if len(diagram.get('wavefunctions')) == 0 : res.append('// (none)') # AV
-            if res[-1][-1] == '\n' : res[-1] = res[-1][:-1]
             res.append('\n      // Amplitude(s) for diagram number %d' % diagram.get('number'))
             for amplitude in diagram.get('amplitudes'):
                 id_amp +=1
                 namp = amplitude.get('number')
                 amplitude.set('number', 1)
-                res.append(self.get_amplitude_call(amplitude)) # AV new: avoid format_call
+                amp_block = [ self.get_amplitude_call(amplitude) ] # AV new: avoid format_call
                 if id_amp in diag_to_config:
                     ###res.append("if( channelId == %i ) numerators_sv += cxabs2( amp_sv[0] );" % diag_to_config[id_amp]) # BUG #472
                     ###res.append("if( channelId == %i ) numerators_sv += cxabs2( amp_sv[0] );" % id_amp) # wrong fix for BUG #472
                     diagnum = diagram.get('number')
-                    res.append("if( storeChannelWeights )")
-                    res.append("{")
-                    res.append("  numerators_sv[%i] += cxabs2( amp_sv[0] );" % (diagnum-1))
-                    res.append("  denominators_sv += cxabs2( amp_sv[0] );")
-                    res.append("}")
+                    amp_block.append("if( storeChannelWeights )")
+                    amp_block.append("{")
+                    amp_block.append("  numerators_sv[%i] += cxabs2( amp_sv[0] );" % (diagnum-1))
+                    amp_block.append("  denominators_sv += cxabs2( amp_sv[0] );")
+                    amp_block.append("}")
                 for njamp, coeff in color[namp].items():
                     scoeff = OneProcessExporterMadMatrix.coeff(*coeff) # AV
                     if scoeff[0] == '+' : scoeff = scoeff[1:]
@@ -2387,11 +2415,72 @@ class MadMatrixUFOHelasCallWriter(helas_call_writers.GPUFOHelasCallWriter):
                     scoeff = scoeff.replace(',',', ')
                     scoeff = scoeff.replace('*',' * ')
                     scoeff = scoeff.replace('/',' / ')
-                    if scoeff.startswith('-'): res.append('jamp_sv[%s] -= %samp_sv[0];' % (njamp, scoeff[1:])) # AV
-                    else: res.append('jamp_sv[%s] += %samp_sv[0];' % (njamp, scoeff)) # AV
+                    if scoeff.startswith('-'): amp_block.append('jamp_sv[%s] -= %samp_sv[0];' % (njamp, scoeff[1:])) # AV
+                    else: amp_block.append('jamp_sv[%s] += %samp_sv[0];' % (njamp, scoeff)) # AV
+                # The amplitude (and the jamp/channel contributions that read its
+                # amp_sv[0]) only contributes for the flavors in the diagram's
+                # mask, so guard the whole block as a unit.
+                gmask = diag_group_mask.get(id(diagram))
+                if gmask is not None:
+                    res.append(_guard_open(gmask))
+                    res.extend(amp_block)
+                    res.append('}')
+                else:
+                    res.extend(amp_block)
             if len(diagram.get('amplitudes')) == 0 : res.append('// (none)') # AV
         ###res.append('\n    // *** END OF DIAGRAMS ***' ) # AV - no longer needed ('COLOR MATRIX BELOW')
         return res
+
+    # AV/OM - compute per-diagram and per-wavefunction flavor masks, projected
+    # onto the grouped flavors used at runtime (iflavor). Returns two dicts
+    # keyed by id(object) -> grouped bitmask, containing only objects whose mask
+    # is NOT all-ones (i.e. that actually benefit from a guard). Both dicts are
+    # empty when masking is disabled (use_flavor_mask False), trivial, or the
+    # process has more than 64 flavor groups.
+    def _compute_group_masks(self, matrix_element):
+        if not getattr(self, 'use_flavor_mask', True):
+            return {}, {}
+        try:
+            allowed = matrix_element.compute_flavor_masks()
+        except Exception:
+            return {}, {}
+        if not allowed or matrix_element.flavor_mask_is_trivial():
+            return {}, {}
+        groups = [list(g) for g in matrix_element.get_external_flavors_with_iden()]
+        n_groups = len(groups)
+        if n_groups == 0 or n_groups > 64:
+            return {}, {}
+        flavor_to_idx = {tuple(f): i for i, f in enumerate(allowed)}
+        group_bits = []
+        for g in groups:
+            bits = 0
+            for fl in g:
+                bits |= (1 << flavor_to_idx[tuple(fl)])
+            group_bits.append(bits)
+        full = (1 << n_groups) - 1
+
+        def to_group(perflavor_mask):
+            gm = 0
+            for gi, gb in enumerate(group_bits):
+                if perflavor_mask & gb:
+                    gm |= (1 << gi)
+            return gm
+
+        diag_group_mask = {}
+        for diag in matrix_element.get('diagrams'):
+            if 'flavor_mask' not in diag:
+                continue
+            gm = to_group(diag['flavor_mask'])
+            if gm != full:
+                diag_group_mask[id(diag)] = gm
+        wf_group_mask = {}
+        for wf in matrix_element.get_all_wavefunctions():
+            if 'flavor_mask' not in wf:
+                continue
+            gm = to_group(wf['flavor_mask'])
+            if gm != full:
+                wf_group_mask[id(wf)] = gm
+        return diag_group_mask, wf_group_mask
 
     # AV - overload helas_call_writers.GPUFOHelasCallWriter method (improve formatting)
     def get_matrix_element_calls(self, matrix_element, color_amplitudes, multi_channel_map):
