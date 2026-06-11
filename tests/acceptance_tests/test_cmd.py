@@ -3323,7 +3323,7 @@ C
         self.do('define q = u d u~ d~')
         self.do('set group_subprocesses True')
         self.do('generate u u~ > g > go go, go > q q n1 / ur dr')
-        self.do('output %s ' % self.out_dir)
+        self.do('output madevent %s ' % self.out_dir)
         self.do('set group_subprocesses False')
         devnull = open(os.devnull,'w')
         # Check that all subprocess directories have been created
