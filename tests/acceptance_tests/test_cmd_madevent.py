@@ -1058,7 +1058,7 @@ class TestMECmdShell(unittest.TestCase):
             mg_cmd.exec_cmd('import model sm')
             mg_cmd.exec_cmd('set group_subprocesses %s' % gsp)
             mg_cmd.exec_cmd('generate z > l+ l-')
-            mg_cmd.exec_cmd('output %s' % run_dir)
+            mg_cmd.exec_cmd('output madevent %s' % run_dir)
 
             self.cmd_line = MECmd.MadEventCmdShell(me_dir=run_dir)
             self.cmd_line.no_notification()
@@ -1144,7 +1144,7 @@ class TestMECmdShell(unittest.TestCase):
 
             # Generate process with flavor-grouped particles
             mg_cmd.exec_cmd('generate q q~ > q q~')
-            mg_cmd.exec_cmd('output %s' % run_dir)
+            mg_cmd.exec_cmd('output madevent %s' % run_dir)
 
             self.cmd_line = MECmd.MadEventCmdShell(me_dir=run_dir)
             self.cmd_line.no_notification()
