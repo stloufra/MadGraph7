@@ -742,6 +742,7 @@ PYBIND11_MODULE(_madspace_py, m) {
             {"random_diagram_in", MatrixElement::random_diagram_in},
             {"helicity_in", MatrixElement::helicity_in},
             {"diagram_in", MatrixElement::diagram_in},
+            {"channel_in", MatrixElement::channel_in},
         }
     );
     add_enum<MatrixElement::MatrixElementOutput>(
