@@ -30,7 +30,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-22.04, ubuntu-24.04]
+        os: [ubuntu-24.04]
 #
     steps:
       - uses: actions/checkout@v5
@@ -62,7 +62,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-22.04, ubuntu-24.04]
+        os: [ubuntu-24.04]
     needs: delete-cache
     steps:
       - name: Set cache key
@@ -81,7 +81,7 @@ jobs:
 
   ufo_cache:
     if: (github.ref_name == '3.x' || github.ref_name == 'test_ci')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: delete-cache
 
     # Steps represent a sequence of tasks that will be executed as part of the job
@@ -115,7 +115,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
      matrix:
-       os: [ubuntu-22.04, ubuntu-24.04]
+       os: [ubuntu-24.04]
 
      # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -161,7 +161,7 @@ jobs:
     needs: lhapdf_cache
     strategy:
      matrix:
-       os: [ubuntu-22.04, ubuntu-24.04]
+       os: [ubuntu-24.04]
 
      # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -216,7 +216,7 @@ jobs:
     needs: lhapdf_cache
     strategy:
      matrix:
-       os: [ubuntu-22.04, ubuntu-24.04]
+       os: [ubuntu-24.04]
 
      # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -255,7 +255,7 @@ jobs:
 #       - emela_cache
 #     strategy:
 #       matrix:
-#         os: [ubuntu-22.04, ubuntu-24.04]
+#         os: [ubuntu-24.04]
 #     steps:
 #       - name: Set cache key                  
 #         run: echo "CACHE_KEY=$ImageOS" >> $GITHUB_ENV
@@ -271,7 +271,7 @@ jobs:
     needs: pythia8_cache
     strategy:
      matrix:
-       os: [ubuntu-22.04, ubuntu-24.04]
+       os: [ubuntu-24.04]
 
      # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -335,7 +335,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
      matrix:
-       os: [ubuntu-22.04, ubuntu-24.04]
+       os: [ubuntu-24.04]
     needs:
     - delete-cache
 
@@ -387,7 +387,7 @@ jobs:
     runs-on: ${{ matrix.os }}       
     strategy:
       matrix:
-        os: [ubuntu-22.04, ubuntu-24.04]
+        os: [ubuntu-24.04]
     needs: [lhapdf_cache, pythia8_cache, emela_cache, looptools_cache, contur_cache]
     steps:
       - name: Set cache key

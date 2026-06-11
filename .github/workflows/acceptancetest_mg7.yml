@@ -31,7 +31,7 @@ concurrency:
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   acceptancetest_mg7_ufo_aloha:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
     steps:
       - uses: actions/checkout@v4
@@ -43,7 +43,7 @@ jobs:
             ./tests/test_manager.py test_mg7_ufo_aloha -pA -t0 -l INFO
 
   acceptancetest_mg7_output_directory:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
     steps:
       - uses: actions/checkout@v4
@@ -55,7 +55,7 @@ jobs:
             ./tests/test_manager.py test_output_mg7_directory -pA -t0 -l INFO
 
   acceptancetest_mg7_ungroup_decay:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
     steps:
       - uses: actions/checkout@v4
@@ -67,7 +67,7 @@ jobs:
             ./tests/test_manager.py test_ungroup_decay_mg7 -pA -t0 -l INFO
 
   acceptancetest_mg7_e_p_collision:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
     steps:
       - uses: actions/checkout@v4
@@ -80,7 +80,7 @@ jobs:
 
   acceptancetest_mg7_leshouche_sextet:
     # xfail: mg7 does not yet generate leshouche.inc (kept on the to-do list)
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
     steps:
       - uses: actions/checkout@v4
@@ -94,7 +94,7 @@ jobs:
 
   acceptancetest_mg7_madspin_mixed_flavor:
     # xfail: mg7 + MadSpin pipeline not wired up yet (kept on the to-do list)
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
     steps:
       - uses: actions/checkout@v4
@@ -109,7 +109,7 @@ jobs:
     # mg7 cross-section run (u u > u u). madspace is installed by checkout_mg5;
     # LHAPDF (incl. NNPDF23_lo_as_0130_qed) comes from the heptools cache.
     # The test self-skips if that stack is unavailable.
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
     steps:
       - uses: actions/checkout@v4
@@ -128,7 +128,7 @@ jobs:
     # merged q = u d multiparticle. This job is expected to be red until the mg7
     # integrator handles merged-flavor processes; it keeps the crash visible.
     # The test self-skips if the madspace + LHAPDF(NNPDF23) stack is unavailable.
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
     steps:
       - uses: actions/checkout@v4
@@ -146,7 +146,7 @@ jobs:
     # only carries a hadron PDF), so e+ e- > e+ e- aborts with
     # "PID 11 not found in pdf grid". Red until mg7 supports lepton beams.
     # Self-skips if the madspace + LHAPDF(NNPDF23) stack is unavailable.
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
     steps:
       - uses: actions/checkout@v4
@@ -164,7 +164,7 @@ jobs:
     # section is ~257x below the physical value (~1.6e6 vs 4.117e8 pb). Red
     # until the mg7 normalisation for the effective ggH coupling is fixed.
     # Self-skips if the madspace + LHAPDF(NNPDF23) stack is unavailable.
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
     steps:
       - uses: actions/checkout@v4
