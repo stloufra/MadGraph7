@@ -68,6 +68,67 @@ def check_html_page(cls, link):
     
 
 #===============================================================================
+# Shared helpers for the mg7 (madspace) cross-section acceptance tests
+# (module-level so they can be used from several test classes)
+#===============================================================================
+def _mg7_datadir_or_skip(test):
+    """Return a usable LHAPDF data dir for mg7 runs, or skipTest (on *test*) if
+    the mg7 runtime stack (madspace + LHAPDF + the run_card.toml default PDF) is
+    not available."""
+    import glob
+    try:
+        import madspace
+        has_mg7 = hasattr(madspace, 'ChannelEventGenerator')
+    except ImportError:
+        has_mg7 = False
+    datadir = os.environ.get('LHAPDF_DATA_PATH')
+    if not datadir:
+        try:
+            datadir = subprocess.check_output(
+                ['lhapdf-config', '--datadir']).decode().strip()
+        except Exception:
+            datadir = None
+    if not has_mg7 or not datadir or not os.path.isdir(datadir):
+        test.skipTest('mg7 runtime stack (madspace + LHAPDF data) unavailable')
+    if not glob.glob(pjoin(datadir, 'NNPDF23_lo_as_0130_qed*')):
+        test.skipTest('NNPDF23_lo_as_0130_qed PDF set not available')
+    return datadir
+
+
+def _run_mg7_xsec(test, setup_cmds, run_dir, datadir):
+    """Run an mg7 cross-section: execute `setup_cmds` (MG5 lines, ending with
+    the generate), `output mg7 run_dir`, drive bin/generate_events with the
+    dynamical HT/2 scale + trimmed event target, and return (cross, error) from
+    the madspace info.json (process.mean / process.error). Assertions are made
+    on the *test* instance."""
+    import glob, json
+    if os.path.isdir(run_dir):
+        shutil.rmtree(run_dir)
+    mg = MGCmd.MasterCmd()
+    mg.no_notification()
+    for c in setup_cmds:
+        mg.exec_cmd(c)
+    mg.exec_cmd('output mg7 %s' % run_dir)
+    toml = pjoin(run_dir, 'Cards', 'run_card.toml')
+    t = open(toml).read()
+    t = t.replace('fixed_ren_scale = true', 'fixed_ren_scale = false')
+    t = t.replace('fixed_fact_scale = true', 'fixed_fact_scale = false')
+    t = re.sub(r'events = \d+', 'events = 2000', t)
+    open(toml, 'w').write(t)
+    env = dict(os.environ)
+    env['LHAPDF_DATA_PATH'] = datadir
+    log = pjoin(run_dir, 'mg7_gen.log')
+    ret = subprocess.call(
+        [sys.executable, pjoin(run_dir, 'bin', 'generate_events'), '-f'],
+        cwd=run_dir, env=env, stdout=open(log, 'w'), stderr=subprocess.STDOUT)
+    test.assertEqual(ret, 0, 'mg7 generate_events failed (see %s)' % log)
+    infos = sorted(glob.glob(pjoin(run_dir, 'Events', '*', 'info.json')))
+    test.assertTrue(infos, 'no mg7 info.json under %s' % run_dir)
+    info = json.load(open(infos[-1]))['process']
+    return float(info['mean']), float(info.get('error') or 0.0)
+
+
+#===============================================================================
 # TestCmd
 #===============================================================================
 class TestMECmdShell(unittest.TestCase):
@@ -925,63 +986,6 @@ class TestMECmdShell(unittest.TestCase):
                     )
                 )
 
-    # ------------------------------------------------------------------
-    # Shared helpers for the mg7 (madspace) cross-section acceptance tests
-    # ------------------------------------------------------------------
-    def _mg7_datadir_or_skip(self):
-        """Return a usable LHAPDF data dir for mg7 runs, or skipTest if the mg7
-        runtime stack (madspace + LHAPDF + the run_card.toml default PDF) is not
-        available."""
-        import glob
-        try:
-            import madspace
-            has_mg7 = hasattr(madspace, 'ChannelEventGenerator')
-        except ImportError:
-            has_mg7 = False
-        datadir = os.environ.get('LHAPDF_DATA_PATH')
-        if not datadir:
-            try:
-                datadir = subprocess.check_output(
-                    ['lhapdf-config', '--datadir']).decode().strip()
-            except Exception:
-                datadir = None
-        if not has_mg7 or not datadir or not os.path.isdir(datadir):
-            self.skipTest('mg7 runtime stack (madspace + LHAPDF data) unavailable')
-        if not glob.glob(pjoin(datadir, 'NNPDF23_lo_as_0130_qed*')):
-            self.skipTest('NNPDF23_lo_as_0130_qed PDF set not available')
-        return datadir
-
-    def _run_mg7_xsec(self, setup_cmds, run_dir, datadir):
-        """Run an mg7 cross-section: execute `setup_cmds` (MG5 lines, ending with
-        the generate), `output mg7 run_dir`, drive bin/generate_events with the
-        dynamical HT/2 scale + trimmed event target, and return (cross, error)
-        from the madspace info.json (process.mean / process.error)."""
-        import glob, json
-        if os.path.isdir(run_dir):
-            shutil.rmtree(run_dir)
-        mg = MGCmd.MasterCmd()
-        mg.no_notification()
-        for c in setup_cmds:
-            mg.exec_cmd(c)
-        mg.exec_cmd('output mg7 %s' % run_dir)
-        toml = pjoin(run_dir, 'Cards', 'run_card.toml')
-        t = open(toml).read()
-        t = t.replace('fixed_ren_scale = true', 'fixed_ren_scale = false')
-        t = t.replace('fixed_fact_scale = true', 'fixed_fact_scale = false')
-        t = re.sub(r'events = \d+', 'events = 2000', t)
-        open(toml, 'w').write(t)
-        env = dict(os.environ)
-        env['LHAPDF_DATA_PATH'] = datadir
-        log = pjoin(run_dir, 'mg7_gen.log')
-        ret = subprocess.call(
-            [sys.executable, pjoin(run_dir, 'bin', 'generate_events'), '-f'],
-            cwd=run_dir, env=env, stdout=open(log, 'w'), stderr=subprocess.STDOUT)
-        self.assertEqual(ret, 0, 'mg7 generate_events failed (see %s)' % log)
-        infos = sorted(glob.glob(pjoin(run_dir, 'Events', '*', 'info.json')))
-        self.assertTrue(infos, 'no mg7 info.json under %s' % run_dir)
-        info = json.load(open(infos[-1]))['process']
-        return float(info['mean']), float(info.get('error') or 0.0)
-
     def test_flavor_grouping_consistency_mg7(self):
         """mg7 equivalent of test_flavor_grouping_consistency for p p > l+ l-.
 
@@ -994,7 +998,7 @@ class TestMECmdShell(unittest.TestCase):
         mg7 flavour-grouping discrepancy stays visible until broken_sym is ported
         to mg7. It self-skips where the mg7 runtime stack is unavailable.
         """
-        datadir = self._mg7_datadir_or_skip()
+        datadir = _mg7_datadir_or_skip(self)
         settings = [
             # (apply_flavor_grouping, group_subprocesses)
             ('True',  'False'),
@@ -1004,7 +1008,7 @@ class TestMECmdShell(unittest.TestCase):
         ]
         results = []
         for i, (afg, gsp) in enumerate(settings):
-            cross, err = self._run_mg7_xsec(
+            cross, err = _run_mg7_xsec(self, 
                 ['set automatic_html_opening False --no_save',
                  'set apply_flavor_grouping %s' % afg,
                  'import model sm',
@@ -1836,7 +1840,26 @@ C
         
         target = 155.9
         self.assertLess(abs(val1 - target) / err1, 2.)
-        
+
+    def test_e_e_collision_mg7(self):
+        """mg7 equivalent of test_e_e_collision for e+ e- > e+ e-.
+
+        KNOWN-FAILING, intentionally NOT marked xfail: mg7 has no lepton-beam
+        (no-PDF / lpp=0) support yet -- its run_card.toml only carries a hadron
+        PDF, so generate_events aborts with "PID 11 not found in pdf grid". The
+        test asserts the physical cross-section (155.9 pb) and is expected to
+        fail until mg7 supports lepton beams; left undecorated so the limitation
+        stays visible. Self-skips where the mg7 runtime stack is unavailable.
+        """
+        datadir = _mg7_datadir_or_skip(self)
+        cross, error = _run_mg7_xsec(self, 
+            ['set automatic_html_opening False --no_save',
+             'import model sm',
+             'generate e+ e- > e+ e-'],
+            pjoin(self.path, 'MG7_ee'), datadir)
+        # physical reference (same as test_e_e_collision); mg7 must reproduce it
+        self.assertAlmostEqual(cross, 155.9, delta=max(2.0, 5 * error))
+
     def load_result(self, run_name):
         
         import madgraph.iolibs.save_load_object as save_load_object
@@ -2325,6 +2348,28 @@ class TestMEfromfile(unittest.TestCase):
         
         #a=rwa_input('freeze')
         self.check_parton_output(cross= 4.117e+08, error=1.413e+06,target_event=1000)
+
+    def test_generation_heft_mg7(self):
+        """mg7 equivalent of test_generation_heft for g g > b b~ HIW<=1 (HEFT).
+
+        KNOWN-FAILING, intentionally NOT marked xfail: mg7 runs this HEFT process
+        but its cross-section comes out ~257x below the physical value (~1.6e6 pb
+        vs the madevent 4.117e8 pb) -- a large mg7 normalisation discrepancy for
+        the effective ggH coupling. The test asserts the physical reference and is
+        expected to fail until that is resolved; left undecorated to keep the
+        discrepancy visible. Self-skips where the mg7 runtime stack is unavailable.
+        """
+        datadir = _mg7_datadir_or_skip(self)
+        cross, error = _run_mg7_xsec(self, 
+            ['set automatic_html_opening False --no_save',
+             'import model heft',
+             'generate g g > b b~ HIW<=1'],
+            pjoin(self.path, 'MG7_heft'), datadir)
+        # physical reference (same as test_generation_heft)
+        target = 4.117e8
+        self.assertLess(abs(cross - target) / target, 0.10,
+            'mg7 HEFT cross-section %s far from physical reference %s'
+            % (cross, target))
 
     def test_polarization_top_decay(self):
         """check that polarized process t{X} > w+{Y} b{Z}, w+ > ta+ vt gives the correct results
