@@ -148,9 +148,12 @@ jobs:
          run: |
                cd /home/runner/.cache/HEPtools/lhapdf6_py3/share/LHAPDF
                wget https://lhapdfsets.web.cern.ch/current/NNPDF23_nlo_as_0118_qed.tar.gz
-               tar -xzpvf NNPDF23_nlo_as_0118_qed.tar.gz           
+               tar -xzpvf NNPDF23_nlo_as_0118_qed.tar.gz
                wget https://lhapdfsets.web.cern.ch/lhapdfsets/current/cteq6l1.tar.gz
-               tar -xzpvf cteq6l1.tar.gz           
+               tar -xzpvf cteq6l1.tar.gz
+               # LO set used by the mg7 run_card.toml default (madspace integration)
+               wget https://lhapdfsets.web.cern.ch/current/NNPDF23_lo_as_0130_qed.tar.gz
+               tar -xzpvf NNPDF23_lo_as_0130_qed.tar.gz
                
   pythia8_cache:
     if: (github.ref_name == '3.x' || github.ref_name == 'test_ci')
