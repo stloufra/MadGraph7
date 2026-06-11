@@ -867,6 +867,7 @@ TypeVec MatrixElementInstruction::signature(const ValueVec& args) const {
         case UMAMI_IN_FLAVOR_INDEX:
         case UMAMI_IN_HELICITY_INDEX:
         case UMAMI_IN_DIAGRAM_INDEX:
+        case UMAMI_IN_CHANNEL_INDEX:
             if (input_type.dtype != DataType::dt_int || input_type.shape.size() != 0) {
                 throw std::invalid_argument(
                     std::format(
