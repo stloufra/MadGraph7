@@ -480,10 +480,10 @@ class TestMECmdShell(unittest.TestCase):
         mg_cmd.no_notification()
         mg_cmd.exec_cmd('set automatic_html_opening False --no_save')
         mg_cmd.exec_cmd(' generate u u > u u')
-        mg_cmd.exec_cmd('output %s/'% self.run_dir)
+        mg_cmd.exec_cmd('output madevent %s/'% self.run_dir)
         self.cmd_line = MECmd.MadEventCmdShell(me_dir= self.run_dir)
         self.cmd_line.no_notification()
-        
+
         self.cmd_line.exec_cmd('set automatic_html_opening False')
         
         self.do('generate_events -f')
@@ -493,7 +493,7 @@ class TestMECmdShell(unittest.TestCase):
         self.run_dir = pjoin(self.path, 'MGPROC2')
         mg_cmd.exec_cmd('set group_subprocesses False')
         mg_cmd.exec_cmd('generate u u > u u')
-        mg_cmd.exec_cmd('output %s' % self.run_dir)
+        mg_cmd.exec_cmd('output madevent %s' % self.run_dir)
         self.cmd_line = MECmd.MadEventCmdShell(me_dir= self.run_dir)
         self.cmd_line.no_notification()
         self.cmd_line.exec_cmd('set automatic_html_opening False')
@@ -510,6 +510,86 @@ class TestMECmdShell(unittest.TestCase):
         #check precision
         self.assertLess(err2 / val2, 0.005)
         self.assertLess(err1 / val1, 0.005)
+
+    def test_group_subprocess_mg7(self):
+        """mg7 equivalent of test_group_subprocess for u u > u u.
+
+        Runs the mg7 (madspace) integrator with group_subprocesses on and off
+        and checks the two cross-sections agree (grouping consistency). It also
+        pins the absolute value to the mg7-native result obtained with the
+        run_card.toml defaults (NNPDF23_lo_as_0130_qed + dynamical HT/2 scale,
+        events=2000) ~ 2.21e5 pb.
+
+        NOTE: this is NOT the madevent reference (1.31e6 pb in
+        test_group_subprocess); the two are not directly comparable (different
+        PDF/scale defaults) and there is moreover a known mg7 normalisation
+        discrepancy. The check is intentionally a live (non-xfail) guard on the
+        current mg7 result and should be revisited when the mg7 integrator
+        normalisation is resolved.
+        """
+        import glob, json
+        # The mg7 cross-section run needs the madspace runtime and a resolvable
+        # LHAPDF data path; skip cleanly where that stack is unavailable.
+        try:
+            import madspace
+            has_mg7 = hasattr(madspace, 'ChannelEventGenerator')
+        except ImportError:
+            has_mg7 = False
+        datadir = os.environ.get('LHAPDF_DATA_PATH')
+        if not datadir:
+            try:
+                datadir = subprocess.check_output(
+                    ['lhapdf-config', '--datadir']).decode().strip()
+            except Exception:
+                datadir = None
+        if not has_mg7 or not datadir or not os.path.isdir(datadir):
+            self.skipTest('mg7 runtime stack (madspace + LHAPDF data) unavailable')
+        # the mg7 run_card.toml default PDF must be present in the data dir
+        if not glob.glob(pjoin(datadir, 'NNPDF23_lo_as_0130_qed*')):
+            self.skipTest('NNPDF23_lo_as_0130_qed PDF set not available')
+
+        def run_mg7(group):
+            run_dir = pjoin(self.path, 'MG7_%s' % ('grp' if group else 'ungrp'))
+            if os.path.isdir(run_dir):
+                shutil.rmtree(run_dir)
+            mg = MGCmd.MasterCmd()
+            mg.no_notification()
+            mg.exec_cmd('set automatic_html_opening False --no_save')
+            mg.exec_cmd('set group_subprocesses %s' % ('True' if group else 'False'))
+            mg.exec_cmd('generate u u > u u')
+            mg.exec_cmd('output mg7 %s' % run_dir)
+            # Use the dynamical HT/2 scale (= madevent dynamical_scale_choice=3)
+            # and a trimmed-but-converged event target.
+            toml = pjoin(run_dir, 'Cards', 'run_card.toml')
+            t = open(toml).read()
+            t = t.replace('fixed_ren_scale = true', 'fixed_ren_scale = false')
+            t = t.replace('fixed_fact_scale = true', 'fixed_fact_scale = false')
+            t = re.sub(r'events = \d+', 'events = 2000', t)
+            open(toml, 'w').write(t)
+            env = dict(os.environ)
+            env['LHAPDF_DATA_PATH'] = datadir
+            log = pjoin(run_dir, 'mg7_gen.log')
+            ret = subprocess.call(
+                [sys.executable, pjoin(run_dir, 'bin', 'generate_events'), '-f'],
+                cwd=run_dir, env=env,
+                stdout=open(log, 'w'), stderr=subprocess.STDOUT)
+            self.assertEqual(ret, 0, 'mg7 generate_events failed (see %s)' % log)
+            infos = sorted(glob.glob(pjoin(run_dir, 'Events', '*', 'info.json')))
+            self.assertTrue(infos, 'no mg7 info.json under %s' % run_dir)
+            info = json.load(open(infos[-1]))['process']
+            return float(info['mean']), float(info.get('error') or 0.0)
+
+        val1, err1 = run_mg7(True)
+        val2, err2 = run_mg7(False)
+        # group_subprocesses on/off must give the same cross-section
+        self.assertLess(abs(val1 - val2) / (err1 + err2 + 1e-30), 5,
+            'mg7 grouped (%s +- %s) vs ungrouped (%s +- %s) disagree'
+            % (val1, err1, val2, err2))
+        # mg7-native reference (see docstring) -- NOT the madevent 1.31e6 value.
+        target = 221409.0
+        self.assertLess(abs(val2 - target) / target, 0.10,
+            'mg7 u u > u u cross-section %s far from mg7 reference %s'
+            % (val2, target))
 
     def test_madevent_flavor_zjj(self):
         """Cross-section and initial-state flavor composition for
