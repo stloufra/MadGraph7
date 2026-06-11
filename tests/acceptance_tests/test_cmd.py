@@ -1062,30 +1062,56 @@ class TestCmdShell2(unittest.TestCase,
         self.do('output standalone_cpp %s -f' % self.out_dir)
         proc_dir = find_qqx(pjoin(self.out_dir, 'SubProcesses'))
 
+        def extend_flavor_2d_array(text, name, dim_old, dim_new, extra_rows):
+            """Append rows to a ``name[dim_old][4]`` C++ initializer (which may
+            span several lines) and bump its first dimension to dim_new."""
+            m = re.search(r'%s\s*\[%d\]\[4\]' % (re.escape(name), dim_old), text)
+            self.assertTrue(m, '%s[%d][4] not found' % (name, dim_old))
+            end = text.index('}};', m.start()) + 3
+            block = text[m.start():end].replace(
+                '[%d][4]' % dim_old, '[%d][4]' % dim_new, 1)
+            # block ends in '}};' (last-row close, array close, semicolon); drop
+            # the array close + ';' and re-add them after the appended rows.
+            block = block[:-2] + ', ' + extra_rows + '};'
+            return text[:m.start()] + block + text[end:]
+
+        # The merged standalone_cpp evaluates a flavor by INDEX:
+        # process.sigmaKin(iflav) reads CPPProcess's internal flavor_table and
+        # the per-flavor bookkeeping arrays sized by nflavors. To exercise the
+        # two non-representative flavors we therefore extend that internal table
+        # (0-based codes d=0, u=1, s=2, c=3) and nflavors -- not a check_sa-local
+        # array (the old `flavor_arr` no longer exists in the generated code):
+        #   s c~ > s c~  -> flavor (2,3,2,3) / PDG (3,-4,3,-4)
+        #   s c~ > c c~  -> flavor (2,3,3,3) / PDG (3,-4,4,-4)
         check_cpp = pjoin(proc_dir, 'check_sa.cpp')
         src = open(check_cpp).read()
         m = re.search(r'maxflavor\s*=\s*(\d+)', src)
         self.assertTrue(m, 'maxflavor not found in check_sa.cpp')
         nflav = int(m.group(1))
-        out_lines = []
-        for line in src.splitlines(keepends=True):
-            stripped = line.lstrip()
-            if stripped.startswith('static const int maxflavor'):
-                line = line.replace('= %d' % nflav, '= %d' % (nflav + 2))
-            elif stripped.startswith('static const int flavor_arr'):
-                line = (line.replace('[%d][4]' % nflav, '[%d][4]' % (nflav + 2))
-                        .replace('}};', '}, {2, 3, 2, 3}, {2, 3, 3, 3}};'))
-            elif stripped.startswith('static const int pdg_arr'):
-                line = (line.replace('[%d][4]' % nflav, '[%d][4]' % (nflav + 2))
-                        .replace('}};', '}, {3, -4, 3, -4}, {3, -4, 4, -4}};'))
-            out_lines.append(line)
-        open(check_cpp, 'w').write(''.join(out_lines))
+        new_nflav = nflav + 2
+        src = re.sub(r'(maxflavor\s*=\s*)\d+',
+                     r'\g<1>%d' % new_nflav, src, count=1)
+        src = extend_flavor_2d_array(src, 'pdg_arr', nflav, new_nflav,
+                                     '{3, -4, 3, -4}, {3, -4, 4, -4}')
+        open(check_cpp, 'w').write(src)
+
+        # The bookkeeping arrays (ntry/goodhel/...) and the sigmaKin flavor
+        # index are sized by nflavors in the header -> bump it to match.
+        cpp_h = pjoin(proc_dir, 'CPPProcess.h')
+        src = open(cpp_h).read()
+        self.assertIn('nflavors = %d' % nflav, src)
+        src = src.replace('nflavors = %d' % nflav,
+                          'nflavors = %d' % new_nflav, 1)
+        open(cpp_h, 'w').write(src)
 
         cpp_proc = pjoin(proc_dir, 'CPPProcess.cc')
         src = open(cpp_proc).read()
         self.assertIn('#include "CPPProcess.h"', src)
         src = src.replace('#include "CPPProcess.h"',
                           '#include <iostream>\n#include "CPPProcess.h"', 1)
+        # Extend the internal flavor table that sigmaKin indexes.
+        src = extend_flavor_2d_array(src, 'flavor_table', nflav, new_nflav,
+                                     '{2, 3, 2, 3}, {2, 3, 3, 3}')
         helas_marker = '  ixxxxx(p[perm[0]]'
         self.assertIn(helas_marker, src)
         mask_dump = (

@@ -133,6 +133,18 @@ any real regression.
 
 ## 3. `test_standalone_flavor_mask` (tests/acceptance_tests/test_cmd.py:864)
 
+### STATUS: RESOLVED
+Rewrote the C++ white-box patching to the merged standalone_cpp architecture:
+the matrix element is now evaluated by index via `process.sigmaKin(iflav)`,
+which reads CPPProcess's internal `flavor_table` and the per-flavor bookkeeping
+arrays sized by `nflavors`. The two non-representative flavours are now injected
+by extending that internal `flavor_table` (CPPProcess.cc) + `nflavors`
+(CPPProcess.h) and `maxflavor`/`pdg_arr` (check_sa.cpp), instead of the old
+check_sa-local `flavor_arr`. A multi-line-safe array-extender helper was added.
+Verified: the test passes (both Fortran and C++ backends); s c~ > s c~ reproduces
+the d u~ > d u~ value (8.5706e-3), s c~ > c c~ vanishes, and the runtime masks are
+partial (911/56 vs 4095/255) for the known flavour and all-on for the lookup miss.
+
 ### Symptom (run on f4b2ff8a9+)
 - **Fortran standalone backend: PASSES** (the first `assert_backend`, line 1002).
 - **C++ standalone_cpp backend: FAILS** (line 1055):
