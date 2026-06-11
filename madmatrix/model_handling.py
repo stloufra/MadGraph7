@@ -1645,18 +1645,17 @@ class OneProcessExporterMadMatrix(export_mg7.OneProcessExporterMG7):
         replace_dict['all_flavors'] = replace_dict['all_flavors'].replace('flavors', 'tFlavors')
         color_amplitudes = [me.get_color_amplitudes() for me in self.matrix_elements] # as in OneProcessExporterCPP.get_process_function_definitions
         replace_dict['ncolor'] = len(color_amplitudes[0])
-        # broken_symmetry_factor function
-        data = self.matrix_elements[0].get('processes')[0].get_final_ids_after_decay()
-        pids = str(data).replace('[', '{').replace(']', '}')
-        replace_dict['get_pid'] = 'int pid[] = %s;' % (pids)
-        replace_dict['get_old_symmmetry_value'] = 1
-        done = []
-        for value in data:
-            if value not in done:
-                done.append(value)
-                replace_dict['get_old_symmmetry_value'] *= math.factorial(data.count(value)) 
+        # broken_symmetry_factor function: use the shared decay-aware symmetry
+        # data (same as the Fortran / standalone_cpp exporters) instead of the
+        # old simple PID-count version, so identical-particle and decay-chain
+        # symmetry factors match across backends.
         _, nincoming = self.matrix_elements[0].get_nexternal_ninitial()
         replace_dict['nincoming'] = nincoming
+        process = self.matrix_elements[0].get('processes')[0]
+        sym_data = export_v4.ProcessExporterFortran._get_broken_symmetry_data(
+            process, nincoming)
+        export_v4.ProcessExporterFortran._fill_broken_sym_replace_dict(
+            replace_dict, sym_data)
 
         file = self.read_template_file(self.process_definition_template) % replace_dict # HACK! ignore write=False case
         if len(params) == 0: # remove cIPD from OpenMP pragma (issue #349)
