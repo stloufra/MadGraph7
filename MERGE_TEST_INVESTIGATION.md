@@ -190,6 +190,14 @@ is stale.
 
 ## 4. `test_madspin_wplus_all_all_flavor_balance` (tests/acceptance_tests/test_madspin.py:392)
 
+### STATUS: RESOLVED
+Applied the proposed fix: both this test and the `_2to1` sibling now use
+`output madevent %(path)s`. Verified both pass (83s) and the flavour-balance
+assertions hold cleanly once the madevent run path is restored -- e/mu/tau and
+quark counts are balanced (e.g. -11:212, -13:213, -15:214; 2:677, 4:684). So the
+merge introduced no hidden flavour-balance regression; the only issue was the
+mg7 default output.
+
 ### Symptom
 ```
 AssertionError: [] is not true

@@ -398,7 +398,7 @@ decay z > l+ l-
 set automatic_html_opening False --no_save
 set notification_center False --no_save
 generate p p > w+ g
-output %(path)s
+output madevent %(path)s
 launch
 madspin=ON
 shower=OFF
@@ -460,7 +460,7 @@ decay w+ > all all
 set automatic_html_opening False --no_save
 set notification_center False --no_save
 generate p p > w+
-output %(path)s
+output madevent %(path)s
 launch
 madspin=ON
 shower=OFF
