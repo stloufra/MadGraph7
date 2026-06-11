@@ -1172,10 +1172,41 @@ class TestCmdShell2(unittest.TestCase,
         me_re = re.compile(r'Matrix element\s*=\s*(?P<value>[\d\.eE\+-]+)\s*GeV',
                            re.IGNORECASE)
         me_groups = me_re.search(log_output)
-        
+
         self.assertTrue(me_groups)
         self.assertAlmostEqual(float(me_groups.group('value')), 6.4739191,5)
-    
+
+        # Cross-check standalone_mg7 (madmatrix) against standalone_cpp for this
+        # massive BSM process. The Fortran/C++ ./check auto-bumps the CM energy
+        # to 2*total_mass for the heavy gluinos, but check_sa.exe does not, so
+        # evaluate BOTH at the same explicit above-threshold energy.
+        energy = '5000'
+        cpp_e_log = os.path.join(proc_dir, 'check_e.log')
+        subprocess.call('./check %s' % energy,
+                        stdout=open(cpp_e_log, 'w'), stderr=subprocess.STDOUT,
+                        cwd=proc_dir, shell=True)
+        cpp_me = me_re.search(open(cpp_e_log).read())
+        self.assertTrue(cpp_me)
+
+        shutil.rmtree(self.out_dir)
+        self.do('output standalone_mg7 %s -f' % self.out_dir)
+        mg7_root = os.path.join(self.out_dir, 'SubProcesses')
+        mg7_cand = [d for d in os.listdir(mg7_root)
+                    if d.endswith('_gg_gogo') and
+                    os.path.isdir(os.path.join(mg7_root, d))]
+        self.assertEqual(len(mg7_cand), 1,
+                         'expected one gg_gogo mg7 subprocess, got %s' % mg7_cand)
+        mg7_dir = os.path.join(mg7_root, mg7_cand[0])
+        subprocess.call(['make'], stdout=devnull, stderr=devnull, cwd=mg7_dir)
+        mg7_log = os.path.join(mg7_dir, 'check.log')
+        subprocess.call('./check_sa.exe %s' % energy,
+                        stdout=open(mg7_log, 'w'), stderr=subprocess.STDOUT,
+                        cwd=mg7_dir, shell=True)
+        mg7_me = me_re.search(open(mg7_log).read())
+        self.assertTrue(mg7_me, 'standalone_mg7 produced no matrix element')
+        self._assert_me_lists_close([float(mg7_me.group('value'))],
+                                    [float(cpp_me.group('value'))])
+
     
     def test_standalone_cpp_output_consistency(self):
         """test that standalone cpp is working"""
