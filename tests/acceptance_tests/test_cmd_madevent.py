@@ -1334,14 +1334,14 @@ class TestMECmdShell(unittest.TestCase):
     def test_eva_oldrelease_collision(self):
         """check that w+ w- > t t~ with EVA gives the correct result
         assuming no x > MV/Ebeam restriction (eva_xcut=0) [2111.02442]"""
-        
+
 
         mg_cmd = MGCmd.MasterCmd()
         mg_cmd.no_notification()
         mg_cmd.run_cmd('set group_subprocesses false')
         mg_cmd.run_cmd('set automatic_html_opening False --save')
         mg_cmd.run_cmd(' generate w+ w-  > t t~')
-        mg_cmd.run_cmd('output %s/'% self.run_dir)
+        mg_cmd.run_cmd('output madevent %s/'% self.run_dir)
         self.cmd_line = MECmd.MadEventCmdShell(me_dir=  self.run_dir)
         self.cmd_line.no_notification()
         self.cmd_line.exec_cmd('set automatic_html_opening False')
@@ -1380,14 +1380,14 @@ class TestMECmdShell(unittest.TestCase):
         
     def test_ieva_collision(self):
         """check that w+ w- > t t~ with EVA at full LP gives the correct result"""
-        
+
 
         mg_cmd = MGCmd.MasterCmd()
         mg_cmd.no_notification()
         mg_cmd.run_cmd('set group_subprocesses false')
         mg_cmd.run_cmd('set automatic_html_opening False --save')
         mg_cmd.run_cmd(' generate w+ w-  > t t~')
-        mg_cmd.run_cmd('output %s/'% self.run_dir)
+        mg_cmd.run_cmd('output madevent %s/'% self.run_dir)
         self.cmd_line = MECmd.MadEventCmdShell(me_dir=  self.run_dir)
         self.cmd_line.no_notification()
         self.cmd_line.exec_cmd('set automatic_html_opening False')
