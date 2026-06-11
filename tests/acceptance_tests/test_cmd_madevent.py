@@ -782,6 +782,71 @@ class TestMECmdShell(unittest.TestCase):
         # single-flavor processes (no merged multiparticle).
         self.assertAlmostEqual(cross, 4428.0, delta=max(30.0, 5 * error))
 
+    def test_madevent_merged_flavor_uq_mg7(self):
+        """mg7 equivalent of test_madevent_merged_flavor_uq (u q > u q QCD=0,
+        q = u d).
+
+        KNOWN-FAILING, intentionally NOT marked xfail: the mg7 (madspace)
+        integrator currently SEGFAULTS on this merged-flavor process, so
+        generate_events does not produce the physical cross-section (4428 pb).
+        The test asserts the physical reference and is therefore expected to
+        fail until the mg7 integrator handles merged-flavor u q > u q; it is
+        left undecorated so the failure stays visible in the mg7 workflow
+        rather than being silently swallowed by expectedFailure. It still
+        self-skips where the mg7 runtime stack is unavailable.
+        """
+        import glob, json
+        try:
+            import madspace
+            has_mg7 = hasattr(madspace, 'ChannelEventGenerator')
+        except ImportError:
+            has_mg7 = False
+        datadir = os.environ.get('LHAPDF_DATA_PATH')
+        if not datadir:
+            try:
+                datadir = subprocess.check_output(
+                    ['lhapdf-config', '--datadir']).decode().strip()
+            except Exception:
+                datadir = None
+        if not has_mg7 or not datadir or not os.path.isdir(datadir):
+            self.skipTest('mg7 runtime stack (madspace + LHAPDF data) unavailable')
+        if not glob.glob(pjoin(datadir, 'NNPDF23_lo_as_0130_qed*')):
+            self.skipTest('NNPDF23_lo_as_0130_qed PDF set not available')
+
+        run_dir = pjoin(self.path, 'MG7_uq')
+        if os.path.isdir(run_dir):
+            shutil.rmtree(run_dir)
+        mg = MGCmd.MasterCmd()
+        mg.no_notification()
+        mg.exec_cmd('set automatic_html_opening False --no_save')
+        mg.exec_cmd('import model sm')
+        mg.exec_cmd('define q = u d')
+        mg.exec_cmd('generate u q > u q QCD=0')
+        mg.exec_cmd('output mg7 %s' % run_dir)
+        toml = pjoin(run_dir, 'Cards', 'run_card.toml')
+        t = open(toml).read()
+        t = t.replace('fixed_ren_scale = true', 'fixed_ren_scale = false')
+        t = t.replace('fixed_fact_scale = true', 'fixed_fact_scale = false')
+        t = re.sub(r'events = \d+', 'events = 2000', t)
+        open(toml, 'w').write(t)
+        env = dict(os.environ)
+        env['LHAPDF_DATA_PATH'] = datadir
+        log = pjoin(run_dir, 'mg7_gen.log')
+        ret = subprocess.call(
+            [sys.executable, pjoin(run_dir, 'bin', 'generate_events'), '-f'],
+            cwd=run_dir, env=env,
+            stdout=open(log, 'w'), stderr=subprocess.STDOUT)
+        self.assertEqual(ret, 0,
+            'mg7 generate_events failed for u q > u q (merged flavor) -- known '
+            'mg7 crash/segfault on this process (see %s)' % log)
+        infos = sorted(glob.glob(pjoin(run_dir, 'Events', '*', 'info.json')))
+        self.assertTrue(infos, 'no mg7 info.json under %s' % run_dir)
+        info = json.load(open(infos[-1]))['process']
+        cross = float(info['mean'])
+        error = float(info.get('error') or 0.0)
+        # physical reference (same as the madevent test); mg7 must reproduce it
+        self.assertAlmostEqual(cross, 4428.0, delta=max(30.0, 5 * error))
+
     def test_flavor_grouping_consistency(self):
         """Check that the four combinations of 'apply_flavor_grouping' and
         'group_subprocesses' return compatible cross-sections for the
