@@ -323,8 +323,8 @@ class TestCmdShell2(unittest.TestCase,
         self.do('set group_subprocesses False')
         self.do('generate e+ e- > e+ e-')
 #        self.do('load processes %s' % self.join_path(_pickle_path,'e+e-_e+e-.pkl'))
-        self.do('output %s -nojpeg' % self.out_dir)
-        
+        self.do('output madevent %s -nojpeg' % self.out_dir)
+
         self.assertTrue(os.path.exists(self.out_dir))
         self.assertTrue(os.path.exists(pjoin(self.out_dir, 'Cards', 'me5_configuration.txt')))
         self.assertTrue(os.path.exists(os.path.join(self.out_dir,
@@ -360,7 +360,7 @@ class TestCmdShell2(unittest.TestCase,
                                                     'matrix1.jpg')))
         self.assertTrue(os.path.exists(os.path.join(self.out_dir,
                                                     'madevent.tar.gz')))
-        self.do('output %s -f' % self.out_dir)
+        self.do('output madevent %s -f' % self.out_dir)
         self.do('set group_subprocesses True')
         #if misc.which('gs'):
         #    self.assertTrue(os.path.exists(os.path.join(self.out_dir,
@@ -421,6 +421,62 @@ class TestCmdShell2(unittest.TestCase,
                                                     'SubProcesses',
                                                     'P0_epem_epem',
                                                     'madevent')))
+
+    def test_output_mg7_directory(self):
+        """mg7 equivalent of test_output_madevent_directory.
+
+        Checks that `output mg7` produces a complete, self-consistent mg7
+        (madmatrix/cudacpp) directory for e+ e- > e+ e- -- the top-level layout
+        (src/, SubProcesses/, lib/, Cards/, bin/), the mg7 cards and launcher,
+        and that the generated subprocess compiles into the expected shared
+        libraries (scalar cppnone backend).
+        """
+        if os.path.isdir(self.out_dir):
+            shutil.rmtree(self.out_dir)
+
+        self.cmd.do_import('model sm', force=True)
+        self.do('set group_subprocesses False')
+        self.do('generate e+ e- > e+ e-')
+        self.do('output mg7 %s' % self.out_dir)
+
+        self.assertTrue(os.path.exists(self.out_dir))
+        # mg7 cards and the event-generation launcher
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                                 'Cards', 'param_card.dat')))
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                                 'Cards', 'run_card.toml')))
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                                 'bin', 'generate_events')))
+        # mg7 C++ model/helas sources
+        for f in ['HelAmps_sm.h', 'Parameters.h', 'Parameters.cc', 'makefile']:
+            self.assertTrue(os.path.isfile(os.path.join(self.out_dir, 'src', f)),
+                            '%s missing in mg7 src directory' % f)
+
+        # Discover the subprocess directory (numbering is invocation dependent).
+        sub_root = os.path.join(self.out_dir, 'SubProcesses')
+        cand = [d for d in os.listdir(sub_root)
+                if d.endswith('_epem_epem') and
+                os.path.isdir(os.path.join(sub_root, d))]
+        self.assertEqual(len(cand), 1,
+                         'expected one epem_epem subprocess, got %s' % cand)
+        proc_dir = os.path.join(sub_root, cand[0])
+        for f in ['CPPProcess.cc', 'CPPProcess.h', 'makefile']:
+            self.assertTrue(os.path.isfile(os.path.join(proc_dir, f)),
+                            '%s missing in mg7 subprocess directory' % f)
+
+        # Check that the subprocess compiles (scalar C++ backend).
+        devnull = open(os.devnull, 'w')
+        status = subprocess.call(['make', 'bldnone'],
+                                 stdout=devnull, stderr=devnull, cwd=proc_dir)
+        self.assertEqual(status, 0)
+        libdir = os.path.join(self.out_dir, 'lib')
+        libs = os.listdir(libdir) if os.path.isdir(libdir) else []
+        self.assertTrue(any(l.startswith('libmadmatrix_common') and
+                            l.endswith('.so') for l in libs),
+                        'common madmatrix library not built: %s' % libs)
+        self.assertTrue(any('epem_epem' in l and l.endswith('.so')
+                            for l in libs),
+                        'process madmatrix library not built: %s' % libs)
 
     def test_invalid_operations_for_add(self):
         """Test that errors are raised appropriately for add"""
@@ -3563,7 +3619,7 @@ P1_qq_wp_wp_lvl
         self.do('set group_subprocesses False')
         self.do('generate w+ > l+ vl')
         self.do('add process w+ > j j')
-        self.do('output %s ' % self.out_dir)
+        self.do('output madevent %s ' % self.out_dir)
         # Check that all subprocesses have separate directories
         directories = ['P0_wp_LxN','P0_wp_QQx']
         for d in directories:
@@ -3573,17 +3629,17 @@ P1_qq_wp_wp_lvl
         self.do('set group_subprocesses True')
         self.do('generate w+ > l+ vl')
         self.do('add process w+ > j j')
-        self.do('output %s -f' % self.out_dir)
+        self.do('output madevent %s -f' % self.out_dir)
         # Check that all subprocesses are combined
         directories = ['P0_wp_lvl','P0_wp_qq']
         for d in directories:
             self.assertTrue(os.path.isdir(os.path.join(self.out_dir,
                                                        'SubProcesses',
                                                        d)))
-            
+
         self.do('generate w+ > l+ vl')
         self.do('generate e+ e- > j j')
-        self.do('output %s -f' % self.out_dir)
+        self.do('output madevent %s -f' % self.out_dir)
         # Check that all subprocesses are combined
         directories = ['P0_wp_lvl','P0_wp_qq']
         for d in directories:
@@ -3597,11 +3653,54 @@ P1_qq_wp_wp_lvl
                                                        'SubProcesses',
                                                        d)))
 
-                                                
-            
+
+    def test_ungroup_decay_mg7(self):
+        """mg7 equivalent of test_ungroup_decay.
+
+        Mirrors test_ungroup_decay for the mg7 (madmatrix/cudacpp) backend.
+        Unlike madevent, mg7 uses the per-subprocess (ungrouped-style)
+        directory naming regardless of the group_subprocesses flag: the
+        flavour-merged madevent names (e.g. wp_lvl, wp_qq) are never produced,
+        each subprocess keeps its own directory (wp_LxN, wp_QQx).
+        """
+
+        def has(d):
+            return os.path.isdir(os.path.join(self.out_dir, 'SubProcesses', d))
+
+        if os.path.isdir(self.out_dir):
+            shutil.rmtree(self.out_dir)
+
+        self.do('import model sm')
+        self.do('set group_subprocesses False')
+        self.do('generate w+ > l+ vl')
+        self.do('add process w+ > j j')
+        self.do('output mg7 %s ' % self.out_dir)
+        # ungrouped: each subprocess in its own directory (same as madevent)
+        for d in ['P0_wp_LxN', 'P0_wp_QQx']:
+            self.assertTrue(has(d), '%s missing in ungrouped mg7 output' % d)
+
+        self.do('set group_subprocesses True')
+        self.do('generate w+ > l+ vl')
+        self.do('add process w+ > j j')
+        self.do('output mg7 %s -f' % self.out_dir)
+        # mg7 does not merge subprocesses on grouping: the per-subprocess
+        # directories persist and the madevent-style merged ones are absent.
+        for d in ['P0_wp_LxN', 'P0_wp_QQx']:
+            self.assertTrue(has(d), '%s missing in grouped mg7 output' % d)
+        for d in ['P0_wp_lvl', 'P0_wp_qq']:
+            self.assertFalse(has(d),
+                             '%s should not exist in mg7 output (no merging)' % d)
+
+        self.do('generate w+ > l+ vl')
+        self.do('generate e+ e- > j j')
+        self.do('output mg7 %s -f' % self.out_dir)
+        # the second generate replaces the first: only e+ e- > j j survives
+        self.assertTrue(has('P0_epem_QQx'),
+                        'P0_epem_QQx missing after regenerate')
+        for d in ['P0_wp_LxN', 'P0_wp_QQx', 'P0_wp_lvl', 'P0_wp_qq', 'P0_ll_qq']:
+            self.assertFalse(has(d), '%s should not survive the regenerate' % d)
 
 
-    
     @test_manager.bypass_for_py3
     def test_madevent_triplet_diquarks(self):
         """Test MadEvent output of triplet diquarks"""
@@ -3670,7 +3769,7 @@ P1_qq_wp_wp_lvl
         self.do('import model sextet_diquarks')
         self.do('set group_subprocesses False')
         self.do('generate u u > six g')
-        self.do('output %s ' % self.out_dir)
+        self.do('output madevent %s ' % self.out_dir)
         
         # Check that leshouche.inc exists
         self.assertTrue(os.path.exists(os.path.join(self.out_dir,
@@ -3679,7 +3778,7 @@ P1_qq_wp_wp_lvl
                                                     'leshouche.inc')))        
         # Test sextet decay
         self.do('generate six > u u g')
-        self.do('output %s -f' % self.out_dir)
+        self.do('output madevent %s -f' % self.out_dir)
 
         # Check that leshouche.inc exists
         self.assertTrue(os.path.exists(os.path.join(self.out_dir,
@@ -3689,13 +3788,43 @@ P1_qq_wp_wp_lvl
 
         # Test sextet production
         self.do('generate u g > six u~')
-        self.do('output %s -f' % self.out_dir)
+        self.do('output madevent %s -f' % self.out_dir)
         
         # Check that leshouche.inc exists
         self.assertTrue(os.path.exists(os.path.join(self.out_dir,
                                                     'SubProcesses',
                                                     'P0_ug_sixux',
                                                     'leshouche.inc')))
+
+    @unittest.expectedFailure
+    def test_leshouche_sextet_diquarks_mg7(self):
+        """mg7 equivalent of test_leshouche_sextet_diquarks (TODO).
+
+        leshouche.inc is a MadEvent Fortran artifact (Les Houches colour/flavour
+        table for the Fortran integrator); the mg7 (madmatrix/cudacpp) export
+        does not produce it. This test is xfail to keep mg7 leshouche support on
+        the to-do list: when mg7 grows an equivalent it will start passing and
+        the expectedFailure decorator should be removed.
+        """
+        if os.path.isdir(self.out_dir):
+            shutil.rmtree(self.out_dir)
+
+        self.do('import model sextet_diquarks')
+        self.do('set group_subprocesses False')
+        self.do('generate u u > six g')
+        self.do('output mg7 %s ' % self.out_dir)
+
+        # Discover the sextet subprocess directory (numbering is invocation
+        # dependent) and require a leshouche.inc -- currently absent in mg7.
+        sub_root = os.path.join(self.out_dir, 'SubProcesses')
+        cand = [d for d in os.listdir(sub_root)
+                if d.endswith('_sixg') and
+                os.path.isdir(os.path.join(sub_root, d))]
+        self.assertTrue(cand, 'no u u > six g subprocess in mg7 output')
+        self.assertTrue(os.path.exists(os.path.join(sub_root, cand[0],
+                                                    'leshouche.inc')),
+                        'leshouche.inc not generated by mg7 (TODO)')
+
     def test_ufo_standard_sm(self):
         """ check that we can use standard MG4 name """
         self.do('import model sm')

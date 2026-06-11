@@ -1,0 +1,108 @@
+# This is a basic workflow to help you get started with Actions
+
+name: running acceptance test (mg7)
+# Controls when the workflow will run
+#    branches: [ main LTS ]
+on:
+  # Triggers the workflow on push or pull request events but only for the 3.4.0 branch
+  push:
+    paths-ignore:
+      - 'docs/**'
+#      - '.github/**'
+
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'running acceptance test'
+        required: true
+
+env:
+  commitmsg: ${{ github.event.head_commit.message }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  acceptancetest_mg7_ufo_aloha:
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/checkout_mg5
+      - uses: ./.github/actions/restore-pip-cache
+      - name: test one of the test test_mg7_ufo_aloha
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py test_mg7_ufo_aloha -pA -t0 -l INFO
+
+  acceptancetest_mg7_output_directory:
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/checkout_mg5
+      - uses: ./.github/actions/restore-pip-cache
+      - name: test one of the test test_output_mg7_directory
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py test_output_mg7_directory -pA -t0 -l INFO
+
+  acceptancetest_mg7_ungroup_decay:
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/checkout_mg5
+      - uses: ./.github/actions/restore-pip-cache
+      - name: test one of the test test_ungroup_decay_mg7
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py test_ungroup_decay_mg7 -pA -t0 -l INFO
+
+  acceptancetest_mg7_e_p_collision:
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/checkout_mg5
+      - uses: ./.github/actions/restore-pip-cache
+      - name: test one of the test test_e_p_collision_mg7
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py test_e_p_collision_mg7 -pA -t0 -l INFO
+
+  acceptancetest_mg7_leshouche_sextet:
+    # xfail: mg7 does not yet generate leshouche.inc (kept on the to-do list)
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/checkout_mg5
+      - uses: ./.github/actions/restore-pip-cache
+      - uses: ./.github/actions/restore_ufomodel
+      - name: test one of the test test_leshouche_sextet_diquarks_mg7
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py test_leshouche_sextet_diquarks_mg7 -pA -t0 -l INFO
+
+  acceptancetest_mg7_madspin_mixed_flavor:
+    # xfail: mg7 + MadSpin pipeline not wired up yet (kept on the to-do list)
+    runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/checkout_mg5
+      - uses: ./.github/actions/restore-pip-cache
+      - name: test one of the test test_madspin_mixed_flavor_decay_log_summary_mg7
+        run: |
+            cd $GITHUB_WORKSPACE
+            ./tests/test_manager.py test_madspin_mixed_flavor_decay_log_summary_mg7 -pA -t0 -l INFO
+
+
