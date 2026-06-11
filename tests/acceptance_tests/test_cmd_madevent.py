@@ -764,7 +764,7 @@ class TestMECmdShell(unittest.TestCase):
         mg_cmd.exec_cmd('import model sm')
         mg_cmd.exec_cmd('define q = u d')
         mg_cmd.exec_cmd('generate u q > u q QCD=0')
-        mg_cmd.exec_cmd('output %s' % self.run_dir)
+        mg_cmd.exec_cmd('output madevent %s' % self.run_dir)
 
         self.cmd_line = MECmd.MadEventCmdShell(me_dir=self.run_dir)
         self.cmd_line.no_notification()
