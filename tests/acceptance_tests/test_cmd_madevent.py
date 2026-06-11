@@ -1443,7 +1443,7 @@ class TestMECmdShell(unittest.TestCase):
         open(default_path, 'w').write("4 = dynamical_scale_choice\n 5.0 = my_param\n F = use_syst\n 5000 = nevents")
         import madgraph.various.banner as banner
         with misc.TMP_variable(banner.RunCardLO, 'default_run_card', default_path):
-            mg_cmd.run_cmd('output %s/'% self.run_dir)
+            mg_cmd.run_cmd('output madevent %s/'% self.run_dir)
 
         self.assertIn('my_param', open(pjoin(self.run_dir,'Cards','run_card.dat')).read())
         lo = banner.RunCard(pjoin(self.run_dir,'Cards', 'run_card.dat'))
@@ -1543,7 +1543,7 @@ C
         open(default_path, 'w').write("4 = dynamical_scale_choice\n 5.0 = my_param\n F = use_syst\n 5000 = nevents")
         import madgraph.various.banner as banner
         with misc.TMP_variable(banner.RunCardLO, 'default_run_card', default_path):
-            mg_cmd.run_cmd('output %s/'% self.run_dir)
+            mg_cmd.run_cmd('output madevent %s/'% self.run_dir)
 
         self.assertIn('my_param', open(pjoin(self.run_dir,'Cards','run_card.dat')).read())
         lo = banner.RunCard(pjoin(self.run_dir,'Cards', 'run_card.dat'))
@@ -1639,7 +1639,7 @@ C
         mg_cmd.run_cmd('set automatic_html_opening False --save')
         mg_cmd.run_cmd('import model %s/tests/input_files/SMEFTatNLO_running' % madgraph.MG5DIR)
         mg_cmd.run_cmd('generate p p > t t~ NP=2 NP^2==2 QCD=2 QED=0')
-        mg_cmd.run_cmd('output %s/'% self.run_dir)
+        mg_cmd.run_cmd('output madevent %s/'% self.run_dir)
         self.cmd_line = MECmd.MadEventCmdShell(me_dir=  self.run_dir)
         self.cmd_line.no_notification()
         self.cmd_line.exec_cmd('set automatic_html_opening False')
@@ -1692,7 +1692,7 @@ C
         mg_cmd.exec_cmd('set automatic_html_opening False --save')
         mg_cmd.exec_cmd('set complex_mass_scheme', precmd=True)
         mg_cmd.exec_cmd('generate g g  > t t~', precmd=True)
-        mg_cmd.exec_cmd('output %s' % self.run_dir, precmd=True)
+        mg_cmd.exec_cmd('output madevent %s' % self.run_dir, precmd=True)
         
         self.cmd_line = MECmd.MadEventCmdShell(me_dir=  self.run_dir)
         self.cmd_line.no_notification()
@@ -1740,7 +1740,7 @@ C
         cmdline = """
         set notification_center None --no-save 
         generate e+ e- > Z > mu+ mu-
-        output %s -f
+        output madevent %s -f
         launch
         set use_syst F
         set MZ scan:[80, 85]
@@ -1811,7 +1811,7 @@ C
         mg_cmd.no_notification()
         mg_cmd.exec_cmd('set automatic_html_opening False --save')
         mg_cmd.exec_cmd(' generate e+ e-  > e+ e-')
-        mg_cmd.exec_cmd('output %s/' % self.run_dir)
+        mg_cmd.exec_cmd('output madevent %s/' % self.run_dir)
         self.cmd_line = MECmd.MadEventCmdShell(me_dir=  self.run_dir)
         self.cmd_line.no_notification()
         
@@ -1936,7 +1936,7 @@ class TestMEfromfile(unittest.TestCase):
                  set automatic_html_opening False --no_save
                  set notification_center False --no_save
                  generate p p > w+ z
-                 output %s -f -nojpeg
+                 output madevent %s -f -nojpeg
                  launch -i 
                  set automatic_html_opening False --no_save
                  generate_events
@@ -2011,7 +2011,7 @@ class TestMEfromfile(unittest.TestCase):
         set notification_center False --no_save
         generate p p > w+ 
         add process p p > w-
-        output %(path)s
+        output madevent %(path)s
         launch
         madspin=ON
         analysis=OFF
@@ -2093,7 +2093,7 @@ class TestMEfromfile(unittest.TestCase):
         set notification_center False --no_save
         generate p p > w+
         add process p p > w-
-        output %(path)s
+        output madevent %(path)s
         launch
         madspin=ON
         analysis=OFF
@@ -2169,7 +2169,7 @@ class TestMEfromfile(unittest.TestCase):
         set notification_center False --no_save
         generate p p > w+
         add process p p > w-
-        output %(path)s
+        output madevent %(path)s
         launch
         madspin=ON
         analysis=OFF
@@ -2311,7 +2311,7 @@ class TestMEfromfile(unittest.TestCase):
         set automatic_html_opening False --no_save
         set notification_center False --no_save
         generate g g > b b~ HIW<=1
-        output %(path)s
+        output madevent %(path)s
         launch 
         set nevents 1000
         set shower none
@@ -2366,7 +2366,7 @@ class TestMEfromfile(unittest.TestCase):
         add process t{L} > w+{H} b{L}, w+ > ta+ vt
         add process t{R} > w+{Q} b{R}, w+ > ta+ vt
         add process t{R} > w+{W} b{L}, w+ > ta+ vt
-        output %(path)s
+        output madevent %(path)s
         launch
         analysis=off
         set no_parton_cut
@@ -2396,7 +2396,7 @@ class TestMEfromfile(unittest.TestCase):
         set notification_center False --no_save
         generate    t > w+{A} b, w+ > ta+ vt
         add process t > w+{S} b, w+ > ta+ vt
-        output %(path)s
+        output madevent %(path)s
         launch
         analysis=off
         set no_parton_cut
@@ -2425,7 +2425,7 @@ class TestMEfromfile(unittest.TestCase):
         set notification_center False --no_save
         generate    t > w+{A} b, w+ > ta+ vt
         add process t > w+{S} b, w+ > ta+ vt
-        output %(path)s
+        output madevent %(path)s
         launch
         analysis=off
         set mta 1e-3
@@ -2551,7 +2551,7 @@ class TestMEfromfile(unittest.TestCase):
             stdout= None
 
         cmd = """generate p p > e+ e-
-        output %s
+        output madevent %s
         launch
 shower=pythia8
 analysis=off
