@@ -140,7 +140,7 @@ private:
         Value& extra_weight_after_cuts() { return values[18]; }
         Value& adaptive_prob() { return values[19]; }
         Value& pdf_cache(std::size_t pdf_index) { return values[20 + pdf_index]; }
-        Value& scale_cache() { return values[21]; }
+        Value& scale_cache() { return values[22]; }
     };
 
     NamedVector<Value> build_function_impl(
