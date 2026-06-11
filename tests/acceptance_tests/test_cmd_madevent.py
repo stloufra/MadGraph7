@@ -925,6 +925,106 @@ class TestMECmdShell(unittest.TestCase):
                     )
                 )
 
+    # ------------------------------------------------------------------
+    # Shared helpers for the mg7 (madspace) cross-section acceptance tests
+    # ------------------------------------------------------------------
+    def _mg7_datadir_or_skip(self):
+        """Return a usable LHAPDF data dir for mg7 runs, or skipTest if the mg7
+        runtime stack (madspace + LHAPDF + the run_card.toml default PDF) is not
+        available."""
+        import glob
+        try:
+            import madspace
+            has_mg7 = hasattr(madspace, 'ChannelEventGenerator')
+        except ImportError:
+            has_mg7 = False
+        datadir = os.environ.get('LHAPDF_DATA_PATH')
+        if not datadir:
+            try:
+                datadir = subprocess.check_output(
+                    ['lhapdf-config', '--datadir']).decode().strip()
+            except Exception:
+                datadir = None
+        if not has_mg7 or not datadir or not os.path.isdir(datadir):
+            self.skipTest('mg7 runtime stack (madspace + LHAPDF data) unavailable')
+        if not glob.glob(pjoin(datadir, 'NNPDF23_lo_as_0130_qed*')):
+            self.skipTest('NNPDF23_lo_as_0130_qed PDF set not available')
+        return datadir
+
+    def _run_mg7_xsec(self, setup_cmds, run_dir, datadir):
+        """Run an mg7 cross-section: execute `setup_cmds` (MG5 lines, ending with
+        the generate), `output mg7 run_dir`, drive bin/generate_events with the
+        dynamical HT/2 scale + trimmed event target, and return (cross, error)
+        from the madspace info.json (process.mean / process.error)."""
+        import glob, json
+        if os.path.isdir(run_dir):
+            shutil.rmtree(run_dir)
+        mg = MGCmd.MasterCmd()
+        mg.no_notification()
+        for c in setup_cmds:
+            mg.exec_cmd(c)
+        mg.exec_cmd('output mg7 %s' % run_dir)
+        toml = pjoin(run_dir, 'Cards', 'run_card.toml')
+        t = open(toml).read()
+        t = t.replace('fixed_ren_scale = true', 'fixed_ren_scale = false')
+        t = t.replace('fixed_fact_scale = true', 'fixed_fact_scale = false')
+        t = re.sub(r'events = \d+', 'events = 2000', t)
+        open(toml, 'w').write(t)
+        env = dict(os.environ)
+        env['LHAPDF_DATA_PATH'] = datadir
+        log = pjoin(run_dir, 'mg7_gen.log')
+        ret = subprocess.call(
+            [sys.executable, pjoin(run_dir, 'bin', 'generate_events'), '-f'],
+            cwd=run_dir, env=env, stdout=open(log, 'w'), stderr=subprocess.STDOUT)
+        self.assertEqual(ret, 0, 'mg7 generate_events failed (see %s)' % log)
+        infos = sorted(glob.glob(pjoin(run_dir, 'Events', '*', 'info.json')))
+        self.assertTrue(infos, 'no mg7 info.json under %s' % run_dir)
+        info = json.load(open(infos[-1]))['process']
+        return float(info['mean']), float(info.get('error') or 0.0)
+
+    def test_flavor_grouping_consistency_mg7(self):
+        """mg7 equivalent of test_flavor_grouping_consistency for p p > l+ l-.
+
+        KNOWN-FAILING, intentionally NOT marked xfail: mg7 currently returns
+        cross-sections that depend on the apply_flavor_grouping setting (e.g.
+        ~1332 pb grouped vs ~511 pb ungrouped) because the broken-symmetry
+        (flavour-consolidation) factor implemented for standalone /
+        standalone_cpp is not yet applied on the mg7 (madmatrix) side. The four
+        settings must agree; the test asserts that and is left undecorated so the
+        mg7 flavour-grouping discrepancy stays visible until broken_sym is ported
+        to mg7. It self-skips where the mg7 runtime stack is unavailable.
+        """
+        datadir = self._mg7_datadir_or_skip()
+        settings = [
+            # (apply_flavor_grouping, group_subprocesses)
+            ('True',  'False'),
+            ('True',  'True'),
+            ('False', 'False'),
+            ('false', 'True'),
+        ]
+        results = []
+        for i, (afg, gsp) in enumerate(settings):
+            cross, err = self._run_mg7_xsec(
+                ['set automatic_html_opening False --no_save',
+                 'set apply_flavor_grouping %s' % afg,
+                 'import model sm',
+                 'set group_subprocesses %s' % gsp,
+                 'generate p p > l+ l-'],
+                pjoin(self.path, 'MG7_fg_%d' % i), datadir)
+            results.append((cross + 1e-99, err, afg, gsp))
+            self.assertLess(err / (cross + 1e-99), 0.05,
+                'mg7 cross-section too imprecise (afg=%s, gsp=%s): %s +- %s'
+                % (afg, gsp, cross, err))
+        for i in range(len(results)):
+            for j in range(i + 1, len(results)):
+                vi, ei, ai, gi = results[i]
+                vj, ej, aj, gj = results[j]
+                self.assertLess(abs(vi - vj) / (ei + ej), 3,
+                    'mg7 incompatible cross-sections between '
+                    'apply_flavor_grouping=%s/group_subprocesses=%s (%s +- %s) and '
+                    'apply_flavor_grouping=%s/group_subprocesses=%s (%s +- %s)'
+                    % (ai, gi, vi, ei, aj, gj, vj, ej))
+
     def test_flavor_grouping_consistency_width(self):
         """Check that the four combinations of 'apply_flavor_grouping' and
         'group_subprocesses' return compatible cross-sections for the
