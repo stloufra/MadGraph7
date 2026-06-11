@@ -1230,6 +1230,22 @@ class TestCmdShell2(unittest.TestCase,
         for i,_ in enumerate(original):
             self.assertEqual(original[i], new[i])
 
+    def _assert_me_lists_close(self, a, b, rtol=1e-5):
+        """Assert two matrix-element value lists agree as multisets (sorted),
+        within a relative tolerance. Backends print with different precision
+        (standalone_cpp 7 sig figs vs standalone_mg7 full double) and may emit
+        the per-flavour values in a different order, so compare sorted with a
+        relative tolerance rather than index-by-index / exact."""
+        a, b = sorted(a), sorted(b)
+        self.assertEqual(len(a), len(b),
+                         'different number of matrix elements: %d vs %d'
+                         % (len(a), len(b)))
+        for x, y in zip(a, b):
+            scale = max(abs(x), abs(y))
+            if scale > 0:
+                self.assertLessEqual(abs(x - y), rtol * scale,
+                                     'matrix-element mismatch: %s vs %s' % (x, y))
+
     def test_standalone_cpp_fd_output_consistency(self):
         """test standalone_cpp in FD gauge against standalone"""
 
@@ -1292,6 +1308,51 @@ class TestCmdShell2(unittest.TestCase,
         for i, _ in enumerate(standalone_cpp_no_fd):
             self.assertAlmostEqual(standalone_cpp_no_fd[i], standalone[i])
 
+    def test_standalone_mg7_vs_cpp(self):
+        """Cross-check that standalone_mg7 (madmatrix) reproduces the
+        standalone_cpp matrix elements for p p > e+ e- QCD=0.
+
+        Uses a massless final state so both check drivers evaluate the same
+        default 1000 GeV phase-space point (no energy auto-bump mismatch), and
+        compares the per-flavour matrix elements as sorted multisets (the two
+        backends may emit them in a different order and at different printed
+        precision). standalone_mg7 ships a UMAMI-based check_sa.exe whose
+        'matrix' mode is by design identical to the Fortran/C++ check drivers.
+        """
+        energy = '1000'
+        devnull = open(os.devnull, 'w')
+
+        def get_values(output_format, check_exe):
+            if os.path.isdir(self.out_dir):
+                shutil.rmtree(self.out_dir)
+            self.do('output %s %s' % (output_format, self.out_dir))
+            proc_root = os.path.join(self.out_dir, 'SubProcesses')
+            dirs = sorted(d for d in os.listdir(proc_root)
+                          if d.startswith('P') and
+                          os.path.isdir(os.path.join(proc_root, d)))
+            self.assertTrue(dirs, 'no subprocess for %s' % output_format)
+            values = []
+            me_re = re.compile(r'Matrix element\s*=\s*([\d.eE+-]+)\s*GeV',
+                               re.IGNORECASE)
+            for d in dirs:
+                proc_dir = os.path.join(proc_root, d)
+                subprocess.call(['make'], stdout=devnull, stderr=devnull,
+                                cwd=proc_dir)
+                log = os.path.join(proc_dir, 'check.log')
+                subprocess.call('%s %s' % (check_exe, energy),
+                                stdout=open(log, 'w'), stderr=subprocess.STDOUT,
+                                cwd=proc_dir, shell=True)
+                found = me_re.findall(open(log).read())
+                self.assertTrue(found, '%s produced no matrix element (see %s)'
+                                % (output_format, log))
+                values.extend(float(v) for v in found)
+            return values
+
+        self.do('import model sm')
+        self.do('generate p p > e+ e- QCD=0')
+        cpp = get_values('standalone_cpp', './check')
+        mg7 = get_values('standalone_mg7', './check_sa.exe')
+        self._assert_me_lists_close(mg7, cpp)
 
     def test_standalone_density(self):
         """test that standalone density is working"""
