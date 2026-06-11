@@ -24,6 +24,7 @@ runs:
     - name: Install madspace
       run: |
         cd $GITHUB_WORKSPACE
+        yum -y install openblas-devel yum-utils
         python3 -m pip install --upgrade pip packaging
         python3 -m pip install ./madspace
       shell: bash
