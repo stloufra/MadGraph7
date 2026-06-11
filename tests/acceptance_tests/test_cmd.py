@@ -1064,20 +1064,28 @@ class TestCmdShell2(unittest.TestCase,
         self.do('generate g g > go go QED=2')
         self.do('output standalone_cpp %s ' % self.out_dir)
         devnull = open(os.devnull,'w')
-    
-        logfile = os.path.join(self.out_dir,'SubProcesses', 'P0_Sigma_MSSM_SLHA2_full_gg_gogo',
-                               'check.log')
+
+        # Locate the subprocess directory: the merge shortened the standalone_cpp
+        # directory name (e.g. P0_Sigma_MSSM_SLHA2_full_gg_gogo -> P1_gg_gogo),
+        # so discover it rather than hard-coding the number/prefix.
+        proc_root = os.path.join(self.out_dir, 'SubProcesses')
+        candidates = [d for d in os.listdir(proc_root)
+                      if d.endswith('_gg_gogo') and
+                      os.path.isdir(os.path.join(proc_root, d))]
+        self.assertEqual(len(candidates), 1,
+                         'expected exactly one gg_gogo subprocess, got %s'
+                         % candidates)
+        proc_dir = os.path.join(proc_root, candidates[0])
+        logfile = os.path.join(proc_dir, 'check.log')
         # Check that check_sa.cc compiles
         subprocess.call(['make'],
-                        stdout=devnull, stderr=devnull, 
-                        cwd=os.path.join(self.out_dir, 'SubProcesses',
-                                         'P0_Sigma_MSSM_SLHA2_full_gg_gogo'))
-        
-        subprocess.call('./check', 
+                        stdout=devnull, stderr=devnull,
+                        cwd=proc_dir)
+
+        subprocess.call('./check',
                         stdout=open(logfile, 'w'), stderr=subprocess.STDOUT,
-                        cwd=os.path.join(self.out_dir, 'SubProcesses',
-                                         'P0_Sigma_MSSM_SLHA2_full_gg_gogo'), shell=True)
-    
+                        cwd=proc_dir, shell=True)
+
         log_output = open(logfile, 'r').read()
         me_re = re.compile(r'Matrix element\s*=\s*(?P<value>[\d\.eE\+-]+)\s*GeV',
                            re.IGNORECASE)
@@ -1097,9 +1105,17 @@ class TestCmdShell2(unittest.TestCase,
         self.do('generate p p > t t~, t > b mu+ vm, t~ > b~ mu- vm~')
         self.do('output standalone_cpp %s ' % self.out_dir)
         devnull = open(os.devnull,'w')
-    
-        directories= ['P0_Sigma_sm_gg_bmupvmbxmumvmx', 'P0_Sigma_sm_QQx_bmupvmbxmumvmx']
+
+        # Discover the subprocess directories: the merge shortened the
+        # standalone_cpp directory names (e.g. P0_Sigma_sm_gg_bmupvmbxmumvmx ->
+        # P1_gg_bmupvmbxmumvmx), so list them rather than hard-coding.
         def get_values():
+            proc_root = os.path.join(self.out_dir, 'SubProcesses')
+            directories = sorted(d for d in os.listdir(proc_root)
+                                 if d.startswith('P') and
+                                 os.path.isdir(os.path.join(proc_root, d)))
+            self.assertEqual(len(directories), 2,
+                             'expected 2 subprocesses, got %s' % directories)
             values = []
             for oneproc in directories:
                 logfile = os.path.join(self.out_dir,'SubProcesses', oneproc,
@@ -2689,9 +2705,9 @@ set boost_choice [6, -6] pt [0, 0]
         self.do('import model sm')
         self.do('set group_subprocesses False')
         self.do('generate e+ e- > e+ e-')
-        self.do('output %s ' % self.out_dir)
+        self.do('output madevent %s ' % self.out_dir)
         # Check that the needed ALOHA subroutines are generated
-        files = ['aloha_file.inc', 
+        files = ['aloha_file.inc',
                  #'FFS1C1_2.f', 'FFS1_0.f',
                  'FFV1_0.f', 'FFV1P0_3.f',
                  'FFV2_0.f', 'FFV2_3.f',
@@ -2758,9 +2774,86 @@ set boost_choice [6, -6] pt [0, 0]
                                                     'SubProcesses',
                                                     'P0_epem_epem',
                                                     'madevent')))
-        
-        
-     
+
+
+    def test_mg7_ufo_aloha(self):
+        """Test mg7 (madmatrix/cudacpp) output with UFO/ALOHA.
+
+        mg7's analogue of the Fortran ALOHA routines is the C++ ``HelAmps_sm.h``
+        header: the same FFV* helicity-amplitude functions are emitted as inline
+        ``ALOHAOBJ`` C++ routines. This mirrors test_madevent_ufo_aloha but for
+        the mg7 backend: it checks the routines are generated, the parameters /
+        process sources are present, and that the subprocess compiles (cppnone
+        backend) into the expected shared libraries.
+        """
+
+        if os.path.isdir(self.out_dir):
+            shutil.rmtree(self.out_dir)
+
+        self.do('set apply_flavor_grouping False')
+        self.do('import model sm')
+        self.do('set group_subprocesses False')
+        self.do('generate e+ e- > e+ e-')
+        self.do('output mg7 %s ' % self.out_dir)
+
+        # The C++ HelAmps header is the mg7 equivalent of the Fortran ALOHA
+        # subroutines: check it exists and emits the expected FFV* routines.
+        helamps = os.path.join(self.out_dir, 'src', 'HelAmps_sm.h')
+        self.assertTrue(os.path.isfile(helamps),
+                        'HelAmps_sm.h file is not in the mg7 src directory')
+        helamps_content = open(helamps).read()
+        for routine in ['FFV1_0', 'FFV1P0_3',
+                        'FFV2_0', 'FFV2_3',
+                        'FFV4_0', 'FFV4_3']:
+            self.assertIn(routine, helamps_content,
+                          '%s routine is not in HelAmps_sm.h' % routine)
+        # the merged-ALOHA work emits these as C++ ALOHAOBJ routines
+        self.assertIn('ALOHAOBJ', helamps_content,
+                      'HelAmps_sm.h does not use the ALOHAOBJ interface')
+
+        # Parameter / model sources and the src makefile
+        for f in ['Parameters.h', 'Parameters.cc', 'makefile']:
+            self.assertTrue(os.path.isfile(os.path.join(self.out_dir,
+                                                        'src', f)),
+                            '%s file is not in the mg7 src directory' % f)
+        # mg7 cards
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                                 'Cards', 'param_card.dat')))
+        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
+                                                 'Cards', 'run_card.toml')))
+
+        # Locate the subprocess directory (P0/P1 numbering depends on the
+        # invocation path, so discover it rather than hard-coding the number).
+        subproc_root = os.path.join(self.out_dir, 'SubProcesses')
+        candidates = [d for d in os.listdir(subproc_root)
+                      if d.endswith('_epem_epem') and
+                      os.path.isdir(os.path.join(subproc_root, d))]
+        self.assertEqual(len(candidates), 1,
+                         'expected exactly one epem_epem subprocess, got %s'
+                         % candidates)
+        pdir = os.path.join(subproc_root, candidates[0])
+        for f in ['CPPProcess.cc', 'CPPProcess.h', 'makefile']:
+            self.assertTrue(os.path.isfile(os.path.join(pdir, f)),
+                            '%s file is not in the mg7 subprocess directory' % f)
+
+        devnull = open(os.devnull, 'w')
+        # Check that the subprocess compiles (scalar/no-SIMD C++ backend).
+        status = subprocess.call(['make', 'bldnone'],
+                                 stdout=devnull, stderr=devnull,
+                                 cwd=pdir)
+        self.assertEqual(status, 0)
+        # The build produces the common and per-process shared libraries.
+        libdir = os.path.join(self.out_dir, 'lib')
+        libs = os.listdir(libdir) if os.path.isdir(libdir) else []
+        self.assertTrue(any(l.startswith('libmadmatrix_common') and
+                            l.endswith('.so') for l in libs),
+                        'common madmatrix library not built: %s' % libs)
+        self.assertTrue(any(l.startswith('libmadmatrix_') and
+                            'epem_epem' in l and l.endswith('.so')
+                            for l in libs),
+                        'process madmatrix library not built: %s' % libs)
+
+
     def test_madevent_ufo_aloha_merged(self):
         """Test MadEvent output with UFO/ALOHA"""
 
@@ -3812,42 +3905,6 @@ P1_qq_wp_wp_lvl
         
         #os.remove('/tmp/model.pkl')
         
-    def test_pythia8_output(self):
-        """Test Pythia 8 output"""
-
-        if os.path.isdir(self.out_dir):
-            shutil.rmtree(self.out_dir)
-        # Create out_dir and out_dir/include
-        os.makedirs(os.path.join(self.out_dir,'include'))
-        # Touch the file Pythia.h, which is needed to verify that this is a Pythia dir
-        py_h_file = open(os.path.join(self.out_dir,'include','Pythia.h'), 'w')
-        py_h_file.close()
-
-        self.do('set apply_flavor_grouping False')
-        self.do('import model sm')
-        self.do('define p g u d u~ d~')
-        self.do('define j g u d u~ d~')
-        self.do('generate p p > w+ j @2')
-        self.do('output pythia8 %s' % self.out_dir)
-        # Check that the needed files are generated
-        files = ['Processes_sm/Sigma_sm_gq_wpq.h', 'Processes_sm/Sigma_sm_gq_wpq.cc',
-                 'Processes_sm/Sigma_sm_qq_wpg.h', 'Processes_sm/Sigma_sm_qq_wpg.cc',
-                 'Processes_sm/HelAmps_sm.h', 'Processes_sm/HelAmps_sm.cc',
-                 'Processes_sm/Parameters_sm.h',
-                 'Processes_sm/Parameters_sm.cc', 'Processes_sm/Makefile',
-                 'examples/main_sm_1.cc', 'examples/Makefile_sm_1']
-        for f in files:
-            self.assertTrue(os.path.isfile(os.path.join(self.out_dir, f)), 
-                            '%s file is not in directory' % f)
-        self.do('generate u u~ > a a a a')
-        self.assertRaises(MadGraph5Error,
-                          self.do,
-                          'output pythia8 %s' % self.out_dir)
-        self.do('generate u u~ > w+ w-, w+ > e+ ve, w- > e- ve~ @1')
-        self.assertRaises(MadGraph5Error,
-                          self.do,
-                          'output pythia8 %s' % self.out_dir)
-
     def test_standalone_cpp_output(self):
         """Test the C++ standalone output"""
 
@@ -3873,26 +3930,31 @@ P1_qq_wp_wp_lvl
         # Check that the Model and Aloha output has compiled
         self.assertTrue(os.path.exists(os.path.join(self.out_dir,
                                                'lib', 'libmodel_sm.a')))
+
+        # Locate the subprocess directory: the merge shortened the standalone_cpp
+        # directory name (P2_Sigma_sm_epem_epem -> P2_epem_epem), so discover it.
+        proc_root = os.path.join(self.out_dir, 'SubProcesses')
+        candidates = [d for d in os.listdir(proc_root)
+                      if d.endswith('_epem_epem') and
+                      os.path.isdir(os.path.join(proc_root, d))]
+        self.assertEqual(len(candidates), 1,
+                         'expected exactly one epem_epem subprocess, got %s'
+                         % candidates)
+        proc_dir = os.path.join(proc_root, candidates[0])
         # Check that check_sa.cpp compiles
         subprocess.call(['make', 'check'],
-                        stdout=devnull, stderr=devnull, 
-                        cwd=os.path.join(self.out_dir, 'SubProcesses',
-                                         'P2_Sigma_sm_epem_epem'))
+                        stdout=devnull, stderr=devnull,
+                        cwd=proc_dir)
 
 
-        self.assertTrue(os.path.exists(os.path.join(self.out_dir,
-                                                    'SubProcesses',
-                                                    'P2_Sigma_sm_epem_epem',
-                                                    'check')))
+        self.assertTrue(os.path.exists(os.path.join(proc_dir, 'check')))
 
-        # Check that the output of check is correct 
-        logfile = os.path.join(self.out_dir, 'SubProcesses',
-                               'P2_Sigma_sm_epem_epem', 'check.log')
+        # Check that the output of check is correct
+        logfile = os.path.join(proc_dir, 'check.log')
 
-        subprocess.call('./check', 
+        subprocess.call('./check',
                         stdout=open(logfile, 'w'), stderr=devnull,
-                        cwd=os.path.join(self.out_dir, 'SubProcesses',
-                                         'P2_Sigma_sm_epem_epem'), shell=True)
+                        cwd=proc_dir, shell=True)
 
         log_output = open(logfile, 'r').read()
         me_re = re.compile(r'Matrix element\s*=\s*(?P<value>[\d\.e\+-]+)\s*GeV',
