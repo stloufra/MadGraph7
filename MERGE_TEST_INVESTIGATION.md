@@ -7,6 +7,12 @@ findings + propose actions, **no fix applied yet** (user decides later).
 
 ## 1. `test_oneloop_reweighting` (tests/acceptance_tests/test_cmd_reweight.py:122)
 
+### STATUS: RESOLVED
+Applied the proposed fix: `get_MEcmd` (test_cmd_reweight.py:95) now uses
+`output madevent %s` instead of bare `output %s`. The loop reweight machinery
+was never the problem (see analysis below); only the host MadEvent directory
+needed pinning.
+
 ### Symptom
 ```
 FileNotFoundError: [Errno 2] No such file or directory:
