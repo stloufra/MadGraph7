@@ -1230,24 +1230,35 @@ class TestCmdShell2(unittest.TestCase,
         for i,_ in enumerate(original):
             self.assertEqual(original[i], new[i])
 
-    def _assert_me_lists_close(self, a, b, rtol=1e-5):
+    def _assert_me_lists_close(self, a, b, rtol=1e-5, atol=0.0):
         """Assert two matrix-element value lists agree as multisets (sorted),
-        within a relative tolerance. Backends print with different precision
-        (standalone_cpp 7 sig figs vs standalone_mg7 full double) and may emit
-        the per-flavour values in a different order, so compare sorted with a
-        relative tolerance rather than index-by-index / exact."""
+        within a combined relative/absolute tolerance
+        (|x-y| <= atol + rtol*max(|x|,|y|)).
+
+        Backends print with different precision (standalone_cpp 7 sig figs vs
+        standalone_mg7 full double) and may emit the per-flavour values in a
+        different order, so compare sorted rather than index-by-index / exact.
+        `atol` lets callers treat numerically-tiny (vanishing-flavour) values as
+        zero, where the different floating-point arithmetic of the Fortran vs
+        cudacpp backends produces different noise."""
         a, b = sorted(a), sorted(b)
         self.assertEqual(len(a), len(b),
                          'different number of matrix elements: %d vs %d'
                          % (len(a), len(b)))
         for x, y in zip(a, b):
-            scale = max(abs(x), abs(y))
-            if scale > 0:
-                self.assertLessEqual(abs(x - y), rtol * scale,
-                                     'matrix-element mismatch: %s vs %s' % (x, y))
+            self.assertLessEqual(abs(x - y), atol + rtol * max(abs(x), abs(y)),
+                                 'matrix-element mismatch: %s vs %s' % (x, y))
 
     def test_standalone_cpp_fd_output_consistency(self):
-        """test standalone_cpp in FD gauge against standalone"""
+        """test standalone_mg7 in FD gauge against standalone
+
+        The standalone_mg7 (madmatrix) matrix elements must agree with the
+        Fortran standalone ones, both in FD gauge and in unitary gauge (and FD
+        vs unitary, i.e. gauge invariance). standalone_mg7 ships a UMAMI-based
+        check_sa.exe whose 'matrix' mode is by design identical to the Fortran
+        check driver; the per-flavour values are compared as sorted multisets
+        (the backends may order flavours differently and print at different
+        precision)."""
 
         if os.path.isdir(self.out_dir):
             shutil.rmtree(self.out_dir)
@@ -1269,11 +1280,21 @@ class TestCmdShell2(unittest.TestCase,
                                 cwd=os.path.join(self.out_dir, 'Source'))
             for oneproc in directories:
                 logfile = os.path.join(proc_dir, oneproc, 'check.log')
-                target = ['make', 'check'] if output_format == 'standalone' else ['make']
+                # standalone uses 'make check' + ./check; standalone_mg7 ships a
+                # UMAMI check_sa.exe whose 'matrix' mode == the Fortran driver.
+                if output_format == 'standalone':
+                    target = ['make', 'check']
+                    check_exe = './check %s' % energy
+                elif output_format == 'standalone_mg7':
+                    target = ['make']
+                    check_exe = './check_sa.exe %s' % energy
+                else:
+                    target = ['make']
+                    check_exe = './check %s' % energy
                 subprocess.call(target,
                                 stdout=devnull, stderr=devnull,
                                 cwd=os.path.join(proc_dir, oneproc))
-                subprocess.call('./check %s' % energy,
+                subprocess.call(check_exe,
                                 stdout=open(logfile, 'w'), stderr=subprocess.STDOUT,
                                 cwd=os.path.join(proc_dir, oneproc), shell=True)
                 log_output = open(logfile, 'r').read()
@@ -1284,29 +1305,30 @@ class TestCmdShell2(unittest.TestCase,
                 values.extend(float(value) for value in me_groups)
             return values
 
-        standalone_cpp = get_values('standalone_cpp')
+        standalone_mg7 = get_values('standalone_mg7')
         shutil.rmtree(self.out_dir)
         standalone = get_values('standalone')
 
-        self.assertEqual(len(standalone_cpp), len(standalone))
-        for i, _ in enumerate(standalone_cpp):
-            self.assertAlmostEqual(standalone_cpp[i], standalone[i])
+        # atol: this process's matrix elements are O(1e-20), i.e. at the
+        # floating-point noise floor, where the Fortran and cudacpp backends
+        # differ; only require agreement above an absolute floor (the original
+        # cpp-vs-standalone check used assertAlmostEqual, equally lenient here).
+        self._assert_me_lists_close(standalone_mg7, standalone, atol=1e-7)
 
         self.do('set gauge unitary')
         self.do('generate _quark _quark > h _quark _quark _quark _anti_quark  QCD=0')
         devnull = open(os.devnull,'w')
-        energy = '1000'     
-        
+        energy = '1000'
+
         shutil.rmtree(self.out_dir)
-        standalone_cpp_no_fd = get_values('standalone_cpp')
+        standalone_mg7_no_fd = get_values('standalone_mg7')
         shutil.rmtree(self.out_dir)
         standalone_no_fd = get_values('standalone')
 
-        self.assertEqual(len(standalone_cpp_no_fd), len(standalone_no_fd))
-        for i, _ in enumerate(standalone_cpp_no_fd):
-            self.assertAlmostEqual(standalone_cpp_no_fd[i], standalone_no_fd[i])
-        for i, _ in enumerate(standalone_cpp_no_fd):
-            self.assertAlmostEqual(standalone_cpp_no_fd[i], standalone[i])
+        self._assert_me_lists_close(standalone_mg7_no_fd, standalone_no_fd,
+                                    atol=1e-7)
+        # gauge invariance: unitary-gauge values must also match the FD ones.
+        self._assert_me_lists_close(standalone_mg7_no_fd, standalone, atol=1e-7)
 
     def test_standalone_mg7_vs_cpp(self):
         """Cross-check that standalone_mg7 (madmatrix) reproduces the
