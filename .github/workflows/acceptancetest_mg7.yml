@@ -106,10 +106,9 @@ jobs:
             ./tests/test_manager.py test_madspin_mixed_flavor_decay_log_summary_mg7 -pA -t0 -l INFO
 
   acceptancetest_mg7_group_subprocess:
-    # mg7 cross-section run (u u > u u): needs the madspace runtime + LHAPDF
-    # (NNPDF23_lo_as_0130_qed) data. The test self-skips if that stack is not
-    # available, so this job is a no-op skip until the provisioning below is
-    # validated on CI.
+    # mg7 cross-section run (u u > u u). madspace is installed by checkout_mg5;
+    # LHAPDF (incl. NNPDF23_lo_as_0130_qed) comes from the heptools cache.
+    # The test self-skips if that stack is unavailable.
     runs-on: ubuntu-22.04
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
     steps:
@@ -117,15 +116,10 @@ jobs:
       - uses: ./.github/actions/checkout_mg5
       - uses: ./.github/actions/restore-pip-cache
       - uses: ./.github/actions/restore_heptools_lhapdf
-      - name: Install madspace
-        run: |
-            sudo apt-get update
-            sudo apt-get install -y cmake libopenblas-dev
-            python3 -m pip install ./madspace
       - name: test one of the test test_group_subprocess_mg7
         run: |
             cd $GITHUB_WORKSPACE
-            # make the HEPtools lhapdf-config resolvable so the test can find the data dir
+            # make the cached lhapdf-config resolvable so the test finds the data dir
             export PATH="$HOME/.cache/HEPtools/bin:$PATH"
             ./tests/test_manager.py test_group_subprocess_mg7 -pA -t0 -l INFO
 

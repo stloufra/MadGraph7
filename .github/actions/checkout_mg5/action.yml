@@ -4,9 +4,18 @@ description: Restores lhapdf from cache and sets MG5 accordingly
 runs:
   using: composite
   steps:
-    # setup other environment 
+    # setup other environment
     - run: |
         cd $GITHUB_WORKSPACE
         cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
         cp Template/LO/Source/.make_opts Template/LO/Source/make_opts
+      shell: bash
+
+    # madspace (mg7 phase-space / integration backend) should always be present.
+    # Built from the in-tree source via pip (scikit-build-core / cmake; cmake and
+    # BLAS come from the runner image / restored cache).
+    - name: Install madspace
+      run: |
+        cd $GITHUB_WORKSPACE
+        python3 -m pip install ./madspace
       shell: bash
