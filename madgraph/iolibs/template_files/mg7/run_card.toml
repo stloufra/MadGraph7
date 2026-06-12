@@ -15,6 +15,7 @@ output_format = "compact_npy" # options: compact_npy, lhe_npy, lhe
 verbosity = "pretty" # options: silent, pretty, log
 dummy_matrix_element = false
 save_gridpack = false
+gridpack_include_source = false
 
 [beam]
 e_cm = 13000.0
@@ -37,6 +38,8 @@ gpu_batch_size = 64000
 survey_min_iters = 3
 survey_max_iters = 3
 survey_target_precision = 0.1
+cut_efficiency_threshold = 0.7
+max_cut_repetitions = 1000
 
 [vegas]
 enable = true
