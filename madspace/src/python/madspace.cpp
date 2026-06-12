@@ -1235,25 +1235,6 @@ PYBIND11_MODULE(_madspace_py, m) {
         .def("chan_weight_net", &Integrand::chan_weight_net)
         .def("random_dim", &Integrand::random_dim)
         .def("latent_dims", &Integrand::latent_dims)
-        .def_readonly_static("sample", &Integrand::sample)
-        .def_readonly_static("unweight", &Integrand::unweight)
-        .def_readonly_static("return_momenta", &Integrand::return_momenta)
-        .def_readonly_static("return_x1_x2", &Integrand::return_x1_x2)
-        .def_readonly_static("return_indices", &Integrand::return_indices)
-        .def_readonly_static("return_random", &Integrand::return_random)
-        .def_readonly_static("return_latent", &Integrand::return_latent)
-        .def_readonly_static("return_channel", &Integrand::return_channel)
-        .def_readonly_static("return_chan_weights", &Integrand::return_chan_weights)
-        .def_readonly_static("return_cwnet_input", &Integrand::return_cwnet_input)
-        .def_readonly_static("return_discrete", &Integrand::return_discrete)
-        .def_readonly_static(
-            "return_discrete_latent", &Integrand::return_discrete_latent
-        )
-        .def_readonly_static(
-            "exclude_adaptive_and_chan_weight",
-            &Integrand::exclude_adaptive_and_chan_weight
-        )
-        .def_readonly_static("drop_cuts_and_rescale", &Integrand::drop_cuts_and_rescale)
         .def_readonly_static("matrix_element_inputs", &Integrand::matrix_element_inputs)
         .def_readonly_static(
             "matrix_element_outputs", &Integrand::matrix_element_outputs

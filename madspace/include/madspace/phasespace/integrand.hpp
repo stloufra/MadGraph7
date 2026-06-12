@@ -20,20 +20,6 @@ public:
     using AdaptiveMapping = std::variant<std::monostate, VegasMapping, Flow>;
     using AdaptiveDiscrete =
         std::variant<std::monostate, DiscreteSampler, DiscreteFlow>;
-    inline static const int sample = 1;
-    inline static const int unweight = 2;
-    inline static const int return_momenta = 4;
-    inline static const int return_x1_x2 = 8;
-    inline static const int return_indices = 16;
-    inline static const int return_random = 32;
-    inline static const int return_latent = 64;
-    inline static const int return_channel = 128;
-    inline static const int return_chan_weights = 256;
-    inline static const int return_cwnet_input = 512;
-    inline static const int return_discrete = 1024;
-    inline static const int return_discrete_latent = 2048;
-    inline static const int exclude_adaptive_and_chan_weight = 4096;
-    inline static const int drop_cuts_and_rescale = 8192;
 
     inline static const std::vector<MatrixElement::MatrixElementInput>
         matrix_element_inputs = {
