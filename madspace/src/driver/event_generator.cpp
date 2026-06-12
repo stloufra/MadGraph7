@@ -81,7 +81,9 @@ void EventGenerator::survey() {
                 .unweight = iter >= min_iters - 1,
                 .vegas_batch_size = vegas_batch_size,
             });
-            total_event_count += vegas_batch_size;
+            if (iter >= min_iters) {
+                total_event_count += vegas_batch_size;
+            }
             ++i;
         }
         start_jobs();
