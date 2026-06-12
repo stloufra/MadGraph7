@@ -114,48 +114,14 @@ public:
     const std::vector<std::size_t>& active_flavors() const { return _active_flavors; }
 
 private:
-    struct ChannelArgs {
-        Value r, batch_size;
-        bool has_permutations, has_multi_flavor, has_mirror, has_pdf_prior;
-        Value max_weight;
-    };
-    struct ChannelResult {
-        std::array<Value, 23> values;
-
-        Value& r() { return values[0]; }
-        Value& latent() { return values[1]; }
-        Value& momenta() { return values[2]; }
-        Value& momenta_mirror() { return values[3]; }
-        Value& momenta_acc() { return values[4]; }
-        Value& x(std::size_t pdf_index) { return values[5 + pdf_index]; }
-        Value& x_acc(std::size_t pdf_index) { return values[7 + pdf_index]; }
-        Value& pdf_prior() { return values[9]; }
-        Value& chan_index() { return values[10]; }
-        Value& chan_index_in_group() { return values[11]; }
-        Value& flavor_id() { return values[12]; }
-        Value& mirror_id() { return values[13]; }
-        Value& indices_acc() { return values[14]; }
-        Value& weight_before_cuts() { return values[15]; }
-        Value& weight_after_cuts() { return values[16]; }
-        Value& extra_weight_before_cuts() { return values[17]; }
-        Value& extra_weight_after_cuts() { return values[18]; }
-        Value& adaptive_prob() { return values[19]; }
-        Value& pdf_cache(std::size_t pdf_index) { return values[20 + pdf_index]; }
-        Value& scale_cache() { return values[22]; }
-    };
-
     NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override;
-    ChannelResult
-    build_channel_part(FunctionBuilder& fb, const ChannelArgs& args) const;
-    Value scatter_or_drop(
-        FunctionBuilder& fb, ChannelResult& result, Value default_value, Value value
-    ) const;
-    Value optional_cut(FunctionBuilder& fb, ChannelResult& result, Value value) const;
-    NamedVector<Value> build_common_part(
-        FunctionBuilder& fb, const ChannelArgs& args, ChannelResult& result
-    ) const;
+    NamedVector<Type> channel_part_ret_types() const;
+    NamedVector<Value>
+    build_channel_part(FunctionBuilder& fb, const NamedVector<Value>& args) const;
+    NamedVector<Value>
+    build_common_part(FunctionBuilder& fb, const NamedVector<Value>& channel_out) const;
 
     PhaseSpaceMapping _mapping;
     DifferentialCrossSection _diff_xs;
@@ -181,7 +147,33 @@ private:
     std::vector<double> _flavor_factors;
 
     friend class IntegrandProbability;
+    friend class IntegrandChannelPart;
+    friend class IntegrandCommonPart;
     friend class MultiChannelIntegrand;
+};
+
+class IntegrandChannelPart : public FunctionGenerator {
+public:
+    IntegrandChannelPart(const std::shared_ptr<Integrand>& integrand);
+
+private:
+    NamedVector<Value> build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
+
+    std::shared_ptr<Integrand> _integrand;
+};
+
+class IntegrandCommonPart : public FunctionGenerator {
+public:
+    IntegrandCommonPart(const std::shared_ptr<Integrand>& integrand);
+
+private:
+    NamedVector<Value> build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
+
+    std::shared_ptr<Integrand> _integrand;
 };
 
 class MultiChannelIntegrand : public FunctionGenerator {
