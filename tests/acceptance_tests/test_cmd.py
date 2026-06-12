@@ -3060,7 +3060,7 @@ set boost_choice [6, -6] pt [0, 0]
         self.do('import model sm')
         self.do('set group_subprocesses False')
         self.do('generate e+ e- > e+ e-')
-        self.do('output %s ' % self.out_dir)
+        self.do('output madevent %s ' % self.out_dir)
         # Check that the needed ALOHA subroutines are generated
         files = ['FFV6_3.f', 'FFV2_3.f', 'FFV1P1N_2.f', 'FFV6P1N_3.f', 'aloha_file.inc', 'FFV6_0.f', 'FFV2P1N_3.f', 'FFV1P0_3.f', 
                   'FFV2_0.f', 'FFV1P1N_1.f', 'FFV1_0.f', 'aloha_functions.f', 'FFV2P1N_2.f', 'FFV6P1N_1.f', 'FFV2P1N_1.f', 
