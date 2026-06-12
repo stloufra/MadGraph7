@@ -378,6 +378,20 @@ class MadSpinFactory(object):
         with open(card_path, 'w') as fp:
             fp.write('\n'.join(lines) + '\n')
 
+    @staticmethod
+    def _dump_madspin_log(name, label, log_path):
+        """Print a MadSpin log to stdout so it shows up in the CI output."""
+        try:
+            with open(log_path) as fp:
+                content = fp.read()
+        except OSError as err:
+            content = '<could not read %s: %s>' % (log_path, err)
+        sys.stdout.write(
+            '\n===== MadSpin log: %s[%s] (%s) =====\n%s\n'
+            '===== end MadSpin log: %s[%s] =====\n'
+            % (name, label, log_path, content, name, label))
+        sys.stdout.flush()
+
     def run_mode(self, config):
         """Run MadSpin once for the given :class:`SpinModeConfig`."""
         if config.label in self._results:
@@ -407,6 +421,15 @@ class MadSpinFactory(object):
                 cwd=run_dir, stdout=logf, stderr=subprocess.STDOUT,
             )
         wall = time.time() - wall_start
+        # Surface the MadSpin log on stdout (so it lands in the CI output):
+        #  - DEBUG (-l DEBUG): always, even on success;
+        #  - INFO  (-l INFO) : only when the run failed;
+        #  - quieter         : never.
+        level = _logger.getEffectiveLevel()
+        dumped = False
+        if level <= logging.DEBUG or (ret != 0 and level <= logging.INFO):
+            self._dump_madspin_log(self.name, config.label, log_path)
+            dumped = True
         if ret != 0:
             raise RuntimeError(
                 'MadSpin failed for %s[%s] (see %s)'
@@ -419,6 +442,8 @@ class MadSpinFactory(object):
             if os.path.exists(alt):
                 decayed = alt
             else:
+                if level <= logging.INFO and not dumped:
+                    self._dump_madspin_log(self.name, config.label, log_path)
                 raise RuntimeError(
                     'decayed LHE missing for %s[%s]; expected %s'
                     % (self.name, config.label, decayed)
