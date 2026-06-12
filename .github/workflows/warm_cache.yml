@@ -75,9 +75,14 @@ jobs:
           path: ~/.cache/pip-packages
           key: pip-numpy-${{ env.CACHE_KEY }}
 
-      - name: Install numpy into cache dir (if not cached)
+      - name: Install numpy (+ meson/ninja for f2py) into cache dir (if not cached)
         if: steps.cache-pip.outputs.cache-hit != 'true'
-        run: pip install --target ~/.cache/pip-packages numpy
+        # meson + ninja are required by numpy>=1.26's f2py meson backend (used on
+        # ubuntu-24 / py3.12 to compile the Fortran matrix-element wrappers, e.g.
+        # all_matrix2py.so for MadSpin/reweight). restore-pip-cache puts this
+        # dir on PYTHONPATH and its bin/ on PATH, so the meson/ninja executables
+        # are then found wherever the pip cache is restored.
+        run: pip install --target ~/.cache/pip-packages numpy meson ninja
 
   ufo_cache:
     if: (github.ref_name == '3.x' || github.ref_name == 'test_ci')
