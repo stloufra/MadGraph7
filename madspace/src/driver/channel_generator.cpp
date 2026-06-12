@@ -58,10 +58,9 @@ ChannelEventGenerator::ChannelEventGenerator(
         }())
             .function()
     ) {
-    if (integrand.flags() != integrand_flags) {
+    if (integrand.madnis_training()) {
         throw std::invalid_argument(
-            "Integrand flags must be sample | return_momenta | return_random | "
-            "return_discrete"
+            "Integrand must not be in madnis_training mode for event generation"
         );
     }
     for (auto& item : _integrand_function.globals()) {

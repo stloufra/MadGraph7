@@ -66,14 +66,15 @@ public:
         const std::optional<ChannelWeightNetwork>& chan_weight_net = std::nullopt,
         const std::vector<me_int_t>& chan_weight_remap = {},
         std::size_t remapped_chan_count = 0,
-        int flags = 0,
+        bool madnis_training = false,
+        bool drop_cuts_and_rescale = false,
         const std::vector<std::size_t>& channel_indices = {},
         const std::vector<std::size_t>& active_flavors = {},
         const std::vector<std::size_t>& flavor_remap = {},
         const std::vector<double>& flavor_factors = {}
     );
     std::size_t particle_count() const { return _mapping.particle_count(); }
-    int flags() const { return _flags; }
+    bool madnis_training() const { return _madnis_training; }
     std::optional<std::string> vegas_grid_name() const {
         if (auto vegas = std::get_if<VegasMapping>(&_adaptive_map)) {
             return vegas->grid_name();
@@ -169,7 +170,8 @@ private:
     std::optional<ChannelWeightNetwork> _chan_weight_net;
     std::vector<me_int_t> _chan_weight_remap;
     me_int_t _remapped_chan_count;
-    int _flags;
+    bool _madnis_training;
+    bool _drop_cuts_and_rescale;
     std::vector<me_int_t> _channel_indices;
     me_int_t _random_dim;
     std::size_t _latent_dim;

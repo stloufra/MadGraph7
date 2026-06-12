@@ -1197,7 +1197,8 @@ PYBIND11_MODULE(_madspace_py, m) {
                 const std::optional<ChannelWeightNetwork>&,
                 const std::vector<me_int_t>&,
                 std::size_t,
-                int,
+                bool,
+                bool,
                 const std::vector<std::size_t>&,
                 const std::vector<std::size_t>&,
                 const std::vector<std::size_t>&,
@@ -1214,14 +1215,15 @@ PYBIND11_MODULE(_madspace_py, m) {
             py::arg("chan_weight_net") = std::nullopt,
             py::arg("chan_weight_remap") = std::vector<me_int_t>{},
             py::arg("remapped_chan_count") = 0,
-            py::arg("flags") = 0,
+            py::arg("madnis_training") = false,
+            py::arg("drop_cuts_and_rescale") = false,
             py::arg("channel_indices") = std::vector<std::size_t>{},
             py::arg("active_flavors") = std::vector<std::size_t>{},
             py::arg("flavor_remap") = std::vector<std::size_t>{},
             py::arg("flavor_factors") = std::vector<double>{}
         )
         .def("particle_count", &Integrand::particle_count)
-        .def("flags", &Integrand::flags)
+        .def("madnis_training", &Integrand::madnis_training)
         .def("vegas_grid_name", &Integrand::vegas_grid_name)
         .def("mapping", &Integrand::mapping)
         .def("diff_xs", &Integrand::diff_xs)
