@@ -20,10 +20,6 @@ namespace madspace {
 
 class ChannelEventGenerator {
 public:
-    static inline const int integrand_flags = Integrand::sample |
-        Integrand::return_momenta | Integrand::return_indices |
-        Integrand::return_random | Integrand::return_discrete;
-
     static ChannelEventGenerator load(
         const std::string& channel_file,
         const std::vector<ContextPtr>& contexts,

@@ -117,7 +117,7 @@ private:
     NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override;
-    NamedVector<Type> channel_part_ret_types() const;
+    NamedVector<Type> compute_channel_part_ret_types() const;
     NamedVector<Value>
     build_channel_part(FunctionBuilder& fb, const NamedVector<Value>& args) const;
     NamedVector<Value>
@@ -145,35 +145,49 @@ private:
     std::vector<double> _active_flavors_mask;
     std::vector<me_int_t> _flavor_remap;
     std::vector<double> _flavor_factors;
+    NamedVector<Type> _channel_part_ret_types;
 
     friend class IntegrandProbability;
     friend class IntegrandChannelPart;
     friend class IntegrandCommonPart;
+    friend class IntegrandConcatenator;
     friend class MultiChannelIntegrand;
 };
 
 class IntegrandChannelPart : public FunctionGenerator {
 public:
-    IntegrandChannelPart(const std::shared_ptr<Integrand>& integrand);
+    IntegrandChannelPart(const Integrand& integrand);
 
 private:
     NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override;
 
-    std::shared_ptr<Integrand> _integrand;
+    const Integrand& _integrand;
 };
 
 class IntegrandCommonPart : public FunctionGenerator {
 public:
-    IntegrandCommonPart(const std::shared_ptr<Integrand>& integrand);
+    IntegrandCommonPart(const Integrand& integrand);
 
 private:
     NamedVector<Value> build_function_impl(
         FunctionBuilder& fb, const NamedVector<Value>& args
     ) const override;
 
-    std::shared_ptr<Integrand> _integrand;
+    const Integrand& _integrand;
+};
+
+class IntegrandConcatenator : public FunctionGenerator {
+public:
+    IntegrandConcatenator(const Integrand& integrand);
+
+private:
+    NamedVector<Value> build_function_impl(
+        FunctionBuilder& fb, const NamedVector<Value>& args
+    ) const override;
+
+    const Integrand& _integrand;
 };
 
 class MultiChannelIntegrand : public FunctionGenerator {

@@ -133,6 +133,8 @@ Integrand::Integrand(
             }
         }
     }
+
+    _channel_part_ret_types = compute_channel_part_ret_types();
 }
 
 std::tuple<std::vector<std::size_t>, std::vector<bool>> Integrand::latent_dims() const {
@@ -159,7 +161,7 @@ NamedVector<Value> Integrand::build_function_impl(
     return build_common_part(fb, channel_out);
 }
 
-NamedVector<Type> Integrand::channel_part_ret_types() const {
+NamedVector<Type> Integrand::compute_channel_part_ret_types() const {
     auto acc_float = Type(DataType::dt_float, acc_batch_size, {});
     auto acc_int = Type(DataType::dt_int, acc_batch_size, {});
     auto acc_float_array = [](int n) {
@@ -702,34 +704,78 @@ NamedVector<Value> Integrand::build_common_part(
     return outputs;
 }
 
-IntegrandChannelPart::IntegrandChannelPart(
-    const std::shared_ptr<Integrand>& integrand
-) :
+IntegrandChannelPart::IntegrandChannelPart(const Integrand& integrand) :
     FunctionGenerator(
         "IntegrandChannelPart",
         {{"batch_size", Type({batch_size})}},
-        integrand->channel_part_ret_types()
+        integrand._channel_part_ret_types
     ),
     _integrand(integrand) {}
 
 NamedVector<Value> IntegrandChannelPart::build_function_impl(
     FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
-    return _integrand->build_channel_part(fb, args);
+    return _integrand.build_channel_part(fb, args);
 }
 
-IntegrandCommonPart::IntegrandCommonPart(const std::shared_ptr<Integrand>& integrand) :
+IntegrandCommonPart::IntegrandCommonPart(const Integrand& integrand) :
     FunctionGenerator(
         "IntegrandCommonPart",
-        integrand->channel_part_ret_types(),
-        integrand->return_types()
+        integrand._channel_part_ret_types,
+        integrand.return_types()
     ),
     _integrand(integrand) {}
 
 NamedVector<Value> IntegrandCommonPart::build_function_impl(
     FunctionBuilder& fb, const NamedVector<Value>& args
 ) const {
-    return _integrand->build_common_part(fb, args);
+    return _integrand.build_common_part(fb, args);
+}
+
+IntegrandConcatenator::IntegrandConcatenator(const Integrand& integrand) :
+    FunctionGenerator(
+        "IntegrandConcatenator",
+        [&] {
+            NamedVector<Type> arg_types;
+            arg_types.reserve(2 * integrand._channel_part_ret_types.size());
+            auto keys = integrand._channel_part_ret_types.keys();
+            for (auto [key, type] : zip(keys, integrand._channel_part_ret_types)) {
+                arg_types.push_back(std::format("arg1_{}", key), type);
+            }
+            for (auto [key, type] : zip(keys, integrand._channel_part_ret_types)) {
+                arg_types.push_back(std::format("arg2_{}", key), type);
+            }
+            return arg_types;
+        }(),
+        integrand._channel_part_ret_types
+    ),
+    _integrand(integrand) {}
+
+NamedVector<Value> IntegrandConcatenator::build_function_impl(
+    FunctionBuilder& fb, const NamedVector<Value>& args
+) const {
+    // Combine per-channel results into a single NamedVector
+    ValueVec outputs;
+    auto keys = return_types().keys();
+    std::size_t half_count = args.size() / 2;
+    Value batch_sizes = fb.stack_sizes(
+        {fb.batch_size({args.at("arg1_weight")}),
+         fb.batch_size({args.at("arg2_weight")})}
+    );
+    for (auto [key, val1, val2] :
+         zip(std::span(keys.begin(), keys.begin() + half_count),
+             std::span(args.begin(), args.begin() + half_count),
+             std::span(args.begin() + half_count, args.end()))) {
+        auto [cat, cat_sizes] = fb.batch_cat({val1, val2});
+        if (key == "indices_acc" && !_integrand._drop_cuts_and_rescale) {
+            outputs.push_back(
+                fb.add_int(fb.offset_indices(batch_sizes, cat_sizes), cat)
+            );
+        } else {
+            outputs.push_back(cat);
+        }
+    }
+    return {keys, outputs};
 }
 
 MultiChannelIntegrand::MultiChannelIntegrand(

@@ -1683,7 +1683,6 @@ PYBIND11_MODULE(_madspace_py, m) {
             py::arg("name"),
             py::arg("histograms")
         )
-        .def_readonly_static("integrand_flags", &ChannelEventGenerator::integrand_flags)
         .def("status", &ChannelEventGenerator::status)
         .def("save", &ChannelEventGenerator::save, py::arg("save"));
 
