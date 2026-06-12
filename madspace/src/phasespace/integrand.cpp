@@ -23,6 +23,7 @@ Integrand::Integrand(
     std::size_t remapped_chan_count,
     bool madnis_training,
     bool drop_cuts_and_rescale,
+    bool partial_weights,
     const std::vector<std::size_t>& channel_indices,
     const std::vector<std::size_t>& active_flavors,
     const std::vector<std::size_t>& flavor_remap,
@@ -76,6 +77,21 @@ Integrand::Integrand(
                 ret_types.push_back("helicity_index", batch_int);
                 ret_types.push_back("diagram_index", batch_int);
                 ret_types.push_back("flavor_index", batch_int);
+                ret_types.push_back("ren_scale", batch_float);
+                ret_types.push_back("alpha_qcd", batch_float);
+                if (partial_weights) {
+                    if (diff_xs.has_pdf(0)) {
+                        ret_types.push_back("x1", batch_float);
+                        ret_types.push_back("fact_scale1", batch_float);
+                    }
+                    if (diff_xs.has_pdf(1)) {
+                        ret_types.push_back("x2", batch_float);
+                        ret_types.push_back("fact_scale2", batch_float);
+                    }
+                    if (diff_xs.has_pdf(0) || diff_xs.has_pdf(1)) {
+                        ret_types.push_back("partial_weight_product", batch_float);
+                    }
+                }
                 ret_types.push_back("random", batch_float_array(mapping.random_dim()));
                 if (mapping.channel_count() > 1 &&
                     !std::holds_alternative<std::monostate>(discrete_before)) {
@@ -102,6 +118,7 @@ Integrand::Integrand(
     _remapped_chan_count(remapped_chan_count),
     _madnis_training(madnis_training),
     _drop_cuts_and_rescale(drop_cuts_and_rescale),
+    _partial_weights(partial_weights),
     _channel_indices(channel_indices.begin(), channel_indices.end()),
     _random_dim(
         mapping.random_dim() +               // phasespace
@@ -681,11 +698,85 @@ NamedVector<Value> Integrand::build_common_part(
             "momenta",
             optional_cut(has_mirror ? args.at("momenta_mirror") : args.at("momenta"))
         );
-        auto zeros = fb.full({static_cast<me_int_t>(0), batch_size_val});
-        outputs.push_back("color_index", scatter_or_drop(zeros, dxs_vec.at(2)));
-        outputs.push_back("helicity_index", scatter_or_drop(zeros, dxs_vec.at(3)));
-        outputs.push_back("diagram_index", scatter_or_drop(zeros, dxs_vec.at(4)));
-        outputs.push_back("flavor_index", scatter_or_drop(zeros, flavor_id));
+        auto zeros_int = fb.full({static_cast<me_int_t>(0), batch_size_val});
+        auto zeros_float = fb.full({0., batch_size_val});
+        outputs.push_back("color_index", scatter_or_drop(zeros_int, dxs_vec.at(2)));
+        outputs.push_back("helicity_index", scatter_or_drop(zeros_int, dxs_vec.at(3)));
+        outputs.push_back("diagram_index", scatter_or_drop(zeros_int, dxs_vec.at(4)));
+        outputs.push_back("flavor_index", scatter_or_drop(zeros_int, flavor_id));
+        // Compute energy scales; reuse cached ren_scale when pdf_prior was precomputed
+        NamedVector<Value> energy_scales;
+        Value ren_scale_acc;
+        if (has_pdf_prior && !_partial_weights) {
+            ren_scale_acc = args.at("scale_cache");
+        } else if (has_pdf_prior) {
+            energy_scales = _energy_scale.value().build_function(fb, {momenta_acc});
+            ren_scale_acc = args.at("scale_cache");
+        } else {
+            energy_scales = _diff_xs.energy_scale().build_function(fb, {momenta_acc});
+            ren_scale_acc = energy_scales.at(0);
+        }
+        Value alpha_qcd_acc =
+            _diff_xs.running_coupling().build_function(fb, {ren_scale_acc}).at(0);
+        outputs.push_back("ren_scale", scatter_or_drop(zeros_float, ren_scale_acc));
+        outputs.push_back("alpha_qcd", scatter_or_drop(zeros_float, alpha_qcd_acc));
+        if (_partial_weights) {
+            if (_diff_xs.has_pdf(0)) {
+                outputs.push_back(
+                    "x1", scatter_or_drop(zeros_float, args.at("x_acc_0"))
+                );
+                outputs.push_back(
+                    "fact_scale1",
+                    scatter_or_drop(zeros_float, energy_scales.at("fact_scale1"))
+                );
+            }
+            if (_diff_xs.has_pdf(1)) {
+                outputs.push_back(
+                    "x2", scatter_or_drop(zeros_float, args.at("x_acc_1"))
+                );
+                outputs.push_back(
+                    "fact_scale2",
+                    scatter_or_drop(zeros_float, energy_scales.at("fact_scale2"))
+                );
+            }
+            if (_diff_xs.has_pdf(0) || _diff_xs.has_pdf(1)) {
+                ValueVec pdf_vals;
+                for (std::size_t i = 0; i < 2; ++i) {
+                    if (!_diff_xs.has_pdf(i)) {
+                        continue;
+                    }
+                    Value pdf_val;
+                    auto cache_key = std::format("pdf_cache_{}", i);
+                    if (args.index_map().contains(cache_key)) {
+                        pdf_val = fb.gather(
+                            fb.gather_int(flavor_id, _pdf_indices.at(i)),
+                            args.at(cache_key)
+                        );
+                    } else if (_pdfs.at(i)) {
+                        Value x_acc = args.at(i == 0 ? "x_acc_0" : "x_acc_1");
+                        Value fact_scale =
+                            energy_scales.at(i == 0 ? "fact_scale1" : "fact_scale2");
+                        auto pdf_vec =
+                            _pdfs.at(i)
+                                .value()
+                                .build_function(fb, {x_acc, fact_scale})
+                                .at(0);
+                        pdf_val = fb.gather(
+                            fb.gather_int(flavor_id, _pdf_indices.at(i)), pdf_vec
+                        );
+                    }
+                    if (pdf_val) {
+                        pdf_vals.push_back(pdf_val);
+                    }
+                }
+                Value product_acc = pdf_vals.empty()
+                    ? fb.full({1., fb.batch_size({flavor_id})})
+                    : fb.product(pdf_vals);
+                outputs.push_back(
+                    "partial_weight_product", scatter_or_drop(zeros_float, product_acc)
+                );
+            }
+        }
         outputs.push_back("random", optional_cut(args.at("r")));
         if (has_permutations &&
             !std::holds_alternative<std::monostate>(_discrete_before)) {
@@ -696,7 +787,7 @@ NamedVector<Value> Integrand::build_common_part(
         if (has_multi_flavor &&
             !std::holds_alternative<std::monostate>(_discrete_after)) {
             outputs.push_back(
-                "discrete_flavor_index", scatter_or_drop(zeros, flavor_id)
+                "discrete_flavor_index", scatter_or_drop(zeros_int, flavor_id)
             );
         }
     }

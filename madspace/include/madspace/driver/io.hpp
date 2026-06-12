@@ -52,18 +52,18 @@ struct ParticleRecord {
 
 constexpr int record_weight = 1;
 constexpr int record_subproc_index = 2;
-constexpr int record_indices = 4;
+constexpr int record_event_data = 4;
 
 template <int fields>
 struct EventRecord {
     static constexpr std::size_t size = (fields & record_weight ? 8 : 0) +
-        (fields & record_subproc_index ? 4 : 0) + (fields & record_indices ? 16 : 0);
+        (fields & record_subproc_index ? 4 : 0) + (fields & record_event_data ? 32 : 0);
     static constexpr std::size_t subproc_index_offset = fields & record_weight ? 8 : 0;
-    static constexpr std::size_t indices_offset =
+    static constexpr std::size_t event_data_offset =
         subproc_index_offset + (fields & record_subproc_index ? 4 : 0);
 
     static constexpr std::size_t field_count = (fields & record_weight ? 1 : 0) +
-        (fields & record_subproc_index ? 1 : 0) + (fields & record_indices ? 4 : 0);
+        (fields & record_subproc_index ? 1 : 0) + (fields & record_event_data ? 6 : 0);
     static constexpr std::array<FieldLayout, field_count> layout = [] {
         std::array<FieldLayout, field_count> layout;
         std::size_t offset = 0;
@@ -75,30 +75,34 @@ struct EventRecord {
             layout[offset] = {"subprocess_index", "<i4"};
             offset += 1;
         }
-        if (fields & record_indices) {
+        if (fields & record_event_data) {
             layout[offset + 0] = {"diagram_index", "<i4"};
             layout[offset + 1] = {"color_index", "<i4"};
             layout[offset + 2] = {"flavor_index", "<i4"};
             layout[offset + 3] = {"helicity_index", "<i4"};
-            offset += 4;
+            layout[offset + 4] = {"ren_scale", "<f8"};
+            layout[offset + 5] = {"alpha_qcd", "<f8"};
+            offset += 6;
         }
         return layout;
     }();
 
     UnalignedRef<double> weight() { return &data[0]; }
     UnalignedRef<int> subprocess_index() { return &data[subproc_index_offset + 0]; }
-    UnalignedRef<int> diagram_index() { return &data[indices_offset + 0]; }
-    UnalignedRef<int> color_index() { return &data[indices_offset + 4]; }
-    UnalignedRef<int> flavor_index() { return &data[indices_offset + 8]; }
-    UnalignedRef<int> helicity_index() { return &data[indices_offset + 12]; }
+    UnalignedRef<int> diagram_index() { return &data[event_data_offset + 0]; }
+    UnalignedRef<int> color_index() { return &data[event_data_offset + 4]; }
+    UnalignedRef<int> flavor_index() { return &data[event_data_offset + 8]; }
+    UnalignedRef<int> helicity_index() { return &data[event_data_offset + 12]; }
+    UnalignedRef<double> ren_scale() { return &data[event_data_offset + 16]; }
+    UnalignedRef<double> alpha_qcd() { return &data[event_data_offset + 24]; }
 
     char* data;
 };
 
 using EventWeightRecord = EventRecord<record_weight>;
-using EventIndicesRecord = EventRecord<record_indices>;
+using EventDataRecord = EventRecord<record_event_data>;
 using EventFullRecord =
-    EventRecord<record_weight | record_subproc_index | record_indices>;
+    EventRecord<record_weight | record_subproc_index | record_event_data>;
 
 struct EmptyParticleRecord {
     static constexpr std::size_t size = 0;

@@ -32,7 +32,7 @@ ChannelEventGenerator::ChannelEventGenerator(
     _config(config),
     _event_file(
         event_file,
-        DataLayout::of<EventIndicesRecord, ParticleRecord>(),
+        DataLayout::of<EventDataRecord, ParticleRecord>(),
         integrand.particle_count(),
         EventFile::create,
         true
@@ -53,9 +53,10 @@ ChannelEventGenerator::ChannelEventGenerator(
         Unweighter([&] {
             auto& ret_types = integrand.return_types();
             auto keys = ret_types.keys();
+            std::size_t vegas_index = ret_types.index_map().at("random");
             return NamedVector<Type>(
-                {keys.begin(), keys.begin() + 6},
-                {ret_types.begin(), ret_types.begin() + 6}
+                {keys.begin(), keys.begin() + vegas_index},
+                {ret_types.begin(), ret_types.begin() + vegas_index}
             );
         }())
             .function()
@@ -65,8 +66,10 @@ ChannelEventGenerator::ChannelEventGenerator(
             "Integrand must not be in madnis_training mode for event generation"
         );
     }
+    std::cout << _unweighter_function;
     init_used_globals();
     init_runtimes();
+    init_field_indices();
     if (const auto& grid_name = integrand.vegas_grid_name(); grid_name) {
         _vegas_optimizer =
             VegasGridOptimizer(contexts, grid_name.value(), config.vegas_damping);
@@ -150,7 +153,7 @@ ChannelEventGenerator::ChannelEventGenerator(
     _config(config),
     _event_file(
         event_file,
-        DataLayout::of<EventIndicesRecord, ParticleRecord>(),
+        DataLayout::of<EventDataRecord, ParticleRecord>(),
         particle_count,
         EventFile::create,
         true
@@ -171,6 +174,7 @@ ChannelEventGenerator::ChannelEventGenerator(
     _histograms(histograms) {
     init_used_globals();
     init_runtimes();
+    init_field_indices();
     if (histogram_function) {
         for (auto [context, runtimes] : zip(contexts, _runtimes)) {
             runtimes.observable_histograms =
@@ -203,6 +207,20 @@ void ChannelEventGenerator::init_runtimes() {
              .unweighter = build_runtime(_unweighter_function, context, false)}
         );
     }
+}
+
+void ChannelEventGenerator::init_field_indices() {
+    auto index_map = _integrand_common_function.outputs().index_map();
+    _field_indices.weight = index_map.at("weight");
+    _field_indices.momenta = index_map.at("momenta");
+    _field_indices.color_index = index_map.at("color_index");
+    _field_indices.helicity_index = index_map.at("helicity_index");
+    _field_indices.diagram_index = index_map.at("diagram_index");
+    _field_indices.flavor_index = index_map.at("flavor_index");
+    _field_indices.ren_scale = index_map.at("ren_scale");
+    _field_indices.alpha_qcd = index_map.at("alpha_qcd");
+    _field_indices.random = index_map.at("random");
+    _field_indices.rest = _field_indices.random + 1;
 }
 
 void ChannelEventGenerator::unweight_file(std::mt19937& rand_gen) {
@@ -376,10 +394,11 @@ void ChannelEventGenerator::start_job(
             }
             job.events = runtimes.integrand_common->run(all_ps_points);
 
-            job.weights = job.events.at(0).cpu();
+            job.weights = job.events.at(_field_indices.weight).cpu();
             if (runtimes.observable_histograms) {
                 auto hists = runtimes.observable_histograms->run(
-                    {job.events.at(0), job.events.at(1)}
+                    {job.events.at(_field_indices.weight),
+                     job.events.at(_field_indices.momenta)}
                 );
                 for (auto& item : hists) {
                     job.hists.push_back(item.cpu());
@@ -388,15 +407,18 @@ void ChannelEventGenerator::start_job(
             if (job.vegas_batch_size != 0) {
                 if (_vegas_optimizer) {
                     auto hist = runtimes.vegas_histogram->run(
-                        {job.events.at(6), job.events.at(0)}
+                        {job.events.at(_field_indices.random),
+                         job.events.at(_field_indices.weight)}
                     );
                     for (auto& item : hist) {
                         job.vegas_hist.push_back(item.cpu());
                     }
                 }
                 if (_discrete_optimizer) {
-                    TensorVec args{job.events.begin() + 7, job.events.end()};
-                    args.push_back(job.events.at(0));
+                    TensorVec args{
+                        job.events.begin() + _field_indices.rest, job.events.end()
+                    };
+                    args.push_back(job.events.at(_field_indices.weight));
                     auto hist = runtimes.discrete_histogram->run(args);
                     for (auto& item : hist) {
                         job.discrete_hist.push_back(item.cpu());
@@ -418,7 +440,7 @@ void ChannelEventGenerator::start_unweight_job(
             auto& runtimes = _runtimes.at(job.context_index);
             auto& context = _contexts.at(job.context_index);
             std::vector<Tensor> unweighter_args(
-                job.events.begin(), job.events.begin() + 6
+                job.events.begin(), job.events.begin() + _field_indices.random
             );
             unweighter_args.push_back(Tensor(job.max_weight, context->device()));
             TensorVec unw_events = runtimes.unweighter->run(unweighter_args);
@@ -500,28 +522,37 @@ void ChannelEventGenerator::update_max_weight(Tensor weights) {
 void ChannelEventGenerator::write_events(
     const std::vector<Tensor>& unweighted_events, double job_max_weight
 ) {
-    auto w_view = unweighted_events.at(0).view<double, 1>();
-    auto mom_view = unweighted_events.at(1).view<double, 3>();
-    auto colors_view = unweighted_events.at(2).view<me_int_t, 1>();
-    auto helicities_view = unweighted_events.at(3).view<me_int_t, 1>();
-    auto diagrams_view = unweighted_events.at(4).view<me_int_t, 1>();
-    auto flavors_view = unweighted_events.at(5).view<me_int_t, 1>();
+    auto w_view = unweighted_events.at(_field_indices.weight).view<double, 1>();
+    auto mom_view = unweighted_events.at(_field_indices.momenta).view<double, 3>();
+    auto colors_view =
+        unweighted_events.at(_field_indices.color_index).view<me_int_t, 1>();
+    auto helicities_view =
+        unweighted_events.at(_field_indices.helicity_index).view<me_int_t, 1>();
+    auto diagrams_view =
+        unweighted_events.at(_field_indices.diagram_index).view<me_int_t, 1>();
+    auto flavors_view =
+        unweighted_events.at(_field_indices.flavor_index).view<me_int_t, 1>();
+    auto ren_scale_view =
+        unweighted_events.at(_field_indices.ren_scale).view<double, 1>();
+    auto alphas_view = unweighted_events.at(_field_indices.alpha_qcd).view<double, 1>();
 
     EventBuffer event_buffer(
         w_view.size(),
         _event_file.particle_count(),
-        DataLayout::of<EventIndicesRecord, ParticleRecord>()
+        DataLayout::of<EventDataRecord, ParticleRecord>()
     );
     EventBuffer weight_buffer(
         w_view.size(), 0, DataLayout::of<EventWeightRecord, EmptyParticleRecord>()
     );
     for (std::size_t i = 0; i < w_view.size(); ++i) {
         weight_buffer.event<EventWeightRecord>(i).weight() = w_view[i];
-        auto event = event_buffer.event<EventIndicesRecord>(i);
+        auto event = event_buffer.event<EventDataRecord>(i);
         event.diagram_index() = diagrams_view[i];
         event.color_index() = colors_view[i];
         event.flavor_index() = flavors_view[i];
         event.helicity_index() = helicities_view[i];
+        event.ren_scale() = ren_scale_view[i];
+        event.alpha_qcd() = alphas_view[i];
         auto event_mom = mom_view[i];
         for (std::size_t j = 0; j < event_mom.size(); ++j) {
             auto particle_mom = event_mom[j];

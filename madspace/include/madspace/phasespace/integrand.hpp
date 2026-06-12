@@ -54,6 +54,7 @@ public:
         std::size_t remapped_chan_count = 0,
         bool madnis_training = false,
         bool drop_cuts_and_rescale = false,
+        bool partial_weights = false,
         const std::vector<std::size_t>& channel_indices = {},
         const std::vector<std::size_t>& active_flavors = {},
         const std::vector<std::size_t>& flavor_remap = {},
@@ -124,6 +125,7 @@ private:
     me_int_t _remapped_chan_count;
     bool _madnis_training;
     bool _drop_cuts_and_rescale;
+    bool _partial_weights;
     std::vector<me_int_t> _channel_indices;
     me_int_t _random_dim;
     std::size_t _latent_dim;

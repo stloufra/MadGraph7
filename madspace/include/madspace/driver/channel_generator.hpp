@@ -84,6 +84,7 @@ private:
     );
     void init_used_globals();
     void init_runtimes();
+    void init_field_indices();
 
     struct ContextRuntimes {
         RuntimePtr integrand_channel = nullptr;
@@ -93,6 +94,13 @@ private:
         RuntimePtr vegas_histogram = nullptr;
         RuntimePtr discrete_histogram = nullptr;
         RuntimePtr observable_histograms = nullptr;
+    };
+
+    struct FieldIndices {
+        std::size_t weight, momenta;
+        std::size_t color_index, helicity_index, diagram_index, flavor_index;
+        std::size_t ren_scale, alpha_qcd;
+        std::size_t random, rest;
     };
 
     GeneratorStatus _status;
@@ -118,6 +126,7 @@ private:
     std::vector<double> _large_weights;
     std::vector<Histogram> _histograms;
     std::unordered_set<std::string> _used_globals;
+    FieldIndices _field_indices;
 
     friend void to_json(nlohmann::json& j, const ChannelEventGenerator& channel);
 };

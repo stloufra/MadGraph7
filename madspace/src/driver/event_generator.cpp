@@ -569,7 +569,7 @@ EventGenerator::init_combine() {
             .event_buffer = EventBuffer(
                 0,
                 channel->event_file().particle_count(),
-                DataLayout::of<EventIndicesRecord, ParticleRecord>()
+                DataLayout::of<EventDataRecord, ParticleRecord>()
             ),
             .weight_buffer = EventBuffer(
                 0, 0, DataLayout::of<EventWeightRecord, EmptyParticleRecord>()
@@ -623,7 +623,7 @@ void EventGenerator::read_and_combine(
             ++sampled_chan->buffer_index;
         }
 
-        auto event_in = sampled_chan->event_buffer.event<EventIndicesRecord>(
+        auto event_in = sampled_chan->event_buffer.event<EventDataRecord>(
             sampled_chan->buffer_index
         );
         auto event_out = buffer.event<EventFullRecord>(event_index);
@@ -633,6 +633,8 @@ void EventGenerator::read_and_combine(
         event_out.color_index() = event_in.color_index();
         event_out.flavor_index() = event_in.flavor_index();
         event_out.helicity_index() = event_in.helicity_index();
+        event_out.ren_scale() = event_in.ren_scale();
+        event_out.alpha_qcd() = event_in.alpha_qcd();
 
         std::size_t i = 0;
         for (; i < sampled_chan->event_buffer.particle_count(); ++i) {
@@ -666,9 +668,9 @@ void EventGenerator::fill_lhe_event(
     EventRecord event_in = buffer.event<EventFullRecord>(event_index);
     lhe_event.weight = event_in.weight();
     lhe_event.process_id = 0;
-    lhe_event.scale = 0; // TODO: populate these
-    lhe_event.alpha_qed = 0;
-    lhe_event.alpha_qcd = 0;
+    lhe_event.scale = event_in.ren_scale();
+    lhe_event.alpha_qed = 0; // TODO: populate this
+    lhe_event.alpha_qcd = event_in.alpha_qcd();
     lhe_event.particles.clear();
     for (std::size_t i = 0; i < buffer.particle_count(); ++i) {
         auto particle_in = buffer.particle<ParticleRecord>(event_index, i);

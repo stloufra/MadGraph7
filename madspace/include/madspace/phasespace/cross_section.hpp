@@ -29,6 +29,8 @@ public:
             _pdf_indices.at(pdf_index).size() > 0;
     }
     const MatrixElement& matrix_element() const { return _matrix_element; }
+    const EnergyScale& energy_scale() const { return _energy_scale; }
+    const RunningCoupling& running_coupling() const { return _running_coupling; }
 
 private:
     NamedVector<Value> build_function_impl(
