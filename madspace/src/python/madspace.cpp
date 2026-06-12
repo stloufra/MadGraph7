@@ -1409,7 +1409,11 @@ PYBIND11_MODULE(_madspace_py, m) {
         .def_readwrite("gpu_batch_size", &GeneratorConfig::gpu_batch_size)
         .def_readwrite("verbosity", &GeneratorConfig::verbosity)
         .def_readwrite("write_live_data", &GeneratorConfig::write_live_data)
-        .def_readwrite("combine_thread_count", &GeneratorConfig::combine_thread_count);
+        .def_readwrite("combine_thread_count", &GeneratorConfig::combine_thread_count)
+        .def_readwrite(
+            "cut_efficiency_threshold", &GeneratorConfig::cut_efficiency_threshold
+        )
+        .def_readwrite("max_cut_repetitions", &GeneratorConfig::max_cut_repetitions);
 
     py::classh<GeneratorStatus>(m, "GeneratorStatus")
         .def(py::init<>())

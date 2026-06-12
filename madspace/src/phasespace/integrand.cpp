@@ -759,8 +759,8 @@ NamedVector<Value> IntegrandConcatenator::build_function_impl(
     auto keys = return_types().keys();
     std::size_t half_count = args.size() / 2;
     Value batch_sizes = fb.stack_sizes(
-        {fb.batch_size({args.at("arg1_weight")}),
-         fb.batch_size({args.at("arg2_weight")})}
+        {fb.batch_size({args.at("arg1_momenta")}),
+         fb.batch_size({args.at("arg2_momenta")})}
     );
     for (auto [key, val1, val2] :
          zip(std::span(keys.begin(), keys.begin() + half_count),

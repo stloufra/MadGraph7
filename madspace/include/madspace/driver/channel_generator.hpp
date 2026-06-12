@@ -70,7 +70,9 @@ private:
     ChannelEventGenerator(
         const std::vector<ContextPtr>& contexts,
         std::size_t particle_count,
-        const Function& integrand_function,
+        const Function& integrand_channel_function,
+        const Function& integrand_common_function,
+        const Function& integrand_concat_function,
         const Function& unweighter_function,
         const std::optional<Function>& histogram_function,
         const std::string& event_file,
@@ -80,9 +82,13 @@ private:
         const GeneratorConfig& config,
         const std::vector<Histogram>& histograms
     );
+    void init_used_globals();
+    void init_runtimes();
 
     struct ContextRuntimes {
-        RuntimePtr integrand = nullptr;
+        RuntimePtr integrand_channel = nullptr;
+        RuntimePtr integrand_common = nullptr;
+        RuntimePtr integrand_concat = nullptr;
         RuntimePtr unweighter = nullptr;
         RuntimePtr vegas_histogram = nullptr;
         RuntimePtr discrete_histogram = nullptr;
@@ -99,7 +105,9 @@ private:
     std::optional<DiscreteOptimizer> _discrete_optimizer;
     std::size_t _batch_size;
     std::size_t _particle_count;
-    Function _integrand_function;
+    Function _integrand_channel_function;
+    Function _integrand_common_function;
+    Function _integrand_concat_function;
     Function _unweighter_function;
     std::optional<Function> _histogram_function;
     RunningIntegral _cross_section;

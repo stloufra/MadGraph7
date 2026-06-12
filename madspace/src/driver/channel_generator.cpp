@@ -46,7 +46,9 @@ ChannelEventGenerator::ChannelEventGenerator(
     ),
     _batch_size(config.start_batch_size),
     _particle_count(integrand.particle_count()),
-    _integrand_function(integrand.function()),
+    _integrand_channel_function(IntegrandChannelPart(integrand).function()),
+    _integrand_common_function(IntegrandCommonPart(integrand).function()),
+    _integrand_concat_function(IntegrandConcatenator(integrand).function()),
     _unweighter_function(
         Unweighter([&] {
             auto& ret_types = integrand.return_types();
@@ -63,15 +65,8 @@ ChannelEventGenerator::ChannelEventGenerator(
             "Integrand must not be in madnis_training mode for event generation"
         );
     }
-    for (auto& item : _integrand_function.globals()) {
-        _used_globals.insert(item.first);
-    }
-    for (auto& context : contexts) {
-        _runtimes.push_back(
-            {.integrand = build_runtime(_integrand_function, context, false),
-             .unweighter = build_runtime(_unweighter_function, context, false)}
-        );
-    }
+    init_used_globals();
+    init_runtimes();
     if (const auto& grid_name = integrand.vegas_grid_name(); grid_name) {
         _vegas_optimizer =
             VegasGridOptimizer(contexts, grid_name.value(), config.vegas_damping);
@@ -124,7 +119,9 @@ ChannelEventGenerator::ChannelEventGenerator(
 ChannelEventGenerator::ChannelEventGenerator(
     const std::vector<ContextPtr>& contexts,
     std::size_t particle_count,
-    const Function& integrand_function,
+    const Function& integrand_channel_function,
+    const Function& integrand_common_function,
+    const Function& integrand_concat_function,
     const Function& unweighter_function,
     const std::optional<Function>& histogram_function,
     const std::string& event_file,
@@ -167,23 +164,44 @@ ChannelEventGenerator::ChannelEventGenerator(
     ),
     _batch_size(config.start_batch_size),
     _particle_count(particle_count),
-    _integrand_function(integrand_function),
+    _integrand_channel_function(integrand_channel_function),
+    _integrand_common_function(integrand_common_function),
+    _integrand_concat_function(integrand_concat_function),
     _unweighter_function(unweighter_function),
     _histograms(histograms) {
-    for (auto& item : _integrand_function.globals()) {
-        _used_globals.insert(item.first);
-    }
-    for (auto& context : contexts) {
-        _runtimes.push_back(
-            {.integrand = build_runtime(_integrand_function, context, false),
-             .unweighter = build_runtime(_unweighter_function, context, false)}
-        );
-    }
+    init_used_globals();
+    init_runtimes();
     if (histogram_function) {
         for (auto [context, runtimes] : zip(contexts, _runtimes)) {
             runtimes.observable_histograms =
                 build_runtime(_histogram_function.value(), context, false);
         }
+    }
+}
+
+void ChannelEventGenerator::init_used_globals() {
+    for (auto& item : _integrand_channel_function.globals()) {
+        _used_globals.insert(item.first);
+    }
+    for (auto& item : _integrand_common_function.globals()) {
+        _used_globals.insert(item.first);
+    }
+    for (auto& item : _integrand_concat_function.globals()) {
+        _used_globals.insert(item.first);
+    }
+}
+
+void ChannelEventGenerator::init_runtimes() {
+    for (auto& context : _contexts) {
+        _runtimes.push_back(
+            {.integrand_channel =
+                 build_runtime(_integrand_channel_function, context, false),
+             .integrand_common =
+                 build_runtime(_integrand_common_function, context, false),
+             .integrand_concat =
+                 build_runtime(_integrand_concat_function, context, false),
+             .unweighter = build_runtime(_unweighter_function, context, false)}
+        );
     }
 }
 
@@ -307,13 +325,57 @@ void ChannelEventGenerator::start_job(
         .submit([this, &job, &result_queue]() {
             auto& runtimes = _runtimes.at(job.context_index);
             auto& context = _contexts.at(job.context_index);
-            std::size_t batch_size = context->device()->device_type() == DeviceType::cpu
+            std::size_t max_batch_size =
+                context->device()->device_type() == DeviceType::cpu
                 ? _config.cpu_batch_size
                 : _config.gpu_batch_size;
+            std::size_t batch_size = max_batch_size;
             if (job.vegas_batch_size > 0 && batch_size > job.vegas_batch_size) {
                 batch_size = job.vegas_batch_size;
             }
-            job.events = runtimes.integrand->run({Tensor({batch_size})});
+            std::size_t target_count = batch_size;
+
+            std::size_t total_count = 0, repetitions = 0;
+            TensorVec all_ps_points;
+            while (true) {
+                auto ps_points =
+                    runtimes.integrand_channel->run({Tensor({batch_size})});
+                std::size_t acc_count =
+                    ps_points
+                        .at(_integrand_channel_function.outputs().index_map().at(
+                            "indices_acc"
+                        ))
+                        .size(0);
+                if (all_ps_points.size() > 0 && acc_count > 0) {
+                    all_ps_points.insert(
+                        all_ps_points.end(), ps_points.begin(), ps_points.end()
+                    );
+                    all_ps_points = runtimes.integrand_concat->run(all_ps_points);
+                } else {
+                    all_ps_points = ps_points;
+                }
+                total_count += acc_count;
+                ++repetitions;
+                if (total_count >= _config.cut_efficiency_threshold * target_count) {
+                    break;
+                }
+                if (repetitions == _config.max_cut_repetitions) {
+                    throw std::runtime_error(
+                        std::format(
+                            "not enough points passing cuts were found after {} "
+                            "batches",
+                            repetitions
+                        )
+                    );
+                }
+                double cut_eff = static_cast<double>(acc_count) / batch_size;
+                batch_size = std::min(
+                    static_cast<double>(max_batch_size),
+                    (target_count - total_count) / cut_eff
+                );
+            }
+            job.events = runtimes.integrand_common->run(all_ps_points);
+
             job.weights = job.events.at(0).cpu();
             if (runtimes.observable_histograms) {
                 auto hists = runtimes.observable_histograms->run(
@@ -511,7 +573,9 @@ ChannelEventGenerator ChannelEventGenerator::load(
     return ChannelEventGenerator(
         contexts,
         channel.at("particle_count").get<std::size_t>(),
-        channel.at("integrand_function").get<Function>(),
+        channel.at("integrand_channel_function").get<Function>(),
+        channel.at("integrand_common_function").get<Function>(),
+        channel.at("integrand_concat_function").get<Function>(),
         channel.at("unweighter_function").get<Function>(),
         hist_function,
         event_file,
@@ -541,7 +605,9 @@ void madspace::to_json(nlohmann::json& j, const ChannelEventGenerator& channel) 
     }
     j = json{
         {"particle_count", channel._particle_count},
-        {"integrand_function", json(channel._integrand_function)},
+        {"integrand_channel_function", json(channel._integrand_channel_function)},
+        {"integrand_common_function", json(channel._integrand_common_function)},
+        {"integrand_concat_function", json(channel._integrand_concat_function)},
         {"unweighter_function", json(channel._unweighter_function)},
         {"histogram_function", histogram_function},
         {"subprocess_index", channel._status.subprocess},
