@@ -52,7 +52,7 @@ jobs:
       - name: Delete ufo cache
         if: github.event_name == 'schedule' || inputs.reset_ufo == 'true'
         run: | 
-          gh cache delete pip-numpy-v2-${{ env.CACHE_KEY }} --repo $GITHUB_REPOSITORY || true
+          gh cache delete pip-numpy-${{ env.CACHE_KEY }} --repo $GITHUB_REPOSITORY || true
           gh cache delete ufomodel-${{ env.CACHE_KEY }} --repo $GITHUB_REPOSITORY || true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -73,7 +73,7 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ~/.cache/pip-packages
-          key: pip-numpy-v2-${{ env.CACHE_KEY }}
+          key: pip-numpy-${{ env.CACHE_KEY }}
 
       - name: Install numpy (+ meson/ninja for f2py) into cache dir (if not cached)
         if: steps.cache-pip.outputs.cache-hit != 'true'

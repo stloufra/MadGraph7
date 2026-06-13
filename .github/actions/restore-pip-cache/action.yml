@@ -5,7 +5,7 @@ runs:
   using: composite
   steps:
     - name: Set cache key
-      run: echo "CACHE_KEY=pip-numpy-v2-$ImageOS" >> $GITHUB_ENV
+      run: echo "CACHE_KEY=pip-numpy-$ImageOS" >> $GITHUB_ENV
       shell: bash
 
     - uses: actions/cache/restore@v5
