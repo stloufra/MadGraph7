@@ -520,10 +520,12 @@ void MadnisTraining::process_job_results(const std::vector<std::size_t>& job_ids
                 buffer_store(channel, job.unweighted_samples);
             }
         } else {
-            std::size_t offset = 0;
+            std::size_t offset = 0, unw_offset = 0, chan_index = 0;
+            SampleBatch chan_unweighted_samples;
             for (auto [channel, chan_size] :
                  zip(_channels, job.samples.channel_sizes)) {
                 if (chan_size == 0) {
+                    ++chan_index;
                     continue;
                 }
                 channel.sample_count += chan_size;
@@ -535,8 +537,21 @@ void MadnisTraining::process_job_results(const std::vector<std::size_t>& job_ids
                         tensor.slice(0, offset, offset + chan_size)
                     );
                 }
+                if (job.unweighted_samples.channel_sizes.size() > 0) {
+                    std::size_t unw_chan_size = job.unweighted_samples.channel_sizes.at(chan_index);
+                    chan_unweighted_samples.tensors.clear();
+                    chan_unweighted_samples.size = unw_chan_size;
+                    for (auto& tensor : job.unweighted_samples.tensors) {
+                        chan_unweighted_samples.tensors.push_back(
+                            tensor.slice(0, unw_offset, unw_offset + unw_chan_size)
+                        );
+                    }
+                    buffer_store(channel, chan_unweighted_samples);
+                    unw_offset += unw_chan_size;
+                }
                 batch.size = chan_size;
                 offset += chan_size;
+                ++chan_index;
             }
         }
     }
