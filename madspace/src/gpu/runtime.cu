@@ -755,6 +755,11 @@ void op_quantile(
     auto& q = locals[instruction.input_indices[1]];
     auto& output = locals[instruction.output_indices[0]];
 
+    if (batch_size == 0) {
+        output = Tensor(0., device, instruction.output_alloc_hints[0]);
+        return;
+    }
+
     Tensor tmp(DataType::dt_float, {batch_size}, device, AllocHint::temporary);
     tmp.copy_from(input, device);
     std::size_t temp_storage_bytes;
@@ -887,6 +892,13 @@ void op_unweight(
     auto& uw_weights = locals[instruction.output_indices[1]];
     auto batch_size = weights.size(0);
     gpuStream_t stream = device.stream();
+
+    if (batch_size == 0) {
+        indices = Tensor(DataType::dt_float, {0}, device, instruction.output_alloc_hints[0]);
+        uw_weights =
+            Tensor(DataType::dt_float, {0}, device, instruction.output_alloc_hints[1]);
+        return;
+    }
 
     Tensor rand(DataType::dt_float, {batch_size}, device, AllocHint::temporary);
     gpurandGenerator_t generator = instruction.runtime.gpurand_generator();

@@ -75,9 +75,7 @@ void MadnisTraining::train_step(std::size_t batch_index) {
         while ((job_ids = gen_thread_pool.wait_multiple()).size() != 0) {
             process_job_results(job_ids);
         }
-        println("start drop");
         drop_channels();
-        println("stop drop");
     }
     if (batch_index ==
         static_cast<std::size_t>(
@@ -174,13 +172,11 @@ void MadnisTraining::build_runtimes_and_optimizer() {
                     _config.buffer_unweighting_quantile
                 ));
             }
-            std::cout << MultiChannelFunction(buf_unw_funcs, true).function();
             _multi_channel_unweighter = build_runtime(
                 MultiChannelFunction(buf_unw_funcs, true).function(),
                 _generator_context,
                 false
             );
-            println("updating mcunw {} {}", buf_unw_funcs.size(), static_cast<void*>(_multi_channel_unweighter.get()));
         }
     }
     if (_config.buffer_capacity > 0) {
@@ -393,11 +389,9 @@ void MadnisTraining::start_multi_job(const std::vector<std::size_t> batch_sizes)
         job.samples.tensors = permute_tensors(samples);
         job.samples.channel_sizes = samples.back().batch_sizes();
         if (_multi_channel_unweighter) {
-            println("begin mcunw {} {} {}", batch_sizes.size(), job.samples.channel_sizes.size(), static_cast<void*>(_multi_channel_unweighter.get()));
             auto unw_samples = _multi_channel_unweighter->run(samples);
             job.unweighted_samples.tensors = permute_tensors(unw_samples);
             job.unweighted_samples.channel_sizes = unw_samples.back().batch_sizes();
-            println("end mcunw");
         }
         return job_id;
     });
