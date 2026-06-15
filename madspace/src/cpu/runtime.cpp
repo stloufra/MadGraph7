@@ -574,8 +574,12 @@ void op_quantile(
     auto& input = locals[instruction.input_indices[0]];
     auto& q = locals[instruction.input_indices[1]];
     auto& output = locals[instruction.output_indices[0]];
-    output = Tensor(DataType::dt_float, {1}, device);
+    if (input.size(0) == 0) {
+        output = Tensor(0., device);
+        return;
+    }
 
+    output = Tensor(DataType::dt_float, {1}, device);
     device.foreach (
         input.size(0),
         [&](std::size_t count, std::size_t offset) {
