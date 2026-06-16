@@ -144,7 +144,7 @@ C      initialized.
         DO I=1,NCOMB
           IF (GOODHEL(I) .OR. NTRY .LE. MAXTRIES.OR.(ISUM_HEL.NE.0))
      $      THEN
-            T=MATRIX(P,NHEL(1,I),FLAVOR, IVEC)
+            T=MATRIX(P,NHEL(1,I),IFLAV, IVEC)
 
             DO JJ=1,NINCOMING
               IF(POL(JJ).NE.1D0.AND.NHEL(JJ,I).EQ.INT(SIGN(1D0,POL(JJ))
@@ -206,7 +206,7 @@ C       The helicity configuration was chosen already by genps and put
 C        in a common block defined in genps.inc.
         I = HEL_PICKED
 
-        T=MATRIX(P ,NHEL(1,I),FLAVOR, IVEC)
+        T=MATRIX(P ,NHEL(1,I),IFLAV, IVEC)
 
         DO JJ=1,NINCOMING
           IF(POL(JJ).NE.1D0.AND.NHEL(JJ,I).EQ.INT(SIGN(1D0,POL(JJ))))
@@ -277,7 +277,7 @@ C     Returns the flavor array for a given flavor index IFLAV
       END
 
 
-      REAL*8 FUNCTION MATRIX(P,NHEL,FLAVOR, IVEC)
+      REAL*8 FUNCTION MATRIX(P,NHEL,IFLAV, IVEC)
       USE MODEL_OBJECT
       USE ALOHA_OBJECT
 C     
@@ -318,6 +318,7 @@ C
 C     ARGUMENTS 
 C     
       REAL*8 P(0:3,NEXTERNAL)
+      INTEGER IFLAV
       INTEGER FLAVOR(NEXTERNAL)
       INTEGER NHEL(NEXTERNAL), IC(NEXTERNAL)
       INTEGER IVEC
@@ -370,6 +371,9 @@ C     ----------
         FK_ZERO = 0D0
       ENDIF
 
+C     Rebuild the FLAVOR(NEXTERNAL) array from the threaded flavor
+C      index.
+      CALL GET_FLAVOR(IFLAV, FLAVOR)
 
       AMP(:) = (0D0,0D0)
       CALL IXXXXX(P(0,1),ZERO,NHEL(1),+1, FLAVOR(1),W(1))

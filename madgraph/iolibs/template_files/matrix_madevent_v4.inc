@@ -120,7 +120,7 @@ c    WRITE(HEL_BUFF,'(20I5)') (0,I=1,NEXTERNAL)
     IF (ISUM_HEL.EQ.0.or.(DS_get_dim_status('Helicity').eq.0)) THEN
         DO I=1,NCOMB
            IF (GOODHEL(I) .OR. NTRY .LE. MAXTRIES.OR.(ISUM_HEL.NE.0)) THEN
-               T=MATRIX%(proc_id)s(P,NHEL(1,I),FLAVOR, IVEC)            
+               T=MATRIX%(proc_id)s(P,NHEL(1,I),IFLAV, IVEC)
             %(beam_polarization)s
              IF (ISUM_HEL.NE.0) then
                call DS_add_entry('Helicity',I,T)
@@ -161,8 +161,8 @@ c    WRITE(HEL_BUFF,'(20I5)') (0,I=1,NEXTERNAL)
        
 C           The helicity configuration was chosen already by genps and put in a common block defined in genps.inc.
             I = HEL_PICKED
-            
-            T=MATRIX%(proc_id)s(P ,NHEL(1,I),FLAVOR, IVEC)            
+
+            T=MATRIX%(proc_id)s(P ,NHEL(1,I),IFLAV, IVEC)
             %(beam_polarization)s
 c           Always one helicity at a time
             ANS = T
@@ -222,7 +222,7 @@ C     Returns the flavor array for a given flavor index IFLAV
       END
 
 
-REAL*8 FUNCTION MATRIX%(proc_id)s(P,NHEL,FLAVOR, IVEC)
+REAL*8 FUNCTION MATRIX%(proc_id)s(P,NHEL,IFLAV, IVEC)
 use model_object
 use aloha_object
 C  
@@ -260,6 +260,7 @@ C
 C ARGUMENTS 
 C  
     REAL*8 P(0:3,NEXTERNAL)
+    INTEGER IFLAV
     INTEGER FLAVOR(NEXTERNAL)
     INTEGER NHEL(NEXTERNAL), IC(NEXTERNAL)
     INTEGER IVEC
@@ -306,6 +307,8 @@ if (first) then
     %(fake_width_definitions)s
 endif
 
+C   Rebuild the FLAVOR(NEXTERNAL) array from the threaded flavor index.
+    CALL GET_FLAVOR%(proc_id)s(IFLAV, FLAVOR)
 %(flavor_mask_setup)s
 AMP(:) = (0d0,0d0)
 %(helas_calls)s

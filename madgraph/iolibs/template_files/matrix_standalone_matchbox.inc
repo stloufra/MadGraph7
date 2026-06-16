@@ -1,4 +1,4 @@
-      SUBROUTINE %(proc_prefix)sSMATRIX(P, FLAVOR, ANS)
+      SUBROUTINE %(proc_prefix)sSMATRIX(P, FLAV_IDX, ANS)
 C
 %(info_lines)s
 C
@@ -22,17 +22,26 @@ C
 C ARGUMENTS
 C
       REAL*8 P(0:3,NEXTERNAL),ANS
-      INTEGER FLAVOR(NEXTERNAL)
+C     FLAV_IDX (the dummy argument) is declared with NFLAV below.
 C
 C LOCAL VARIABLES
 C
-      INTEGER NHEL(NEXTERNAL,NCOMB),NTRY
+      INTEGER FLAVOR(NEXTERNAL)
+      INTEGER NHEL(NEXTERNAL,NCOMB)
       REAL*8 T
       REAL*8 %(proc_prefix)sMATRIX
       INTEGER IHEL,IDEN, I
-      LOGICAL GOODHEL(NCOMB)
-      DATA NTRY/0/
-      DATA GOODHEL/NCOMB*.FALSE./
+      INTEGER NFLAV
+      PARAMETER (NFLAV=%(nflav)d)
+      INTEGER NNTRY_FLAV, NGOODHEL_FLAV
+      PARAMETER (NNTRY_FLAV=NFLAV+1)
+      PARAMETER (NGOODHEL_FLAV=NCOMB*(NFLAV+1))
+      INTEGER FLAV_IDX
+      INTEGER %(proc_prefix)sGET_FLAVOR_INDEX
+      INTEGER NTRY(0:NFLAV)
+      LOGICAL GOODHEL(NCOMB,0:NFLAV)
+      DATA NTRY/NNTRY_FLAV*0/
+      DATA GOODHEL/NGOODHEL_FLAV*.FALSE./
 C
 C FUNCTIONS
 C
@@ -42,14 +51,15 @@ C
 C ----------
 C BEGIN CODE
 C ----------
-      NTRY=NTRY+1
+      CALL %(proc_prefix)sGET_FLAVOR(FLAV_IDX, FLAVOR)
+      NTRY(FLAV_IDX)=NTRY(FLAV_IDX)+1
       ANS = 0D0
           DO IHEL=1,NCOMB
-             IF (GOODHEL(IHEL) .OR. NTRY .LT. 20) THEN
-                 T=%(proc_prefix)sMATRIX(P ,NHEL(1,IHEL),FLAVOR(1))
+             IF (GOODHEL(IHEL,FLAV_IDX) .OR. NTRY(FLAV_IDX) .LT. 20) THEN
+                 T=%(proc_prefix)sMATRIX(P ,NHEL(1,IHEL),FLAV_IDX)
                ANS=ANS+T
-               IF (T .NE. 0D0 .AND. .NOT.    GOODHEL(IHEL)) THEN
-                   GOODHEL(IHEL)=.TRUE.
+               IF (T .NE. 0D0 .AND. .NOT.    GOODHEL(IHEL,FLAV_IDX)) THEN
+                   GOODHEL(IHEL,FLAV_IDX)=.TRUE.
                ENDIF
              ENDIF
           ENDDO
@@ -57,7 +67,7 @@ C ----------
       END
 
 
-      REAL*8 FUNCTION %(proc_prefix)sMATRIX(P,NHEL,FLAVOR)
+      REAL*8 FUNCTION %(proc_prefix)sMATRIX(P,NHEL,FLAV_IDX)
       use model_object
 C
 %(info_lines)s
@@ -87,10 +97,11 @@ C ARGUMENTS
 C
       REAL*8 P(0:3,NEXTERNAL)
       INTEGER NHEL(NEXTERNAL)
-      INTEGER FLAVOR(NEXTERNAL)
+      INTEGER FLAV_IDX
 C
 C LOCAL VARIABLES
 C
+      INTEGER FLAVOR(NEXTERNAL)
       INTEGER I,J
       COMPLEX*16 ZTEMP
       INTEGER  CF(NCOLOR*(NCOLOR+1)/2)
@@ -166,6 +177,8 @@ C
 C
 C LOCAL VARIABLES
 C
+      INTEGER FLAV_IDX
+      INTEGER %(proc_prefix)sGET_FLAVOR_INDEX
       INTEGER I,J
       COMPLEX*16 ZTEMP
       INTEGER CF(NCOLOR*(NCOLOR+1)/2)
@@ -190,6 +203,7 @@ C
 C ----------
 C BEGIN CODE
 C ----------
+      FLAV_IDX = %(proc_prefix)sGET_FLAVOR_INDEX(FLAVOR)
 %(flavor_mask_setup)s
 %(helas_calls)s
 %(jamp_lines)s
@@ -232,3 +246,9 @@ C ----------
 	end
 
 %(broken_sym_function)s
+
+
+%(flavor_index_function)s
+
+
+%(flavor_array_function)s
