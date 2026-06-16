@@ -524,6 +524,9 @@ namespace mg5amcCpu
 #else
       const int ievt00 = ipagV2 * neppV; // loop on one SIMD page (neppV events) at a time
 #endif /* clang-format on */
+      // FS: precompute the per-wf propagator denominators once per event page (helicity-independent)
+      cxtype_sv denomBuf[nParity * processConfig::ndenom];
+      calculate_denominators( allmomenta, allcouplings, iflavorVec, denomBuf, ievt00 );
       for( int ihel = 0; ihel < ncomb; ihel++ )
       {
         //std::cout << "sigmaKin_getGoodHel ihel=" << ihel << std::endl;
@@ -544,7 +547,7 @@ namespace mg5amcCpu
 #else
         cxtype_sv jamp_sv[ncolor] = {};  // all zeros
 #endif
-        calculate_jamps( ihel, allmomenta, allcouplings, iflavorVec, jamp_sv, false, allNumerators, allDenominators, jamp2_sv, ievt00 ); //maxtry?
+        calculate_jamps( ihel, allmomenta, allcouplings, iflavorVec, jamp_sv, false, allNumerators, allDenominators, jamp2_sv, denomBuf, ievt00 ); //maxtry?
         color_sum_cpu( allMEs, jamp_sv, ievt00 );
         for( int ieppV = 0; ieppV < neppV; ++ieppV )
         {

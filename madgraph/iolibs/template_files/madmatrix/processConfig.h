@@ -9,6 +9,7 @@
 namespace processConfig {
 
   constexpr int ndiagrams = %(ndiagrams)d;
+  constexpr int ndenom = %(ndenom)d; // FS: number of per-wf propagator denominators (denomBuf size, per parity)
 
 }
 

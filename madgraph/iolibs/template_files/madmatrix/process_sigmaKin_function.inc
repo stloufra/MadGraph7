@@ -85,6 +85,10 @@
 #else
     const int npagV2 = npagV;            // loop on one SIMD page (neppV events) at a time
 #endif
+    // FS: preallocate the per-wf denominator buffer ONCE for the whole event loop (reused for every page).
+    // NB: fixed-size stack array (ndenom, nParity are compile-time constants) - never malloc'd/freed.
+    // OMP: each thread gets its own copy (private) so it is allocated once per thread, not per event.
+    cxtype_sv denomBuf[nParity * processConfig::ndenom];
 #ifdef _OPENMP
     // OMP multithreading #575 (NB: tested only with gcc11 so far)
     // See https://www.openmp.org/specifications/
@@ -94,7 +98,7 @@
     // - firstprivate: give each thread its own copy, and initialise with value from outside
 #define _OMPLIST0 allcouplings, allMEs, allmomenta, allrndcol, allrndhel, allselcol, allselhel, cGoodHel, cNGoodHel, npagV2
 #define _OMPLIST1 , allDenominators, allNumerators, allChannelIds, mgOnGpu::icolamp, mgOnGpu::channel2iconfig
-#pragma omp parallel for default( none ) shared( _OMPLIST0 _OMPLIST1 )
+#pragma omp parallel for default( none ) shared( _OMPLIST0 _OMPLIST1 ) private( denomBuf )
 #undef _OMPLIST0
 #undef _OMPLIST1
 #endif // _OPENMP
@@ -112,13 +116,15 @@
 #if defined MGONGPU_CPPSIMD and defined MGONGPU_FPTYPE_DOUBLE and defined MGONGPU_FPTYPE2_FLOAT
       fptype_sv MEs_ighel2[ncomb] = {}; // sum of MEs for all good helicities up to ighel (for the second neppV page)
 #endif
+      // FS: fill the preallocated per-wf denominator buffer once per event page (helicity-independent), then reuse for every helicity
+      calculate_denominators( allmomenta, allcouplings, iflavorVec, denomBuf, ievt00 );
       for( int ighel = 0; ighel < cNGoodHel; ighel++ )
       {
         const int ihel = cGoodHel[ighel];
         cxtype_sv jamp_sv[nParity * ncolor] = {}; // fixed nasty bug (omitting 'nParity' caused memory corruptions after calling calculate_jamps)
         // **NB! in "mixed" precision, using SIMD, calculate_jamps computes MEs for TWO neppV pages with a single channelId! #924
         bool storeChannelWeights = allChannelIds != nullptr || allrnddiagram != nullptr;
-        calculate_jamps( ihel, allmomenta, allcouplings, iflavorVec, jamp_sv, storeChannelWeights, allNumerators, allDenominators, jamp2_sv, ievt00 );
+        calculate_jamps( ihel, allmomenta, allcouplings, iflavorVec, jamp_sv, storeChannelWeights, allNumerators, allDenominators, jamp2_sv, denomBuf, ievt00 );
         color_sum_cpu( allMEs, jamp_sv, ievt00 );
         MEs_ighel[ighel] = E_ACCESS::kernelAccess( E_ACCESS::ieventAccessRecord( allMEs, ievt00 ) );
 #if defined MGONGPU_CPPSIMD and defined MGONGPU_FPTYPE_DOUBLE and defined MGONGPU_FPTYPE2_FLOAT
