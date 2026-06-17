@@ -137,12 +137,12 @@ C     For a 1>N process, them BEAMTWO_HELAVGFACTOR would be set to 1.
       INTEGER NFLAV
       PARAMETER (NFLAV=%(nflav)d)
       INTEGER NNTRY_FLAV, NGOODHEL_FLAV
-      PARAMETER (NNTRY_FLAV=NFLAV+1)
-      PARAMETER (NGOODHEL_FLAV=NCOMB*(NFLAV+1))
+      PARAMETER (NNTRY_FLAV=NFLAV)
+      PARAMETER (NGOODHEL_FLAV=NCOMB*NFLAV)
       INTEGER FLAV_IDX
       INTEGER %(proc_prefix)sGET_FLAVOR_INDEX
-      INTEGER NTRY(0:NFLAV)
-      LOGICAL GOODHEL(NCOMB,0:NFLAV)
+      INTEGER NTRY(NFLAV)
+      LOGICAL GOODHEL(NCOMB,NFLAV)
       DATA NTRY/NNTRY_FLAV*0/
       DATA GOODHEL/NGOODHEL_FLAV*.FALSE./
 %(den_factor_line)s
@@ -174,11 +174,11 @@ c----------
 c   Check if helreset mode is on
 c---------
  if (HELRESET) then
-   do i=0,NFLAV
+   do i=1,NFLAV
       NTRY(i) = 0
    enddo
    do i=1,NCOMB
-      do j=0,NFLAV
+      do j=1,NFLAV
          GOODHEL(I,j) = .false.
       enddo
    enddo

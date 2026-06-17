@@ -84,12 +84,12 @@ C     For a 1>N process, them BEAMTWO_HELAVGFACTOR would be set to 1.
       INTEGER NFLAV
       PARAMETER (NFLAV=1)
       INTEGER NNTRY_FLAV, NGOODHEL_FLAV
-      PARAMETER (NNTRY_FLAV=NFLAV+1)
-      PARAMETER (NGOODHEL_FLAV=NCOMB*(NFLAV+1))
+      PARAMETER (NNTRY_FLAV=NFLAV)
+      PARAMETER (NGOODHEL_FLAV=NCOMB*NFLAV)
       INTEGER FLAV_IDX
       INTEGER GET_FLAVOR_INDEX
-      INTEGER NTRY(0:NFLAV)
-      LOGICAL GOODHEL(NCOMB,0:NFLAV)
+      INTEGER NTRY(NFLAV)
+      LOGICAL GOODHEL(NCOMB,NFLAV)
       DATA NTRY/NNTRY_FLAV*0/
       DATA GOODHEL/NGOODHEL_FLAV*.FALSE./
 
@@ -182,11 +182,11 @@ C     ----------
 C     Check if helreset mode is on
 C     ---------
       IF (HELRESET) THEN
-        DO I=0,NFLAV
+        DO I=1,NFLAV
           NTRY(I) = 0
         ENDDO
         DO I=1,NCOMB
-          DO J=0,NFLAV
+          DO J=1,NFLAV
             GOODHEL(I,J) = .FALSE.
           ENDDO
         ENDDO
@@ -215,7 +215,7 @@ C     For this reason, we simply remove the filterin when there is
 C      only three external particles.
       IF (NEXTERNAL.LE.3) THEN
         DO IHEL=1,NCOMB
-          DO J=0,NFLAV
+          DO J=1,NFLAV
             GOODHEL(IHEL,J)=.TRUE.
           ENDDO
         ENDDO
@@ -1200,10 +1200,16 @@ C     Resolve an external FLAVOR(NEXTERNAL) group-position vector to
 C      its
 C     1-based index in the allowed-flavor table (the same ordering
 C      used by
-C     compute_flavor_masks / the FLAV_TABLE mask columns). Returns 0
-C      when the
-C     flavor is not in the table. Computed once per phase-space point
-C      and then
+C     compute_flavor_masks / the FLAV_TABLE mask columns). The result
+C      is always
+C     in [1,NFLAV]: an unresolved flavor (not in the table, not
+C      expected in
+C     normal use) falls back to 1, the first allowed flavor, so
+C      callers can
+C     index the 1..NFLAV GOODHEL/NTRY arrays and FLAV_TABLE
+C      unconditionally
+C     (no reserved 0 slot). Computed once per phase-space point and
+C      then
 C     threaded down to MATRIX/GET_AMP and the good-helicity filter.
       INCLUDE 'nexternal.inc'
       INTEGER NFLAV
@@ -1215,7 +1221,9 @@ CF2PY INTENT(OUT) :: GET_FLAVOR_INDEX
       LOGICAL FI_MATCH
       INTEGER FI_TABLE(NEXTERNAL, NFLAV)
       DATA FI_TABLE /1, 1, 1, 1, 1, 1/
-      GET_FLAVOR_INDEX = 0
+C     Default to the first allowed flavor for an unresolved input (see
+C      above).
+      GET_FLAVOR_INDEX = 1
       DO FI_I = 1, NFLAV
         FI_MATCH = .TRUE.
         DO FI_J = 1, NEXTERNAL
@@ -1239,11 +1247,15 @@ C     Reverse of GET_FLAVOR_INDEX: fill FLAVOR(NEXTERNAL) with the
 C      per-leg
 C     group-position vector of the FLAV_IDX-th allowed flavor (same
 C      table /
-C     ordering). FLAV_IDX out of [1,NFLAV] falls back to column 1.
-C      Used by the
-C     outer entry points (SMATRIX, ...) which receive FLAV_IDX but
-C      still need
-C     the FLAVOR array (e.g. for BROKEN_SYM).
+C     ordering). FLAV_IDX is expected in [1,NFLAV] (GET_FLAVOR_INDEX
+C      never
+C     returns 0); the bounds guard below is purely defensive and maps
+C      any
+C     out-of-range value to the first flavor. Used by the outer entry
+C      points
+C     (SMATRIX, ...) which receive FLAV_IDX but still need the FLAVOR
+C      array
+C     (e.g. for BROKEN_SYM).
       INCLUDE 'nexternal.inc'
       INTEGER NFLAV
       PARAMETER (NFLAV=1)

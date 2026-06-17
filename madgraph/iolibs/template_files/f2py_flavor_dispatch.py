@@ -32,6 +32,10 @@ def _is_index(flavor):
     try:
         return len(flavor) == 1
     except TypeError:
+        # No __len__ (e.g. a non-Integral scalar such as numpy.int64 that is
+        # not registered with numbers.Integral): treat it as a flavor index.
+        # We only swallow TypeError here, the specific error raised by len()
+        # on a sizeless object, so genuine errors elsewhere are not masked.
         return True
 
 
@@ -77,12 +81,15 @@ class FlavorDispatch(object):
         if _is_index(flavor):
             if idx_f is None:
                 raise AttributeError(
-                    "No '*_%s_idx' f2py entry found for index calls" % base)
+                    "No function ending with '%s_idx' found in f2py module "
+                    "for index calls" % base)
             args = list(args)
             args[pos] = _as_index(flavor)
             return idx_f(*args)
         if array_f is None:
-            raise AttributeError("No '*_%s' f2py entry found" % base)
+            raise AttributeError(
+                "No function ending with '%s' found in f2py module "
+                "for array calls" % base)
         return array_f(*args)
 
     # -- dispatching entry points (flavor may be an index or an array) --------

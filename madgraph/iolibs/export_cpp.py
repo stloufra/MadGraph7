@@ -1149,17 +1149,20 @@ class OneProcessExporterCPP(object):
         return flav_rows
 
     def _cpp_sigmakin_flavor(self, matrix_element):
-        """Return (n_flavors, flav_rows) for the always-on per-flavor
+        """Return (n_flavors, flav_rows, n_legs) for the always-on per-flavor
         good-helicity filter in sigmaKin. n_flavors is always >= 1: an ME with
         no merged-particle variants is a single flavor whose group index is 0 on
         every leg (C++ group indices are 0-based), matching the flavor[] = 0
-        convention the callers use for an unmerged leg."""
+        convention the callers use for an unmerged leg. n_legs is the number of
+        external legs (the length of each flav_table row), returned explicitly
+        so callers need not infer it from the initialiser string."""
+        nexternal = matrix_element.get_nexternal_ninitial()[0]
         allowed_flavors = matrix_element.compute_flavor_masks()
         if not allowed_flavors:
-            nexternal = matrix_element.get_nexternal_ninitial()[0]
-            return (1, ['{%s}' % ', '.join(['0'] * nexternal)])
+            return (1, ['{%s}' % ', '.join(['0'] * nexternal)], nexternal)
         return (len(allowed_flavors),
-                self._cpp_flav_rows(matrix_element, allowed_flavors))
+                self._cpp_flav_rows(matrix_element, allowed_flavors),
+                len(allowed_flavors[0]))
 
     def get_flavor_mask_blocks(self, matrix_element):
         """Return declaration/setup blocks for C++ flavor-mask guards."""
@@ -1387,12 +1390,12 @@ class OneProcessExporterCPP(object):
             # is a single flavor); for nproc > 1 there is no single flavor table,
             # so fall back to one flavor (flav_idx stays 0).
             if len(self.matrix_elements) == 1:
-                sk_nflav, sk_flav_rows = \
+                sk_nflav, sk_flav_rows, n_legs = \
                     self._cpp_sigmakin_flavor(self.matrix_elements[0])
             else:
+                n_legs = replace_dict['nexternal']
                 sk_nflav, sk_flav_rows = \
-                    (1, ['{%s}' % ', '.join(['0'] * replace_dict['nexternal'])])
-            n_legs = sk_flav_rows[0].count(',') + 1
+                    (1, ['{%s}' % ', '.join(['0'] * n_legs)])
             replace_dict['cpp_goodhel_decl'] = (
                 "const int nflav = %d;\n" % sk_nflav +
                 "static const int sk_flav_table[nflav][%d] = {%s};\n"

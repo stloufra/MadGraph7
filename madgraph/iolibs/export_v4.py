@@ -359,6 +359,9 @@ class ProcessExporterFortran(VirtualExporter):
     def _build_flav_table_flat(self, matrix_element):
         """Return (n_flavors, flav_table_flat) for this matrix element.
 
+        Return type: a 2-tuple (int, list[int]) -- n_flavors is the number of
+        allowed flavors (>= 1) and flav_table_flat is a flat list of ints.
+
         flav_table_flat is the column-major (leg-fastest) flattening of
         FLAV_TABLE(NEXTERNAL, NFLAV), where column f holds the per-leg group
         position (1..N within each merged-particle group) of the f-th allowed
@@ -3892,7 +3895,9 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         threaded FLAV_IDX but there is *no* per-call masking (single flavor,
         non-merged, or trivial all-ones mask). Only the FLAV_TABLE and the
         rebuild loop are emitted; the HELAS calls run unguarded so AMP needs no
-        zero-init. Returns (decl_block, setup_block)."""
+        zero-init. Returns a 2-tuple (decl_block, setup_block) of strings, each
+        a block of Fortran source lines (the declaration block and the
+        BEGIN-CODE rebuild block respectively)."""
         items = ', '.join(str(v) for v in flav_table_flat)
         decl = '\n'.join([
             'C     Flavor table for the FLAV_IDX -> FLAVOR rebuild.',

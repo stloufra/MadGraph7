@@ -1,9 +1,11 @@
       SUBROUTINE %(func_name)s(FLAV_IDX, FLAVOR)
 C     Reverse of GET_FLAVOR_INDEX: fill FLAVOR(NEXTERNAL) with the per-leg
 C     group-position vector of the FLAV_IDX-th allowed flavor (same table /
-C     ordering). FLAV_IDX out of [1,NFLAV] falls back to column 1. Used by the
-C     outer entry points (SMATRIX, ...) which receive FLAV_IDX but still need
-C     the FLAVOR array (e.g. for BROKEN_SYM).
+C     ordering). FLAV_IDX is expected in [1,NFLAV] (GET_FLAVOR_INDEX never
+C     returns 0); the bounds guard below is purely defensive and maps any
+C     out-of-range value to the first flavor. Used by the outer entry points
+C     (SMATRIX, ...) which receive FLAV_IDX but still need the FLAVOR array
+C     (e.g. for BROKEN_SYM).
 %(nexternal_decl)s
       INTEGER NFLAV
       PARAMETER (NFLAV=%(nflav)d)

@@ -427,10 +427,15 @@ class SALauncher(ExtLauncher):
         """Evaluate every flavor nb_try times and print the resulting
         matrix-element values, with no timing summary.
 
-        Used to validate the (flavor-aware) good-helicity filter: ./check is
-        invoked with unique_flavor=0 so it loops over all flavors, calling
-        SMATRIX nb_try times each, and prints the final matrix-element
-        evaluation (with its PDG label) for every flavor.
+        Here "every flavor" means every distinct external-flavor assignment the
+        merged matrix element serves: when light quarks/leptons are grouped into
+        merged particles, a single subprocess covers several physical flavor
+        combinations (e.g. u u~ > u u~, d d~ > d d~, ...), enumerated by the
+        flavor index. ./check is invoked with unique_flavor=0 so it loops over
+        all of them, calling SMATRIX nb_try times each (so the good-helicity
+        filter is exercised), and prints the final matrix-element evaluation
+        (with its PDG label) for each. A non-merged process simply has one
+        flavor.
 
         Parameters
         ----------
