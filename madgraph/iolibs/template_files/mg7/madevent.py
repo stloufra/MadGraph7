@@ -677,11 +677,16 @@ class MadgraphProcess:
             channel.save(os.path.join(channel_path, file))
 
         lib_path = os.path.join(gridpack_path, "lib")
-        os.mkdir(lib_path)
+        if self.run_card["run"]["gridpack_include_source"]:
+            os.mkdir(lib_path)
+            shutil.copytree("src", os.path.join(gridpack_path, "src"))
+            shutil.copytree("SubProcesses", os.path.join(gridpack_path, "SubProcesses"))
+        else:
+            shutil.copytree("lib", lib_path)
+
         matrix_elements = []
         for subproc in self.subprocess_data:
             me_path = subproc["me_path"]
-            shutil.copy(me_path, lib_path)
             matrix_elements.append(me_path)
 
         cards_path = os.path.join(gridpack_path, "Cards")
