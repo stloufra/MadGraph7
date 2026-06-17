@@ -26,7 +26,7 @@ NamedVector<Value> Unweighter::build_function_impl(
 }
 
 BufferUnweighter::BufferUnweighter(const NamedVector<Type>& types, double quantile) :
-    FunctionGenerator("Unweighter", types, types), _quantile(quantile) {}
+    FunctionGenerator("BufferUnweighter", types, types), _quantile(quantile) {}
 
 NamedVector<Value> BufferUnweighter::build_function_impl(
     FunctionBuilder& fb, const NamedVector<Value>& args
