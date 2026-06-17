@@ -189,6 +189,14 @@ c---------
 C ----------
 C BEGIN CODE
 C ----------
+C     FLAV_IDX=0 (or out of range): GET_FLAVOR_INDEX could not resolve the
+C     requested flavor -- it is not an allowed combination, so its matrix
+C     element is identically zero. Short-circuit before touching the
+C     1..NFLAV GOODHEL/NTRY arrays.
+      IF (FLAV_IDX.LT.1 .OR. FLAV_IDX.GT.NFLAV) THEN
+        ANS(:) = 0d0
+        RETURN
+      ENDIF
       CALL %(proc_prefix)sGET_FLAVOR(FLAV_IDX, FLAVOR)
       IF(USERHEL.EQ.-1) NTRY(FLAV_IDX)=NTRY(FLAV_IDX)+1
       DO IHEL=1,NEXTERNAL

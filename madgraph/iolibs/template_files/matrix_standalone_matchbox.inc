@@ -51,6 +51,12 @@ C
 C ----------
 C BEGIN CODE
 C ----------
+C     FLAV_IDX=0 (or out of range): GET_FLAVOR_INDEX could not resolve the
+C     requested flavor -- not an allowed combination, matrix element is zero.
+      IF (FLAV_IDX.LT.1 .OR. FLAV_IDX.GT.NFLAV) THEN
+        ANS = 0D0
+        RETURN
+      ENDIF
       CALL %(proc_prefix)sGET_FLAVOR(FLAV_IDX, FLAVOR)
       NTRY(FLAV_IDX)=NTRY(FLAV_IDX)+1
       ANS = 0D0
@@ -204,6 +210,15 @@ C ----------
 C BEGIN CODE
 C ----------
       FLAV_IDX = %(proc_prefix)sGET_FLAVOR_INDEX(FLAVOR)
+C     Unresolved flavor (not an allowed combination): all color amplitudes
+C     are zero.
+      IF (FLAV_IDX.EQ.0) THEN
+        DO I = 1, NCOLOR
+          JAMP(I) = (0D0, 0D0)
+          LNJAMP(I) = (0D0, 0D0)
+        ENDDO
+        RETURN
+      ENDIF
 %(flavor_mask_setup)s
 %(helas_calls)s
 %(jamp_lines)s

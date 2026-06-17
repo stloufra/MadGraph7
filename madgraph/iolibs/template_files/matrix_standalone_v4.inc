@@ -131,6 +131,14 @@ endif
 C ----------
 C BEGIN CODE
 C ----------
+C     FLAV_IDX=0 (or out of range) means GET_FLAVOR_INDEX could not resolve
+C     the requested flavor: it is not an allowed combination, so its matrix
+C     element is identically zero. Short-circuit before touching the
+C     1..NFLAV GOODHEL/NTRY arrays.
+      IF (FLAV_IDX.LT.1 .OR. FLAV_IDX.GT.NFLAV) THEN
+        ANS = 0D0
+        RETURN
+      ENDIF
       CALL %(proc_prefix)sGET_FLAVOR(FLAV_IDX, FLAVOR)
       IF(USERHEL.EQ.-1) NTRY(FLAV_IDX)=NTRY(FLAV_IDX)+1
       DO IHEL=1,NEXTERNAL
@@ -560,6 +568,14 @@ C BEGIN CODE
 C ----------
       IC(:)=1
       FLAV_IDX = %(proc_prefix)sGET_FLAVOR_INDEX(FLAVOR)
+C     Unresolved flavor (not an allowed combination): the matrix element and
+C     therefore all interference terms are zero.
+      IF (FLAV_IDX.EQ.0) THEN
+         DO I = 1, N_COMB*(N_COMB+1)/2
+            INTER(I) = (0d0, 0d0)
+         ENDDO
+         RETURN
+      ENDIF
       do I = 1, N_COMB
          do N = 1, N_CHANGING
             NHEL(POS(N)) = ALLOW_HEL((I-1)*N_CHANGING+N)

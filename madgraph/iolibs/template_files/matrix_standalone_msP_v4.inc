@@ -56,6 +56,12 @@ C
 C ----------
 C BEGIN CODE
 C ----------
+C     FLAV_IDX=0 (or out of range): GET_FLAVOR_INDEX could not resolve the
+C     requested flavor -- not an allowed combination, matrix element is zero.
+      IF (FLAV_IDX.LT.1 .OR. FLAV_IDX.GT.NFLAV) THEN
+        ANS = 0D0
+        RETURN
+      ENDIF
       CALL GET_FLAVOR_PROD(FLAV_IDX, FLAVOR)
       NTRY(FLAV_IDX)=NTRY(FLAV_IDX)+1
       ANS = 0D0
