@@ -129,14 +129,14 @@ Integrand::Integrand(
                 }
                 if (flav_count > 1 &&
                     !std::holds_alternative<std::monostate>(discrete_after)) {
-                    ret_types.push_back("flavor_index", batch_int);
+                    ret_types.push_back("discrete_flavor_index", batch_int);
                 }
             }
             if (flags & return_discrete_latent) {
                 ret_types.push_back("channel_index_in_group", batch_int);
                 if (flav_count > 1 &&
                     !std::holds_alternative<std::monostate>(discrete_after)) {
-                    ret_types.push_back("flavor_index", batch_int);
+                    ret_types.push_back("discrete_flavor_index", batch_int);
                     if (pdf_grid && energy_scale) {
                         ret_types.push_back("pdf_prior", batch_float_array(flav_count));
                     }
@@ -640,7 +640,8 @@ NamedVector<Value> Integrand::build_common_part(
             !std::holds_alternative<std::monostate>(_discrete_after)) {
             auto zeros = fb.full({static_cast<me_int_t>(0), args.batch_size});
             outputs.push_back(
-                "flavor_index", scatter_or_drop(fb, result, zeros, result.flavor_id())
+                "discrete_flavor_index",
+                scatter_or_drop(fb, result, zeros, result.flavor_id())
             );
         }
     }
@@ -653,7 +654,8 @@ NamedVector<Value> Integrand::build_common_part(
             !std::holds_alternative<std::monostate>(_discrete_after)) {
             auto zeros = fb.full({static_cast<me_int_t>(0), args.batch_size});
             outputs.push_back(
-                "flavor_index", scatter_or_drop(fb, result, zeros, result.flavor_id())
+                "discrete_flavor_index",
+                scatter_or_drop(fb, result, zeros, result.flavor_id())
             );
             if (args.has_pdf_prior) {
                 auto flav_count = _diff_xs.pid_options().size();
@@ -795,7 +797,7 @@ IntegrandProbability::IntegrandProbability(const Integrand& integrand) :
             auto flavor_count = integrand._diff_xs.pid_options().size();
             if (flavor_count > 1 &&
                 !std::holds_alternative<std::monostate>(integrand._discrete_after)) {
-                arg_types.push_back("flavor_index", batch_int);
+                arg_types.push_back("discrete_flavor_index", batch_int);
                 if ((integrand._pdfs.at(0) || integrand._pdfs.at(1)) &&
                     integrand._energy_scale) {
                     arg_types.push_back("pdf_prior", batch_float_array(flavor_count));
