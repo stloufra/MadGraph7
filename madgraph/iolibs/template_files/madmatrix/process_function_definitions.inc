@@ -168,6 +168,10 @@ namespace mg5amcCpu
   static int cNGoodHel;
   static int cGoodHel[ncomb];
 
+  // Host-side flavor table: single source of truth for PDG ids (used by both the
+  // constructor copy into cFlavors and the public CPPProcess::flavorPDG accessor).
+%(all_flavors)s
+
   //--------------------------------------------------------------------------
 
 #ifdef MGONGPUCPP_GPUIMPL
@@ -228,7 +232,6 @@ namespace mg5amcCpu
     // Helicities for the process [NB do keep 'static' for this constexpr array, see issue #283]
     // *** NB There is no automatic check yet that these are in the same order as Fortran! #569 ***
 %(all_helicities)s
-%(all_flavors)s
 #ifdef MGONGPUCPP_GPUIMPL
     gpuMemcpyToSymbol( cHel, tHel, ncomb * npar * sizeof( short ) );
     gpuMemcpyToSymbol( cFlavors, tFlavors, nmaxflavor * npar * sizeof( short ) );
@@ -246,6 +249,15 @@ namespace mg5amcCpu
   //--------------------------------------------------------------------------
 
   CPPProcess::~CPPProcess() {}
+
+  //--------------------------------------------------------------------------
+
+  // PDG id for the given flavor combination and particle index (host side).
+  short
+  CPPProcess::flavorPDG( int iflavor, int ipar )
+  {
+    return tFlavors[iflavor][ipar] + 1;
+  }
 
   //--------------------------------------------------------------------------
 
@@ -598,7 +610,7 @@ namespace mg5amcCpu
       int n_tot = 1;
       for (int j = i + 1; j < (nexternal - nincoming); j++)
       {
-        if((pid[i] == pid[j]) && (cFlavors[iflavor][i] == cFlavors[iflavor][j]))
+        if((pid[i] == pid[j]) && (cFlavors[iflavor][nincoming + i] == cFlavors[iflavor][nincoming + j]))
         {
           pid[j] = 0;
           n_tot = n_tot + 1;
