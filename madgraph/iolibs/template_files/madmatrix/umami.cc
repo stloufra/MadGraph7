@@ -363,8 +363,9 @@ extern "C"
         {reinterpret_cast<void**>(&ghel_jamps), rounded_count * CPPProcess::ncomb * CPPProcess::ncolor * mgOnGpu::nx2 * sizeof( fptype )},
     }};
     std::size_t total_size = 0;
+    constexpr std::size_t MAX_SIZE = std::max(sizeof(fptype), sizeof(int));
     for (auto [ptr, size] : ptrs_and_sizes) {
-        std::size_t aligned_size = (size + 7) / 8 * 8;
+        std::size_t aligned_size = (size + MAX_SIZE - 1) / MAX_SIZE * MAX_SIZE;
         total_size += aligned_size;
     }
     uint8_t* buffer;
@@ -562,7 +563,7 @@ extern "C"
         std::size_t i_sorted = permutation[i_event];
         std::size_t page_size = MemoryAccessMomentaBase::neppM;
         std::size_t i_page = i_sorted / page_size;
-        std::size_t i_vector = i_sorted % page_size;
+        std::size_t i_vector = i_sorted % page_size; // vector lane
 
         double denominator = denominators[i_sorted];
         if( m2_out != nullptr )
