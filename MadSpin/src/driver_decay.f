@@ -77,7 +77,7 @@ c
 c     Now we can call the matrix element!
 c
       call GET_FLAVOR_MS(flavor_index, FLAVOR)
-      CALL SMATRIX(P,FLAVOR,MATELEM)
+      CALL SMATRIX(P,flavor_index,MATELEM)
 c
 
 c      write (*,*) "Matrix element = ", MATELEM, " GeV^",-(2*nexternal-8)	

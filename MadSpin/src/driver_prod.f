@@ -80,7 +80,7 @@ c
       amp2(i)=0d0
       enddo
       call coup()
-      CALL SMATRIX_PROD(P,FLAVOR,MATELEM)
+      CALL SMATRIX_PROD(P,flavor_index,MATELEM)
 c
 
 c      write (*,*) "Matrix element = ", MATELEM, " GeV^",-(2*nexternal-8)	
