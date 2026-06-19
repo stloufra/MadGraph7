@@ -1817,24 +1817,32 @@ class MadSpinInterface(extended_cmd.Cmd):
                     full_evt, wgt, _ = self.get_onshell_evt_and_wgt(
                         production, decays, decay_dict, prod_density_cached, build_event=build_event)
                 jac = 1
-                if density_needs_reshuffle and self.options['density_keep_jacobian']:
-                    # Build the full Event for correct jacobian handling
-                    # already done if density_pole_approximation is False, 
-                    # but need to be done here if density_pole_approximation is True and density_keep_jacobian is True
+                if density_needs_reshuffle and (
+                        not self.options['density_pole_approximation']
+                        or self.options['density_keep_jacobian']):
+                    # Reshuffle BEFORE accept/reject so the reshuffling jacobian
+                    # enters the accept/reject weight (wgt*jac). This is the
+                    # full/madspin offshell mode (PA=False), or PA with explicit
+                    # jacobian tracking. Build on a fresh copy because this runs
+                    # on every trial, including rejected ones (must not mutate the
+                    # shared production event).
                     full_evt = lhe_parser.Event(str(production))
                     full_evt = full_evt.add_decays(decays)
                     jac = full_evt.reshuffle_production()
-                        
+
                 if random.random()*maxwgt < wgt*jac:
-                    if density_needs_reshuffle and not self.options['density_keep_jacobian']:
-                        # Build the full Event only after acceptance in density mode.
-                        if self.options['density_pole_approximation']:
-                            full_evt = lhe_parser.Event(str(production))
-                        else:
-                            full_evt = production
+                    if (density_needs_reshuffle
+                            and self.options['density_pole_approximation']
+                            and not self.options['density_keep_jacobian']):
+                        # PA (default): reshuffle AFTER acceptance. The reshuffle is
+                        # a kinematic dressing of the accepted event; the Breit-Wigner
+                        # sampling jacobian is already folded into wgt, so the
+                        # reshuffling jacobian must not re-enter the accept/reject
+                        # test. For 2 -> 1 production no mass was sampled and
+                        # reshuffle_production short-circuits (NWA-style no-op).
+                        full_evt = lhe_parser.Event(str(production))
                         full_evt = full_evt.add_decays(decays)
-                        if self.options['density_pole_approximation']:
-                            jac = full_evt.reshuffle_production()
+                        jac = full_evt.reshuffle_production()
                     elif full_evt is None:
                         # No-reshuffle density mode still needs a concrete event to write out.
                         if density_method and self.options['density_pole_approximation']:
@@ -2101,11 +2109,18 @@ class MadSpinInterface(extended_cmd.Cmd):
                         base_event, decays, decay_dict, density_matrix_prod, build_event=False)[1]
                     #print(f"wgt2 = {wgt}")
                 #print(f"Event {i} , PS point {j}, wgt for max = {wgt}")
-                jac = 1 
-                if (self.options['density_keep_jacobian'] and
-                        self.options['density_pole_approximation'] and
-                        self.options['density_do_reshuffle']):
-                    # Build the full Event for tracking associated jacobian
+                jac = 1
+                # Mirror the accept/reject loop: include the reshuffling jacobian
+                # in the max-weight estimate whenever the reshuffle is applied
+                # *before* accept/reject (full/madspin offshell, or PA with
+                # jacobian tracking). PA-after-acceptance keeps jac = 1 here.
+                density_needs_reshuffle = (
+                    self.generate_all.mode == 'density'
+                    and (not self.options['density_pole_approximation']
+                         or self.options['density_do_reshuffle']))
+                if density_needs_reshuffle and (
+                        not self.options['density_pole_approximation']
+                        or self.options['density_keep_jacobian']):
                     full_evt = lhe_parser.Event(str(base_event))
                     full_evt = full_evt.add_decays(decays)
                     jac = full_evt.reshuffle_production()
@@ -2172,9 +2187,15 @@ class MadSpinInterface(extended_cmd.Cmd):
             #print(f"full_me = {full_me}")
         else:
             #offshell mode
-            full_dqrts = production.sqrts 
-            jac = 1 
-            if (not self.options['density_pole_approximation'] or
+            full_dqrts = production.sqrts
+            jac = 1
+            # 2 -> 1 production: the single resonance virtuality is fully fixed
+            # by sqrt(shat); there is no recoil phase space, so RAMBO cannot
+            # redistribute a sampled Breit-Wigner mass. Keep the resonance
+            # onshell at the production-determined mass (no reshuffling) instead
+            # of building kinematically inconsistent momenta.
+            nb_prod_final = sum(1 for p in production if int(p.status) == 1)
+            if nb_prod_final > 1 and (not self.options['density_pole_approximation'] or
                     self.options['density_do_reshuffle']):
                 for pdg in decays:
                     for dec in decays[pdg]:
