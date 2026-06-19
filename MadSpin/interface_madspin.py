@@ -64,10 +64,11 @@ class MadSpinOptions(banner.ConfigFile):
         self.add_param('ms_dir', '')
         self.add_param('max_running_process', 100)
         self.add_param('onlyhelicity', False)
-        self.add_param('ME_mode', 'auto', allowed=['auto', 'decay_chain', 'density'])
+        self.add_param('mode', 'full', allowed=['full', 'onshell', 'none', 'madspin', 'madspin_v1', 'onshell_v1'])
         self.add_param('spinmode', "PA", allowed=['full','madspin','none','onshell','PA'])
+
         self.add_param('use_old_dir', False, comment='should be use only for faster debugging')
-        self.add_param('run_card', '' , comment='define cut for spinmode==none. Path to run_card to use')
+        self.add_param('run_card', '' , comment='define cut for decay_events (in onshell frame). Path to run_card to use')
         self.add_param('fixed_order', False, comment='to activate fixed order handling of counter-event')
         self.add_param('seed', 0, comment='control the seed of madspin')
         self.add_param('cross_section', {'__type__':0.}, comment="forcing normalization of cross-section after MS (for none/onshell)" )
@@ -201,7 +202,7 @@ class MadSpinInterface(extended_cmd.Cmd):
             
     
     def setup_for_pure_decay(self):
-        """this is for spinmode=None -> simple decay
+        """this is for mode=None -> simple decay
            We go here if they are no banner.
            -> this requires that a command import model appears in the card!
         """
@@ -310,7 +311,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                 raise self.InvalidCmd('No such file or directory : %s' % inputfile)
 
         self.inputfile = inputfile
-        if self.options['spinmode'] == 'none' and \
+        if self.options['mode'] == 'none' and \
            (self.options['input_format'] not in ['lhe','auto'] or 
              (self.options['input_format'] == 'auto' and '.lhe'  not in inputfile[-7:])):  
             self.banner = banner.Banner()
@@ -526,12 +527,12 @@ class MadSpinInterface(extended_cmd.Cmd):
         #if self.model and not self.model['case_sensitive']:
         #    decaybranch = decaybranch.lower()
 
-        if self.options['spinmode'] not in  ['full','madspin'] and '{' in decaybranch:
-            if self.options['spinmode'] == 'none':
-                logger.warning("polarization option used with spinmode=none. The polarization definition will be done according to the rest-frame of the decaying particles (which is likely not what you expect).")
+        if self.options['mode'] not in  ['full','madspin', 'madspin_v1'] and '{' in decaybranch:
+            if self.options['mode'] == 'none':
+                logger.warning("polarization option used with mode=none. The polarization definition will be done according to the rest-frame of the decaying particles (which is likely not what you expect).")
             else:
-                logger.warning("polarization option used with spinmode=onshell. This combination is not validated and is by construction using sub-optimal method which can likely lead to bias in some situation. Use at your own risk.")
-        if "=" in decaybranch and self.options['spinmode'] in['full','madspin']:
+                logger.warning("polarization option used with mode=onshell. This combination is not validated and is by construction using sub-optimal method which can likely lead to bias in some situation. Use at your own risk.")
+        if "=" in decaybranch and self.options['mode'] in['madspin_v1']:
             logger.warning("Note that coupling order restriction are not associated to specific Branching Ratio. The total cross-section might therefore use the wrong branching ratio.")
         decay_process, init_part = self.decay.reorder_branch(decaybranch)
         if init_part not in self.list_branches:
@@ -556,7 +557,7 @@ class MadSpinInterface(extended_cmd.Cmd):
         if args[1].strip() == '=':
             args.pop(1)
         
-        valid = ['max_weight','seed','curr_dir', 'spinmode', 'run_card']
+        valid = ['max_weight','seed','curr_dir', 'spinmode', 'mode', 'run_card', 'mode']
         if args[0] not in self.options and args[0] not in valid:
             raise self.InvalidCmd('Unknown options %s' % args[0])        
     
@@ -569,13 +570,16 @@ class MadSpinInterface(extended_cmd.Cmd):
         elif args[0] == 'curr_dir':
             if not os.path.isdir(args[1]):
                 raise self.InvalidCmd('second argument should be a path to a existing directory')
-        
         elif args[0] == "spinmode":
-            if args[1].lower() not in ["full", "onshell", "none", "madspin", "density", "pa"]:
-                raise self.InvalidCmd("spinmode can only take one of those 5 values: full/onshell/none/density/PA")
+            if args[1].lower() not in ["full", "onshell", "none", "madspin"]:
+                raise self.InvalidCmd("spinmode can only take one of those 4 values: full/onshell/none/madspin")
+            args[0] = "mode"      
+        elif args[0] == "mode":
+            if args[1].lower() not in ["full", "onshell", "none", "madspin", "pa", "madspin_v1", "onshell_v1"]:
+                raise self.InvalidCmd("mode can only take one of those values: full/madspin/onshell/none/PA/madspin_v1/onshell_v1")
              
         elif args[0] == "run_card":
-            if self.options['spinmode'] == "madspin":
+            if self.options['mode'] == "madspin_v1":
                 raise self.InvalidCmd("edition of the run_card is not allowed within normal mode")
             if "=" in args:
                 args.remove("=")
@@ -603,7 +607,7 @@ class MadSpinInterface(extended_cmd.Cmd):
 
         # Format
         if len(args) == 1:
-            opts = list(self.options.keys()) + ['seed', "spinmode"]
+            opts = list(self.options.keys()) + ['seed', "mode"]
             return self.list_completion(text, opts) 
         elif len(args) == 2:
             if args[1] == 'ms_dir':
@@ -612,8 +616,8 @@ class MadSpinInterface(extended_cmd.Cmd):
             curr_path = pjoin(*[a for a in args \
                                                    if a.endswith(os.path.sep)])
             return self.path_completion(text, curr_path, only_dirs = True)
-        elif args[1] == "spinmode":
-            return self.list_completion(text, ["full","onshell", "none"], line)
+        elif args[1] == "mode":
+            return self.list_completion(text, ["full","onshell", "none", "madspin", "pa", "madspin_v1", "onshell_v1"], line)
          
     def help_set(self):
         """help the set command"""
@@ -628,8 +632,13 @@ class MadSpinInterface(extended_cmd.Cmd):
         print('       It has a period of 2**19937-1.')
         print('   - set max_running_process VALUE: allow to limit the number of open file used by the code')
         print('       The number of running is raising like 2*VALUE')
-        print('   - set spinmode=none: mode with simple file merging. No spin correlation attempt.')
-        print('       This mode allows 3 (and more) body decay.')
+        print('   - set mode=XXX: different approximation/implementation are available')
+        print('        none: no spin correlation no offshell effects.')
+        print('        onshell: spin correlation but no offshell effects.')
+        print('        PA: spin correlation and offshell effects with a pure Breit-Wigner.')
+        print('        madspin: spin correlation and offshell effects (default)')
+        print('        madspin_v1: legacy MadSpin implementation (different reshuffling and no density matrix)')
+        print('        onshell_v1: legacy MadSpin implementation (no density matrix) --for debugging only--')
     
     def do_define(self, line):
         """ """
@@ -720,42 +729,38 @@ class MadSpinInterface(extended_cmd.Cmd):
             self.me_run_name = ''
 
         if self.options['onlyhelicity']:
-            self.options['spinmode'] = 'full'
-            self.options['ME_mode'] = 'decay_chain'
+            self.options['spinmode'] = 'madspin_v1'
 
 
 
-        if self.options["spinmode"] in ["none"]:
+        if self.options["mode"] in ["none"]:
             out = self.run_bridge(line)
             self._log_lhe_timers()
             return out
-        elif self.options["spinmode"] == "onshell":
-            if self.options['ME_mode'] in ['auto', 'decay_chain']:
+        elif self.options["mode"].startswith("onshell"):
+            if self.options["mode"] == "onshell_v1":
                 out = self.run_onshell(line)
             else:
                 out = self.run_onshell(line, density_method=True)
             self._log_lhe_timers()
             return out
-        elif self.options["spinmode"] == "PA":
+        elif self.options["mode"] == "PA":
             self.options['density_pole_approximation'] = True
             out = self.run_onshell(line, density_method=True)
             self._log_lhe_timers()
             return out
-        elif self.options["spinmode"] == "madspin":
+        elif self.options["mode"] == "madspin_v1":
             # legacy MadSpin / decay-chain path: fall through to decay_all_events below
             pass
-        elif self.options["spinmode"] == "full":
-            if self.options['ME_mode'] in ['auto', 'density']:
-                self.options['density_pole_approximation'] = False 
-                out = self.run_onshell(line, density_method=True)
-                self._log_lhe_timers()
-                return out
-            else:
-                pass
-        elif self.options["spinmode"] == "bridge":
+        elif self.options["mode"] in ["full", "madspin"]:
+            self.options['density_pole_approximation'] = False 
+            out = self.run_onshell(line, density_method=True)
+            self._log_lhe_timers()
+            return out
+        elif self.options["mode"] == "bridge":
             raise Exception("Bridge mode not available.")
         else:
-            raise Exception("spinmode %s not supported" % self.options["spinmode"])
+            raise Exception("mode %s not supported" % self.options["mode"])
         
         if self.options['ms_dir'] and os.path.exists(pjoin(self.options['ms_dir'], 'madspin.pkl')):
             out = self.run_from_pickle()
@@ -1273,7 +1278,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                             continue
 
                         if helicity == decay[0].helicity or helicity==9 or \
-                                            self.options["spinmode"] == "none":
+                                            self.options["mode"] == "none":
                             break # use that event
                         # not valid event store it for later
                         if helicity not in bufferedEvents:
