@@ -875,8 +875,10 @@ class TestCmdShell2(unittest.TestCase,
           * s c~ > s c~ reproduces the d u~ > d u~ value (PDG 1 -2 1 -2),
           * s c~ > c c~ vanishes,
           * the flavor mask is partial for s c~ > s c~ (a flavor present
-            in the runtime flavor table) and fully on for s c~ > c c~ (a
-            lookup miss that falls back to the safe all-on mask).
+            in the runtime flavor table), while s c~ > c c~ is *not* in the
+            table: GET_FLAVOR_INDEX returns the 0 sentinel and SMATRIX /
+            sigmaKin short-circuit to a zero matrix element before any HELAS
+            or mask evaluation, so no MASKDBG line is emitted for it.
         """
         if os.path.isdir(self.out_dir):
             shutil.rmtree(self.out_dir)

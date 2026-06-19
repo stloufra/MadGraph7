@@ -73,7 +73,7 @@ void CPPProcess::sigmaKin(int * flavor)
   // Denominators: spins, colors and identical particles
   const int denominators[nprocesses] = {72, 72}; 
 
-  int flav_idx = 0; 
+  int flav_idx = -1; 
   for (int fi = 0; fi < nflav; ++ fi)
   {
     bool fmatch = true; 
@@ -88,6 +88,12 @@ void CPPProcess::sigmaKin(int * flavor)
     {
       flav_idx = fi; break; 
     }
+  }
+  if (flav_idx < 0)
+  {
+    for (int i = 0; i < nprocesses; i++ )
+      matrix_element[i] = 0.; 
+    return; 
   }
   ntry[flav_idx] = ntry[flav_idx] + 1; 
 

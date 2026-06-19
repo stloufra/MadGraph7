@@ -1389,7 +1389,8 @@ class OneProcessExporterCPP(object):
             # flavor is never dropped for another. nflav is >= 1 (an unmerged ME
             # is a single flavor); for nproc > 1 there is no single flavor table,
             # so fall back to one flavor (flav_idx stays 0).
-            if len(self.matrix_elements) == 1:
+            single_me = len(self.matrix_elements) == 1
+            if single_me:
                 sk_nflav, sk_flav_rows, n_legs = \
                     self._cpp_sigmakin_flavor(self.matrix_elements[0])
             else:
@@ -1404,15 +1405,36 @@ class OneProcessExporterCPP(object):
                 "static int ntry[nflav] = {}, sum_hel[nflav] = {}, ngood[nflav] = {};\n"
                 "static int igood[nflav][ncomb];\n"
                 "static int jhel[nflav];")
-            replace_dict['cpp_flav_idx_compute'] = (
-                "int flav_idx = 0;\n"
-                "for (int fi = 0; fi < nflav; ++fi) {\n"
-                "  bool fmatch = true;\n"
-                "  for (int fj = 0; fj < %d; ++fj) {\n" % n_legs +
-                "    if (flavor[fj] != sk_flav_table[fi][fj]) { fmatch = false; break; }\n"
-                "  }\n"
-                "  if (fmatch) { flav_idx = fi; break; }\n"
-                "}\n")
+            # Resolve flavor[] -> flav_idx via sk_flav_table. For the single-ME
+            # case a flavor absent from the table is not an allowed combination
+            # (its |M|^2 is zero): flav_idx stays -1 and we short-circuit to a
+            # zero matrix element before indexing the per-flavor goodhel/ntry
+            # arrays. For the multi-ME fallback there is a single (all-zero) row
+            # and no real per-flavor split, so flav_idx defaults to 0.
+            if single_me:
+                replace_dict['cpp_flav_idx_compute'] = (
+                    "int flav_idx = -1;\n"
+                    "for (int fi = 0; fi < nflav; ++fi) {\n"
+                    "  bool fmatch = true;\n"
+                    "  for (int fj = 0; fj < %d; ++fj) {\n" % n_legs +
+                    "    if (flavor[fj] != sk_flav_table[fi][fj]) { fmatch = false; break; }\n"
+                    "  }\n"
+                    "  if (fmatch) { flav_idx = fi; break; }\n"
+                    "}\n"
+                    "if (flav_idx < 0) {\n"
+                    "  for (int i = 0; i < nprocesses; i++) matrix_element[i] = 0.;\n"
+                    "  return;\n"
+                    "}\n")
+            else:
+                replace_dict['cpp_flav_idx_compute'] = (
+                    "int flav_idx = 0;\n"
+                    "for (int fi = 0; fi < nflav; ++fi) {\n"
+                    "  bool fmatch = true;\n"
+                    "  for (int fj = 0; fj < %d; ++fj) {\n" % n_legs +
+                    "    if (flavor[fj] != sk_flav_table[fi][fj]) { fmatch = false; break; }\n"
+                    "  }\n"
+                    "  if (fmatch) { flav_idx = fi; break; }\n"
+                    "}\n")
 
             if write:
                 file = \

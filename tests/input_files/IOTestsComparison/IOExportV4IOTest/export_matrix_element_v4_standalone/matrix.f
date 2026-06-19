@@ -164,6 +164,16 @@ C     ---------
 C     ----------
 C     BEGIN CODE
 C     ----------
+C     FLAV_IDX=0 (or out of range) means GET_FLAVOR_INDEX could not
+C      resolve
+C     the requested flavor: it is not an allowed combination, so its
+C      matrix
+C     element is identically zero. Short-circuit before touching the
+C     1..NFLAV GOODHEL/NTRY arrays.
+      IF (FLAV_IDX.LT.1 .OR. FLAV_IDX.GT.NFLAV) THEN
+        ANS = 0D0
+        RETURN
+      ENDIF
       CALL GET_FLAVOR(FLAV_IDX, FLAVOR)
       IF(USERHEL.EQ.-1) NTRY(FLAV_IDX)=NTRY(FLAV_IDX)+1
       DO IHEL=1,NEXTERNAL
@@ -685,6 +695,15 @@ C     BEGIN CODE
 C     ----------
       IC(:)=1
       FLAV_IDX = GET_FLAVOR_INDEX(FLAVOR)
+C     Unresolved flavor (not an allowed combination): the matrix
+C      element and
+C     therefore all interference terms are zero.
+      IF (FLAV_IDX.EQ.0) THEN
+        DO I = 1, N_COMB*(N_COMB+1)/2
+          INTER(I) = (0D0, 0D0)
+        ENDDO
+        RETURN
+      ENDIF
       DO I = 1, N_COMB
         DO N = 1, N_CHANGING
           NHEL(POS(N)) = ALLOW_HEL((I-1)*N_CHANGING+N)
@@ -927,17 +946,18 @@ C     Resolve an external FLAVOR(NEXTERNAL) group-position vector to
 C      its
 C     1-based index in the allowed-flavor table (the same ordering
 C      used by
-C     compute_flavor_masks / the FLAV_TABLE mask columns). The result
-C      is always
-C     in [1,NFLAV]: an unresolved flavor (not in the table, not
-C      expected in
-C     normal use) falls back to 1, the first allowed flavor, so
-C      callers can
-C     index the 1..NFLAV GOODHEL/NTRY arrays and FLAV_TABLE
-C      unconditionally
-C     (no reserved 0 slot). Computed once per phase-space point and
-C      then
-C     threaded down to MATRIX/GET_AMP and the good-helicity filter.
+C     compute_flavor_masks / the FLAV_TABLE mask columns). A resolved
+C      flavor
+C     returns an index in [1,NFLAV]; a flavor that is NOT in the table
+C      (i.e.
+C     not a physical/allowed combination, so its matrix element is
+C      zero)
+C     returns 0. Callers MUST treat the 0 sentinel as "not a valid
+C      flavor"
+C     and short-circuit to a zero result before indexing the 1..NFLAV
+C     GOODHEL/NTRY arrays or FLAV_TABLE (there is no reserved 0 slot).
+C     Computed once per phase-space point and then threaded down to
+C     MATRIX/GET_AMP and the good-helicity filter.
       INCLUDE 'nexternal.inc'
       INTEGER NFLAV
       PARAMETER (NFLAV=1)
@@ -948,9 +968,8 @@ CF2PY INTENT(OUT) :: GET_FLAVOR_INDEX
       LOGICAL FI_MATCH
       INTEGER FI_TABLE(NEXTERNAL, NFLAV)
       DATA FI_TABLE /1, 1, 1, 1, 1/
-C     Default to the first allowed flavor for an unresolved input (see
-C      above).
-      GET_FLAVOR_INDEX = 1
+C     0 sentinel for an unresolved (not-in-table) flavor (see above).
+      GET_FLAVOR_INDEX = 0
       DO FI_I = 1, NFLAV
         FI_MATCH = .TRUE.
         DO FI_J = 1, NEXTERNAL
