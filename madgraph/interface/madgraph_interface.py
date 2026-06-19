@@ -3513,9 +3513,11 @@ This implies that with decay chains:
         # __init__.py check that function_library and object_library are imported
         text = open(pjoin(model_dir, '__init__.py')).read()
         mod = False
+        # import function_library 
+        # from . import function_library
         to_check =  ['object_library', 'function_library']
         for lib in to_check:
-            if 'import %s' % lib in text:
+            if '%s' % lib in text:
                 continue
             mod = True
             text = "import %s \n" % lib + text  
