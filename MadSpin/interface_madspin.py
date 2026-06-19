@@ -728,9 +728,11 @@ class MadSpinInterface(extended_cmd.Cmd):
         else:
             self.me_run_name = ''
 
+        misc.sprint(self.options['onlyhelicity'], self.options['mode'])
         if self.options['onlyhelicity']:
-            self.options['spinmode'] = 'madspin_v1'
+            self.options['mode'] = 'madspin_v1'
 
+        misc.sprint("Running MadSpin in mode %s" % self.options['mode'])
 
 
         if self.options["mode"] in ["none"]:
