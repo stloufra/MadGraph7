@@ -748,6 +748,7 @@ class MadSpinInterface(extended_cmd.Cmd):
             return out
         elif self.options["mode"] == "PA":
             self.options['density_pole_approximation'] = True
+            self.options['density_do_reshuffle'] = True
             out = self.run_onshell(line, density_method=True)
             self._log_lhe_timers()
             return out
@@ -756,6 +757,7 @@ class MadSpinInterface(extended_cmd.Cmd):
             pass
         elif self.options["mode"] in ["full", "madspin"]:
             self.options['density_pole_approximation'] = False 
+            self.options['density_do_reshuffle'] = True
             out = self.run_onshell(line, density_method=True)
             self._log_lhe_timers()
             return out
@@ -1728,10 +1730,10 @@ class MadSpinInterface(extended_cmd.Cmd):
         
 
         density_needs_reshuffle = (
-            density_method
-            and self.options['density_pole_approximation']
-            and self.options['density_do_reshuffle']
-        )
+        density_method
+        and (not self.options['density_pole_approximation']
+        or self.options['density_do_reshuffle'])
+)
 
         # 3. generate the various matrix-elements
         time_me_generation = time.time()
