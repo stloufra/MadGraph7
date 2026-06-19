@@ -53,6 +53,9 @@ public:
     const std::unordered_set<std::string>& used_globals() const {
         return _used_globals;
     }
+    int event_layout_extra_flags() const { return _event_layout_extra_flags; }
+    int particle_layout_extra_flags() const { return _particle_layout_extra_flags; }
+    const DataLayout& event_file_layout() const { return _event_file_layout; }
 
     void unweight_file(std::mt19937& rand_gen);
     void integrate(const GeneratorBatchJob& job);
@@ -107,6 +110,9 @@ private:
     GeneratorConfig _config;
     std::vector<ContextPtr> _contexts;
     std::vector<ContextRuntimes> _runtimes;
+    int _event_layout_extra_flags;
+    int _particle_layout_extra_flags;
+    DataLayout _event_file_layout;
     EventFile _event_file;
     EventFile _weight_file;
     std::optional<VegasGridOptimizer> _vegas_optimizer;

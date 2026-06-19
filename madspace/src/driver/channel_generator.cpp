@@ -3,6 +3,34 @@
 using namespace madspace;
 using json = nlohmann::json;
 
+namespace {
+
+int event_extra_flags(const std::unordered_map<std::string, std::size_t>& index_map) {
+    int flags = 0;
+    if (index_map.contains("fact_scale1")) {
+        flags |= EventRecord::f_beam1;
+    }
+    if (index_map.contains("fact_scale2")) {
+        flags |= EventRecord::f_beam1;
+    }
+    if (index_map.contains("partial_weight_product")) {
+        flags |= EventRecord::f_beam1;
+    }
+    return flags;
+}
+
+int particle_extra_flags(
+    const std::unordered_map<std::string, std::size_t>& index_map
+) {
+    int flags;
+    if (index_map.contains("clustering_scales")) {
+        flags |= ParticleRecord::f_clustering;
+    }
+    return flags;
+}
+
+} // namespace
+
 ChannelEventGenerator::ChannelEventGenerator(
     const std::vector<ContextPtr>& contexts,
     const Integrand& integrand,
@@ -30,20 +58,24 @@ ChannelEventGenerator::ChannelEventGenerator(
         .done = false
     },
     _config(config),
+    _event_layout_extra_flags(event_extra_flags(integrand.return_types().index_map())),
+    _particle_layout_extra_flags(
+        particle_extra_flags(integrand.return_types().index_map())
+    ),
+    _event_file_layout(
+        EventRecord::layout(EventRecord::f_event_data | _event_layout_extra_flags),
+        ParticleRecord::layout(
+            ParticleRecord::f_particle_data | _particle_layout_extra_flags
+        )
+    ),
     _event_file(
         event_file,
-        DataLayout::of<EventDataRecord, ParticleRecord>(),
+        _event_file_layout,
         integrand.particle_count(),
         EventFile::create,
         true
     ),
-    _weight_file(
-        weight_file,
-        DataLayout::of<EventWeightRecord, EmptyParticleRecord>(),
-        0,
-        EventFile::create,
-        true
-    ),
+    _weight_file(weight_file, weight_file_layout, 0, EventFile::create, true),
     _batch_size(config.start_batch_size),
     _particle_count(integrand.particle_count()),
     _integrand_channel_function(IntegrandChannelPart(integrand).function()),
@@ -151,20 +183,22 @@ ChannelEventGenerator::ChannelEventGenerator(
         .done = false
     },
     _config(config),
+    _event_layout_extra_flags(
+        event_extra_flags(integrand_common_function.outputs().index_map())
+    ),
+    _particle_layout_extra_flags(
+        particle_extra_flags(integrand_common_function.outputs().index_map())
+    ),
+    _event_file_layout(
+        EventRecord::layout(EventRecord::f_event_data | _event_layout_extra_flags),
+        ParticleRecord::layout(
+            ParticleRecord::f_particle_data | _particle_layout_extra_flags
+        )
+    ),
     _event_file(
-        event_file,
-        DataLayout::of<EventDataRecord, ParticleRecord>(),
-        particle_count,
-        EventFile::create,
-        true
+        event_file, _event_file_layout, particle_count, EventFile::create, true
     ),
-    _weight_file(
-        weight_file,
-        DataLayout::of<EventWeightRecord, EmptyParticleRecord>(),
-        0,
-        EventFile::create,
-        true
-    ),
+    _weight_file(weight_file, weight_file_layout, 0, EventFile::create, true),
     _batch_size(config.start_batch_size),
     _particle_count(particle_count),
     _integrand_channel_function(integrand_channel_function),
@@ -226,14 +260,14 @@ void ChannelEventGenerator::init_field_indices() {
 void ChannelEventGenerator::unweight_file(std::mt19937& rand_gen) {
     std::size_t buf_size = 1000000;
     std::uniform_real_distribution<double> rand_dist;
-    EventBuffer buffer(0, 0, DataLayout::of<EventWeightRecord, EmptyParticleRecord>());
+    EventBuffer buffer(0, 0, weight_file_layout);
     std::size_t accept_count = _unweighted_count;
     for (std::size_t i = _unweighted_count; i < _weight_file.event_count();
          i += buf_size) {
         _weight_file.seek(i);
         _weight_file.read(buffer, buf_size);
         for (std::size_t j = 0; j < buffer.event_count(); ++j) {
-            auto weight = buffer.event<EventWeightRecord>(j).weight();
+            auto weight = buffer.event(j).weight();
             if (weight / _max_weight < rand_dist(rand_gen)) {
                 weight = 0;
             } else {
@@ -308,7 +342,7 @@ void ChannelEventGenerator::optimize_vegas(const GeneratorBatchJob& job) {
 
 double ChannelEventGenerator::channel_weight_sum(std::size_t event_count) {
     std::size_t buf_size = 1000000;
-    EventBuffer buffer(0, 0, DataLayout::of<EventWeightRecord, EmptyParticleRecord>());
+    EventBuffer buffer(0, 0, weight_file_layout);
     double weight_sum = 0;
     _weight_file.seek(0);
     std::size_t unweighted_count = 0;
@@ -320,7 +354,7 @@ double ChannelEventGenerator::channel_weight_sum(std::size_t event_count) {
                 done = true;
                 break;
             }
-            double weight = buffer.event<EventWeightRecord>(j).weight();
+            double weight = buffer.event(j).weight();
             if (weight == 0.) {
                 continue;
             }
@@ -537,16 +571,12 @@ void ChannelEventGenerator::write_events(
     auto alphas_view = unweighted_events.at(_field_indices.alpha_qcd).view<double, 1>();
 
     EventBuffer event_buffer(
-        w_view.size(),
-        _event_file.particle_count(),
-        DataLayout::of<EventDataRecord, ParticleRecord>()
+        w_view.size(), _event_file.particle_count(), _event_file_layout
     );
-    EventBuffer weight_buffer(
-        w_view.size(), 0, DataLayout::of<EventWeightRecord, EmptyParticleRecord>()
-    );
+    EventBuffer weight_buffer(w_view.size(), 0, weight_file_layout);
     for (std::size_t i = 0; i < w_view.size(); ++i) {
-        weight_buffer.event<EventWeightRecord>(i).weight() = w_view[i];
-        auto event = event_buffer.event<EventDataRecord>(i);
+        weight_buffer.event(i).weight() = w_view[i];
+        auto event = event_buffer.event(i);
         event.diagram_index() = diagrams_view[i];
         event.color_index() = colors_view[i];
         event.flavor_index() = flavors_view[i];
@@ -556,7 +586,7 @@ void ChannelEventGenerator::write_events(
         auto event_mom = mom_view[i];
         for (std::size_t j = 0; j < event_mom.size(); ++j) {
             auto particle_mom = event_mom[j];
-            auto particle = event_buffer.particle<ParticleRecord>(i, j);
+            auto particle = event_buffer.particle(i, j);
             particle.energy() = particle_mom[0];
             particle.px() = particle_mom[1];
             particle.py() = particle_mom[2];
