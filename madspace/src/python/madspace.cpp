@@ -1149,6 +1149,7 @@ PYBIND11_MODULE(_madspace_py, m) {
             py::arg("fact_scale2")
         );
 
+    py::classh<DifferentialCrossSection::CachedPdf> cached_pdf(m, "CachedPdf");
     py::classh<DifferentialCrossSection, FunctionGenerator>(
         m, "DifferentialCrossSection"
     )
@@ -1159,10 +1160,14 @@ PYBIND11_MODULE(_madspace_py, m) {
                 const RunningCoupling&,
                 const EnergyScale&,
                 const nested_vector2<me_int_t>&,
-                bool,
-                bool,
-                const std::optional<PdfGrid>&,
-                const std::optional<PdfGrid>&,
+                const std::variant<
+                    std::monostate,
+                    PdfGrid,
+                    DifferentialCrossSection::CachedPdf>&,
+                const std::variant<
+                    std::monostate,
+                    PdfGrid,
+                    DifferentialCrossSection::CachedPdf>&,
                 bool,
                 bool>(),
             py::arg("matrix_element"),
@@ -1170,10 +1175,8 @@ PYBIND11_MODULE(_madspace_py, m) {
             py::arg("running_coupling"),
             py::arg("energy_scale"),
             py::arg("pid_options") = nested_vector2<me_int_t>{},
-            py::arg("has_pdf1") = false,
-            py::arg("has_pdf2") = false,
-            py::arg("pdf_grid1") = std::nullopt,
-            py::arg("pdf_grid2") = std::nullopt,
+            py::arg("pdf1") = std::monostate{},
+            py::arg("pdf2") = std::monostate{},
             py::arg("has_mirror") = false,
             py::arg("input_momentum_fraction") = true
         )
