@@ -3180,6 +3180,11 @@ class Event(list):
 
         #filter outsubdecay
         main_decay = [p for p in subdiags if not isinstance(p, list)]
+        if not hasattr(main_decay[0], 'new_mass'):
+            # No sampled mass for this resonance: nothing to reshuffle. This is
+            # the 2 -> 1 production case (kept onshell at the production-determined
+            # virtuality, so the BW resampling was skipped) -- treat as a no-op.
+            return 1
         new_mass = main_decay[0].new_mass
         new_mom = FourMomentum(new_mass, 0 , 0, 0)
 
