@@ -351,14 +351,13 @@ class MadSpinFactory(object):
     # ------------------------------------------------------------------
     def _write_madspin_card(self, card_path, evt_path, config):
         lines = [
-            'set spinmode %s' % config.spinmode,
-            'set ME_mode %s' % config.ME_mode,
+            'set mode %s' % config.mode,
             'set seed %d' % self.seed,
             'set max_running_process 4',
         ]
-        if config.ME_mode == 'density':
-            lines.append('set density_do_reshuffle %s'
-                         % ('True' if config.density_do_reshuffle else 'False'))
+        #if config.ME_mode == 'density':
+        #    lines.append('set density_do_reshuffle %s'
+        #                 % ('True' if config.density_do_reshuffle else 'False'))
         for key, val in self.extra_madspin_settings.items():
             lines.append('set %s %s' % (key, val))
         for mp_name, mp_def in self.multiparticles.items():
