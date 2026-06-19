@@ -3208,8 +3208,10 @@ class Event(list):
             
         
         old_sqrts = incoming.mass
-        assert old_sqrts != offshellmass
-        #assert offshellmass == new_incoming.mass
+        # old_sqrts == offshellmass is allowed: the parent's invariant mass is
+        # unchanged but its momentum may still have been reshuffled at production
+        # level, so RAMBO returns an identity mass map (chi -> 1, jac = 1) and
+        # only the subsequent boost to new_incoming is applied.
         new_mom, jac = Event.mass_shuffle(old_momenta, old_sqrts, masses, new_sqrts=offshellmass)
 
         check = sum([FourMomentum(p) for p in new_mom], FourMomentum())
