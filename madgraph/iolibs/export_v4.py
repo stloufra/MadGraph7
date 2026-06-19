@@ -6525,55 +6525,8 @@ c           This is dummy particle used in multiparticle vertices
         """return the code to read/write the good_hel common_block"""    
 
         convert = {'ncomb' : ncomb}
-        output = """
-        subroutine write_good_hel(stream_id)
-        implicit none
-        integer stream_id
-        INTEGER                 NCOMB
-        PARAMETER (             NCOMB=%(ncomb)d)
-        LOGICAL GOODHEL(NCOMB)
-        INTEGER NTRY
-        common/BLOCK_GOODHEL/NTRY,GOODHEL
-        write(stream_id,*) GOODHEL
-        return
-        end
-        
-        
-        subroutine read_good_hel(stream_id)
-        implicit none
-        include 'genps.inc'
-        integer stream_id
-        INTEGER                 NCOMB
-        PARAMETER (             NCOMB=%(ncomb)d)
-        LOGICAL GOODHEL(NCOMB)
-        INTEGER NTRY
-        common/BLOCK_GOODHEL/NTRY,GOODHEL
-        read(stream_id,*) GOODHEL
-        NTRY = MAXTRIES + 1
-        return
-        end 
-        
-        subroutine init_good_hel()
-        implicit none
-        INTEGER                 NCOMB
-        PARAMETER (             NCOMB=%(ncomb)d)
-        LOGICAL GOODHEL(NCOMB)        
-        INTEGER NTRY
-        INTEGER I
-        
-        do i=1,NCOMB
-            GOODHEL(I) = .false.
-        enddo
-        NTRY = 0
-        end
-        
-        integer function get_maxsproc()
-        implicit none
-        get_maxsproc = 1
-        return 
-        end
-        
-        """ % convert
+        text = open(pjoin(_file_path, 'iolibs/template_files/matrix_goodhel_helper.inc')).read()
+        output = text %   convert
         
         return output
                                 
@@ -8015,8 +7968,8 @@ class ProcessExporterFortranMEGroup(ProcessExporterFortranME):
         integer stream_id
         INTEGER                 NCOMB
         PARAMETER (             NCOMB=%(ncomb)d)
-        LOGICAL GOODHEL(NCOMB, MAXSPROC)
-        INTEGER NTRY(MAXSPROC)
+        LOGICAL GOODHEL(NCOMB, MAXFLAVPERPROC, MAXSPROC)
+        INTEGER NTRY(MAXFLAVPERPROC, MAXSPROC)
         common/BLOCK_GOODHEL/NTRY,GOODHEL
         write(stream_id,*) GOODHEL
         return
@@ -8030,25 +7983,25 @@ class ProcessExporterFortranMEGroup(ProcessExporterFortranME):
         integer stream_id
         INTEGER                 NCOMB
         PARAMETER (             NCOMB=%(ncomb)d)
-        LOGICAL GOODHEL(NCOMB, MAXSPROC)
-        INTEGER NTRY(MAXSPROC)
+        LOGICAL GOODHEL(NCOMB, MAXFLAVPERPROC, MAXSPROC)
+        INTEGER NTRY(MAXFLAVPERPROC, MAXSPROC)
         common/BLOCK_GOODHEL/NTRY,GOODHEL
         read(stream_id,*) GOODHEL
-        NTRY(:) = MAXTRIES + 1
+        NTRY(:,:) = MAXTRIES + 1
         return
-        end 
+        end
         
         subroutine init_good_hel()
         implicit none
         include 'maxamps.inc'
         INTEGER                 NCOMB
         PARAMETER (             NCOMB=%(ncomb)d)
-        LOGICAL GOODHEL(NCOMB, MAXSPROC)        
-        INTEGER NTRY(MAXSPROC)
+        LOGICAL GOODHEL(NCOMB, MAXFLAVPERPROC, MAXSPROC)
+        INTEGER NTRY(MAXFLAVPERPROC, MAXSPROC)
         INTEGER I,J
 
-        GOODHEL(:,:) = .false.        
-        NTRY(:) = 0
+        GOODHEL(:,:,:) = .false.
+        NTRY(:,:) = 0
         end
         
         integer function get_maxsproc()
