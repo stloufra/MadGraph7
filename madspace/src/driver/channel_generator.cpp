@@ -11,10 +11,10 @@ int event_extra_flags(const std::unordered_map<std::string, std::size_t>& index_
         flags |= EventRecord::f_beam1;
     }
     if (index_map.contains("fact_scale2")) {
-        flags |= EventRecord::f_beam1;
+        flags |= EventRecord::f_beam2;
     }
     if (index_map.contains("partial_weight_product")) {
-        flags |= EventRecord::f_beam1;
+        flags |= EventRecord::f_partial_weights;
     }
     return flags;
 }
@@ -252,6 +252,25 @@ void ChannelEventGenerator::init_field_indices() {
     _field_indices.flavor_index = index_map.at("flavor_index");
     _field_indices.ren_scale = index_map.at("ren_scale");
     _field_indices.alpha_qcd = index_map.at("alpha_qcd");
+    if (index_map.contains("fact_scale1")) {
+        _field_indices.x1 = index_map.at("x1");
+        _field_indices.fact_scale1 = index_map.at("fact_scale1");
+    } else {
+        _field_indices.x1 = -1;
+        _field_indices.fact_scale1 = -1;
+    }
+    if (index_map.contains("fact_scale2")) {
+        _field_indices.x2 = index_map.at("x2");
+        _field_indices.fact_scale2 = index_map.at("fact_scale2");
+    } else {
+        _field_indices.x2 = -1;
+        _field_indices.fact_scale2 = -1;
+    }
+    if (index_map.contains("partial_weight_product")) {
+        _field_indices.partial_weight_product = index_map.at("partial_weight_product");
+    } else {
+        _field_indices.partial_weight_product = -1;
+    }
     _field_indices.random = index_map.at("random");
     _field_indices.rest = _field_indices.random + 1;
 }
@@ -592,6 +611,39 @@ void ChannelEventGenerator::write_events(
             particle.pz() = particle_mom[3];
         }
     }
+
+    if (_field_indices.fact_scale1 != -1) {
+        auto x1_view = unweighted_events.at(_field_indices.x1).view<double, 1>();
+        auto fact1_view =
+            unweighted_events.at(_field_indices.fact_scale1).view<double, 1>();
+        for (std::size_t i = 0; i < x1_view.size(); ++i) {
+            auto event = event_buffer.event(i);
+            event.x1() = x1_view[i];
+            event.fact_scale1() = fact1_view[i];
+        }
+    }
+
+    if (_field_indices.fact_scale2 != -1) {
+        auto x2_view = unweighted_events.at(_field_indices.x2).view<double, 1>();
+        auto fact2_view =
+            unweighted_events.at(_field_indices.fact_scale2).view<double, 1>();
+        for (std::size_t i = 0; i < x2_view.size(); ++i) {
+            auto event = event_buffer.event(i);
+            event.x2() = x2_view[i];
+            event.fact_scale2() = fact2_view[i];
+        }
+    }
+
+    if (_field_indices.partial_weight_product != -1) {
+        auto pw_view =
+            unweighted_events.at(_field_indices.partial_weight_product)
+                .view<double, 1>();
+        for (std::size_t i = 0; i < pw_view.size(); ++i) {
+            auto event = event_buffer.event(i);
+            event.partial_weight_product() = pw_view[i];
+        }
+    }
+
     _event_file.write(event_buffer);
     _weight_file.write(weight_buffer);
     _status.count_unweighted +=

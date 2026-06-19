@@ -602,6 +602,11 @@ void EventGenerator::read_and_combine(
     std::size_t event_count = std::min(batch_size, channel_data.back().cum_count);
     buffer.resize(event_count);
 
+    bool has_beam1 = _channels.at(0)->event_layout_extra_flags() & EventRecord::f_beam1;
+    bool has_beam2 = _channels.at(0)->event_layout_extra_flags() & EventRecord::f_beam2;
+    bool has_partial =
+        _channels.at(0)->event_layout_extra_flags() & EventRecord::f_partial_weights;
+
     std::random_device rand_device;
     std::mt19937 rand_gen(rand_device());
     for (std::size_t event_index = 0; event_index < event_count; ++event_index) {
@@ -644,6 +649,18 @@ void EventGenerator::read_and_combine(
         event_out.helicity_index() = event_in.helicity_index();
         event_out.ren_scale() = event_in.ren_scale();
         event_out.alpha_qcd() = event_in.alpha_qcd();
+
+        if (has_beam1) {
+            event_out.x1() = event_in.x1();
+            event_out.fact_scale1() = event_in.fact_scale1();
+        }
+        if (has_beam2) {
+            event_out.x2() = event_in.x2();
+            event_out.fact_scale2() = event_in.fact_scale2();
+        }
+        if (has_partial) {
+            event_out.partial_weight_product() = event_in.partial_weight_product();
+        }
 
         std::size_t i = 0;
         for (; i < sampled_chan->event_buffer.particle_count(); ++i) {

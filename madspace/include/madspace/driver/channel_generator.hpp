@@ -100,10 +100,11 @@ private:
     };
 
     struct FieldIndices {
-        std::size_t weight, momenta;
-        std::size_t color_index, helicity_index, diagram_index, flavor_index;
-        std::size_t ren_scale, alpha_qcd;
-        std::size_t random, rest;
+        int weight, momenta;
+        int color_index, helicity_index, diagram_index, flavor_index;
+        int ren_scale, alpha_qcd;
+        int x1, fact_scale1, x2, fact_scale2, partial_weight_product;
+        int random, rest;
     };
 
     GeneratorStatus _status;
