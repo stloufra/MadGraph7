@@ -452,7 +452,7 @@ NamedVector<Value> Integrand::build_channel_part(
         }
     } else {
         for (auto& pdf : pdf_results) {
-            pdf = fb.unsqueeze(pdf);
+            pdf = fb.squeeze(pdf);
         }
     }
 
@@ -570,13 +570,12 @@ NamedVector<Value> Integrand::build_common_part(
         xs_args.push_back(args.at("mirror_id"));
     }
     if (_diff_xs.has_pdf(0)) {
-        xs_args.push_back(args.at("pdf0"));
-    }
-    if (_diff_xs.has_pdf(1)) {
         xs_args.push_back(args.at("pdf1"));
     }
-
-    xs_args.push_back(args.at("scale_cache"));
+    if (_diff_xs.has_pdf(1)) {
+        xs_args.push_back(args.at("pdf2"));
+    }
+    xs_args.push_back(alpha_qcd_acc);
     auto dxs_vec = _diff_xs.build_function(fb, xs_args);
     auto diff_xs_acc = dxs_vec.at(0);
     if (_flavor_factors.size() > 0) {

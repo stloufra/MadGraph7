@@ -22,8 +22,8 @@ int event_extra_flags(const std::unordered_map<std::string, std::size_t>& index_
 int particle_extra_flags(
     const std::unordered_map<std::string, std::size_t>& index_map
 ) {
-    int flags;
-    if (index_map.contains("clustering_scales")) {
+    int flags = 0;
+    if (index_map.contains("cluster_scales")) {
         flags |= ParticleRecord::f_clustering;
     }
     return flags;
@@ -98,7 +98,6 @@ ChannelEventGenerator::ChannelEventGenerator(
             "Integrand must not be in madnis_training mode for event generation"
         );
     }
-    std::cout << _unweighter_function;
     init_used_globals();
     init_runtimes();
     init_field_indices();

@@ -1149,7 +1149,7 @@ PYBIND11_MODULE(_madspace_py, m) {
             py::arg("fact_scale2")
         );
 
-    py::classh<DifferentialCrossSection::CachedPdf> cached_pdf(m, "CachedPdf");
+    py::classh<DifferentialCrossSection::CachedPdf>(m, "CachedPdf").def(py::init<>());
     py::classh<DifferentialCrossSection, FunctionGenerator>(
         m, "DifferentialCrossSection"
     )

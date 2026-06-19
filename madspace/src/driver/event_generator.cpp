@@ -322,8 +322,8 @@ void EventGenerator::combine_to_compact_npy(const std::string& file_name) {
     auto [channel_data, particle_count, norm_factor] = init_combine();
     DataLayout layout(
         EventRecord::layout(
-            EventRecord::f_event_data | EventRecord::f_subproc_index |
-            _channels.at(0)->event_layout_extra_flags()
+            EventRecord::f_weight | EventRecord::f_subproc_index |
+            EventRecord::f_event_data | _channels.at(0)->event_layout_extra_flags()
         ),
         ParticleRecord::layout(
             ParticleRecord::f_particle_data |
@@ -360,8 +360,8 @@ void EventGenerator::combine_to_lhe_npy(
     auto [channel_data, particle_count, norm_factor] = init_combine();
     DataLayout in_layout(
         EventRecord::layout(
-            EventRecord::f_event_data | EventRecord::f_subproc_index |
-            _channels.at(0)->event_layout_extra_flags()
+            EventRecord::f_weight | EventRecord::f_subproc_index |
+            EventRecord::f_event_data | _channels.at(0)->event_layout_extra_flags()
         ),
         ParticleRecord::layout(
             ParticleRecord::f_particle_data |
@@ -428,8 +428,8 @@ void EventGenerator::combine_to_lhe(
     std::vector<std::size_t> idle_buffers;
     DataLayout layout(
         EventRecord::layout(
-            EventRecord::f_event_data | EventRecord::f_subproc_index |
-            _channels.at(0)->event_layout_extra_flags()
+            EventRecord::f_weight | EventRecord::f_subproc_index |
+            EventRecord::f_event_data | _channels.at(0)->event_layout_extra_flags()
         ),
         ParticleRecord::layout(
             ParticleRecord::f_particle_data |

@@ -1263,19 +1263,19 @@ class MadgraphSubprocess:
             if len(flavors) > 1 or self.process.leptonic
             else self.process.pdf_grid
         )
+        pdf_arg = None if self.process.leptonic else ms.CachedPdf()
         cross_section = ms.DifferentialCrossSection(
             matrix_element=matrix_element,
             cm_energy=self.process.e_cm,
             running_coupling=self.process.running_coupling,
             energy_scale=self.scale,
             pid_options=flavors,
-            has_pdf1=not self.process.leptonic,
-            has_pdf2=not self.process.leptonic,
-            pdf_grid1=pdf_grid,
-            pdf_grid2=pdf_grid,
+            pdf1=pdf_arg,
+            pdf2=pdf_arg,
             has_mirror=self.meta["has_mirror_process"],
             input_momentum_fraction=True,
         )
+        partial_weights = self.process.run_card["generation"]["systematics"]
         integrands = []
         for channel in phasespace.channels:
             integrands.append(ms.Integrand(
@@ -1293,6 +1293,7 @@ class MadgraphSubprocess:
                 len(phasespace.symfact),
                 madnis_training,
                 drop_cuts_and_rescale,
+                partial_weights,
                 channel.channel_weight_indices,
                 channel.active_flavors,
                 flavor_remap,

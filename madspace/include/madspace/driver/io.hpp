@@ -62,16 +62,16 @@ public:
                     {"pz", FieldLayout::f64, 0},
                 }
             );
-        } else if (fields & f_particle_data) {
+        } else if (fields & f_lhe_particle) {
             ret.insert(
                 ret.end(),
                 {
-                    {"pdg_id", FieldLayout::f64, 0},
-                    {"status_code", FieldLayout::f64, 0},
-                    {"mother1", FieldLayout::f64, 0},
-                    {"mother2", FieldLayout::f64, 0},
-                    {"color", FieldLayout::f64, 0},
-                    {"anti_color", FieldLayout::f64, 0},
+                    {"pdg_id", FieldLayout::i32, 0},
+                    {"status_code", FieldLayout::i32, 0},
+                    {"mother1", FieldLayout::i32, 0},
+                    {"mother2", FieldLayout::i32, 0},
+                    {"color", FieldLayout::i32, 0},
+                    {"anti_color", FieldLayout::i32, 0},
                     {"px", FieldLayout::f64, 0},
                     {"py", FieldLayout::f64, 0},
                     {"pz", FieldLayout::f64, 0},
@@ -275,8 +275,9 @@ public:
                         std::logic_error("unknown type");
                     }
                     if (field.group > group_index) {
-                        offsets.resize(field.group + 1);
+                        offsets.resize(field.group);
                         offsets.back() = size;
+                        group_index = field.group;
                     }
                     size += field_size;
                 }
