@@ -3517,7 +3517,7 @@ This implies that with decay chains:
         # from . import function_library
         to_check =  ['object_library', 'function_library']
         for lib in to_check:
-            if '%s' % lib in text:
+            if 'import %s' % lib in text:
                 continue
             mod = True
             text = "import %s \n" % lib + text  
