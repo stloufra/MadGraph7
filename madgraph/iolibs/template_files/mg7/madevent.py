@@ -6,6 +6,7 @@ import glob
 import shutil
 import json
 import subprocess
+import re
 import logging
 from dataclasses import dataclass
 from typing import Literal, NamedTuple
@@ -772,11 +773,22 @@ class MadgraphSubprocess:
         if not isinstance(devices, list):
             devices = [devices]
         for device in devices:
-            api_paths.append(api_path_format.format(device=device))
-            if not os.path.isfile(api_paths[-1]):
-                subproc_dir = os.path.dirname(subproc_path)
+            subproc_dir = os.path.dirname(subproc_path)
+            # 'cppauto' resolve quick fix 
+            resolved = device
+            if device == "cppauto":
+                out = subprocess.run(
+                    ["make", "-n", "BACKEND=cppauto", "detect-backend"],
+                    cwd=subproc_path, capture_output=True, text=True,
+                ).stdout
+                match = re.search(r"BACKEND=(\S+) \(was cppauto\)", out)
+                if match:
+                    resolved = match.group(1)
+            api_path = api_path_format.format(device=resolved)
+            if not os.path.isfile(api_path):
                 logger.info(f"Compiling subprocess {subproc_dir}, for device '{device}'")
                 misc.compile(arg = [f"BACKEND={device}", "USEBUILDDIR=1"], cwd = subproc_path)
+            api_paths.append(api_path)
 
         self.incoming_masses = [
             self.process.get_mass(pid) for pid in clean_pids(self.meta["incoming"])
