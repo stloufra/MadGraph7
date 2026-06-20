@@ -5,24 +5,36 @@ project (
     LANGUAGES CXX
 )
 
-if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-    set(CMAKE_CUDA_ARCHITECTURES "75;80;86;87;89;90;100;120")
+option(ENABLE_CUDA "Enable CUDA GPU backend" OFF)
+option(ENABLE_HIP "Enable HIP/ROCm GPU backend" OFF)
+option(ENABLE_SIMD "Enable SIMD CPU acceleration" OFF)
+
+if(ENABLE_CUDA)
+    if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+        set(CMAKE_CUDA_ARCHITECTURES "75;80;86;87;89;90;100;120")
+    endif()
+    include(CheckLanguage)
+    check_language(CUDA)
+    if(CMAKE_CUDA_COMPILER)
+        enable_language(CUDA)
+        set(COMPILE_CUDA 1)
+    else()
+        message(FATAL_ERROR "ENABLE_CUDA is ON but no CUDA compiler was found")
+    endif()
 endif()
 
-if (NOT DEFINED CMAKE_HIP_ARCHITECTURES)
-    set(CMAKE_HIP_ARCHITECTURES "gfx900;gfx906;gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201;gfx1150;gfx1151")
-endif()
-
-include(CheckLanguage)
-check_language(CUDA)
-if(CMAKE_CUDA_COMPILER)
-    enable_language(CUDA)
-    set(COMPILE_CUDA 1)
-endif()
-check_language(HIP)
-if(CMAKE_HIP_COMPILER)
-    enable_language(HIP)
-    set(COMPILE_HIP 1)
+if(ENABLE_HIP)
+    if (NOT DEFINED CMAKE_HIP_ARCHITECTURES)
+        set(CMAKE_HIP_ARCHITECTURES "gfx900;gfx906;gfx908;gfx90a;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1200;gfx1201;gfx1150;gfx1151")
+    endif()
+    include(CheckLanguage)
+    check_language(HIP)
+    if(CMAKE_HIP_COMPILER)
+        enable_language(HIP)
+        set(COMPILE_HIP 1)
+    else()
+        message(FATAL_ERROR "ENABLE_HIP is ON but no HIP compiler was found")
+    endif()
 endif()
 
 set(CMAKE_POSITION_INDEPENDENT_CODE 1)
@@ -69,7 +81,7 @@ if(COMPILE_HIP)
     find_package(hipcub REQUIRED)
 endif()
 
-if(USE_SIMD)
+if(ENABLE_SIMD)
     set(
         sleef_libname
         ${CMAKE_STATIC_LIBRARY_PREFIX}sleef${CMAKE_STATIC_LIBRARY_SUFFIX}
@@ -221,7 +233,7 @@ add_library(
 target_include_directories(madspace PUBLIC include)
 target_compile_features(madspace PUBLIC cxx_std_20)
 target_link_libraries(madspace PUBLIC nlohmann_json::nlohmann_json)
-if (USE_SIMD)
+if (ENABLE_SIMD)
     target_compile_definitions(madspace PRIVATE SIMD_AVAILABLE=1)
 endif()
 
@@ -315,7 +327,7 @@ endif()
 # CPU backend                                                                          #
 ########################################################################################
 
-if(NOT USE_SIMD)
+if(NOT ENABLE_SIMD)
     set(CPU_TARGETS madspace_cpu)
     set(SIMD_FLAGS "")
     set(SIMD_DEFINES "")
