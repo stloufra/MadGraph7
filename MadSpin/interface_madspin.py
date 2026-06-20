@@ -2345,13 +2345,23 @@ class MadSpinInterface(extended_cmd.Cmd):
             )
             if use_new_mass:
                 new_mass = {}
+                reshuffle_info = {}
                 for key in decays:
                     new_mass[key] = [getattr(dec[0], 'new_mass', dec[0].mass)
                                      for dec in decays[key]]
+                    # Carry the Breit-Wigner sampling info (pole, width, min, max)
+                    # alongside new_mass so reshuffle_production can re-sample this
+                    # mass if needed. Without it the reshuffling retry crashes on
+                    # p.reshuffle_info (e.g. complex-mass-scheme runs).
+                    reshuffle_info[key] = [getattr(dec[0], 'reshuffle_info', None)
+                                           for dec in decays[key]]
 
                 for particle in production:
                     if particle.status == 1 and particle.pid in new_mass:
                         particle.new_mass = new_mass[particle.pid].pop(0)
+                        info = reshuffle_info[particle.pid].pop(0)
+                        if info is not None:
+                            particle.reshuffle_info = info
             else:
                 for particle in production:
                     if hasattr(particle, 'new_mass'):
@@ -2372,6 +2382,22 @@ class MadSpinInterface(extended_cmd.Cmd):
                 # doing the reshuffling for each part:
                 jac = 1.0
                 jac *= production.reshuffle_production()
+                # reshuffle_production may have resampled a resonance's new_mass
+                # (its jac==-1 retry) so the set of masses fits sqrt(shat). Push the
+                # (possibly resampled) production masses back onto the matching decay
+                # so each decay is reshuffled to the SAME mass as its production
+                # resonance; otherwise the two diverge and rebuilding the full event
+                # later hits an inconsistent-boost assertion. The i-th production
+                # resonance of a given pid corresponds to decays[pid][i] (same
+                # ordering used when new_mass was assigned above).
+                resampled = {key: [] for key in decays}
+                for particle in production:
+                    if (particle.status == 1 and particle.pid in resampled
+                            and hasattr(particle, 'new_mass')):
+                        resampled[particle.pid].append(particle.new_mass)
+                for key in decays:
+                    for dec, mass in zip(decays[key], resampled[key]):
+                        dec[0].new_mass = mass
                 for key in decays:
                     for dec in decays[key]:
                         jac *= dec.reshuffle_decayevt()
