@@ -42,6 +42,7 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
       - uses: ./.github/actions/checkout_mg5
+      - uses: ./.github/actions/restore-pip-cache
       - uses: ./.github/actions/restore_all
 
 
