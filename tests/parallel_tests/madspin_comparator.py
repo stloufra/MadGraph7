@@ -72,7 +72,7 @@ def _read_lhe_cross(path):
 # Reasonable defaults for the dispatcher table. Each entry must be unique by
 # label so the factory can key result dicts on it.
 SpinModeConfig = collections.namedtuple(
-    'SpinModeConfig', ['label', 'spinmode', 'ME_mode', 'density_do_reshuffle']
+    'SpinModeConfig', ['label', 'mode']
 )
 
 
@@ -83,13 +83,12 @@ SpinModeConfig = collections.namedtuple(
 #  - full + density      : off-shell ME + density (BW shape from ME)
 #  - PA + density        : PA reshuffling with BW + density ME (new MadSpin default)
 DEFAULT_MODES = [
-    SpinModeConfig('full_decay_chain',    'full',    'decay_chain', True),
-    SpinModeConfig('onshell_decay_chain', 'onshell', 'decay_chain', True),
-    SpinModeConfig('onshell_density',     'onshell', 'density',     False),
-    SpinModeConfig('full_density',        'full',    'density',     True),
-    SpinModeConfig('PA_density',          'PA',      'density',     True),
+    SpinModeConfig('full_decay_chain',    'madspin_v1'),  
+    SpinModeConfig('onshell_decay_chain', 'onshell_v1'),
+    SpinModeConfig('onshell_density',     'onshell'),
+    SpinModeConfig('full_density',        'full'),
+    SpinModeConfig('PA_density',          'PA'),
 ]
-
 # Mode families: the two paths use fundamentally different BR computations
 # (legacy = factorized on-shell partial widths, run_onshell = MC-integrated
 # partial width including off-shell-resonance suppression), so cross-section
@@ -352,14 +351,13 @@ class MadSpinFactory(object):
     # ------------------------------------------------------------------
     def _write_madspin_card(self, card_path, evt_path, config):
         lines = [
-            'set spinmode %s' % config.spinmode,
-            'set ME_mode %s' % config.ME_mode,
+            'set mode %s' % config.mode,
             'set seed %d' % self.seed,
             'set max_running_process 4',
         ]
-        if config.ME_mode == 'density':
-            lines.append('set density_do_reshuffle %s'
-                         % ('True' if config.density_do_reshuffle else 'False'))
+        #if config.ME_mode == 'density':
+        #    lines.append('set density_do_reshuffle %s'
+        #                 % ('True' if config.density_do_reshuffle else 'False'))
         for key, val in self.extra_madspin_settings.items():
             lines.append('set %s %s' % (key, val))
         for mp_name, mp_def in self.multiparticles.items():

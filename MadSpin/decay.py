@@ -4510,7 +4510,11 @@ class decay_all_events_density(decay_all_events_onshell):
         for oneline in input:
             if not oneline.strip():
                 continue
-            misc.sprint(oneline)
+            if '>' not in oneline:
+                # Non-process command (e.g. the NLO 'define pert_QCD = ...' line):
+                # nothing to mark off-shell, keep it verbatim.
+                out.append("%s;" % oneline.strip())
+                continue
             init, final = oneline.rsplit('>',maxsplit=1)
             end = len(final)
             if "[" in final:
@@ -4540,6 +4544,11 @@ class decay_all_events_density(decay_all_events_onshell):
         input = line.split(';')
         for oneline in input:
             if not oneline.strip():
+                continue
+            if '>' not in oneline:
+                # Non-process command (e.g. the NLO 'define pert_QCD = ...' line):
+                # nothing to mark off-shell, keep it verbatim.
+                out.append("%s;" % oneline.strip())
                 continue
             init, final = oneline.split('>',maxsplit=1)
             end = len(init)
