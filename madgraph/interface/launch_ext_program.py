@@ -209,7 +209,16 @@ class MadLoopLauncher(ExtLauncher):
                                                              dir_path=curr_path)
                 # We use mu_r=-1.0 to use the one defined by the user in the
                 # param_card.dat
-                me_cmd.MadLoopInitializer.fix_PSPoint_in_check(sub_path, 
+                # Note: we must target the subprocess directory currently being
+                # run (curr_path) and not the SubProcesses directory (sub_path).
+                # Otherwise fix_PSPoint_in_check edits the first P* directory it
+                # finds instead of this one, leaving curr_path's check_sa.f with
+                # the NPSPOINTS value left over from the initialization. The
+                # phase-space point written would then be the (NPSPOINTS)-th
+                # RAMBO point instead of the first, making the kinematics depend
+                # on the initialization (and hence on the other subprocesses
+                # generated) rather than only on this process.
+                me_cmd.MadLoopInitializer.fix_PSPoint_in_check(curr_path,
                   read_ps = os.path.isfile(os.path.join(curr_path, 'PS.input')),
                   npoints = 1, mu_r=-1.0)
                 

@@ -645,14 +645,15 @@ class TestCmdLoop(unittest.TestCase):
         reference_gu = {'born': 0, 'fin': 4.911079822136591E-005, '1eps': 4.652514256760648E-020, '2eps': 1.889084601044776E-034,
                         'rho': [0, 0, 0 ,0, 2.45553991106829770E-005, -1.17925624055059263E-005 -6.27120991655205813E-006j, 0, 2.45553991106829872E-005, 0, 0]}
         result_string_gux = open(os.path.join(short_path, 'SubProcesses/P2_gux_hux/result.dat'), 'r').readlines()
-        reference_gux = {'born': 0, 'fin': 2.562102089491060E-005, '1eps': -1.588579424160221E-020, '2eps': 1.731269665410833E-034,
-                        'rho': [0, 0, 0 ,0, 1.28105104474552454E-005, 3.86894139945205467E-007 + 1.39926371575986571E-006j, 0, 1.28105104474552047E-005, 0, 0]}
+        reference_gux = {'born': 0, 'fin': 4.911079822136591E-005, '1eps': 4.652514256760648E-020, '2eps': 1.889084601044776E-034,
+                        'rho': [0, 0, 0 ,0, 2.45553991106829770E-005, -1.17925624055059263E-005 +6.27120991655205813E-006j, 0, 2.45553991106829872E-005, 0, 0]}
         result_string_uux = open(os.path.join(short_path, 'SubProcesses/P3_uux_hg/result.dat'), 'r').readlines()
-        reference_uux = {'born': 0, 'fin': 1.180689420975318E-004, '1eps': 1.787557563159388E-019, '2eps': 1.117722363316526E-033,
-                        'rho': [2.20915221755207638E-007, 3.60455402619190809E-006 - 9.69074423094092519E-019j, 0 ,0, 5.88135558270104427E-005, 0, 0, 5.88135558270109577E-005, 3.60455402619135751E-006 + 3.78161522138963529E-019j, 2.20915221755138155E-007]}
+        reference_uux = {'born': 0, 'fin': 7.679521988380547e-05, '1eps': 1.787557563159388E-019, '2eps': 1.117722363316526E-033,
+                        'rho':   [(5.979704672209291e-06+0j), (1.392298457962328e-05+5.270427227360091e-21j), 0j, 0j, (3.241790526969405e-05+0j), 0j, 0j, (3.2417905269694064e-05+0j), (1.3922984579623275e-05+7.529181753371558e-22j), (5.97970467220928e-06+0j)]}
         result_string_gg = open(os.path.join(short_path, 'SubProcesses/P4_gg_hg/result.dat'), 'r').readlines()
-        reference_gg = {'born': 0, 'fin': 1.040998846052815E-002, '1eps': 1.672814917871989E-017, '2eps': 5.111506851363750E-031,
-                        'rho': [2.91138206136237927E-003-3.03967895128221465E-019j, -3.23104381162732618E-005-2.90983250698349432E-005j, -5.89368211185970024E-004-2.51580516434133554E-003j, 6.03227353098348164E-006+2.18166692215247089E-005j, 2.29361216890167129E-003+3.60609308642905299E-019j, 1.10656172195395230E-005+4.00205510220255945E-005j, -7.86772064131103783E-004-2.46122332029951154E-003j, 2.29361216890165221E-003-2.50137425942586215E-019j, -3.23104381178731512E-005+2.90983250702173989E-005j, 2.91138206136242438E-003-3.03158813737536723E-020j]}
+        reference_gg = {'born': 0, 'fin': 1.1959960400593030e-03, '1eps': 1.672814917871989E-017, '2eps': 5.111506851363750E-031,
+                        'rho':  [(0.00046955799704735543+0j), (-3.402074849160713e-05-1.592561249559833e-05j), (0.00023457059095329064-7.124241678531108e-05j), (-8.024579382478496e-05+4.267420435787805e-05j), (0.0001284400229822933+1.5881867761018131e-21j), (-1.1655765706238232e-05+6.198462299240582e-06j), (0.000190212542058378-0.0001546545600144973j), (0.00012844002298229327+2.329340604949326e-21j), (-3.402074849160712e-05+1.59256124955982e-05j), (0.0004695579970473552-7.058607893785836e-22j)]}
+        
 
 
         #for gu
@@ -678,6 +679,7 @@ class TestCmdLoop(unittest.TestCase):
         self.assertAlmostEqual(reference_gu['fin'], rho[0] + rho[4] + rho[7] + rho[9], places=7) #the trace of the non-normalised density matrix must be equal to the matrix element
         self.assertTrue(eps1_part < 1e-10)
         self.assertTrue(eps2_part < 1e-10)
+
         for i in range(len(rho)):
             self.assertAlmostEqual(reference_gu['rho'][i].real, rho[i].real, places=7)
             self.assertAlmostEqual(reference_gu['rho'][i].imag, rho[i].imag, places=7)
@@ -722,11 +724,12 @@ class TestCmdLoop(unittest.TestCase):
                 eps2_part = float(line.strip('2EPS '))
             if line[0:4].strip() == 'RHO':
                 rho = line.strip('RHO ').split()
-            
+        
+        
         for i in range(len(rho)):
             aux = rho[i].strip('()').split(",")
             rho[i] = complex(float(aux[0]), float(aux[1]))
-
+       
 
         self.assertAlmostEqual(reference_uux['born'], born_part, places=7)
         self.assertAlmostEqual(reference_uux['fin'], finite_part, places=7)
@@ -753,7 +756,6 @@ class TestCmdLoop(unittest.TestCase):
         for i in range(len(rho)):
             aux = rho[i].strip('()').split(",")
             rho[i] = complex(float(aux[0]), float(aux[1]))
-
 
         self.assertAlmostEqual(reference_gg['born'], born_part, places=7)
         self.assertAlmostEqual(reference_gg['fin'], finite_part, places=7)
