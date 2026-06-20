@@ -1887,6 +1887,7 @@ jobs:
   acceptancetest_density:
     # The type of runner that the job will run on
     runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -1904,6 +1905,7 @@ jobs:
   acceptancetest_density_interface:
     # The type of runner that the job will run on
     runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -1922,6 +1924,7 @@ jobs:
   acceptancetest_density_ttbar:
     # The type of runner that the job will run on
     runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -1939,6 +1942,7 @@ jobs:
   acceptancetest_density_wpwm:
     # The type of runner that the job will run on
     runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -1956,6 +1960,7 @@ jobs:
   acceptancetest_density_decay1:
     # The type of runner that the job will run on
     runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -1973,6 +1978,7 @@ jobs:
   acceptancetest_density_decay2:
     # The type of runner that the job will run on
     runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -1990,6 +1996,7 @@ jobs:
   acceptancetest_density_tttbartbar:
     # The type of runner that the job will run on
     runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -2008,6 +2015,7 @@ jobs:
   acceptancetest_density_LI_standalone1:
     # The type of runner that the job will run on
     runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -2025,6 +2033,7 @@ jobs:
   acceptancetest_density_LI_standalone2:
     # The type of runner that the job will run on
     runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -2043,6 +2052,7 @@ jobs:
   acceptancetest_density_LI_standalone3:
     # The type of runner that the job will run on
     runs-on: ubuntu-22.04
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -2060,6 +2070,7 @@ jobs:
   acceptancetest_density_LI_f2py:
     # The type of runner that the job will run on
     runs-on: ${{ matrix.os }}
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
     strategy:
       matrix:
         os: [ubuntu-22.04, ubuntu-24.04]
