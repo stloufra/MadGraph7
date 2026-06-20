@@ -743,6 +743,10 @@ class MadSpinInterface(extended_cmd.Cmd):
             if self.options["mode"] == "onshell_v1":
                 out = self.run_onshell(line)
             else:
+                # pure onshell kinematics: pole approximation with no Breit-Wigner
+                # resampling (keep the resonances at their production mass).
+                self.options['density_pole_approximation'] = True
+                self.options['density_do_reshuffle'] = False
                 out = self.run_onshell(line, density_method=True)
             self._log_lhe_timers()
             return out
