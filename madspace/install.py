@@ -10,8 +10,10 @@ Non-interactive examples:
 """
 
 import argparse
+import os
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
@@ -80,12 +82,40 @@ def ask_compile_options() -> dict[str, bool]:
 # Command execution
 
 
-def run(cmd: list) -> None:
+def run(cmd: list, env: dict | None = None) -> None:
     display = " ".join(str(c) for c in cmd)
     print(f"\n$ {display}\n")
-    result = subprocess.run(cmd, cwd=SCRIPT_DIR)
+    result = subprocess.run(cmd, cwd=SCRIPT_DIR, env=env)
     if result.returncode != 0:
         sys.exit(result.returncode)
+
+
+def install_build_deps() -> dict:
+    """Install build-system dependencies into INSTALL_DIR and return an updated env."""
+    pyproject_path = SCRIPT_DIR / "pyproject.toml"
+    with open(pyproject_path, "rb") as f:
+        config = tomllib.load(f)
+
+    requires = config.get("build-system", {}).get("requires", [])
+    if requires:
+        print("Installing build dependencies...")
+        run(
+            [
+                sys.executable,
+                "-m",
+                "pip",
+                "install",
+                *requires,
+                f"--target={INSTALL_DIR}",
+            ]
+        )
+
+    env = os.environ.copy()
+    pythonpath_parts = [str(INSTALL_DIR)]
+    if existing := env.get("PYTHONPATH"):
+        pythonpath_parts.append(existing)
+    env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
+    return env
 
 
 # Main
@@ -269,7 +299,8 @@ def main() -> None:
     if enable_debug:
         cmd.append("-Ccmake.build-type=RelWithDebInfo")
 
-    run(cmd)
+    env = install_build_deps()
+    run(cmd, env=env)
     print(f"\nInstalled to: {INSTALL_DIR}")
 
 
