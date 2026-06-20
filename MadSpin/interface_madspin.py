@@ -2607,14 +2607,14 @@ class MadSpinInterface(extended_cmd.Cmd):
             raise ValueError("Error in get_density: 'position' must contain at least one position index")
         if len(allow_hel) % n_changing != 0:
             raise ValueError("Error in get_density: inconsistent 'allow_hel' and 'position' lengths")
+        # PY_GET_DENSITY(PDGS, PROCID, P, POS, ALLOW_HEL, ALPHAS, SCALE2)
         density_array = self.f2py_module.py_get_density(pdgs=pdgs, 
                                                         procid=-1, 
                                                         p=P, 
                                                         pos=position, 
                                                         allow_hel=allow_hel, 
-                                                        n_comb=ncomb, 
-                                                        alphas=event.aqcd, 
-                                                        npdg=len(pdgs))      
+                                                        alphas=event.aqcd,
+                                                        scale2=event.scale**2)
         #print(f"density_array = {density_array}") 
         density_matrix = madspin.DensityMatrix(density_array, 
                                                n_changing, 

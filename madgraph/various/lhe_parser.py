@@ -1335,16 +1335,17 @@ class MultiEventFile(EventFile):
     
     parsing = True # check if/when we need to parse the event.
 
-    def __new__(cls, start_list=[],parse=True):
+    def __new__(cls, start_list=[],parse=True, parse_LHE=True):
         return object.__new__(MultiEventFile)
     
-    def __init__(self, start_list=[], parse=True):
+    def __init__(self, start_list=[], parse=True, parse_LHE=True):
         """if trunc_error is define here then this allow
         to only read all the files twice and not three times."""
         self.eventgroup = False
         self.files = []
         #self.filesiter = []
         self.parsefile = parse #if self.files is formatted or just the path
+        self.parseLHE = parse_LHE
         self.banner = ''
         self.initial_nb_events = []
         self.total_event_in_files = 0
@@ -1768,16 +1769,21 @@ class MultiEventFile(EventFile):
                             lhe = EventFile(f)
                     else:
                         lhe = EventFile(f)
+                    if not self.parseLHE:
+                        lhe.parsing = False #we need to propagate the information to not parse the file to EventFile
                 else:
                     lhe = f
                 for event in lhe:
                     nb_event +=1
-                    if get_info:
+                    if get_info and self.parseLHE: # if we don't parse the file, we cannot parse the reweight information
                         event.parse_reweight()
                         for key, value in event.reweight_data.items():
                             info[key] += value
                         info['central'] += event.wgt
-                    out.write(str(event))
+                        out.write(str(event))
+                    else: #in this case we did not parse the file, we just copy the file as a string
+                        for elem in event:
+                            out.write(str(elem))
                 lhe.close()
         out.write("</LesHouchesEvents>\n") 
         return nb_event, info
@@ -1938,11 +1944,12 @@ class Event(list):
                 t_tag0 = time.perf_counter() if _ENABLE_LHE_TIMERS else None
                 if '<density>' in line:
                     temp = line.strip('<>density/[]').split()
-                    self.density = [complex(temp[o].strip(',()')) for o in range(len(temp))]
-                    
-                if '</event>' in line:
-                    line = line.replace('</event>','',1)
-                tags.append(line)
+                    self.density = [complex(temp[o].strip(',()')) for o in range(len(temp))]   
+                elif '</event>' in line:
+                    tags.append(line.replace('</event>','',1)) #tags contains everything the parser does not know about. The tag <density> should not part of it
+                else:
+                    tags.append(line)
+                
                 if _ENABLE_LHE_TIMERS:
                     t_tag += time.perf_counter() - t_tag0
         self.tag += "\n".join(tags)

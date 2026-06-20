@@ -14,7 +14,7 @@ C
     IMPLICIT NONE
     double precision RHEL
     double precision RCOL
-    integer channel, proc_id, hel_selected, icol
+    integer channel, proc_id, hel_selected, icol, ivec
 C  
 C CONSTANTS
 C  

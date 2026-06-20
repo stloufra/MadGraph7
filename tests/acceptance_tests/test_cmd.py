@@ -729,7 +729,9 @@ class TestCmdShell2(unittest.TestCase,
         for match in all_matches:
             sol[(int(match[0]), int(match[1]), int(match[2]), int(match[3]))] = (float(match[4]), float(match[5]))
 
-        original_sol = {(-1, -1, 1, 1): (0.02827952274928987, 0.0), (-1, -1, 1, -1): (-0.0041892876162345, -0.0041923830983622255), (-1, 1, 1, 1): (0.000469685615962711, 0.0006142055733429721), (-1, 1, 1, -1): (-0.01784029173125566, -0.00794999696313525), (-1, -1, -1, -1): (0.02532739017396033, 0.0), (-1, 1, -1, 1): (-0.00028182588524174187, 0.0024162264334765746), (-1, 1, -1, -1): (-0.00048593945847553023, -0.0006039982074415239), (1, 1, 1, 1): (0.025301510150454294, 0.0), (1, 1, 1, -1): (0.004212401136919661, 0.0042167644618831875), (1, 1, -1, -1): (0.028322721746299958, 0.0)}
+        # We changed the value of the reference by a factor of 256, which is the inclusion of IDEN in get_inter in matrix.
+        # original_sol = {(-1, -1, 1, 1): (0.02827952274928987, 0.0), (-1, -1, 1, -1): (-0.0041892876162345, -0.0041923830983622255), (-1, 1, 1, 1): (0.000469685615962711, 0.0006142055733429721), (-1, 1, 1, -1): (-0.01784029173125566, -0.00794999696313525), (-1, -1, -1, -1): (0.02532739017396033, 0.0), (-1, 1, -1, 1): (-0.00028182588524174187, 0.0024162264334765746), (-1, 1, -1, -1): (-0.00048593945847553023, -0.0006039982074415239), (1, 1, 1, 1): (0.025301510150454294, 0.0), (1, 1, 1, -1): (0.004212401136919661, 0.0042167644618831875), (1, 1, -1, -1): (0.028322721746299958, 0.0)}
+        original_sol = {(-1, -1, 1, 1): (0.00011046688573941356, 0.0), (-1, -1, 1, -1): (-1.6364404750916015e-05, -1.6376496477977443e-05), (-1, 1, 1, 1): (1.83470943735434e-06, 2.3992405208709848e-06), (-1, 1, 1, -1): (-6.968863957521743e-05, -3.105467563724707e-05), (-1, -1, -1, -1): (9.893511786703254e-05, 0.0), (-1, 1, -1, 1): (-1.1008823642255542e-06, 9.43838450576787e-06), (-1, 1, -1, -1): (-1.89820100967004e-06, -2.359367997818453e-06), (1, 1, 1, 1): (9.883402402521209e-05, 0.0), (1, 1, 1, -1): (1.6454691941092424e-05, 1.64717361792312e-05), (1, 1, -1, -1): (0.00011063563182148421, 0.0)}
 
         for key in original_sol:
             self.assertIn(key, sol)
@@ -783,7 +785,10 @@ class TestCmdShell2(unittest.TestCase,
             self.assertIn(int(match[3]), [-1,1])
 
         self.assertEqual(len(sol), 10)
-        original_sol =  {(0, 0, 1, 1, -1, -1): (3.4001167694559294e-07, 0.0), (0, 0, 1, 1, -1, 1): (-3.1461674759236455e-07, 4.8545818497513406e-09), (0, 0, 1, -1, -1, -1): (-3.069602710730949e-07, 4.832171908212019e-09), (0, 0, 1, -1, -1, 1): (2.7270589345996334e-07, -2.0762612868036477e-08), (0, 0, 1, 1, 1, 1): (2.914827381801457e-07, 0.0), (0, 0, 1, -1, 1, -1): (2.8446952890247865e-07, -7.217171184019204e-11), (0, 0, 1, -1, 1, 1): (-2.5326248092821595e-07, 1.519703606636158e-08), (0, 0, -1, -1, -1, -1): (2.7764709546297174e-07, 0.0), (0, 0, -1, -1, -1, 1): (-2.4727978606009926e-07, 1.4752928639145769e-08), (0, 0, -1, -1, 1, 1): (2.2137890970427402e-07, 0.0)}
+
+        # We changed the value of the reference by a factor of 36, which is the inclusion of IDEN in get_inter in matrix.
+        # original_sol =  {(0, 0, 1, 1, -1, -1): (3.4001167694559294e-07, 0.0), (0, 0, 1, 1, -1, 1): (-3.1461674759236455e-07, 4.8545818497513406e-09), (0, 0, 1, -1, -1, -1): (-3.069602710730949e-07, 4.832171908212019e-09), (0, 0, 1, -1, -1, 1): (2.7270589345996334e-07, -2.0762612868036477e-08), (0, 0, 1, 1, 1, 1): (2.914827381801457e-07, 0.0), (0, 0, 1, -1, 1, -1): (2.8446952890247865e-07, -7.217171184019204e-11), (0, 0, 1, -1, 1, 1): (-2.5326248092821595e-07, 1.519703606636158e-08), (0, 0, -1, -1, -1, -1): (2.7764709546297174e-07, 0.0), (0, 0, -1, -1, -1, 1): (-2.4727978606009926e-07, 1.4752928639145769e-08), (0, 0, -1, -1, 1, 1): (2.2137890970427402e-07, 0.0)}
+        original_sol =  {(0, 0, 1, 1, -1, -1): (9.444768804044248e-09, 0.0), (0, 0, 1, 1, -1, 1): (-8.739354099787904e-09, 1.3484949582642612e-10), (0, 0, 1, -1, -1, -1): (-8.526674196474859e-09, 1.3422699745033388e-10), (0, 0, 1, -1, -1, 1): (7.575163707221203e-09, -5.767392463343466e-10), (0, 0, 1, 1, 1, 1): (8.09674272722627e-09, 0.0), (0, 0, 1, -1, 1, -1): (7.901931358402185e-09, -2.004769773338668e-12), (0, 0, 1, -1, 1, 1): (-7.035068914672666e-09, 4.2213989073226606e-10), (0, 0, -1, -1, -1, -1): (7.712419318415882e-09, 0.0), (0, 0, -1, -1, -1, 1): (-6.868882946113868e-09, 4.098035733096047e-10), (0, 0, -1, -1, 1, 1): (6.149414158452056e-09, 0.0)}
         for key in original_sol:
             
             self.assertIn(key, sol)
@@ -832,9 +837,11 @@ class TestCmdShell2(unittest.TestCase,
 
 
         self.assertEqual(len(sol), 6)
-        original_sol =  {(-1, -1): (520.1204099513759, 0.0), (-1, 0): (-217.2395066557355, 871.1782252029083), (-1, 1): (-939.258737149777, -499.49184104989456), (0, 0): (2136.628541206853, 0.0), (0, 1): (-534.1281427839928, 2141.9713873632077), (1, 1): (2431.7289542861076, 0.0)}
-        for key in original_sol:
-            
+
+        # We changed the value of the reference by a factor of 3, which is the inclusion of IDEN in get_inter in matrix.
+        # original_sol =  {(-1, -1): (520.1204099513759, 0.0), (-1, 0): (-217.2395066557355, 871.1782252029083), (-1, 1): (-939.258737149777, -499.49184104989456), (0, 0): (2136.628541206853, 0.0), (0, 1): (-534.1281427839928, 2141.9713873632077), (1, 1): (2431.7289542861076, 0.0)}
+        original_sol =  {(-1, -1): (173.37346998379198, 0.0), (-1, 0): (-72.41316888524517, 290.3927417343028), (-1, 1): (-313.0862457165923, -166.49728034996485), (0, 0): (712.2095137356176, 0.0), (0, 1): (-178.04271426133093, 713.9904624544025), (1, 1): (810.5763180953692, 0.0)}
+        for key in original_sol:    
             self.assertIn(key, sol)
             self.assertAlmostEqual(original_sol[key][0], sol[key][0])
             self.assertAlmostEqual(original_sol[key][1], sol[key][1])
@@ -888,9 +895,9 @@ class TestCmdShell2(unittest.TestCase,
 
 
         self.assertEqual(len(sol), 10)
+        # I am not sure why for this case I didn't have to introduce the nomalisation term
         original_sol = sol =  {(-1, -1, 1, 1): (-5.551115123125783e-17, 0.0), (-1, -1, 1, -1): (0.00926133766116009, 0.0), (-1, 1, 1, 1): (-0.009292545047075378, 0.0), (-1, 1, 1, -1): (0.09884700885130696, 0.0), (-1, -1, -1, -1): (-1.6479873021779667e-17, 0.0), (-1, 1, -1, 1): (5.415404411525035e-07, 0.0), (-1, 1, -1, -1): (-0.012877349160785171, 0.0), (1, 1, 1, 1): (-1.734723475976807e-17, 0.0), (1, 1, 1, -1): (0.012880402732054583, 0.0), (1, 1, -1, -1): (-4.85722573273506e-17, 0.0)}
         for key in original_sol:
-
             self.assertIn(key, sol)
             self.assertAlmostEqual(original_sol[key][0] if abs(original_sol[key][0]) > 1e-12 else 0, sol[key][0])
             self.assertAlmostEqual(original_sol[key][1] if abs(original_sol[key][1]) > 1e-12 else 0, sol[key][1])
@@ -1568,6 +1575,82 @@ class TestCmdShell2(unittest.TestCase,
             misc.sprint(density_matrix.matrix[1], fortran_dens[1])
 
 
+    def test_density_mode_user_interface(self):
+        ############################################################################
+        # This test checks that the python interface of the density mode works properly ie.
+        # it creates a LHE file with a tag <density> which contains the density matrix with the correct number of elements.
+        # We also check that the average density matrix is stable.
+        # To check if the value of the density matrix itself is correct see the other test_density_mode_* tests.
+        ############################################################################
+        
+        text = f"""generate g g > t t~
+output {self.out_dir}_density0
+launch
+reweight=density
+set run_card nevents 50000
+set helicity_direction [6]
+set particle_in_density_matrix [6, -6]
+set boost_choice [6, -6]
+"""
+
+        #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
+        command_card = open('/tmp/mg5_cmd.txt','w')
+        command_card.write(text)
+        command_card.close()
+
+        
+        logfile = 'test_density_mode_ttbar.log'
+        subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
+                         '/tmp/mg5_cmd.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
+
+
+        
+
+        lhe_path = pjoin(self.out_dir + '_density0/Events/run_01/unweighted_events.lhe.gz')
+        rho_mean_path = pjoin(self.out_dir + '_density0/Events/run_01/Average_density_matrix_unweighted_events.txt')
+        
+        self.assertTrue(os.path.isfile(lhe_path), f"File not found {lhe_path}")
+        self.assertTrue(os.path.isfile(rho_mean_path), f"File not found {rho_mean_path}")
+
+
+        for event in lhe_parser.EventFile(lhe_path):
+            density_check = event.density
+            break #we only want the first one
+        
+        for elem in density_check:
+            self.assertIsInstance(elem, complex)
+        
+        self.assertEqual(len(density_check), 10, f"The density matrix is not the correct length: {density_check}")
+
+        rho_avg_ref =  [[(0.3670142422790588+0j), (1.7429098337870793e-07-3.933851109770078e-05j), (-1.742909833606001e-07+3.9338510968347334e-05j), (0.11514189584464168-0j)],
+                        [(1.7429098337870793e-07+3.933851109770078e-05j), (0.13298575772060628+0j), (0.06344292964491506-0j), (-1.7429098336059725e-07-3.933851096834704e-05j)],
+                        [(-1.742909833606001e-07-3.9338510968347334e-05j), (0.06344292964491506+0j), (0.13298575772060628+0j), (1.7429098337870735e-07+3.9338511097700886e-05j)],
+                        [(0.11514189584464168+0j), (-1.7429098336059725e-07+3.933851096834704e-05j), (1.7429098337870735e-07-3.9338511097700886e-05j), (0.36701424227905893+0j)]]
+
+        #now let's read the average density matrix
+        with open(rho_mean_path, 'r') as f:
+            data = f.readlines()[1:]
+            rho_avg = []
+            for i in range(len(data)):
+                aux = data[i].strip("\t\n[]").split(",")
+                try:
+                    rho_avg.append([complex(aux[i].strip(" ()")) for i in range(len(aux))])
+                except: #if the values are like "np.complex128(value)"
+                    print("aux", aux)
+                    aux2 = [aux[i].strip(" ()[]").strip("'").replace("np.complex128(","").strip(" ()") for i in range(len(aux))]
+                    try:
+                        rho_avg.append([complex(aux2[i]) for i in range(len(aux2))])
+                    except:
+                        print("aux2", aux2)
+                        raise ValueError
+            
+
+        for i in range(len(rho_avg)):
+            for j in range(len(rho_avg[0])):
+                self.assertAlmostEqual(rho_avg[i][j].real, rho_avg_ref[i][j].real, places=3) #we ask 3 digits because we only use 50k events
+                self.assertAlmostEqual(rho_avg[i][j].imag, rho_avg_ref[i][j].imag, places=3)
+
+
     def test_density_mode_ttbar(self):
         ############################################################################
         # Check working condition of the density mode
@@ -1575,52 +1658,60 @@ class TestCmdShell2(unittest.TestCase,
         # testing case g g > t t~
         ############################################################################
         import madgraph.various.Density_functions as dens
+        #we generate just one event of the process  to create the process folder (it is fast enough)
         text = f"""generate g g > t t~
 output {self.out_dir}_density1
 launch
-reweight=density
 set run_card nevents 1
-set run_card iseed 643
-set helicity_direction [6]
-set particle_in_density_matrix [6, -6]
-set boost_choice [6, -6]
+set use_syst False
 """
-#we use iseed = 643 because it shows non-zero concurrence
 
         #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
         command_card = open('/tmp/mg5_cmd.txt','w')
         command_card.write(text)
         command_card.close()
 
+        logfile = 'test_density_mode_ttbar1.log'
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '/tmp/mg5_cmd.txt'])
+                         '/tmp/mg5_cmd.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
 
 
-        ## With the chosen seed, the event must be:
-        event_random = """<event>
- 4      1 +4.4153000e+02 1.83718300e+02 7.54677100e-03 1.16425200e-01
-       21 -1    0    0  503  502 +0.0000000000e+00 +0.0000000000e+00 +1.7560408079e+02 1.7560408079e+02 0.0000000000e+00 0.0000e+00 1.0000e+00
-       21 -1    0    0  501  503 -0.0000000000e+00 -0.0000000000e+00 -1.9227329772e+02 1.9227329772e+02 0.0000000000e+00 0.0000e+00 1.0000e+00
-        6  1    1    2  501    0 -1.8479327069e+01 +5.9007817552e+01 -1.1739229414e+01 1.8409295904e+02 1.7300000000e+02 0.0000e+00 1.0000e+00
-       -6  1    1    2    0  502 +1.8479327069e+01 -5.9007817552e+01 -4.9299875115e+00 1.8378441946e+02 1.7300000000e+02 0.0000e+00 1.0000e+00
-<density> (0.4526973360805629+0j) (-2.1317321205040213e-05+0.0024340905341333923j) (2.13173212052136e-05-0.002434090538628891j) (0.28550869973262555+0j) (0.04730266391943712+0j) (0.04700262219476668+0j) (2.1317321205213577e-05+0.0024340905386288922j) (0.04730266391943711+0j) (-2.1317321205040145e-05-0.0024340905341333906j) (0.45269733608056295+0j) </density>
-</event>
+        #Here we replace the lhe file by the reference lhe file (stored in the input_files).
+        os.remove(f"{self.out_dir}_density1/Events/run_01/unweighted_events.lhe.gz")
+        shutil.copyfile(pjoin(MG5DIR, "tests/input_files/density_mode/test_density_mode_ttbar.lhe.gz"), f"{self.out_dir}_density1/Events/run_01/unweighted_events.lhe.gz")
+
+        #Now we reweight the lhe file through the inline method
+        text_rwgt = f"""launch {self.out_dir}_density1/ -i
+reweight run_01 --mode=density
+set helicity_direction [6]
+set boost_choice [6, -6]
 """
-        density_1event = [(0.4526973360805629+0j), (-2.1317321205040213e-05+0.0024340905341333923j), (2.13173212052136e-05-0.002434090538628891j),
-                          (0.28550869973262555+0j), (0.04730266391943712+0j), (0.04700262219476668+0j), (2.1317321205213577e-05+0.0024340905386288922j),
-                          (0.04730266391943711+0j), (-2.1317321205040145e-05-0.0024340905341333906j), (0.45269733608056295+0j)]
 
+        #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
+        command_card_rwgt = open('/tmp/mg5_cmd_rwgt.txt','w')
+        command_card_rwgt.write(text_rwgt)
+        command_card_rwgt.close()
+
+        logfile = 'test_density_mode_ttbar2.log'
+        subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
+                         '/tmp/mg5_cmd_rwgt.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
+        
+        #The lhe file has been reweighted, now we read density_check, the density matrix to compare to the reference
         lhe_path = pjoin(self.out_dir + '_density1/Events/run_01/unweighted_events.lhe.gz')
         for event in lhe_parser.EventFile(lhe_path):
             density_check = event.density
-        
+
+        #reference density matrix
+        density_ref = [(0.4526973360805629+0j), (-2.1317321205040213e-05+0.0024340905341333923j), (2.13173212052136e-05-0.002434090538628891j),
+                          (0.28550869973262555+0j), (0.04730266391943712+0j), (0.04700262219476668+0j), (2.1317321205213577e-05+0.0024340905386288922j),
+                          (0.04730266391943711+0j), (-2.1317321205040145e-05-0.0024340905341333906j), (0.45269733608056295+0j)]
 
         #1) here we check that the density matrix is computed properly
-        for i in range(len(density_1event)):
-            self.assertAlmostEqual(density_1event[i].real, density_check[i].real, places=7)
-            self.assertAlmostEqual(density_1event[i].imag, density_check[i].imag, places=7)
+        for i in range(len(density_ref)):
+            self.assertAlmostEqual(density_ref[i].real, density_check[i].real, places=7)
+            self.assertAlmostEqual(density_ref[i].imag, density_check[i].imag, places=7)
         
-        rho_instance = dens.DensityMatrixObservables(density_1event)
+        rho_instance = dens.DensityMatrixObservables(density_check)
 
         #2) here we check that the concurrence is computed properly
         concurrence_ref = 0.47641209333195317
@@ -1641,122 +1732,162 @@ set boost_choice [6, -6]
         ############################################################################
         # Check working condition of the density mode
         # reproduces the full density matrix and computes quantum information observables
-        # testing case d d~ > w+ w-
+        # testing case u u~ > w+ w-
         ############################################################################
         import madgraph.various.Density_functions as dens
-        text = f"""generate d d~ > w+ w-
+        text = f"""generate u u~ > w+ w-
 output {self.out_dir}_density2
 launch
-reweight=density
 set run_card nevents 1
-set run_card iseed 27
+set use_syst False
+"""
+
+        #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
+        command_card = open('/tmp/mg5_cmd2.txt','w')
+        command_card.write(text)
+        command_card.close()
+
+
+        logfile = 'test_density_mode_wpwm1.log'
+        subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
+                         '/tmp/mg5_cmd2.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
+
+
+        #Here we replace the lhe file by the reference lhe file (stored in the input_files).
+        os.remove(f"{self.out_dir}_density2/Events/run_01/unweighted_events.lhe.gz")
+        shutil.copyfile(pjoin(MG5DIR, "tests/input_files/density_mode/test_density_mode_wpwm.lhe.gz"), f"{self.out_dir}_density2/Events/run_01/unweighted_events.lhe.gz")
+
+        #Now we reweight the lhe file through the inline method
+        text_rwgt = f"""launch {self.out_dir}_density2/ -i
+reweight run_01 --mode=density
 set helicity_direction [24]
 set particle_in_density_matrix [24, -24]
 set boost_choice [24, -24]
 set order_helicities [+1, -1, +1, 0, +1, +1, 0, -1, 0, 0, 0, +1, -1, -1, -1, 0, -1, +1]
 set axis_referential [-1, -2]
 """
-#we use iseed = 643 because it shows non-zero concurrence
 
         #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
-        command_card = open('/tmp/mg5_cmd.txt','w')
-        command_card.write(text)
-        command_card.close()
+        command_card_rwgt = open('/tmp/mg5_cmd_rwgt2.txt','w')
+        command_card_rwgt.write(text_rwgt)
+        command_card_rwgt.close()
 
+        logfile = 'test_density_mode_wpwm2.log'
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '/tmp/mg5_cmd.txt'])
-
-
-        ## Read a test event for g g > t t~
-        ## With the chosen seed, the event must be:
-        event_random = """<event>
- 4      1 +1.1598180e+01 8.61641400e+01 7.54677100e-03 1.31241600e-01
-        1 -1    0    0  501    0 +0.0000000000e+00 +0.0000000000e+00 +6.7453756875e+01 6.7453756875e+01 0.0000000000e+00 0.0000e+00 -1.0000e+00
-       -1 -1    0    0    0  501 -0.0000000000e+00 -0.0000000000e+00 -2.2362978447e+02 2.2362978447e+02 0.0000000000e+00 0.0000e+00 1.0000e+00
-       24  1    1    2    0    0 +2.9712846835e+01 -8.6133184071e+00 -1.8180402011e+02 2.0118886700e+02 8.0419002446e+01 0.0000e+00 1.0000e+00
-      -24  1    1    2    0    0 -2.9712846835e+01 +8.6133184071e+00 +2.5627992516e+01 8.9894674346e+01 8.0419002446e+01 0.0000e+00 -1.0000e+00
-<density> (0.8239521035420918+0j) (0.0012459836198752744-0.18876088754596865j) (0.10590205871336196+9.895276547915974e-05j) (0.001245983619863055-0.1887608875497407j) (0.20007680637202244+0.0005605639859763565j) (-3.6659957735389485e-05+0.07291523704402764j) (0.1059020587083611+9.895276547721885e-05j) (-3.665995773502995e-05+0.0729152370357459j) (-0.024242733861029375+0j) (0.04324555661196509+0j) (0.00013747621754224657+0.024261332551989638j) (0.04324555661282923+0j) (0.00017413617529524783+0.045836073006731676j) (-0.01670609814743152+0.00010186420360581529j) (0.0001374762175351289+0.024261332550843975j) (-0.016706098145534257+0.00010186420359337397j) (-3.6659957735389384e-05-0.005553817922760897j) (0.013611911685141956+0j) (0.00013747621754022304-0.02426133255247446j) (0.025717930303802445+4.80206636849651e-05j) (4.044894527515657e-06+0.009367056873370817j) (0.013611911684499201+0j) (4.0448945265672705e-06+0.009367056872306325j) (-0.0031159037202360715+2.9114381139529145e-06j) (0.04324555661369336+0j) (0.0001741361752897144+0.04583607300764762j) (-0.016706098147765344+0.0001018642036045661j) (0.00013747621753310534+0.024261332551328795j) (-0.016706098145868084+0.0001018642035921248j) (-3.6659957735029856e-05-0.00555381792287188j) (0.04859616069266536+0j) (4.070485226774791e-05+0.017679108347624695j) (0.025717930302588142-4.802066368203413e-05j) (4.070485226220086e-05+0.017679108345613412j) (-0.005886760586920283+1.6493195982730305e-05j) (0.006511758621987346+0j) (4.044894527566402e-06-0.009367056872928175j) (0.006511758621255038+0j) (1.078627744155314e-06+0.0021453488357796643j) (0.013611911683856446+0j) (4.044894526618015e-06+0.009367056871863684j) (-0.0031159037200889335+2.9114381138958083e-06j) (0.006511758620522728+0j) (1.0786277441447357e-06+0.0021453488355359946j) (0.000713281928075904+0j) </density>
-</event>
-"""
-        density_1event = [(0.8239521035420918+0j), (0.0012459836198752744-0.18876088754596865j), (0.10590205871336196+9.895276547915974e-05j), 
-                          (0.001245983619863055-0.1887608875497407j), (0.20007680637202244+0.0005605639859763565j), (-3.6659957735389485e-05+0.07291523704402764j), 
-                          (0.1059020587083611+9.895276547721885e-05j), (-3.665995773502995e-05+0.0729152370357459j), (-0.024242733861029375+0j), 
-                          (0.04324555661196509+0j), (0.00013747621754224657+0.024261332551989638j), (0.04324555661282923+0j), 
-                          (0.00017413617529524783+0.045836073006731676j), (-0.01670609814743152+0.00010186420360581529j), 
-                          (0.0001374762175351289+0.024261332550843975j), (-0.016706098145534257+0.00010186420359337397j), 
-                          (-3.6659957735389384e-05-0.005553817922760897j), (0.013611911685141956+0j), (0.00013747621754022304-0.02426133255247446j), 
-                          (0.025717930303802445+4.80206636849651e-05j), (4.044894527515657e-06+0.009367056873370817j), (0.013611911684499201+0j), 
-                          (4.0448945265672705e-06+0.009367056872306325j), (-0.0031159037202360715+2.9114381139529145e-06j), (0.04324555661369336+0j), 
-                          (0.0001741361752897144+0.04583607300764762j), (-0.016706098147765344+0.0001018642036045661j), 
-                          (0.00013747621753310534+0.024261332551328795j), (-0.016706098145868084+0.0001018642035921248j), 
-                          (-3.6659957735029856e-05-0.00555381792287188j), (0.04859616069266536+0j), (4.070485226774791e-05+0.017679108347624695j), 
-                          (0.025717930302588142-4.802066368203413e-05j), (4.070485226220086e-05+0.017679108345613412j), 
-                          (-0.005886760586920283+1.6493195982730305e-05j), (0.006511758621987346+0j), (4.044894527566402e-06-0.009367056872928175j), 
-                          (0.006511758621255038+0j), (1.078627744155314e-06+0.0021453488357796643j), (0.013611911683856446+0j), 
-                          (4.044894526618015e-06+0.009367056871863684j), (-0.0031159037200889335+2.9114381138958083e-06j), (0.006511758620522728+0j), 
-                          (1.0786277441447357e-06+0.0021453488355359946j), (0.000713281928075904+0j)]
-
-
+                         '/tmp/mg5_cmd_rwgt2.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
+        
+        #The lhe file has been reweighted, now we read density_check, the density matrix to compare to the reference
         lhe_path = pjoin(self.out_dir + '_density2/Events/run_01/unweighted_events.lhe.gz')
-        # data = lhe_parser.EventFile(lhe_path)
         for event in lhe_parser.EventFile(lhe_path):
             density_check = event.density
+
+        #reference density matrix
+        density_ref = [1.1377075855848739e-05+0j, -2.490684288126926e-09+4.954042982384063e-05j, -0.00010741895892651527-1.052802929701333e-08j, -2.490684288126926e-09+4.9540429845192674e-05j, -0.00020752750288735081-1.8249104252772033e-07j,
+                       7.268812229221872e-07-0.00037506459555688727j, -0.0001074189589717972-1.052802929701333e-08j, 7.268812229221872e-07-0.0003750645955782362j, -0.003320285453600001+0j, 0.0002263297014919883+0j, 
+                       -2.2327036098315108e-08+0.00046759229342787956j, 0.0002263297015849638+0j, -7.492082590489525e-07+0.0009009955880770624j, -0.001633220781778451-3.0830277624655218e-06j, -2.232703608840189e-08+0.00046759229362505555j, 
+                       -0.0016332207818714126-3.083027762460848e-06j, 7.268812229221946e-07+0.014457877454041002j, 0.0010142200261194483+0j, -2.2327036118073693e-08-0.0004675922936294792j, 0.00195945157385873+1.5309858519097204e-06j, 
+                       -6.515921500262154e-06+0.0035412482571934695j, 0.0010142200265469868+0j, -6.515921500242399e-06+0.0035412482573950388j, 0.03134914553472118-3.072499733046761e-06j, 0.00022632970167793935+0j, 
+                       -7.492082593914445e-07+0.0009009955884665416j, -0.0016332207824823572-3.0830277638297043e-06j, -2.232703610816048e-08+0.0004675922938266552j, -0.001633220782575319-3.0830277638250304e-06j, 7.268812229221946e-07+0.01445787746027238j, 
+                       0.003786149199326624+0j, -7.242802726675139e-06+0.006841498529578208j, 0.001959451574684711-1.530985852636054e-06j, -7.2428027263327e-06+0.006841498529967629j, 0.06056481979985879-5.3258180009900856e-05j, 
+                       0.012364686884072221+0j, -6.515921503155216e-06-0.0035412482586862654j, 0.012364686884776021+0j, -0.00021213299283073748-0.10945883956181096j, 0.0010142200269745254+0j,
+                       -6.515921503135461e-06+0.0035412482588878342j, 0.031349145547936254-3.072499733046761e-06j, 0.012364686885479825+0j, -0.00021213299283073748-0.10945883956804142j, 0.9689920004990016+0j]
+
+
+        event_of_reference = """<event>
+ 4      1 +1.7477710e+01 8.42506000e+01 7.54677100e-03 1.31740400e-01
+        2 -1    0    0  501    0 +0.0000000000e+00 +0.0000000000e+00 +2.6479266201e+02 2.6479266201e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
+       -2 -1    0    0    0  501 -0.0000000000e+00 -0.0000000000e+00 -1.9946623190e+02 1.9946623190e+02 0.0000000000e+00 0.0000e+00 1.0000e+00
+       24  1    1    2    0    0 -7.2588221973e+00 +2.4046986127e+01 +2.4863204649e+02 2.6251868227e+02 8.0419002446e+01 0.0000e+00 -1.0000e+00
+      -24  1    1    2    0    0 +7.2588221973e+00 -2.4046986127e+01 -1.8330561638e+02 2.0174021164e+02 8.0419002446e+01 0.0000e+00 1.0000e+00
+<density> (1.1377075855848739e-05+0j) (-2.490684288126926e-09+4.954042982384063e-05j) (-0.00010741895892651527-1.052802929701333e-08j) (-2.490684288126926e-09+4.9540429845192674e-05j) (-0.00020752750288735081-1.8249104252772033e-07j) (7.268812229221872e-07-0.00037506459555688727j) (-0.0001074189589717972-1.052802929701333e-08j) (7.268812229221872e-07-0.0003750645955782362j) (-0.003320285453600001+0j) (0.0002263297014919883+0j) (-2.2327036098315108e-08+0.00046759229342787956j) (0.0002263297015849638+0j) (-7.492082590489525e-07+0.0009009955880770624j) (-0.001633220781778451-3.0830277624655218e-06j) (-2.232703608840189e-08+0.00046759229362505555j) (-0.0016332207818714126-3.083027762460848e-06j) (7.268812229221946e-07+0.014457877454041002j) (0.0010142200261194483+0j) (-2.2327036118073693e-08-0.0004675922936294792j) (0.00195945157385873+1.5309858519097204e-06j) (-6.515921500262154e-06+0.0035412482571934695j) (0.0010142200265469868+0j) (-6.515921500242399e-06+0.0035412482573950388j) (0.03134914553472118-3.072499733046761e-06j) (0.00022632970167793935+0j) (-7.492082593914445e-07+0.0009009955884665416j) (-0.0016332207824823572-3.0830277638297043e-06j) (-2.232703610816048e-08+0.0004675922938266552j) (-0.001633220782575319-3.0830277638250304e-06j) (7.268812229221946e-07+0.01445787746027238j) (0.003786149199326624+0j) (-7.242802726675139e-06+0.006841498529578208j) (0.001959451574684711-1.530985852636054e-06j) (-7.2428027263327e-06+0.006841498529967629j) (0.06056481979985879-5.3258180009900856e-05j) (0.012364686884072221+0j) (-6.515921503155216e-06-0.0035412482586862654j) (0.012364686884776021+0j) (-0.00021213299283073748-0.10945883956181096j) (0.0010142200269745254+0j) (-6.515921503135461e-06+0.0035412482588878342j) (0.031349145547936254-3.072499733046761e-06j) (0.012364686885479825+0j) (-0.00021213299283073748-0.10945883956804142j) (0.9689920004990016+0j) </density>
+</event>
+"""
         
         #1) here we check that the density matrix is computed properly
-        for i in range(len(density_1event)):
-            self.assertAlmostEqual(density_1event[i].real, density_check[i].real, places=7)
-            self.assertAlmostEqual(density_1event[i].imag, density_check[i].imag, places=7)
+        for i in range(len(density_ref)):
+            self.assertAlmostEqual(density_ref[i].real, density_check[i].real, places=7)
+            self.assertAlmostEqual(density_ref[i].imag, density_check[i].imag, places=7)
 
         rho_instance = dens.DensityMatrixObservables(density_check)
 
         #2) here we check that the bounds of concurrence are computed properly
-        lower_concurrence2_ref = 0.3188376158549642
-        upper_concurrence2_ref = 0.31936138845988493
+        lower_concurrence2_ref = 0.023941838572111518
+        upper_concurrence2_ref = 0.02402940624369876
         lower_concurrence2_check = rho_instance.ConcLB2()
         upper_concurrence2_check = rho_instance.ConcUB2()
         self.assertAlmostEqual(lower_concurrence2_check, lower_concurrence2_ref, places=7)
         self.assertAlmostEqual(upper_concurrence2_check, upper_concurrence2_ref, places=7)
       
         #3) here we check that purity is computed properly
-        purity_ref = 0.9997381136975394
+        purity_ref = 0.9999562161642062
         purity_check = rho_instance.Get_Purity()
-        self.assertAlmostEqual(purity_ref, purity_check, places=7)
+        self.assertAlmostEqual(purity_check, purity_ref, places=7)
 
         #4) here we check that mana is computed properly
-        mana_ref = 1.0500659136939539
+        mana_ref = 0.5113137785276397
         mana_check = rho_instance.Get_Mana()
-        self.assertAlmostEqual(mana_ref, mana_check, places=7)
+        self.assertAlmostEqual(mana_check, mana_ref, places=7)
 
     def test_density_mode_decay1(self):
         ############################################################################
         # Check working condition of the density mode
         # reproduces the full density matrix and computes quantum information observables
-        # testing case p p > t t~, t > b W+
+        # testing case g g > t t~, t > b W+
         # particle_in_density_matrix = [5, -6]
         ############################################################################
         import madgraph.various.Density_functions as dens
         text = f"""generate g g > t t~, t > b w+
 output {self.out_dir}_density3
 launch
-reweight=density
 set run_card nevents 1
-set run_card iseed 27
-set helicity_direction [5]
-set particle_in_density_matrix [5, -6]
-set boost_choice [5, -6]
+set run_card use_syst False
 """
+
 
         #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
         command_card = open('/tmp/mg5_cmd.txt','w')
         command_card.write(text)
         command_card.close()
 
+        logfile = 'test_density_mode_decay11.log'
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '/tmp/mg5_cmd.txt'])
+                         '/tmp/mg5_cmd.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
 
 
-        ## With the chosen seed, the event must be:
-        event_random = """<event>
+        #Here we replace the lhe file by the reference lhe file (stored in the input_files).
+        os.remove(f"{self.out_dir}_density3/Events/run_01/unweighted_events.lhe.gz")
+        shutil.copyfile(pjoin(MG5DIR, "tests/input_files/density_mode/test_density_mode_decay1.lhe.gz"), f"{self.out_dir}_density3/Events/run_01/unweighted_events.lhe.gz")
+
+        #Now we reweight the lhe file through the inline method
+        text_rwgt = f"""launch {self.out_dir}_density3/ -i
+reweight run_01 --mode=density
+set helicity_direction [5]
+set particle_in_density_matrix [5, -6]
+set boost_choice [5, -6]
+"""
+
+        #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
+        command_card_rwgt = open('/tmp/mg5_cmd_rwgt.txt','w')
+        command_card_rwgt.write(text_rwgt)
+        command_card_rwgt.close()
+
+        logfile = 'test_density_mode_decay12.log'
+        subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
+                         '/tmp/mg5_cmd_rwgt.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
+        
+        #The lhe file has been reweighted, now we read density_check, the density matrix to compare to the reference
+        lhe_path = pjoin(self.out_dir + '_density3/Events/run_01/unweighted_events.lhe.gz')
+        for event in lhe_parser.EventFile(lhe_path):
+            density_check = event.density
+
+        #reference density matrix
+        density_ref = [(0.00023359526522495882+0j), (2.9956750131603144e-05+1.3622977588717694e-05j), (-0.00037002831548626185-0.0001606402006384915j),
+                            (0.0013988914248279838+0.0007925330810912253j), (0.0001701973522356173+0j), (-0.0003301297581403585+4.196117432997617e-05j), 
+                            (0.0003588942963018077+0.00015927990509450137j), (0.5380495499305434+0j), (0.03639176740610352+0.01649755017431808j), 
+                            (0.4615466574519961+0j)]
+
+
+        event_of_reference = """<event>
  6      1 +4.2873600e+02 2.58116800e+02 7.54677100e-03 1.10829800e-01
        21 -1    0    0  501  502 +0.0000000000e+00 +0.0000000000e+00 +1.0845458909e+02 1.0845458909e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
        21 -1    0    0  502  503 -0.0000000000e+00 -0.0000000000e+00 -6.4844659178e+02 6.4844659178e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
@@ -1767,26 +1898,18 @@ set boost_choice [5, -6]
 <density> (0.00023359526522495882+0j) (2.9956750131603144e-05+1.3622977588717694e-05j) (-0.00037002831548626185-0.0001606402006384915j) (0.0013988914248279838+0.0007925330810912253j) (0.0001701973522356173+0j) (-0.0003301297581403585+4.196117432997617e-05j) (0.0003588942963018077+0.00015927990509450137j) (0.5380495499305434+0j) (0.03639176740610352+0.01649755017431808j) (0.4615466574519961+0j) </density>
 </event>
 """
-        density_1event =   [(0.00023359526522495882+0j), (2.9956750131603144e-05+1.3622977588717694e-05j), (-0.00037002831548626185-0.0001606402006384915j),
-                            (0.0013988914248279838+0.0007925330810912253j), (0.0001701973522356173+0j), (-0.0003301297581403585+4.196117432997617e-05j), 
-                            (0.0003588942963018077+0.00015927990509450137j), (0.5380495499305434+0j), (0.03639176740610352+0.01649755017431808j), 
-                            (0.4615466574519961+0j)]
-
-        lhe_path = pjoin(self.out_dir + '_density3/Events/run_01/unweighted_events.lhe.gz')
-        for event in lhe_parser.EventFile(lhe_path):
-            density_check = event.density
         
         #1) here we check that the density matrix is computed properly
-        for i in range(len(density_1event)):
-            self.assertAlmostEqual(density_1event[i].real, density_check[i].real, places=7)
-            self.assertAlmostEqual(density_1event[i].imag, density_check[i].imag, places=7)
+        for i in range(len(density_ref)):
+            self.assertAlmostEqual(density_ref[i].real, density_check[i].real, places=7)
+            self.assertAlmostEqual(density_ref[i].imag, density_check[i].imag, places=7)
 
         rho_instance = dens.DensityMatrixObservables(density_check)
 
         #2) here we check that the bounds of concurrence is computed properly
         concurrence_ref = 0.0
         concurrence_check = rho_instance.Get_Concurrence()
-        self.assertAlmostEqual(concurrence_check, concurrence_ref, places=7)
+        self.assertAlmostEqual(concurrence_ref, concurrence_check, places=7)
       
         #3) here we check that purity is computed properly
         purity_ref = 0.5057218059862959
@@ -1802,19 +1925,17 @@ set boost_choice [5, -6]
         ############################################################################
         # Check working condition of the density mode
         # reproduces the full density matrix and computes quantum information observables
-        # testing case p p > t t~, t > b W+
+        # testing case g g > t t~, t > b W+
         # particle_in_density_matrix = [24, -6]
         ############################################################################
         import madgraph.various.Density_functions as dens
+        #we generate just one event of the process  to create the process folder (it is fast enough)
         text = f"""generate g g > t t~, t > b w+
 output {self.out_dir}_density4
 launch
 reweight=density
 set run_card nevents 1
-set run_card iseed 27
-set helicity_direction [24]
-set particle_in_density_matrix [24, -6]
-set boost_choice [24, -6]
+set run_card use_syst False
 """
 
         #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
@@ -1822,46 +1943,59 @@ set boost_choice [24, -6]
         command_card.write(text)
         command_card.close()
 
+        logfile = 'test_density_mode_decay21.log'
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '/tmp/mg5_cmd.txt'])
+                         '/tmp/mg5_cmd.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
 
 
-        ## With the chosen seed, the event must be:
-        event_random = """<event>
- 6      1 +4.2873600e+02 2.58116800e+02 7.54677100e-03 1.10829800e-01
-       21 -1    0    0  501  502 +0.0000000000e+00 +0.0000000000e+00 +1.0845458909e+02 1.0845458909e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
-       21 -1    0    0  502  503 -0.0000000000e+00 -0.0000000000e+00 -6.4844659178e+02 6.4844659178e+02 0.0000000000e+00 0.0000e+00 -1.0000e+00
-        6  2    1    2  501    0 -1.0996883743e+01 +1.9124424233e+02 -1.8275210837e+02 3.1616925127e+02 1.7282757494e+02 0.0000e+00 0.0000e+00
-        5  1    3    3  501    0 +4.3637392514e+01 +4.9281743782e+00 -1.3060449857e+01 4.6056207819e+01 4.7000000000e+00 0.0000e+00 -1.0000e+00
-       24  1    3    3    0    0 -5.4634276257e+01 +1.8631606795e+02 -1.6969165851e+02 2.7011304345e+02 8.0419002446e+01 0.0000e+00 -1.0000e+00
-       -6  1    1    2    0  503 +1.0996883743e+01 -1.9124424233e+02 -3.5723989432e+02 4.4073192960e+02 1.7300000000e+02 0.0000e+00 -1.0000e+00
-<density> (0.00021651020376335244+0j) (1.859345759680708e-05+3.319131194668537e-05j) (-8.654700949220674e-06+4.660850889005045e-06j) (-5.964620125575636e-06-5.140944580422725e-06j) 0j 0j (0.00014764522936272262+0j) (1.2627222190362744e-05-3.412335641445621e-05j) (8.443512531745642e-06-4.6314605809771255e-06j) 0j 0j (0.4140153688283749+0j) (0.0355514105428883+0.06346306191601571j) (-0.033098118766739994+0.01782446293447554j) (-0.022810459480124095-0.019660482239005784j) (0.28234295658745207+0j) (0.04829020692948074-0.13049773873783233j) (0.03229047222126599-0.017712065763110893j) (0.12282862506005009+0j) (-0.015383774120452564-0.027546742046050884j) (0.18044889409099676+0j) </density>
-</event>
+        #Here we replace the lhe file by the reference lhe file (stored in the input_files).
+        os.remove(f"{self.out_dir}_density4/Events/run_01/unweighted_events.lhe.gz")
+        shutil.copyfile(pjoin(MG5DIR, "tests/input_files/density_mode/test_density_mode_decay2.lhe.gz"), f"{self.out_dir}_density4/Events/run_01/unweighted_events.lhe.gz")
+
+        #Now we reweight the lhe file through the inline method
+        text_rwgt = f"""launch {self.out_dir}_density4/ -i
+reweight run_01 --mode=density
+set helicity_direction [24]
+set particle_in_density_matrix [24, -6]
+set boost_choice [24, -6]
 """
-        density_1event =   [(0.00021651020376335244+0j), (1.859345759680708e-05+3.319131194668537e-05j), (-8.654700949220674e-06+4.660850889005045e-06j), 
+
+        #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
+        command_card_rwgt = open('/tmp/mg5_cmd_rwgt.txt','w')
+        command_card_rwgt.write(text_rwgt)
+        command_card_rwgt.close()
+
+        logfile = 'test_density_mode_decay22.log'
+        subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
+                         '/tmp/mg5_cmd_rwgt.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
+        
+        #The lhe file has been reweighted, now we read density_check, the density matrix to compare to the reference
+        lhe_path = pjoin(self.out_dir + '_density4/Events/run_01/unweighted_events.lhe.gz')
+        for event in lhe_parser.EventFile(lhe_path):
+            density_check = event.density
+
+        #reference density matrix
+        density_ref = [(0.00021651020376335244+0j), (1.859345759680708e-05+3.319131194668537e-05j), (-8.654700949220674e-06+4.660850889005045e-06j), 
                             (-5.964620125575636e-06-5.140944580422725e-06j), 0j, 0j, (0.00014764522936272262+0j), (1.2627222190362744e-05-3.412335641445621e-05j), 
                             (8.443512531745642e-06-4.6314605809771255e-06j), 0j, 0j, (0.4140153688283749+0j), (0.0355514105428883+0.06346306191601571j), 
                             (-0.033098118766739994+0.01782446293447554j), (-0.022810459480124095-0.019660482239005784j), (0.28234295658745207+0j), 
                             (0.04829020692948074-0.13049773873783233j), (0.03229047222126599-0.017712065763110893j), (0.12282862506005009+0j), 
                             (-0.015383774120452564-0.027546742046050884j), (0.18044889409099676+0j)]
 
-        lhe_path = pjoin(self.out_dir + '_density4/Events/run_01/unweighted_events.lhe.gz')
-        for event in lhe_parser.EventFile(lhe_path):
-            density_check = event.density
         
         #1) here we check that the density matrix is computed properly
-        for i in range(len(density_1event)):
-            self.assertAlmostEqual(density_1event[i].real, density_check[i].real, places=7)
-            self.assertAlmostEqual(density_1event[i].imag, density_check[i].imag, places=7)
+        for i in range(len(density_ref)):
+            self.assertAlmostEqual(density_ref[i].real, density_check[i].real, places=7)
+            self.assertAlmostEqual(density_ref[i].imag, density_check[i].imag, places=7)
 
         rho_instance = dens.DensityMatrixObservables(density_check)
 
         #2) here we check that the smaller eigenvalue of the partialy transposed density matrix is computed properly
         flag_ref, eigval_ref = False, [1.30764975e-04, 2.33384118e-04, 1.00757194e-01, 1.28026668e-01, 2.55472741e-01, 5.15379248e-01]
         flag_check, eigval_check = rho_instance.PeresHorodecki_criterion(['boson', 'fermion'])
-        self.assertEqual(flag_check, flag_ref)
+        self.assertEqual(flag_ref, flag_check)
         for i in range(len(eigval_ref)):
-            self.assertAlmostEqual(eigval_check[i], eigval_ref[i], places=7)
+            self.assertAlmostEqual(eigval_ref[i], eigval_check[i], places=7)
       
         #3) here we check that purity is computed properly
         purity_ref = 0.3574250017186387
@@ -1878,25 +2012,45 @@ set boost_choice [24, -6]
         # boost_choice [6, -6] pt [0, 0]
         ############################################################################
         import madgraph.various.Density_functions as dens
+        #we generate just one event of the process  to create the process folder (it is fast enough)
         text = f"""generate p p > t t t~ t~
 output {self.out_dir}_density5
 launch
-reweight=density
 set run_card nevents 1
-set run_card iseed 64
+set run_card use_syst False
+"""
+        
+        #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
+        command_card = open('/tmp/mg5_cmd.txt','w')
+        command_card.write(text)
+        command_card.close()
+
+        logfile = 'test_density_mode_ttbar1.log'
+        subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
+                         '/tmp/mg5_cmd.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
+
+
+        #Here we replace the lhe file by the reference lhe file (stored in the input_files).
+        os.remove(f"{self.out_dir}_density5/Events/run_01/unweighted_events.lhe.gz")
+        shutil.copyfile(pjoin(MG5DIR, "tests/input_files/density_mode/test_density_mode_doublettbar.lhe.gz"), f"{self.out_dir}_density5/Events/run_01/unweighted_events.lhe.gz")
+
+        #Now we reweight the lhe file through the inline method
+        text_rwgt = f"""launch {self.out_dir}_density5/ -i
+reweight run_01 --mode=density
 set helicity_direction [6] pt [0]
 set particle_in_density_matrix [6, -6] rapidity [0, 1]
 set boost_choice [6, -6] pt [0, 0]
 """
 
         #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
-        command_card = open('/tmp/mg5_cmd.txt','w')
-        command_card.write(text)
-        command_card.close()
+        command_card_rwgt = open('/tmp/mg5_cmd_rwgt.txt','w')
+        command_card_rwgt.write(text_rwgt)
+        command_card_rwgt.close()
 
+        logfile = 'test_density_mode_ttbar2.log'
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '/tmp/mg5_cmd.txt'])
-
+                         '/tmp/mg5_cmd_rwgt.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
+        
 
         ## With the chosen seed, the event must be:
         event_random = """<event>
@@ -1910,7 +2064,14 @@ set boost_choice [6, -6] pt [0, 0]
 <density> (0.41585128247332614+0j) (-0.03826754879773473-0.08665010160467382j) (0.01819843853040962+0.0694772074195328j) (-0.006036323974019095+0.028318452797874368j) (0.08409384779983874+0j) (-0.051323966834621225-0.010218484907272918j) (-0.018157600093053276-0.06950829298296718j) (0.0841062677380868+0j) (0.0382601151338116+0.08669345314193963j) (0.41594860198874833+0j) </density>
 </event>
 """
-        density_1event =   [(0.41585128247332614+0j), (-0.03826754879773473-0.08665010160467382j), (0.01819843853040962+0.0694772074195328j), 
+
+        #The lhe file has been reweighted, now we read density_check, the density matrix to compare to the reference
+        lhe_path = pjoin(self.out_dir + '_density5/Events/run_01/unweighted_events.lhe.gz')
+        for event in lhe_parser.EventFile(lhe_path):
+            density_check = event.density
+
+        #reference density matrix
+        density_ref = [(0.41585128247332614+0j), (-0.03826754879773473-0.08665010160467382j), (0.01819843853040962+0.0694772074195328j), 
                             (-0.006036323974019095+0.028318452797874368j), (0.08409384779983874+0j), (-0.051323966834621225-0.010218484907272918j), 
                             (-0.018157600093053276-0.06950829298296718j), (0.0841062677380868+0j), (0.0382601151338116+0.08669345314193963j), 
                             (0.41594860198874833+0j)]
@@ -1920,16 +2081,16 @@ set boost_choice [6, -6] pt [0, 0]
             density_check = event.density
         
         # 1) here we check that the density matrix is computed properly
-        for i in range(len(density_1event)):
-            self.assertAlmostEqual(density_1event[i].real, density_check[i].real, places=7)
-            self.assertAlmostEqual(density_1event[i].imag, density_check[i].imag, places=7)
+        for i in range(len(density_ref)):
+            self.assertAlmostEqual(density_ref[i].real, density_check[i].real, places=7)
+            self.assertAlmostEqual(density_ref[i].imag, density_check[i].imag, places=7)
 
         rho_instance = dens.DensityMatrixObservables(density_check)
 
         #2) here we check that the bounds of concurrence is computed properly
         concurrence_ref = 0.028913810451469873
         concurrence_check = rho_instance.Get_Concurrence()
-        self.assertAlmostEqual(concurrence_check, concurrence_ref, places=7)
+        self.assertAlmostEqual(concurrence_ref, concurrence_check, places=7)
       
         # #3) here we check that purity is computed properly
         purity_ref = 0.42378825285881117
