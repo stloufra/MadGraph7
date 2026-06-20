@@ -1909,15 +1909,13 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
-
+      - uses: ./.github/actions/checkout_mg5 
+      - uses: ./.github/actions/restore-pip-cache
+      - uses: ./.github/actions/restore_heptools
       # Runs a set of commands using the runners shell
       - name: test one of the test test_density_mode_user_interface
         run: |
             cd $GITHUB_WORKSPACE
-            cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
-            sudo pip install numpy
-            which f2py
-            echo "f2py_compiler = $(which f2py)" >> input/mg5_configuration.txt
             ./tests/test_manager.py test_density_mode_user_interface -pA -t0 -l INFO
 
 
@@ -1931,6 +1929,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/checkout_mg5 
       - uses: ./.github/actions/restore-pip-cache
+      - uses: ./.github/actions/restore_heptools
       # Runs a set of commands using the runners shell
       - name: test one of the test test_density_mode_ttbar
         run: |
@@ -1947,6 +1946,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/checkout_mg5 
       - uses: ./.github/actions/restore-pip-cache    
+      - uses: ./.github/actions/restore_heptools
       # Runs a set of commands using the runners shell
       - name: test one of the test test_density_mode_wpwm
         run: |
@@ -1963,6 +1963,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/checkout_mg5 
       - uses: ./.github/actions/restore-pip-cache
+      - uses: ./.github/actions/restore_heptools
       # Runs a set of commands using the runners shell
       - name: test one of the test test_density_mode_decay1
         run: |
@@ -1979,6 +1980,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/checkout_mg5 
       - uses: ./.github/actions/restore-pip-cache
+      - uses: ./.github/actions/restore_heptools
       # Runs a set of commands using the runners shell
       - name: test one of the test test_density_mode_decay2
         run: |
@@ -1996,10 +1998,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/checkout_mg5 
       - uses: ./.github/actions/restore-pip-cache
+      - uses: ./.github/actions/restore_heptools
       - name: test one of the test test_density_mode_doublettbar
         run: |
             cd $GITHUB_WORKSPACE
-            cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
             ./tests/test_manager.py test_density_mode_doublettbar -pA -t0 -l INFO
 
 
@@ -2010,13 +2012,14 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      - uses: actions/checkout@v2
-
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/checkout_mg5 
+      - uses: ./.github/actions/restore-pip-cache
+      - uses: ./.github/actions/restore_heptools
       # Runs a set of commands using the runners shell
       - name: test the loop induced standalone mode of the density matrix code
         run: |
             cd $GITHUB_WORKSPACE
-            cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
             ./tests/test_manager.py test_density_mode_loop_induced_standalone1 -pA -t0 -l INFO
 
   acceptancetest_density_LI_standalone2:
@@ -2027,12 +2030,14 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
+      - uses: ./.github/actions/checkout_mg5 
+      - uses: ./.github/actions/restore-pip-cache
+      - uses: ./.github/actions/restore_heptools
 
       # Runs a set of commands using the runners shell
       - name: test the loop induced standalone mode of the density matrix code
         run: |
             cd $GITHUB_WORKSPACE
-            cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
             ./tests/test_manager.py test_density_mode_loop_induced_standalone2 -pA -t0 -l INFO
 
   acceptancetest_density_LI_standalone3:
@@ -2043,12 +2048,13 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
-
+      - uses: ./.github/actions/checkout_mg5 
+      - uses: ./.github/actions/restore-pip-cache
+      - uses: ./.github/actions/restore_heptools
       # Runs a set of commands using the runners shell
       - name: test the loop induced standalone mode of the density matrix code
         run: |
             cd $GITHUB_WORKSPACE
-            cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
             ./tests/test_manager.py test_density_mode_loop_induced_standalone3 -pA -t0 -l INFO
 
   acceptancetest_density_LI_f2py:
@@ -2062,6 +2068,9 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v2
+      - uses: ./.github/actions/checkout_mg5 
+      - uses: ./.github/actions/restore-pip-cache
+      - uses: ./.github/actions/restore_heptools
 
       - name: Install Meson and Ninja
         run: |
@@ -2072,16 +2081,5 @@ jobs:
       - name: test one of the density mode for f2py loop-induced
         run: |
             cd $GITHUB_WORKSPACE
-            cp input/.mg5_configuration_default.txt input/mg5_configuration.txt
-            sudo pip install numpy
-            which f2py
-            echo "f2py_compiler = $(which f2py)" >> input/mg5_configuration.txt
-            cp Template/LO/Source/.make_opts Template/LO/Source/make_opts
-            echo "install lhapdf6" > cmd
-            ./bin/mg5_aMC cmd
-            cat HEPTools/lhapdf6_py3/lhapdf6_install.log
-            ls HEPTools/lhapdf6_py3/bin
-            echo "lhapdf-config = /home/runner/work/mg5amcnlo/mg5amcnlo/HEPTools/lhapdf6_py3/bin/lhapdf-config" >> input/mg5_configuration.txt
-            export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/home/runner/work/mg5amcnlo/mg5amcnlo/HEPTools/lhapdf6_py3//lib
             ./tests/test_manager.py test_density_mode_vs_standalone_LI1 -pA -t0 -l INFO
 
