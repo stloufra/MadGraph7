@@ -388,6 +388,10 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info(" ")
         logger.info("   \"install update\"",'$MG:BOLD')
         logger.info("   check if your MG5 installation is the latest one.")
+        logger.info("   If not it load the difference between your current version and the latest one,")
+        logger.info("   and apply it to the code. Two options are available for this command:")
+        logger.info("     -f: didn't ask for confirmation if it founds an update.")
+        logger.info("     --timeout=: Change the maximum time allowed to reach the server.")
         logger.info(" ")
         logger.info("   \"install madspace [options]\"",'$MG:BOLD')
         logger.info("   Install the madspace phase-space library used by the MG7 integrator.")
@@ -400,10 +404,6 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info("     --debug        Build with debug symbols, still optimizing (source build).")
         logger.info("     --cuda-arch=ARCHS  Semicolon-separated CUDA compute capabilities, e.g. 75;80;86.")
         logger.info("     --hip-arch=ARCHS   Semicolon-separated HIP architectures, e.g. gfx900;gfx906.")
-        logger.info("   If not it load the difference between your current version and the latest one,")
-        logger.info("   and apply it to the code. Two options are available for this command:")
-        logger.info("     -f: didn't ask for confirmation if it founds an update.")
-        logger.info("     --timeout=: Change the maximum time allowed to reach the server.")
 
     def help_display(self):
         logger.info("syntax: display " + "|".join(self._display_opts),'$MG:color:BLUE')
@@ -2996,7 +2996,8 @@ class CompleteForCmd(cmd.CompleteCmd):
         elif len(args) and args[0] == 'update':
             return self.list_completion(text, ['-f','--timeout='])
         elif len(args) >= 2 and args[1] == 'madspace':
-            options = ['--bin', '--source', '--cuda', '--no-cuda', '--hip', '--no-hip',
+            options = ['-y', '--yes', '--bin', '--source',
+                       '--cuda', '--no-cuda', '--hip', '--no-hip',
                        '--simd', '--no-simd', '--debug', '--no-debug',
                        '--cuda-arch=', '--hip-arch=']
             for opt in options[:]:

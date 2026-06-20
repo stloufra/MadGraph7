@@ -10,6 +10,7 @@ Non-interactive examples:
 """
 
 import argparse
+import json
 import os
 import subprocess
 import sys
@@ -18,6 +19,7 @@ from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).parent.resolve()
 INSTALL_DIR = SCRIPT_DIR / "install"
+SETTINGS_FILE = SCRIPT_DIR / "build" / "install_settings.json"
 
 PACKAGE_NAME = "madspace"
 
@@ -46,7 +48,7 @@ def ask_string(prompt: str, default: str) -> str:
     return raw if raw else default
 
 
-def ask_compile_options() -> dict[str, bool]:
+def ask_compile_options(saved: dict | None = None) -> dict[str, bool]:
     """Multi-select menu for compile options; returns a dict of flags."""
     items = [
         ("cuda", "Build CUDA backend"),
@@ -57,17 +59,23 @@ def ask_compile_options() -> dict[str, bool]:
         ),
         ("debug", "Build with debug symbols, still optimizing (RelWithDebInfo mode)"),
     ]
+    saved = saved or {}
+    prev = {key: saved.get(key, False) for key, _ in items}
+    has_prev = any(prev.values())
+
     print()
     print("Compile options (select multiple, default: none):")
-    for i, (_, label) in enumerate(items, 1):
-        print(f"  {i}. {label}")
+    for i, (key, label) in enumerate(items, 1):
+        marker = " [*]" if prev[key] else ""
+        print(f"  {i}. {label}{marker}")
 
+    hint = "Enter to keep previous selection" if has_prev else "Enter for none"
     while True:
         raw = input(
-            "Enter numbers separated by commas/spaces, or press Enter for none: "
+            f"Enter numbers separated by commas/spaces, or press {hint}: "
         ).strip()
         if not raw:
-            return {key: False for key, _ in items}
+            return prev if has_prev else {key: False for key, _ in items}
         try:
             chosen = {int(x) for x in raw.replace(",", " ").split()}
         except ValueError:
@@ -118,6 +126,20 @@ def install_build_deps() -> dict:
     return env
 
 
+def load_settings() -> dict:
+    try:
+        with open(SETTINGS_FILE) as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def save_settings(settings: dict) -> None:
+    SETTINGS_FILE.parent.mkdir(exist_ok=True)
+    with open(SETTINGS_FILE, "w") as f:
+        json.dump(settings, f, indent=2)
+
+
 # Main
 
 
@@ -140,6 +162,14 @@ def main() -> None:
         action="store_true",
         default=False,
         help="Build and install from source.",
+    )
+
+    parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        default=False,
+        help="Re-install non-interactively using saved settings; falls back to built-in defaults.",
     )
 
     # Compile option flags (each defaults to None = not specified via CLI)
@@ -204,16 +234,22 @@ def main() -> None:
     parser.set_defaults(cuda=None, hip=None, simd=None, debug=None)
     args = parser.parse_args()
 
+    # Load saved settings when a previous installation is present
+    saved = load_settings() if (INSTALL_DIR / "madspace").is_dir() else {}
+
     # Determine install mode
-    if args.bin:
+    if args.yes:
+        from_source = saved.get("mode", "bin") == "source"
+    elif args.bin:
         from_source = False
     elif args.source:
         from_source = True
     else:
         print("madspace installer")
         print("==================")
+        default_is_bin = saved.get("mode", "bin") != "source"
         from_source = not ask_yes_no(
-            "Install pre-compiled package? (recommended)", default=True
+            "Install pre-compiled package? (recommended)", default=default_is_bin
         )
 
     # PyPI installation
@@ -228,15 +264,21 @@ def main() -> None:
                 f"--target={INSTALL_DIR}",
             ]
         )
+        save_settings({"mode": "bin"})
         print(f"\nInstalled to: {INSTALL_DIR}")
         return
 
-    # Source build
+    # Source build — compile options
     compile_flags_given = any(
         getattr(args, attr) is not None for attr in ("cuda", "hip", "simd", "debug")
     )
 
-    if compile_flags_given:
+    if args.yes:
+        enable_cuda = saved.get("cuda", False)
+        enable_hip = saved.get("hip", False)
+        enable_simd = saved.get("simd", False)
+        enable_debug = saved.get("debug", False)
+    elif compile_flags_given:
         enable_cuda = bool(args.cuda)
         enable_hip = bool(args.hip)
         enable_simd = bool(args.simd)
@@ -244,32 +286,36 @@ def main() -> None:
     else:
         print("madspace source build")
         print("=====================")
-        opts = ask_compile_options()
+        opts = ask_compile_options(saved)
         enable_cuda = opts["cuda"]
         enable_hip = opts["hip"]
         enable_simd = opts["simd"]
         enable_debug = opts["debug"]
 
     # Compute capability prompts
-    cuda_arch = DEFAULT_CUDA_ARCH
-    hip_arch = DEFAULT_HIP_ARCH
+    cuda_arch = saved.get("cuda_arch", DEFAULT_CUDA_ARCH)
+    hip_arch = saved.get("hip_arch", DEFAULT_HIP_ARCH)
 
     if enable_cuda:
-        if args.cuda_arch is not None:
+        if args.yes:
+            cuda_arch = saved.get("cuda_arch", DEFAULT_CUDA_ARCH)
+        elif args.cuda_arch is not None:
             cuda_arch = args.cuda_arch
         else:
             cuda_arch = ask_string(
                 "CUDA compute capabilities (semicolon-separated, e.g. 75;80;86)",
-                default=DEFAULT_CUDA_ARCH,
+                default=cuda_arch,
             )
 
     if enable_hip:
-        if args.hip_arch is not None:
+        if args.yes:
+            hip_arch = saved.get("hip_arch", DEFAULT_HIP_ARCH)
+        elif args.hip_arch is not None:
             hip_arch = args.hip_arch
         else:
             hip_arch = ask_string(
                 "HIP GPU architectures (semicolon-separated, e.g. gfx900;gfx906;gfx1100)",
-                default=DEFAULT_HIP_ARCH,
+                default=hip_arch,
             )
 
     # Assemble pip command
@@ -279,6 +325,7 @@ def main() -> None:
         "pip",
         "install",
         "--no-build-isolation",
+        "--upgrade",
         "-Cbuild-dir=build",
         ".",
         f"--target={INSTALL_DIR}",
@@ -301,6 +348,17 @@ def main() -> None:
 
     env = install_build_deps()
     run(cmd, env=env)
+    save_settings(
+        {
+            "mode": "source",
+            "cuda": enable_cuda,
+            "cuda_arch": cuda_arch,
+            "hip": enable_hip,
+            "hip_arch": hip_arch,
+            "simd": enable_simd,
+            "debug": enable_debug,
+        }
+    )
     print(f"\nInstalled to: {INSTALL_DIR}")
 
 
