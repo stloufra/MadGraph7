@@ -80,10 +80,35 @@ def _arrow_svg(mx, my, xl, yl, xt, yt):
 
 
 def _polyline_svg(pts, stroke='black', width=1.0, dash='', extra=''):
-    """Return an SVG <path> element for a sequence of (x, y) points."""
+    """Return an SVG <path> through pts using cubic Bézier segments.
+
+    Control points are derived from the Catmull-Rom formula so the curve
+    passes through every sample point with C1 continuity.  The number of
+    SVG segments equals len(pts)-1, same as a plain polyline.
+    """
     if not pts:
         return ''
-    d = 'M ' + ' L '.join(f'{x:.2f} {y:.2f}' for x, y in pts)
+    if len(pts) == 1:
+        x, y = pts[0]
+        d = f'M {x:.2f} {y:.2f}'
+    elif len(pts) == 2:
+        d = f'M {pts[0][0]:.2f} {pts[0][1]:.2f} L {pts[1][0]:.2f} {pts[1][1]:.2f}'
+    else:
+        n = len(pts)
+        parts = [f'M {pts[0][0]:.2f} {pts[0][1]:.2f}']
+        for i in range(n - 1):
+            # Catmull-Rom: control points for segment pts[i]→pts[i+1]
+            p0 = pts[i - 1] if i > 0     else pts[i]
+            p1 = pts[i]
+            p2 = pts[i + 1]
+            p3 = pts[i + 2] if i + 2 < n else pts[i + 1]
+            cp1x = p1[0] + (p2[0] - p0[0]) / 6
+            cp1y = p1[1] + (p2[1] - p0[1]) / 6
+            cp2x = p2[0] - (p3[0] - p1[0]) / 6
+            cp2y = p2[1] - (p3[1] - p1[1]) / 6
+            parts.append(f'C {cp1x:.2f} {cp1y:.2f}, {cp2x:.2f} {cp2y:.2f},'
+                          f' {p2[0]:.2f} {p2[1]:.2f}')
+        d = ' '.join(parts)
     dash_attr = f' stroke-dasharray="{dash}"' if dash else ''
     return (f'<path d="{d}" stroke="{stroke}" stroke-width="{width:.2f}"'
             f' fill="none"{dash_attr}{extra}/>\n')
