@@ -151,8 +151,14 @@ def run(cmd: list, env: dict | None = None) -> None:
         sys.exit(result.returncode)
 
 
-def install_build_deps() -> dict:
-    """Install build-system dependencies into INSTALL_DIR and return an updated env."""
+def install_build_deps(system: bool = False) -> dict:
+    """Install build-system dependencies and return an updated env.
+
+    When *system* is False (default) deps are installed into INSTALL_DIR and
+    PYTHONPATH is set so the subsequent pip invocation picks them up.
+    When *system* is True deps go to the default site-packages and PYTHONPATH
+    is left unchanged.
+    """
     pyproject_path = SCRIPT_DIR / "pyproject.toml"
     with open(pyproject_path, "rb") as f:
         config = tomllib.load(f)
@@ -160,23 +166,17 @@ def install_build_deps() -> dict:
     requires = config.get("build-system", {}).get("requires", [])
     if requires:
         print("Installing build dependencies...")
-        run(
-            [
-                sys.executable,
-                "-m",
-                "pip",
-                "install",
-                "--upgrade",
-                *requires,
-                f"--target={INSTALL_DIR}",
-            ]
-        )
+        cmd = [sys.executable, "-m", "pip", "install", "--upgrade", *requires]
+        if not system:
+            cmd.append(f"--target={INSTALL_DIR}")
+        run(cmd)
 
     env = os.environ.copy()
-    pythonpath_parts = [str(INSTALL_DIR)]
-    if existing := env.get("PYTHONPATH"):
-        pythonpath_parts.append(existing)
-    env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
+    if not system:
+        pythonpath_parts = [str(INSTALL_DIR)]
+        if existing := env.get("PYTHONPATH"):
+            pythonpath_parts.append(existing)
+        env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
     return env
 
 
@@ -224,6 +224,12 @@ def main() -> None:
         action="store_true",
         default=False,
         help="Re-install non-interactively using saved settings; falls back to built-in defaults.",
+    )
+    parser.add_argument(
+        "--system",
+        action="store_true",
+        default=False,
+        help="Install system-wide instead of into the local install/ directory.",
     )
 
     # Compile option flags (each defaults to None = not specified via CLI)
@@ -331,18 +337,15 @@ def main() -> None:
 
     # PyPI installation
     if not from_source:
-        run(
-            [
-                sys.executable,
-                "-m",
-                "pip",
-                "install",
-                PACKAGE_NAME,
-                f"--target={INSTALL_DIR}",
-            ]
-        )
+        pip_cmd = [sys.executable, "-m", "pip", "install", PACKAGE_NAME]
+        if not args.system:
+            pip_cmd.append(f"--target={INSTALL_DIR}")
+        run(pip_cmd)
         save_settings({"mode": "bin"})
-        print(f"\nInstalled to: {INSTALL_DIR}")
+        if args.system:
+            print("\nInstalled system-wide.")
+        else:
+            print(f"\nInstalled to: {INSTALL_DIR}")
         return
 
     # Source build — compile options
@@ -415,8 +418,9 @@ def main() -> None:
         "--upgrade",
         "-Cbuild-dir=build",
         ".",
-        f"--target={INSTALL_DIR}",
     ]
+    if not args.system:
+        cmd.append(f"--target={INSTALL_DIR}")
 
     if enable_cuda:
         cmd += [
@@ -433,7 +437,7 @@ def main() -> None:
         cmd.append("-Ccmake.define.ENABLE_SIMD=ON")
     cmd.append(f"-Ccmake.build-type={build_type}")
 
-    env = install_build_deps()
+    env = install_build_deps(system=args.system)
     run(cmd, env=env)
     save_settings(
         {
@@ -447,7 +451,10 @@ def main() -> None:
             "build_type": build_type,
         }
     )
-    print(f"\nInstalled to: {INSTALL_DIR}")
+    if args.system:
+        print("\nInstalled system-wide.")
+    else:
+        print(f"\nInstalled to: {INSTALL_DIR}")
 
 
 if __name__ == "__main__":
