@@ -3468,8 +3468,17 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
             flavor_text += 'endif\n'
         flavor_text += " enddo\n"
 
+        # `text` dispatches to the raw per-process routines (GET_ALL_INTER /
+        # GET_DENSITY), which still take the FLAVOR(NEXTERNAL) array and resolve
+        # the flavor index internally. `smtext` is the smatrixhel dispatch: the
+        # raw SMATRIXHEL now takes the resolved FLAV_IDX (not the FLAVOR array),
+        # so we resolve FLAVOR->FLAV_IDX inline with the per-process
+        # GET_FLAVOR_INDEX (which is part of matrix.f, hence linked into this
+        # all_matrix module) before calling SMATRIXHEL.
         text = []
-        
+        smtext = []
+        smatrixhel_prefixes = set()
+
         for n_ext in range(min_nexternal, max_nexternal+1):
             current_id = [ids[0] for ids in allids if len(ids[0])==n_ext]
             current_pid = [ids[1] for ids in allids if len(ids[0])==n_ext]
@@ -3477,22 +3486,38 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
                 continue
             if min_nexternal != max_nexternal:
                 if n_ext == min_nexternal:
-                    text.append('       if (npdg.eq.%i)then' % n_ext)
+                    line = '       if (npdg.eq.%i)then' % n_ext
                 else:
-                    text.append('       else if (npdg.eq.%i)then' % n_ext)
+                    line = '       else if (npdg.eq.%i)then' % n_ext
+                text.append(line)
+                smtext.append(line)
 
             for ii,pdgs in enumerate(current_id):
                 pid = current_pid[ii]
                 condition = '.and.'.join(['%i.eq.pdgs(%i)' %(pdg, i+1) for i, pdg in enumerate(pdgs)])
                 if ii==0:
-                    text.append( ' if(%s.and.(procid.le.0.or.procid.eq.%d)) then ! %i' % (condition, pid, ii))
+                    line = ' if(%s.and.(procid.le.0.or.procid.eq.%d)) then ! %i' % (condition, pid, ii)
                 else:
-                    text.append( ' else if(%s.and.(procid.le.0.or.procid.eq.%d)) then ! %i' % (condition,pid,ii))
-                text.append(' call %s%%(fct_name)s' % self.prefix_info[(pdgs,pid)][0])
+                    line = ' else if(%s.and.(procid.le.0.or.procid.eq.%d)) then ! %i' % (condition,pid,ii)
+                text.append(line)
+                smtext.append(line)
+                prefix = self.prefix_info[(pdgs,pid)][0]
+                text.append(' call %s%%(fct_name)s' % prefix)
+                smatrixhel_prefixes.add(prefix)
+                smtext.append(' call %ssmatrixhel(p, nhel, %sget_flavor_index(flavor), ans)'
+                              % (prefix, prefix))
             text.append(' endif')
+            smtext.append(' endif')
         #close the function
         if min_nexternal != max_nexternal:
             text.append('endif')
+            smtext.append('endif')
+
+        # INTEGER declarations for the per-process GET_FLAVOR_INDEX functions
+        # used inline by the smatrixhel dispatch (their name does not start with
+        # i-n, so they default to REAL without an explicit declaration).
+        flavor_index_decl = '\n'.join('  integer %sget_flavor_index' % prefix
+                                      for prefix in sorted(smatrixhel_prefixes))
 
         all_prefix = set([k[0] for k in self.prefix_info.values()])
         setpara_for_each_matrix = ''
@@ -3560,7 +3585,8 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         #misc.sprint(all_iden)
 
         formatting = {'python_information':'\n'.join(info), 
-                          'smatrixhel': '\n'.join(text) % {'fct_name': 'smatrixhel(p, nhel, flavor, ans)'},
+                          'smatrixhel': '\n'.join(smtext),
+                          'flavor_index_decl': flavor_index_decl,
                           'maxpart': max_nexternal,
                           'nb_me': len(allids),
                           'pdgs': ','.join(str(pdg[i]) if i<len(pdg) else '0' 
