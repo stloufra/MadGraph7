@@ -404,7 +404,9 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info("     --openblas     Build OpenBLAS from source (default on Linux/Windows, source build).")
         logger.info("     --no-openblas  Use system BLAS library (default on Apple, source build).")
         logger.info("     --simd         Enable SIMD backend (source build, experimental).")
-        logger.info("     --debug        Build with debug symbols, still optimizing (source build).")
+        logger.info("     --debug        Optimized build with debug symbols, RelWithDebInfo (source build).")
+        logger.info("     --full-debug   Debug build without optimization, Debug mode (source build).")
+        logger.info("     --no-debug     Optimized build, no debug symbols, Release (source build, default).")
         logger.info("     --cuda-arch=ARCHS  Semicolon-separated CUDA compute capabilities, e.g. 75;80;86.")
         logger.info("     --hip-arch=ARCHS   Semicolon-separated HIP architectures, e.g. gfx900;gfx906.")
 
@@ -3002,7 +3004,8 @@ class CompleteForCmd(cmd.CompleteCmd):
             options = ['-y', '--yes', '--bin', '--source',
                        '--cuda', '--no-cuda', '--hip', '--no-hip',
                        '--openblas', '--no-openblas',
-                       '--simd', '--no-simd', '--debug', '--no-debug',
+                       '--simd', '--no-simd',
+                       '--debug', '--full-debug', '--no-debug',
                        '--cuda-arch=', '--hip-arch=']
             for opt in options[:]:
                 if any(a.startswith(opt) for a in args[2:]):

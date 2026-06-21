@@ -29,12 +29,12 @@ DEFAULT_HIP_ARCH = "gfx900"
 
 # Platform-aware defaults for source-build options (mirrors CMakeLists.txt logic)
 _IS_APPLE = platform.system() == "Darwin"
-_PLATFORM_SOURCE_DEFAULTS: dict[str, bool] = {
+_PLATFORM_SOURCE_DEFAULTS: dict = {
     "cuda": False,
     "hip": False,
     "openblas": not _IS_APPLE,
     "simd": False,
-    "debug": False,
+    "build_type": "Release",
 }
 
 
@@ -61,7 +61,7 @@ def ask_string(prompt: str, default: str) -> str:
 
 def ask_compile_options(saved: dict | None = None) -> dict[str, bool]:
     """Multi-select menu for compile options; returns a dict of flags."""
-    items = [
+    all_items = [
         ("cuda", "Build CUDA backend"),
         ("hip", "Build HIP/ROCm backend"),
         (
@@ -72,8 +72,10 @@ def ask_compile_options(saved: dict | None = None) -> dict[str, bool]:
             "simd",
             "Build SIMD backend (experimental — not required to run SIMD matrix elements)",
         ),
-        ("debug", "Build with debug symbols, still optimizing (RelWithDebInfo mode)"),
     ]
+    # CUDA and HIP are not available on Apple; hide them in interactive mode
+    items = [(k, v) for k, v in all_items if not (_IS_APPLE and k in ("cuda", "hip"))]
+
     saved = saved or {}
     prev = {key: saved.get(key, False) for key, _ in items}
     has_prev = any(prev.values())
@@ -100,6 +102,42 @@ def ask_compile_options(saved: dict | None = None) -> dict[str, bool]:
             print(f"  Numbers must be between 1 and {len(items)}.")
             continue
         return {key: (idx in chosen) for idx, (key, _) in enumerate(items, 1)}
+
+
+def _saved_build_type(saved: dict) -> str:
+    """Return the saved CMake build type, migrating the legacy 'debug' boolean if needed."""
+    if "build_type" in saved:
+        return saved["build_type"]
+    return "RelWithDebInfo" if saved.get("debug", False) else "Release"
+
+
+def ask_build_type(saved: dict) -> str:
+    """Interactive single-select for CMake build type; returns one of the CMAKE_BUILD_TYPE strings."""
+    options = [
+        ("Release", "Optimized build, no debug symbols (default)"),
+        ("RelWithDebInfo", "Optimized with debug symbols"),
+        ("Debug", "Debug build, no optimization"),
+    ]
+    current = _saved_build_type(saved)
+    print()
+    print("Build type:")
+    for i, (key, label) in enumerate(options, 1):
+        marker = " [*]" if key == current else ""
+        print(f"  {i}. {label}{marker}")
+    hint = f"Enter to keep {current}" if current != "Release" else "Enter for Release"
+    while True:
+        raw = input(f"Choose (1-{len(options)}), or press {hint}: ").strip()
+        if not raw:
+            return current
+        try:
+            idx = int(raw)
+        except ValueError:
+            print(f"  Please enter a number between 1 and {len(options)}.")
+            continue
+        if not 1 <= idx <= len(options):
+            print(f"  Please enter a number between 1 and {len(options)}.")
+            continue
+        return options[idx - 1][0]
 
 
 # Command execution
@@ -233,15 +271,24 @@ def main() -> None:
     debug_grp = parser.add_mutually_exclusive_group()
     debug_grp.add_argument(
         "--debug",
-        dest="debug",
-        action="store_true",
-        help="Build with debug symbols (RelWithDebInfo).",
+        dest="build_type",
+        action="store_const",
+        const="RelWithDebInfo",
+        help="Build optimized with debug symbols (RelWithDebInfo).",
+    )
+    debug_grp.add_argument(
+        "--full-debug",
+        dest="build_type",
+        action="store_const",
+        const="Debug",
+        help="Full debug build, no optimization (Debug).",
     )
     debug_grp.add_argument(
         "--no-debug",
-        dest="debug",
-        action="store_false",
-        help="Build in Release mode (default).",
+        dest="build_type",
+        action="store_const",
+        const="Release",
+        help="Optimized build without debug symbols (Release, default).",
     )
 
     # Architecture overrides
@@ -261,7 +308,7 @@ def main() -> None:
     )
 
     # None = not provided by user; overridden by set_defaults below
-    parser.set_defaults(cuda=None, hip=None, openblas=None, simd=None, debug=None)
+    parser.set_defaults(cuda=None, hip=None, openblas=None, simd=None, build_type=None)
     args = parser.parse_args()
 
     # Load saved settings when a previous installation is present
@@ -275,8 +322,8 @@ def main() -> None:
     elif args.source:
         from_source = True
     else:
-        print("madspace installer")
-        print("==================")
+        print("Welcome to the MadSpace interactive installer")
+        print()
         default_is_bin = saved.get("mode", "bin") != "source"
         from_source = not ask_yes_no(
             "Install pre-compiled package? (recommended)", default=default_is_bin
@@ -301,7 +348,7 @@ def main() -> None:
     # Source build — compile options
     compile_flags_given = any(
         getattr(args, attr) is not None
-        for attr in ("cuda", "hip", "openblas", "simd", "debug")
+        for attr in ("cuda", "hip", "openblas", "simd", "build_type")
     )
 
     if args.yes:
@@ -309,7 +356,7 @@ def main() -> None:
         enable_hip = saved.get("hip", _PLATFORM_SOURCE_DEFAULTS["hip"])
         enable_openblas = saved.get("openblas", _PLATFORM_SOURCE_DEFAULTS["openblas"])
         enable_simd = saved.get("simd", _PLATFORM_SOURCE_DEFAULTS["simd"])
-        enable_debug = saved.get("debug", _PLATFORM_SOURCE_DEFAULTS["debug"])
+        build_type = _saved_build_type(saved)
     elif compile_flags_given:
         enable_cuda = bool(args.cuda)
         enable_hip = bool(args.hip)
@@ -319,20 +366,18 @@ def main() -> None:
             else _PLATFORM_SOURCE_DEFAULTS["openblas"]
         )
         enable_simd = bool(args.simd)
-        enable_debug = bool(args.debug)
+        build_type = args.build_type or "Release"
     else:
-        print("madspace source build")
-        print("=====================")
         # Show saved source settings if available, else platform-appropriate defaults
         menu_defaults = (
             saved if saved.get("mode") == "source" else _PLATFORM_SOURCE_DEFAULTS
         )
         opts = ask_compile_options(menu_defaults)
-        enable_cuda = opts["cuda"]
-        enable_hip = opts["hip"]
+        enable_cuda = opts.get("cuda", menu_defaults.get("cuda", False))
+        enable_hip = opts.get("hip", menu_defaults.get("hip", False))
         enable_openblas = opts["openblas"]
         enable_simd = opts["simd"]
-        enable_debug = opts["debug"]
+        build_type = ask_build_type(menu_defaults)
 
     # Compute capability prompts
     cuda_arch = saved.get("cuda_arch", DEFAULT_CUDA_ARCH)
@@ -386,8 +431,7 @@ def main() -> None:
     cmd.append(f"-Ccmake.define.ENABLE_OPENBLAS={'ON' if enable_openblas else 'OFF'}")
     if enable_simd:
         cmd.append("-Ccmake.define.ENABLE_SIMD=ON")
-    if enable_debug:
-        cmd.append("-Ccmake.build-type=RelWithDebInfo")
+    cmd.append(f"-Ccmake.build-type={build_type}")
 
     env = install_build_deps()
     run(cmd, env=env)
@@ -400,7 +444,7 @@ def main() -> None:
             "hip_arch": hip_arch,
             "openblas": enable_openblas,
             "simd": enable_simd,
-            "debug": enable_debug,
+            "build_type": build_type,
         }
     )
     print(f"\nInstalled to: {INSTALL_DIR}")
