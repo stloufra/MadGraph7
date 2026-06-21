@@ -210,6 +210,7 @@ def install_build_deps(system: bool = False) -> dict:
 
     requires = config.get("build-system", {}).get("requires", [])
     if requires:
+        print()
         print("Installing build dependencies...")
         cmd = [sys.executable, "-m", "pip", "install", "--upgrade", *requires]
         if not system:
@@ -436,11 +437,11 @@ def main() -> None:
         elif args.cuda_arch is not None:
             cuda_arch = args.cuda_arch
         else:
+            print()
             cuda_arch = ask_string(
                 "CUDA compute capabilities (semicolon-separated, e.g. 75;80;86)",
                 default=cuda_arch,
             )
-            print()
 
     if enable_hip:
         if args.yes:
@@ -448,11 +449,11 @@ def main() -> None:
         elif args.hip_arch is not None:
             hip_arch = args.hip_arch
         else:
+            print()
             hip_arch = ask_string(
                 "HIP GPU architectures (semicolon-separated, e.g. gfx900;gfx906;gfx1100)",
                 default=hip_arch,
             )
-            print()
 
     # Assemble pip command
     cmd = [
