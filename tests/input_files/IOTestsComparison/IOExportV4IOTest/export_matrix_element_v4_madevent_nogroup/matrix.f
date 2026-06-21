@@ -43,8 +43,13 @@ C
 C     
 C     global (due to reading writting)
 C     
-      LOGICAL GOODHEL(NCOMB)
-      INTEGER NTRY
+C     Good-helicity filter is per (helicity, flavor): a helicity that
+C      is zero for
+C     one merged flavor but non-zero for another must not be dropped,
+C      so
+C     GOODHEL/NTRY carry an extra MAXFLAVPERPROC (IFLAV) dimension.
+      LOGICAL GOODHEL(NCOMB, MAXFLAVPERPROC)
+      INTEGER NTRY(MAXFLAVPERPROC)
       COMMON/BLOCK_GOODHEL/NTRY,GOODHEL
       INTEGER NB_SPIN_STATE(2)
       DATA  NB_SPIN_STATE /2,2/
@@ -118,7 +123,7 @@ C     ----------
 C     BEGIN CODE
 C     ----------
       CALL GET_FLAVOR(IFLAV, FLAVOR)
-      NTRY=NTRY+1
+      NTRY(IFLAV)=NTRY(IFLAV)+1
       DO I=1,NEXTERNAL
         JC(I) = +1
       ENDDO
@@ -142,8 +147,8 @@ C     If the helicity grid status is 0, this means that it is not yet
 C      initialized.
       IF (ISUM_HEL.EQ.0.OR.(DS_GET_DIM_STATUS('Helicity').EQ.0)) THEN
         DO I=1,NCOMB
-          IF (GOODHEL(I) .OR. NTRY .LE. MAXTRIES.OR.(ISUM_HEL.NE.0))
-     $      THEN
+          IF (GOODHEL(I,IFLAV) .OR. NTRY(IFLAV) .LE.
+     $      MAXTRIES.OR.(ISUM_HEL.NE.0)) THEN
             T=MATRIX(P,NHEL(1,I),IFLAV, IVEC)
 
             DO JJ=1,NINCOMING
@@ -162,7 +167,7 @@ C      initialized.
             TS(I)=T
           ENDIF
         ENDDO
-        IF(NTRY.EQ.(MAXTRIES+1)) THEN
+        IF(NTRY(IFLAV).EQ.(MAXTRIES+1)) THEN
           CALL RESET_CUMULATIVE_VARIABLE()  ! avoid biais of the initialization
         ENDIF
         IF (ISUM_HEL.NE.0) THEN
@@ -186,17 +191,18 @@ C            update.
             CALL DS_SET_GRID_MODE('Helicity','init')
           ENDIF
         ELSE
-          IF(NTRY.LE.MAXTRIES)THEN
+          IF(NTRY(IFLAV).LE.MAXTRIES)THEN
             DO I=1,NCOMB
-              IF (.NOT.GOODHEL(I) .AND. (DABS(TS(I)).GT.ANS*LIMHEL
-     $         /NCOMB)) THEN
-                GOODHEL(I)=.TRUE.
+              IF (.NOT.GOODHEL(I,IFLAV) .AND. (DABS(TS(I)).GT.ANS
+     $         *LIMHEL/NCOMB)) THEN
+                GOODHEL(I,IFLAV)=.TRUE.
                 NGOOD = NGOOD +1
-                PRINT *,'Adding good helicity ',I,TS(I)/ANS
+                PRINT *,'Adding good helicity ',I,' flavor ',IFLAV
+     $           ,TS(I)/ANS
               ENDIF
             ENDDO
           ENDIF
-          IF(NTRY.EQ.MAXTRIES)THEN
+          IF(NTRY(IFLAV).EQ.MAXTRIES)THEN
             ISUM_HEL=MIN(ISUM_HEL,NGOOD)
           ENDIF
         ENDIF
@@ -390,7 +396,7 @@ C     Amplitude(s) for diagram number 2
 C     Amplitude(s) for diagram number 3
       CALL FFV1_0(W(5),W(2),W(3),GQQ,AMP(3))
 C     JAMPs contributing to orders ALL_ORDERS=1
-      JAMP(1,1) = ((0.000000000000000D+00,-1.000000000000000D+00))
+      JAMP(1,1) = ((-0.000000000000000D+00,-1.000000000000000D+00))
      $ *AMP(1)+AMP(3)
       JAMP(2,1) = ((0.000000000000000D+00,1.000000000000000D+00))
      $ *AMP(1)+AMP(2)

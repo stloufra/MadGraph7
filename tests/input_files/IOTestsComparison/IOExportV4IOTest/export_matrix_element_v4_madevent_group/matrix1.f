@@ -49,8 +49,14 @@ C
 C     
 C     global (due to reading writting) 
 C     
-      LOGICAL GOODHEL(NCOMB, MAXSPROC)
-      INTEGER NTRY(MAXSPROC)
+C     Good-helicity filter is per (helicity, flavor, subprocess): a
+C      helicity
+C     that is zero for one merged flavor but non-zero for another must
+C      not be
+C     dropped, so GOODHEL/NTRY carry an extra MAXFLAVPERPROC (IFLAV)
+C      dimension.
+      LOGICAL GOODHEL(NCOMB, MAXFLAVPERPROC, MAXSPROC)
+      INTEGER NTRY(MAXFLAVPERPROC, MAXSPROC)
       COMMON/BLOCK_GOODHEL/NTRY,GOODHEL
 
 C     
@@ -153,7 +159,7 @@ C     ----------
 C     BEGIN CODE
 C     ----------
       CALL GET_FLAVOR1(IFLAV, FLAVOR)
-      NTRY(1)=NTRY(1)+1
+      NTRY(IFLAV,1)=NTRY(IFLAV,1)+1
 
       IF (MULTI_CHANNEL) THEN
         DO I=1,NDIAGS
@@ -177,8 +183,8 @@ C      where in initialization mode as well for the helicity.
      $ .OR.(DS_GET_DIM_STATUS('Helicity').EQ.0).OR.(HEL_PICKED.EQ.-1))
      $  THEN
         DO I=1,NCOMB
-          IF (GOODHEL(I,1) .OR. NTRY(1).LE.MAXTRIES.OR.(ISUM_HEL.NE.0))
-     $      THEN
+          IF (GOODHEL(I,IFLAV,1) .OR. NTRY(IFLAV,1)
+     $     .LE.MAXTRIES.OR.(ISUM_HEL.NE.0)) THEN
             T=MATRIX1(P ,NHEL(1,I),IFLAV,I,AMP2, JAMP2, IVEC)
 
             DO JJ=1,NINCOMING
@@ -198,8 +204,8 @@ C      where in initialization mode as well for the helicity.
             TS(I)=T
           ENDIF
         ENDDO
-        IF(NTRY(1).EQ.(MAXTRIES+1).AND.DS_GET_DIM_STATUS('Helicity')
-     $   .NE.-1) THEN
+        IF(NTRY(IFLAV,1).EQ.(MAXTRIES+1)
+     $   .AND.DS_GET_DIM_STATUS('Helicity').NE.-1) THEN
           CALL RESET_CUMULATIVE_VARIABLE()  ! avoid biais of the initialization
         ENDIF
         IF (ISUM_HEL.NE.0) THEN
@@ -228,23 +234,24 @@ C            update.
             CALL DS_SET_GRID_MODE('Helicity','init')
           ENDIF
         ELSE
-          IF(NTRY(1).LE.MAXTRIES)THEN
+          IF(NTRY(IFLAV,1).LE.MAXTRIES)THEN
             DO I=1,NCOMB
               IF(INIT_MODE) THEN
                 IF (DABS(TS(I)).GT.ANS*LIMHEL/NCOMB) THEN
                   PRINT *, 'Matrix Element/Good Helicity: 1 ', I,
      $              'IMIRROR', IMIRROR
                 ENDIF
-              ELSE IF (.NOT.GOODHEL(I,1) .AND. (DABS(TS(I)).GT.ANS
-     $         *LIMHEL/NCOMB)) THEN
-                GOODHEL(I,1)=.TRUE.
+              ELSE IF (.NOT.GOODHEL(I,IFLAV,1) .AND. (DABS(TS(I))
+     $         .GT.ANS*LIMHEL/NCOMB)) THEN
+                GOODHEL(I,IFLAV,1)=.TRUE.
                 NGOOD = NGOOD +1
-                PRINT *,'Added good helicity ',I, 'for process 1',TS(I)
-     $           *NCOMB/ANS,' in event ',NTRY(1)
+                PRINT *,'Added good helicity ',I, 'for process 1'
+     $           //' flavor ',IFLAV,TS(I)*NCOMB/ANS,' in event '
+     $           ,NTRY(IFLAV,1)
               ENDIF
             ENDDO
           ENDIF
-          IF(NTRY(1).EQ.MAXTRIES)THEN
+          IF(NTRY(IFLAV,1).EQ.MAXTRIES)THEN
             ISHEL=MIN(ISUM_HEL,NGOOD)
           ENDIF
         ENDIF
