@@ -59,49 +59,94 @@ def ask_string(prompt: str, default: str) -> str:
     return raw if raw else default
 
 
-def ask_compile_options(saved: dict | None = None) -> dict[str, bool]:
-    """Multi-select menu for compile options; returns a dict of flags."""
-    all_items = [
-        ("cuda", "Build CUDA backend"),
-        ("hip", "Build HIP/ROCm backend"),
-        (
+def ask_compile_options(
+    saved: dict | None = None, from_saved: bool = False
+) -> dict[str, bool]:
+    """Multi-select menu for compile options; returns {output_key: bool}.
+
+    Each entry is (menu_key, label, output_key, invert).  When invert=True,
+    selecting the item sets output_key=False; not selecting it sets it True.
+    This lets the BLAS item be opt-in on Apple ("build OpenBLAS") and opt-out
+    on Linux ("use system BLAS") while the default behavior of pressing Enter
+    always matches the platform default.
+
+    *from_saved* controls the Enter hint wording.
+    """
+    saved = saved or {}
+
+    if _IS_APPLE:
+        blas_entry = (
             "openblas",
-            "Build OpenBLAS from source (recommended on Linux, not needed on Apple)",
-        ),
+            "Build OpenBLAS from source (system BLAS used by default)",
+            "openblas",
+            False,
+        )
+    else:
+        blas_entry = (
+            "system_blas",
+            "Use system BLAS library (default: build OpenBLAS from source)",
+            "openblas",
+            True,
+        )
+
+    # (menu_key, label, output_key, invert)
+    all_entries = [
+        ("cuda", "Build CUDA backend", "cuda", False),
+        ("hip", "Build HIP/ROCm backend", "hip", False),
+        blas_entry,
         (
             "simd",
             "Build SIMD backend (experimental — not required to run SIMD matrix elements)",
+            "simd",
+            False,
         ),
     ]
     # CUDA and HIP are not available on Apple; hide them in interactive mode
-    items = [(k, v) for k, v in all_items if not (_IS_APPLE and k in ("cuda", "hip"))]
+    entries = [e for e in all_entries if not (_IS_APPLE and e[0] in ("cuda", "hip"))]
 
-    saved = saved or {}
-    prev = {key: saved.get(key, False) for key, _ in items}
-    has_prev = any(prev.values())
+    # Derive the checkbox state for each menu item from the saved output values.
+    # For normal items: checked = saved output value.
+    # For inverted items: checked = NOT saved output value
+    #   (e.g. if openblas=True was saved, "use system BLAS" should be unchecked).
+    def _checked(output_key, invert):
+        val = saved.get(output_key, False)
+        return (not val) if invert else val
+
+    prev = {mk: _checked(ok, inv) for mk, _, ok, inv in entries}
+    has_any = any(prev.values())
 
     print()
-    print("Compile options (select multiple, default: none):")
-    for i, (key, label) in enumerate(items, 1):
-        marker = " [*]" if prev[key] else ""
+    print("Compile options:")
+    for i, (mk, label, _, _) in enumerate(entries, 1):
+        marker = " [*]" if prev[mk] else ""
         print(f"  {i}. {label}{marker}")
 
-    hint = "Enter to keep previous selection" if has_prev else "Enter for none"
+    if from_saved:
+        hint = "Enter to keep previous selection"
+    elif has_any:
+        hint = "Enter to keep defaults"
+    else:
+        hint = "Enter for none"
+
     while True:
         raw = input(
             f"Enter numbers separated by commas/spaces, or press {hint}: "
         ).strip()
         if not raw:
-            return prev if has_prev else {key: False for key, _ in items}
+            # Convert checkbox state back to output values
+            return {ok: (prev[mk] != inv) for mk, _, ok, inv in entries}
         try:
             chosen = {int(x) for x in raw.replace(",", " ").split()}
         except ValueError:
             print("  Invalid input — please enter numbers, e.g. 1,3 or 1 3")
             continue
-        if not all(1 <= c <= len(items) for c in chosen):
-            print(f"  Numbers must be between 1 and {len(items)}.")
+        if not all(1 <= c <= len(entries) for c in chosen):
+            print(f"  Numbers must be between 1 and {len(entries)}.")
             continue
-        return {key: (idx in chosen) for idx, (key, _) in enumerate(items, 1)}
+        return {
+            ok: ((idx in chosen) != inv)
+            for idx, (mk, _, ok, inv) in enumerate(entries, 1)
+        }
 
 
 def _saved_build_type(saved: dict) -> str:
@@ -372,10 +417,9 @@ def main() -> None:
         build_type = args.build_type or "Release"
     else:
         # Show saved source settings if available, else platform-appropriate defaults
-        menu_defaults = (
-            saved if saved.get("mode") == "source" else _PLATFORM_SOURCE_DEFAULTS
-        )
-        opts = ask_compile_options(menu_defaults)
+        from_saved = saved.get("mode") == "source"
+        menu_defaults = saved if from_saved else _PLATFORM_SOURCE_DEFAULTS
+        opts = ask_compile_options(menu_defaults, from_saved=from_saved)
         enable_cuda = opts.get("cuda", menu_defaults.get("cuda", False))
         enable_hip = opts.get("hip", menu_defaults.get("hip", False))
         enable_openblas = opts["openblas"]
@@ -396,6 +440,7 @@ def main() -> None:
                 "CUDA compute capabilities (semicolon-separated, e.g. 75;80;86)",
                 default=cuda_arch,
             )
+            print()
 
     if enable_hip:
         if args.yes:
@@ -407,6 +452,7 @@ def main() -> None:
                 "HIP GPU architectures (semicolon-separated, e.g. gfx900;gfx906;gfx1100)",
                 default=hip_arch,
             )
+            print()
 
     # Assemble pip command
     cmd = [
