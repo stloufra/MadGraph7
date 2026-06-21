@@ -33,6 +33,7 @@ All SVG helper functions work in SVG canvas pixels.
 from __future__ import division
 from __future__ import absolute_import
 
+import json
 import os
 import math
 
@@ -79,7 +80,7 @@ def _arrow_svg(mx, my, xl, yl, xt, yt):
     return f'<polygon points="{pts}" fill="black" stroke="none"/>\n'
 
 
-def _polyline_svg(pts, stroke='black', width=1.0, dash='', extra=''):
+def _polyline_svg(pts, stroke='black', width=1.5, dash='', extra=''):
     """Return an SVG <path> through pts using cubic Bézier segments.
 
     Control points are derived from the Catmull-Rom formula so the curve
@@ -121,7 +122,7 @@ def _svg_fermion(x1, y1, x2, y2):
     dist, xl, yl, xt, yt = _basis(x1, y1, x2, y2)
     mx, my = (x1 + x2) / 2, (y1 + y2) / 2
     out  = f'<line x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}"'
-    out += ' stroke="black" stroke-width="1"/>\n'
+    out += ' stroke="black" stroke-width="1.5"/>\n'
     out += _arrow_svg(mx, my, xl, yl, xt, yt)
     return out
 
@@ -129,7 +130,7 @@ def _svg_fermion(x1, y1, x2, y2):
 def _svg_scalar(x1, y1, x2, y2):
     """Plain straight line, no arrow (for 'scalar' particles)."""
     return (f'<line x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}"'
-            ' stroke="black" stroke-width="1"/>\n')
+            ' stroke="black" stroke-width="1.5"/>\n')
 
 
 # --- dashed line (Higgs) ---------------------------------------------------
@@ -140,7 +141,7 @@ def _svg_higgs(x1, y1, x2, y2):
     n_dashes = max(1, round(dist / (2 * _Fr)))
     dash = dist / (2 * n_dashes)
     return (f'<line x1="{x1:.2f}" y1="{y1:.2f}" x2="{x2:.2f}" y2="{y2:.2f}"'
-            f' stroke="black" stroke-width="1"'
+            f' stroke="black" stroke-width="1.5"'
             f' stroke-dasharray="{dash:.2f},{dash:.2f}"/>\n')
 
 
@@ -366,7 +367,7 @@ def _svg_blob(cx, cy, size=1.5):
     """Filled circle for non-QED/QCD vertex blobs."""
     r = size * _Fr
     return (f'<circle cx="{cx:.2f}" cy="{cy:.2f}" r="{r:.2f}"'
-            ' fill="gray" stroke="black" stroke-width="0.5"/>\n')
+            ' fill="gray" stroke="black" stroke-width="0.75"/>\n')
 
 
 # ===========================================================================
@@ -379,9 +380,9 @@ class SvgDiagramDrawer(draw.DiagramDrawer):
     API mirrors EpsDiagramDrawer so callers can swap one for the other.
     """
 
-    # SVG canvas size in pixels (extra height for diagram label below drawing area)
+    # SVG canvas size in pixels
     canvas_width  = 360
-    canvas_height = 400
+    canvas_height = 360
 
     # Drawing area (in canvas pixels) – maps [0,1]^2 onto this rectangle.
     # y is flipped because SVG y-axis points down.
@@ -391,7 +392,7 @@ class SvgDiagramDrawer(draw.DiagramDrawer):
     draw_y_max = 330.0   # corresponds to diagram y=0
 
     blob_size = 1.5
-    font_size = 11
+    font_size = 17
 
     def rescale(self, x, y):
         """Map [0,1]^2 → SVG canvas pixels (y flipped)."""
@@ -717,6 +718,7 @@ class MultiSVGDiagramDrawer(SvgDiagramDrawer):
         self.legend = legend
         self.diagram_type = diagram_type
         self._block_nb = 0
+        self._metadata = []
 
         diagramlist = [d for d in diagramlist
                        if not (isinstance(d, loop_objects.LoopUVCTDiagram) or
@@ -735,10 +737,15 @@ class MultiSVGDiagramDrawer(SvgDiagramDrawer):
         """Nothing to do – each diagram file is already closed."""
         pass
 
+    def put_diagram_number(self, number=0):
+        """Suppress below-diagram text; metadata goes to JSON instead."""
+        pass
+
     # ------------------------------------------------------------------
 
     def draw(self, diagramlist='', opt=None):
-        """Write each diagram in diagramlist to its own SVG file."""
+        """Write each diagram in diagramlist to its own SVG file, then
+        write diagrams.json to the folder."""
         if diagramlist == '':
             diagramlist = self.diagramlist
         if diagramlist is None:
@@ -752,6 +759,10 @@ class MultiSVGDiagramDrawer(SvgDiagramDrawer):
             if diagram is None:
                 continue
             self._draw_one(diagram)
+
+        json_path = os.path.join(self.filename, 'diagrams.json')
+        with open(json_path, 'w') as fp:
+            json.dump(self._metadata, fp, indent=2)
 
     def _draw_one(self, diagram):
         """Write a single diagram to its own SVG file."""
@@ -773,6 +784,22 @@ class MultiSVGDiagramDrawer(SvgDiagramDrawer):
         self.draw_diagram(diagram, n)
         # Write footer & close file
         super(MultiSVGDiagramDrawer, self).conclude()
+
+        # Collect metadata before restoring state
+        svg_name = f'diagram_{n + 1:04d}.svg'
+        orders = {}
+        if hasattr(self, 'diagram') and self.diagram and \
+                hasattr(self.diagram, 'diagram'):
+            try:
+                raw = self.diagram.diagram.get('orders')
+                orders = {k: v for k, v in raw.items() if k != 'WEIGHTED'}
+            except Exception:
+                pass
+        self._metadata.append({
+            'file': svg_name,
+            'diagram_number': n + 1,
+            'orders': orders,
+        })
 
         # Restore state
         self.filename = old_filename
