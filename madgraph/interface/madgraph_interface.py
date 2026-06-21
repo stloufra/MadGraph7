@@ -396,10 +396,13 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info("   \"install madspace [options]\"",'$MG:BOLD')
         logger.info("   Install the madspace phase-space library used by the MG7 integrator.")
         logger.info("   Without options an interactive installer is launched. Available options:")
+        logger.info("     -y/--yes       Re-install non-interactively using saved settings.")
         logger.info("     --bin          Install pre-compiled package from PyPI (non-interactive).")
         logger.info("     --source       Build from source (non-interactive).")
         logger.info("     --cuda         Enable CUDA GPU backend (source build).")
         logger.info("     --hip          Enable HIP/ROCm GPU backend (source build).")
+        logger.info("     --openblas     Build OpenBLAS from source (default on Linux/Windows, source build).")
+        logger.info("     --no-openblas  Use system BLAS library (default on Apple, source build).")
         logger.info("     --simd         Enable SIMD backend (source build, experimental).")
         logger.info("     --debug        Build with debug symbols, still optimizing (source build).")
         logger.info("     --cuda-arch=ARCHS  Semicolon-separated CUDA compute capabilities, e.g. 75;80;86.")
@@ -2998,6 +3001,7 @@ class CompleteForCmd(cmd.CompleteCmd):
         elif len(args) >= 2 and args[1] == 'madspace':
             options = ['-y', '--yes', '--bin', '--source',
                        '--cuda', '--no-cuda', '--hip', '--no-hip',
+                       '--openblas', '--no-openblas',
                        '--simd', '--no-simd', '--debug', '--no-debug',
                        '--cuda-arch=', '--hip-arch=']
             for opt in options[:]:

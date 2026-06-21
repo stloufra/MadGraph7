@@ -8,6 +8,11 @@ project (
 option(ENABLE_CUDA "Enable CUDA GPU backend" OFF)
 option(ENABLE_HIP "Enable HIP/ROCm GPU backend" OFF)
 option(ENABLE_SIMD "Enable SIMD CPU acceleration" OFF)
+if(APPLE)
+    option(ENABLE_OPENBLAS "Build OpenBLAS from source (default: OFF on Apple, ON elsewhere)" OFF)
+else()
+    option(ENABLE_OPENBLAS "Build OpenBLAS from source (default: OFF on Apple, ON elsewhere)" ON)
+endif()
 
 if(ENABLE_CUDA)
     if (NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
@@ -111,11 +116,47 @@ if(ENABLE_SIMD)
     #find_package(sleef CONFIG REQUIRED)
 endif()
 
-#find_package(OpenBLAS REQUIRED)
-#set(BLA_VENDOR OpenBLAS)
-set(BLA_STATIC ON)
-set(BLA_SIZEOF_INTEGER 4)
-find_package(BLAS REQUIRED)
+if(ENABLE_OPENBLAS)
+    set(
+        openblas_libname
+        ${CMAKE_STATIC_LIBRARY_PREFIX}openblas${CMAKE_STATIC_LIBRARY_SUFFIX}
+    )
+    ExternalProject_Add(libopenblas
+        GIT_REPOSITORY https://github.com/OpenMathLib/OpenBLAS
+        GIT_TAG v0.3.33
+        UPDATE_DISCONNECTED true
+        CMAKE_ARGS
+            -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>
+            -DCMAKE_INSTALL_LIBDIR=lib
+            -DBUILD_SHARED_LIBS=OFF
+            -DBUILD_WITHOUT_LAPACK=ON
+            -DBUILD_SINGLE=OFF
+            -DBUILD_DOUBLE=ON
+            -DBUILD_COMPLEX=OFF
+            -DBUILD_COMPLEX16=OFF
+            -DBUILD_TESTING=OFF
+            -DBUILD_WITHOUT_CBLAS=ON
+            -DUSE_THREAD=OFF
+            -DCMAKE_POSITION_INDEPENDENT_CODE=1
+        INSTALL_BYPRODUCTS <INSTALL_DIR>/lib/${openblas_libname}
+    )
+    ExternalProject_Get_Property(libopenblas install_dir)
+    add_library(madspace::blas INTERFACE IMPORTED GLOBAL)
+    add_dependencies(madspace::blas libopenblas)
+    file(MAKE_DIRECTORY ${install_dir}/include)
+    target_include_directories(madspace::blas INTERFACE ${install_dir}/include)
+    target_link_libraries(
+        madspace::blas
+        INTERFACE
+        ${install_dir}/lib/${openblas_libname}
+    )
+else()
+    set(BLA_STATIC ON)
+    set(BLA_SIZEOF_INTEGER 4)
+    find_package(BLAS REQUIRED)
+    add_library(madspace::blas INTERFACE IMPORTED GLOBAL)
+    target_link_libraries(madspace::blas INTERFACE BLAS::BLAS)
+endif()
 
 ########################################################################################
 # Main madspace module                                                                 #
@@ -364,7 +405,7 @@ foreach(
     )
     target_include_directories(${cpu_target} PUBLIC include)
     target_compile_features(${cpu_target} PUBLIC cxx_std_20)
-    target_link_libraries(${cpu_target} PRIVATE BLAS::BLAS)
+    target_link_libraries(${cpu_target} PRIVATE madspace::blas)
     target_link_libraries(${cpu_target} PRIVATE madspace)
     if(NOT cpu_target STREQUAL "madspace_cpu")
         target_link_libraries(${cpu_target} PRIVATE sleef::sleef)

@@ -12,6 +12,7 @@ Non-interactive examples:
 import argparse
 import json
 import os
+import platform
 import subprocess
 import sys
 import tomllib
@@ -25,6 +26,16 @@ PACKAGE_NAME = "madspace"
 
 DEFAULT_CUDA_ARCH = "75"
 DEFAULT_HIP_ARCH = "gfx900"
+
+# Platform-aware defaults for source-build options (mirrors CMakeLists.txt logic)
+_IS_APPLE = platform.system() == "Darwin"
+_PLATFORM_SOURCE_DEFAULTS: dict[str, bool] = {
+    "cuda": False,
+    "hip": False,
+    "openblas": not _IS_APPLE,
+    "simd": False,
+    "debug": False,
+}
 
 
 # Interactive helpers
@@ -53,6 +64,10 @@ def ask_compile_options(saved: dict | None = None) -> dict[str, bool]:
     items = [
         ("cuda", "Build CUDA backend"),
         ("hip", "Build HIP/ROCm backend"),
+        (
+            "openblas",
+            "Build OpenBLAS from source (recommended on Linux, not needed on Apple)",
+        ),
         (
             "simd",
             "Build SIMD backend (experimental — not required to run SIMD matrix elements)",
@@ -113,6 +128,7 @@ def install_build_deps() -> dict:
                 "-m",
                 "pip",
                 "install",
+                "--upgrade",
                 *requires,
                 f"--target={INSTALL_DIR}",
             ]
@@ -189,6 +205,20 @@ def main() -> None:
         "--no-hip", dest="hip", action="store_false", help="Disable HIP backend."
     )
 
+    openblas_grp = parser.add_mutually_exclusive_group()
+    openblas_grp.add_argument(
+        "--openblas",
+        dest="openblas",
+        action="store_true",
+        help="Build OpenBLAS from source (default on Linux/Windows).",
+    )
+    openblas_grp.add_argument(
+        "--no-openblas",
+        dest="openblas",
+        action="store_false",
+        help="Use system BLAS library (default on Apple).",
+    )
+
     simd_grp = parser.add_mutually_exclusive_group()
     simd_grp.add_argument(
         "--simd",
@@ -231,7 +261,7 @@ def main() -> None:
     )
 
     # None = not provided by user; overridden by set_defaults below
-    parser.set_defaults(cuda=None, hip=None, simd=None, debug=None)
+    parser.set_defaults(cuda=None, hip=None, openblas=None, simd=None, debug=None)
     args = parser.parse_args()
 
     # Load saved settings when a previous installation is present
@@ -270,25 +300,37 @@ def main() -> None:
 
     # Source build — compile options
     compile_flags_given = any(
-        getattr(args, attr) is not None for attr in ("cuda", "hip", "simd", "debug")
+        getattr(args, attr) is not None
+        for attr in ("cuda", "hip", "openblas", "simd", "debug")
     )
 
     if args.yes:
-        enable_cuda = saved.get("cuda", False)
-        enable_hip = saved.get("hip", False)
-        enable_simd = saved.get("simd", False)
-        enable_debug = saved.get("debug", False)
+        enable_cuda = saved.get("cuda", _PLATFORM_SOURCE_DEFAULTS["cuda"])
+        enable_hip = saved.get("hip", _PLATFORM_SOURCE_DEFAULTS["hip"])
+        enable_openblas = saved.get("openblas", _PLATFORM_SOURCE_DEFAULTS["openblas"])
+        enable_simd = saved.get("simd", _PLATFORM_SOURCE_DEFAULTS["simd"])
+        enable_debug = saved.get("debug", _PLATFORM_SOURCE_DEFAULTS["debug"])
     elif compile_flags_given:
         enable_cuda = bool(args.cuda)
         enable_hip = bool(args.hip)
+        enable_openblas = (
+            bool(args.openblas)
+            if args.openblas is not None
+            else _PLATFORM_SOURCE_DEFAULTS["openblas"]
+        )
         enable_simd = bool(args.simd)
         enable_debug = bool(args.debug)
     else:
         print("madspace source build")
         print("=====================")
-        opts = ask_compile_options(saved)
+        # Show saved source settings if available, else platform-appropriate defaults
+        menu_defaults = (
+            saved if saved.get("mode") == "source" else _PLATFORM_SOURCE_DEFAULTS
+        )
+        opts = ask_compile_options(menu_defaults)
         enable_cuda = opts["cuda"]
         enable_hip = opts["hip"]
+        enable_openblas = opts["openblas"]
         enable_simd = opts["simd"]
         enable_debug = opts["debug"]
 
@@ -341,6 +383,7 @@ def main() -> None:
             "-Ccmake.define.ENABLE_HIP=ON",
             f"-Ccmake.define.CMAKE_HIP_ARCHITECTURES={hip_arch}",
         ]
+    cmd.append(f"-Ccmake.define.ENABLE_OPENBLAS={'ON' if enable_openblas else 'OFF'}")
     if enable_simd:
         cmd.append("-Ccmake.define.ENABLE_SIMD=ON")
     if enable_debug:
@@ -355,6 +398,7 @@ def main() -> None:
             "cuda_arch": cuda_arch,
             "hip": enable_hip,
             "hip_arch": hip_arch,
+            "openblas": enable_openblas,
             "simd": enable_simd,
             "debug": enable_debug,
         }
