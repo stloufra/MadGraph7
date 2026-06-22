@@ -1,15 +1,37 @@
 import argparse
 import os
+import sys
 import time
 from datetime import timedelta
+from pathlib import Path
 import glob
 import shutil
 import json
 import subprocess
+import re
 import logging
 from dataclasses import dataclass
 from typing import Literal, NamedTuple
 import tomllib
+import resource
+
+# Locate the madspace installation bundled alongside MadGraph.
+# madgraph/__init__.py lives one level below the MadGraph root, so .parents[1]
+# reaches the root and then "madspace/install" is the local install prefix.
+import madgraph as _mg_pkg
+_MADSPACE_DIR = Path(_mg_pkg.__file__).parents[1] / "madspace"
+_INSTALL_DIR = _MADSPACE_DIR / "install"
+if not (_INSTALL_DIR / "madspace").is_dir():
+    print()
+    print("You don't have madspace installed for this madgraph instance")
+    print("Running interactive madspace installation script")
+    print()
+
+    _result = subprocess.run([sys.executable, str(_MADSPACE_DIR / "install.py")])
+    if _result.returncode != 0:
+        raise RuntimeError("madspace installation failed — see output above")
+if str(_INSTALL_DIR) not in sys.path:
+    sys.path.insert(0, str(_INSTALL_DIR))
 
 if "LHAPDF_DATA_PATH" in os.environ:
     PDF_PATH = os.environ["LHAPDF_DATA_PATH"]
@@ -77,6 +99,7 @@ class MultiChannelData(NamedTuple):
     channel_weight_indices: list[list[list[int]]]
     diagram_indices: list[list[int]]
     diagram_color_indices: list[list[list[int]]]
+    active_flavors: list[list[int]]
 
 
 @dataclass
@@ -400,11 +423,14 @@ class MadgraphProcess:
 
     def train_madnis(self) -> None:
         madnis_args = self.run_card["madnis"]
-        gen_args = self.run_card["generation"]
-        run_args = self.run_card["run"]
+        if not madnis_args["enable"]:
+            return
         if madnis_args.get("old", False):
             self.train_madnis_old()
             return
+
+        gen_args = self.run_card["generation"]
+        run_args = self.run_card["run"]
 
         config = ms.MadnisConfig()
         config.verbosity = run_args["verbosity"]
@@ -637,6 +663,7 @@ class MadgraphProcess:
                 _,
                 diagram_indices,
                 diagram_color_indices,
+                active_flavors,
             ) = subproc.build_multi_channel_data()
             subproc_args.append(
                 ms.SubprocArgs(
@@ -683,11 +710,16 @@ class MadgraphProcess:
             channel.save(os.path.join(channel_path, file))
 
         lib_path = os.path.join(gridpack_path, "lib")
-        os.mkdir(lib_path)
+        if self.run_card["run"]["gridpack_include_source"]:
+            os.mkdir(lib_path)
+            shutil.copytree("src", os.path.join(gridpack_path, "src"))
+            shutil.copytree("SubProcesses", os.path.join(gridpack_path, "SubProcesses"))
+        else:
+            shutil.copytree("lib", lib_path)
+
         matrix_elements = []
         for subproc in self.subprocess_data:
             me_path = subproc["me_path"]
-            shutil.copy(me_path, lib_path)
             matrix_elements.append(me_path)
 
         cards_path = os.path.join(gridpack_path, "Cards")
@@ -770,11 +802,22 @@ class MadgraphSubprocess:
         if not isinstance(devices, list):
             devices = [devices]
         for device in devices:
-            api_paths.append(api_path_format.format(device=device))
-            if not os.path.isfile(api_paths[-1]):
-                subproc_dir = os.path.dirname(subproc_path)
+            subproc_dir = os.path.dirname(subproc_path)
+            # 'cppauto' resolve quick fix 
+            resolved = device
+            if device == "cppauto":
+                out = subprocess.run(
+                    ["make", "-n", "BACKEND=cppauto", "detect-backend"],
+                    cwd=subproc_path, capture_output=True, text=True,
+                ).stdout
+                match = re.search(r"BACKEND=(\S+) \(was cppauto\)", out)
+                if match:
+                    resolved = match.group(1)
+            api_path = api_path_format.format(device=resolved)
+            if not os.path.isfile(api_path):
                 logger.info(f"Compiling subprocess {subproc_dir}, for device '{device}'")
                 misc.compile(arg = [f"BACKEND={device}", "USEBUILDDIR=1"], cwd = subproc_path)
+            api_paths.append(api_path)
 
         self.incoming_masses = [
             self.process.get_mass(pid) for pid in clean_pids(self.meta["incoming"])
@@ -838,6 +881,7 @@ class MadgraphSubprocess:
         channel_weight_indices = []
         diagram_indices = []
         diagram_color_indices = []
+        active_flavors = []
         channel_index = 0
 
         for channel_id, channel in enumerate(self.meta["channels"]):
@@ -889,6 +933,7 @@ class MadgraphSubprocess:
             ])
             diagram_indices.append([d["diagram"] for d in diagrams])
             diagram_color_indices.append([d["active_colors"] for d in diagrams])
+            active_flavors.append(channel["active_flavors"])
         self.multi_channel_data = MultiChannelData(
             amp2_remap,
             symfact,
@@ -898,6 +943,7 @@ class MadgraphSubprocess:
             channel_weight_indices,
             diagram_indices,
             diagram_color_indices,
+            active_flavors,
         )
         return self.multi_channel_data
 
@@ -911,14 +957,15 @@ class MadgraphSubprocess:
             channel_weight_indices,
             diagram_indices,
             _,
+            all_active_flavors,
         ) = self.build_multi_channel_data()
 
         channels = []
         t_channel_mode = self.t_channel_mode(
             self.process.run_card["phasespace"]["t_channel"]
         )
-        for channel_id, (chan_topologies, chan_permutations, chan_indices) in enumerate(zip(
-            topologies, permutations, channel_weight_indices
+        for channel_id, (chan_topologies, chan_permutations, chan_indices, active_flavors) in enumerate(zip(
+            topologies, permutations, channel_weight_indices, all_active_flavors
         )):
             topo_count = len(chan_topologies)
             for topo_index, (topo, indices) in enumerate(zip(chan_topologies, chan_indices)):
@@ -944,7 +991,7 @@ class MadgraphSubprocess:
                     discrete_after = discrete_after,
                     channel_weight_indices = indices,
                     name = f"{channel_id}",
-                    active_flavors = [], #TODO: properly initialize
+                    active_flavors = active_flavors,
                 ))
 
         chan_weight_remap = list(range(len(symfact))) #TODO: only construct if necessary
@@ -1163,7 +1210,7 @@ class MadgraphSubprocess:
     def build_discrete(
         self, permutation_count: int, flavor_count: int, prefix: str
     ) -> tuple[ms.DiscreteSampler | None, ms.DiscreteSampler | None]:
-        return None, None
+        #return None, None
         discrete_before = None
         #if permutation_count > 1:
         #    discrete_before = ms.DiscreteSampler(
@@ -1342,6 +1389,10 @@ def main() -> None:
     args = parser.parse_args()
     if args.ask_edit_cards:
         ask_edit_cards()
+
+    # Remove soft limit on number of open files as it can be quite low on some systems
+    soft_lim, hard_lim = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (hard_lim, hard_lim))
 
     process = MadgraphProcess()
     process.survey()

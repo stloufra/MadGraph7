@@ -385,7 +385,7 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info("     %s"%(', '.join(self._advanced_install_opts)))
         logger.info("   The following options are available:")
         logger.info("     --force        Overwrite without asking any existing installation.")
-        logger.info("     --keep_source  Keep a local copy of the sources of the tools MG5_aMC installed from.")         
+        logger.info("     --keep_source  Keep a local copy of the sources of the tools MG5_aMC installed from.")
         logger.info(" ")
         logger.info("   \"install update\"",'$MG:BOLD')
         logger.info("   check if your MG5 installation is the latest one.")
@@ -393,6 +393,23 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info("   and apply it to the code. Two options are available for this command:")
         logger.info("     -f: didn't ask for confirmation if it founds an update.")
         logger.info("     --timeout=: Change the maximum time allowed to reach the server.")
+        logger.info(" ")
+        logger.info("   \"install madspace [options]\"",'$MG:BOLD')
+        logger.info("   Install the madspace phase-space library used by the MG7 integrator.")
+        logger.info("   Without options an interactive installer is launched. Available options:")
+        logger.info("     -y/--yes       Re-install non-interactively using saved settings.")
+        logger.info("     --bin          Install pre-compiled package from PyPI (non-interactive).")
+        logger.info("     --source       Build from source (non-interactive).")
+        logger.info("     --cuda         Enable CUDA GPU backend (source build).")
+        logger.info("     --hip          Enable HIP/ROCm GPU backend (source build).")
+        logger.info("     --openblas     Build OpenBLAS from source (default on Linux/Windows, source build).")
+        logger.info("     --no-openblas  Use system BLAS library (default on Apple, source build).")
+        logger.info("     --simd         Enable SIMD backend (source build, experimental).")
+        logger.info("     --debug        Optimized build with debug symbols, RelWithDebInfo (source build).")
+        logger.info("     --full-debug   Debug build without optimization, Debug mode (source build).")
+        logger.info("     --no-debug     Optimized build, no debug symbols, Release (source build, default).")
+        logger.info("     --cuda-arch=ARCHS  Semicolon-separated CUDA compute capabilities, e.g. 75;80;86.")
+        logger.info("     --hip-arch=ARCHS   Semicolon-separated HIP architectures, e.g. gfx900;gfx906.")
 
     def help_display(self):
         logger.info("syntax: display " + "|".join(self._display_opts),'$MG:color:BLUE')
@@ -3008,7 +3025,18 @@ class CompleteForCmd(cmd.CompleteCmd):
             return self.list_completion(text, self._install_opts + self._advanced_install_opts)
         elif len(args) and args[0] == 'update':
             return self.list_completion(text, ['-f','--timeout='])
-        elif len(args)>=2 and args[1] in self._advanced_install_opts:           
+        elif len(args) >= 2 and args[1] == 'madspace':
+            options = ['-y', '--yes', '--bin', '--source',
+                       '--cuda', '--no-cuda', '--hip', '--no-hip',
+                       '--openblas', '--no-openblas',
+                       '--simd', '--no-simd',
+                       '--debug', '--full-debug', '--no-debug',
+                       '--cuda-arch=', '--hip-arch=']
+            for opt in options[:]:
+                if any(a.startswith(opt) for a in args[2:]):
+                    options.remove(opt)
+            return self.list_completion(text, options)
+        elif len(args)>=2 and args[1] in self._advanced_install_opts:
             options = ['--keep_source','--logging=']
             if args[1]=='pythia8':
                 options.append('--pythia8_tarball=')
@@ -3052,7 +3080,7 @@ class MadGraphCmd(HelpToCmd, CheckValidForCmd, CompleteForCmd, CmdExtended):
     _import_formats = ['model_v4', 'model', 'proc_v4', 'command', 'banner']
     _install_opts = ['Delphes', 'MadAnalysis4', 'ExRootAnalysis',
                      'update', 'Golem95', 'QCDLoop', 'maddm', 'maddump',
-                     'looptools', 'MadSTR', 'RunningCoupling']
+                     'looptools', 'MadSTR', 'RunningCoupling', 'madspace']
     
     # The targets below are installed using the HEPToolsInstaller.py script
     _advanced_install_opts = ['pythia8','zlib','boost','lhapdf6','lhapdf5','collier',
@@ -6780,7 +6808,10 @@ MG5aMC that supports quadruple precision (typically g++ based on gcc 4.6+).""")
         elif args[0] == 'looptools':
             self.install_reduction_library(force=True)
             return
-        
+        elif args[0] == 'madspace':
+            install_script = pjoin(MG5DIR, 'madspace', 'install.py')
+            subprocess.run([sys.executable, install_script] + args[1:])
+            return
 
         plugin = self.install_plugin
         
@@ -8984,7 +9015,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
         self.check_set(args)
         self.options[args[0]] = banner_module.ConfigFile.format_variable(args[1], bool, args[0]) 
 
-    def set2_store_rwgt_info(args, log=True):
+    def set2_store_rwgt_info(self,args, log=True):
         """Set whether the code should generate systematics information in the output LHE file at NLO
         Default is set to False.
         Example: set store_rwgt_info True

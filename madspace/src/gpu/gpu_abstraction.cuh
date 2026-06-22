@@ -118,3 +118,7 @@
 namespace cub = hipcub;
 
 #endif
+
+struct gpu_less_double {
+    __host__ __device__ bool operator()(double a, double b) const { return a < b; }
+};

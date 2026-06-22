@@ -89,12 +89,14 @@ namespace
 
   enum Mode { MODE_MATRIX, MODE_PERF };
 
+  enum RamboType { RAMBO_MASSIVE, RAMBO_MASSLESS };
+
   int usage( const char* argv0, int ret = 1 )
   {
     std::cout
       << "Usage:\n"
       << "  " << argv0 << " [matrix] [-v|--verbose] [<energy>]\n"
-      << "  " << argv0 << " perf [-v|--verbose] [-f|--flavor <int>]"
+      << "  " << argv0 << " perf [-v|--verbose] [-f|--flavor <int>] [--rambo-massless]"
       << " [<#blocksPerGrid> <#threadsPerBlock>] <#iterations>\n"
       << "  " << argv0 << " -p [opts]   (legacy alias for `perf`)\n"
       << "\n"
@@ -564,6 +566,29 @@ namespace
     DeviceBufferBase<double> devAlphaS( nevt );
     gpuMemcpy( devAlphaS.data(), alphasVec.data(), nevt * sizeof( double ), gpuMemcpyHostToDevice );
 #endif
+    
+    // Retrieve masses
+    int npar_meta = 0;
+    if( umami_get_meta( UMAMI_META_PARTICLE_COUNT, &npar_meta ) != UMAMI_SUCCESS || npar_meta != CPPProcess::npar )
+    {
+      std::cerr << "ERROR! umami_get_meta(UMAMI_META_PARTICLE_COUNT) failed" << std::endl;
+      umami_free( umami_handle );
+      return 2;
+    }
+    std::vector<double> massesD( npar_meta );
+    if( umami_get_meta( UMAMI_META_MASSES, massesD.data() ) != UMAMI_SUCCESS )
+    {
+      std::cerr << "ERROR! umami_get_meta(UMAMI_META_MASSES) failed" << std::endl;
+      umami_free( umami_handle );
+      return 2;
+    }
+    const std::vector<fptype> masses( massesD.begin(), massesD.end() );
+
+    // Always massive RAMBO
+    std::unique_ptr<SamplingKernelBase> prsk(
+      new RamboSamplingKernelHost( kEnergy, hstRndmom, masses, CPPProcess::npari, nevt, hstMomenta, hstWeights ) );
+    prsk->getMomentaInitial();
+    prsk->getMomentaFinal();
 
     // Fill the UMAMI SoA buffer with nevt copies of the same event:
     // soa[ip4 * npar*nevt + ipar*nevt + ievt]
@@ -573,6 +598,13 @@ namespace
           umamiMomenta[(std::size_t)ip4 * CPPProcess::npar * nevt + (std::size_t)ipar * nevt + ievt] = point[ipar][ip4];
 #ifdef MGONGPUCPP_GPUIMPL
     gpuMemcpy( devUmamiMomenta.data(), umamiMomenta.data(), umamiMomenta.size() * sizeof( double ), gpuMemcpyHostToDevice );
+    // Host only implementation now (copy)
+    copyDeviceFromHost( devMomenta, hstMomenta );
+    gpuLaunchKernel( aosoa_to_umami_kernel, kMatrixBlocks, kMatrixThreads, devMomenta.data(), devUmamiMomenta.data(), (std::size_t)nevt );
+    checkGpu( gpuPeekAtLastError() );
+#else
+    for( std::size_t ievt = 0; ievt < nevt; ++ievt )
+      aosoa_to_umami_one( hstMomenta.data(), umamiMomenta.data(), ievt, nevt );
 #endif
 
     if( verbose )
@@ -651,7 +683,8 @@ namespace
                      unsigned int gpublocks,
                      unsigned int gputhreads,
                      unsigned int niter,
-                     unsigned int flavorID )
+                     unsigned int flavorID,
+                     RamboType ramboType )
   {
     const unsigned int nevt = gpublocks * gputhreads;
 
@@ -686,18 +719,47 @@ namespace
     std::unique_ptr<RandomNumberKernelBase> prnk(
       new CommonRandomNumberKernel( hstRndmom ) );
 
-    std::unique_ptr<SamplingKernelBase> prsk;
-#ifdef MGONGPUCPP_GPUIMPL
-    prsk.reset( new RamboSamplingKernelDevice( kEnergy, devRndmom, devMomenta, devWeights, gpublocks, gputhreads ) );
-#else
-    prsk.reset( new RamboSamplingKernelHost( kEnergy, hstRndmom, hstMomenta, hstWeights, nevt ) );
-#endif
-
     UmamiHandle umami_handle = nullptr;
     if( umami_initialize( &umami_handle, "../../Cards/param_card.dat" ) != UMAMI_SUCCESS )
     {
       std::cerr << "ERROR! umami_initialize failed" << std::endl;
       return 2;
+    }
+
+    // Retrieve masses
+    std::vector<fptype> masses;
+    if( ramboType != RAMBO_MASSLESS)
+    {
+      int npar_meta = 0;
+      if( umami_get_meta( UMAMI_META_PARTICLE_COUNT, &npar_meta ) != UMAMI_SUCCESS || npar_meta != CPPProcess::npar )
+      {
+        std::cerr << "ERROR! umami_get_meta(UMAMI_META_PARTICLE_COUNT) failed" << std::endl;
+        umami_free( umami_handle );
+        return 2;
+      }
+      std::vector<double> massesD( npar_meta );
+      if( umami_get_meta( UMAMI_META_MASSES, massesD.data() ) != UMAMI_SUCCESS )
+      {
+        std::cerr << "ERROR! umami_get_meta(UMAMI_META_MASSES) failed" << std::endl;
+        umami_free( umami_handle );
+        return 2;
+      }
+      masses.assign( massesD.begin(), massesD.end() );
+    }
+
+    std::unique_ptr<SamplingKernelBase> prsk;
+    if( ramboType != RAMBO_MASSLESS )
+    {
+      // Massive host only (copy) 
+      prsk.reset( new RamboSamplingKernelHost( kEnergy, hstRndmom, masses, CPPProcess::npari, nevt, hstMomenta, hstWeights ) );
+    }
+    else
+    {
+#ifdef MGONGPUCPP_GPUIMPL
+      prsk.reset( new MasslessRamboSamplingKernelDevice( kEnergy, devRndmom, devMomenta, devWeights, gpublocks, gputhreads ) );
+#else
+      prsk.reset( new MasslessRamboSamplingKernelHost( kEnergy, hstRndmom, hstMomenta, hstWeights, nevt ) );
+#endif
     }
 
     std::unique_ptr<double[]> genrtimes( new double[niter] );
@@ -722,9 +784,12 @@ namespace
       prnk->generateRnarray();
       genrtime += timermap.stop();
 #ifdef MGONGPUCPP_GPUIMPL
-      timermap.start( "1c CpHTDrnd" );
-      copyDeviceFromHost( devRndmom, hstRndmom );
-      genrtime += timermap.stop();
+      if( ramboType == RAMBO_MASSLESS )
+      {
+        timermap.start( "1c CpHTDrnd" );
+        copyDeviceFromHost( devRndmom, hstRndmom );
+        genrtime += timermap.stop();
+      }
 #endif
 
       double rambtime = 0;
@@ -734,8 +799,17 @@ namespace
       timermap.start( "2b RamboFin" );
       prsk->getMomentaFinal();
       rambtime += timermap.stop();
+#ifdef MGONGPUCPP_GPUIMPL
+      // Massive host only (copy)
+      if( ramboType != RAMBO_MASSLESS )
+      {
+        timermap.start( "2c CpHTDmom" );
+        copyDeviceFromHost( devMomenta, hstMomenta );
+        rambtime += timermap.stop();
+      }
+#endif
 
-      timermap.start( "2c Aosoa2U " );
+      timermap.start( "2d Aosoa2U " );
 #ifdef MGONGPUCPP_GPUIMPL
       gpuLaunchKernel( aosoa_to_umami_kernel, gpublocks, gputhreads, devMomenta.data(), devUmamiMomenta.data(), (std::size_t)nevt );
       checkGpu( gpuPeekAtLastError() );
@@ -864,6 +938,8 @@ int main( int argc, char** argv )
 {
 
   Mode mode = MODE_MATRIX;
+  RamboType ramboType = RAMBO_MASSIVE; // default
+  bool ramboTypeSet = false;
   bool verbose = false;
   unsigned int flavorID = 0;
   unsigned int gpublocks = 64;
@@ -892,6 +968,12 @@ int main( int argc, char** argv )
       mode = MODE_PERF; // legacy alias
     else if( ( arg == "--flavor" || arg == "-f" ) && argn + 1 < argc && is_number( argv[argn + 1] ) )
       flavorID = strtoul( argv[++argn], nullptr, 0 );
+    else if( arg == "--rambo-massless"  )
+    {
+      std::string r = argv[++argn];
+      ramboType = RAMBO_MASSLESS;
+      ramboTypeSet = true;
+    }
     else if( is_number( argv[argn] ) && nnum < 3 )
     {
       numvec[nnum++] = strtoul( argv[argn], nullptr, 0 );
@@ -912,6 +994,11 @@ int main( int argc, char** argv )
 
   if( mode == MODE_MATRIX )
   {
+    if( ramboType == RAMBO_MASSLESS )
+    {
+      std::cerr << "ERROR: matrix mode only supports the classic RAMBO (-r c)." << std::endl;
+      return usage( argv[0] );
+    }
     if( nnum > 1 )
     {
       std::cerr << "WARNING: extra positional args are ignored in matrix mode "
@@ -945,5 +1032,5 @@ int main( int argc, char** argv )
     return 1;
   }
 
-  return run_perf_mode( verbose, gpublocks, gputhreads, niter, flavorID );
+  return run_perf_mode( verbose, gpublocks, gputhreads, niter, flavorID, ramboType );
 }
