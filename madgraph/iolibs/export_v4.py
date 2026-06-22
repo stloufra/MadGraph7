@@ -295,7 +295,12 @@ class ProcessExporterFortran(VirtualExporter):
             'component_old_factors': comp_old_factors,
             'pid_list': pid_list,
             'block_starts': block_starts,
-            'block_lengths': block_lengths
+            'block_lengths': block_lengths,
+            # Per-component list of entries (pid, start, length, fingerprint).
+            # Two entries within a component that share a fingerprint describe
+            # identical, interchangeable decay sub-trees; used to enumerate the
+            # flavor permutations that GET_FLAVOR_INDEX must also resolve.
+            'components': components,
         }
 
     @staticmethod
@@ -393,8 +398,76 @@ class ProcessExporterFortran(VirtualExporter):
                     p, pdg_to_group_pos, max_group_size))
         return (n_flavors, flav_table_flat)
 
+    def _build_flav_index_lookup(self, matrix_element, n_flavors, flav_table_flat):
+        """Build the expanded GET_FLAVOR_INDEX lookup for decay-chain MEs.
+
+        The mask/goodhel FLAV_TABLE keeps a single representative per
+        identical-decay-block permutation class: get_external_flavors dedups
+        flavors that differ only by swapping identical, identically-decaying
+        particles (e.g. the two Z systems of `z z, z>l+l-, z>l+l-`). A caller
+        such as MadSpin can legitimately present such a swapped ordering, which
+        is NOT a column of FLAV_TABLE; an exact lookup would then return 0
+        (-> |M|=0 -> the MadSpin unweighting loop spins forever).
+
+        Returns (lookup_flat, index_map): a column-major table of every
+        interchangeable-block permutation of every representative flavor, plus a
+        parallel 1-based index_map giving, for each permutation, the
+        representative's FLAV_TABLE column it resolves to. Returns (None, None)
+        when there are no interchangeable blocks (the common, non-decay case),
+        leaving the simple one-row-per-flavor lookup -- and the goldens --
+        unchanged.
+        """
+        if n_flavors <= 1:
+            return (None, None)
+        process = matrix_element.get('processes')[0]
+        if not process.get('decay_chains'):
+            return (None, None)
+        nexternal = len(flav_table_flat) // n_flavors
+        ninitial = matrix_element.get_nexternal_ninitial()[1]
+        try:
+            sym = self._get_broken_symmetry_data(process, ninitial)
+        except Exception:
+            return (None, None)
+        # Groups of interchangeable position-blocks: entries within a component
+        # that share a fingerprint (same PID and same decay sub-tree).
+        swap_groups = []
+        for entries in sym.get('components', []):
+            by_fp = {}
+            for entry in entries:
+                by_fp.setdefault(entry['fingerprint'], []).append(
+                    (entry['start'], entry['length']))
+            for blocks in by_fp.values():
+                if len(blocks) > 1:
+                    swap_groups.append(blocks)
+        if not swap_groups:
+            return (None, None)
+        reps = [tuple(flav_table_flat[i * nexternal:(i + 1) * nexternal])
+                for i in range(n_flavors)]
+        perms_per_group = [list(itertools.permutations(blocks))
+                           for blocks in swap_groups]
+        lookup = {}  # group-position tuple -> 1-based representative index
+        for ridx, rep in enumerate(reps, 1):
+            for combo in itertools.product(*perms_per_group):
+                v = list(rep)
+                for blocks, perm in zip(swap_groups, combo):
+                    # Destination block i receives the content the representative
+                    # has at perm[i] (same fingerprint => identical block length).
+                    for (dst_s, dst_l), (src_s, _src_l) in zip(blocks, perm):
+                        for k in range(dst_l):
+                            v[dst_s - 1 + k] = rep[src_s - 1 + k]
+                lookup.setdefault(tuple(v), ridx)
+        if len(lookup) == n_flavors:
+            return (None, None)
+        lookup_flat = []
+        index_map = []
+        for gpos, ridx in lookup.items():
+            lookup_flat.extend(gpos)
+            index_map.append(ridx)
+        return (lookup_flat, index_map)
+
     def _make_flavor_index_fortran_function(self, func_name, n_flavors,
-                                            flav_table_flat, nexternal_decl='include'):
+                                            flav_table_flat, nexternal_decl='include',
+                                            lookup_flat=None, index_map=None):
         """Return the complete Fortran GET_FLAVOR_INDEX function as a string.
 
         Emitted via the %(flavor_index_function)s placeholder and used to
@@ -407,17 +480,34 @@ class ProcessExporterFortran(VirtualExporter):
         Fortran name (e.g. 'MG5_1_GET_FLAVOR_INDEX'); *nexternal_decl* is
         'include' for "include 'nexternal.inc'" or an integer for an explicit
         PARAMETER declaration.
-        """
-        template_path = pjoin(_file_path, 'iolibs', 'template_files',
-                              'fortran_matrix_flavor_index_fct.inc')
-        template = open(template_path).read()
 
+        *lookup_flat*/*index_map* (from _build_flav_index_lookup) request the
+        permutation-aware variant: the lookup table holds every interchangeable
+        decay-block permutation of each flavor and index_map maps each back to
+        its representative FLAV_TABLE column. When None (the common case), the
+        plain one-row-per-flavor lookup is emitted (byte-identical to before).
+        """
         if nexternal_decl == 'include':
             nexternal_lines = "      include 'nexternal.inc'"
         else:
             nexternal_lines = ('      INTEGER NEXTERNAL\n'
                                '      PARAMETER (NEXTERNAL=%d)' % int(nexternal_decl))
 
+        if lookup_flat is not None:
+            template_path = pjoin(_file_path, 'iolibs', 'template_files',
+                                  'fortran_matrix_flavor_index_fct_perm.inc')
+            template = open(template_path).read()
+            return template % {
+                'func_name': func_name,
+                'nexternal_decl': nexternal_lines,
+                'nlookup': len(index_map),
+                'flav_table_data': ', '.join(str(v) for v in lookup_flat),
+                'flav_index_map': ', '.join(str(v) for v in index_map),
+            }
+
+        template_path = pjoin(_file_path, 'iolibs', 'template_files',
+                              'fortran_matrix_flavor_index_fct.inc')
+        template = open(template_path).read()
         return template % {
             'func_name': func_name,
             'nexternal_decl': nexternal_lines,
@@ -4231,10 +4321,13 @@ class ProcessExporterFortranSA(ProcessExporterFortran):
         else:
             fi_func_name = replace_dict['proc_prefix'] + 'GET_FLAVOR_INDEX'
             fa_func_name = replace_dict['proc_prefix'] + 'GET_FLAVOR'
+        fi_lookup_flat, fi_index_map = self._build_flav_index_lookup(
+            matrix_element, n_table, flav_table_flat)
         replace_dict['flavor_index_function'] = \
             self._make_flavor_index_fortran_function(
                 fi_func_name, n_table, flav_table_flat,
-                nexternal_decl=bs_nexternal)
+                nexternal_decl=bs_nexternal,
+                lookup_flat=fi_lookup_flat, index_map=fi_index_map)
         replace_dict['flavor_array_function'] = \
             self._make_flavor_array_fortran_function(
                 fa_func_name, n_table, flav_table_flat,
