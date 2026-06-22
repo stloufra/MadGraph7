@@ -1,7 +1,9 @@
 import argparse
 import os
+import sys
 import time
 from datetime import timedelta
+from pathlib import Path
 import glob
 import shutil
 import json
@@ -12,6 +14,24 @@ from dataclasses import dataclass
 from typing import Literal, NamedTuple
 import tomllib
 import resource
+
+# Locate the madspace installation bundled alongside MadGraph.
+# madgraph/__init__.py lives one level below the MadGraph root, so .parents[1]
+# reaches the root and then "madspace/install" is the local install prefix.
+import madgraph as _mg_pkg
+_MADSPACE_DIR = Path(_mg_pkg.__file__).parents[1] / "madspace"
+_INSTALL_DIR = _MADSPACE_DIR / "install"
+if not (_INSTALL_DIR / "madspace").is_dir():
+    print()
+    print("You don't have madspace installed for this madgraph instance")
+    print("Running interactive madspace installation script")
+    print()
+
+    _result = subprocess.run([sys.executable, str(_MADSPACE_DIR / "install.py")])
+    if _result.returncode != 0:
+        raise RuntimeError("madspace installation failed — see output above")
+if str(_INSTALL_DIR) not in sys.path:
+    sys.path.insert(0, str(_INSTALL_DIR))
 
 if "LHAPDF_DATA_PATH" in os.environ:
     PDF_PATH = os.environ["LHAPDF_DATA_PATH"]
