@@ -1241,6 +1241,74 @@ class TestCmdShell2(unittest.TestCase,
             self.assertTrue(saw_nonzero,
                             'all matrix elements vanished for %s' % proc)
 
+    def test_standalone_mg7_goodhel_filter(self):
+        """The standalone_mg7 (cudacpp) good-helicity filter must reproduce the
+        per-flavor matrix element of every flavor served by a merged matrix
+        element.
+
+        standalone_mg7 computes a single global good-helicity list once, as the
+        union over all flavor combinations (see sigmaKin_getGoodHel). A
+        flavor-blind filter -- one that seeds the good helicities from only the
+        flavor(s) of the first sampled events -- would drop a helicity that
+        vanishes for the seeding flavor but contributes for another merged
+        flavor, giving a too-small |M|^2 for that other flavor.
+
+        We compare the standalone_mg7 per-flavor values (check_sa.exe 'matrix'
+        mode) against the Fortran standalone ones, which
+        test_standalone_goodhel_filter independently validates as
+        filter-invariant. ``u u~ > j j QCD=0`` is a single merged matrix element
+        whose flavors have *different* diagram content: ``u u~ > u u~`` has both
+        s- and t-channel photon/Z exchange, while ``u u~ > d d~`` (the first
+        flavor, which seeds the good helicities) is s-channel only. A
+        flavor-blind filter warmed up on ``u u~ > d d~`` drops the t-channel
+        helicities, making ``u u~ > u u~`` too small -- which this comparison
+        catches. The massless final state makes both drivers evaluate the same
+        fixed-energy RAMBO point.
+        """
+        devnull = open(os.devnull, 'w')
+        energy = '1000'
+        me_re = re.compile(r'Matrix element\s*=\s*([\d.eE+-]+)\s*GeV',
+                           re.IGNORECASE)
+
+        def get_values(output_format, check_exe, build_source=False):
+            if os.path.isdir(self.out_dir):
+                shutil.rmtree(self.out_dir)
+            self.do('output %s %s -f' % (output_format, self.out_dir))
+            if build_source:
+                subprocess.call(['make'], stdout=devnull, stderr=devnull,
+                                cwd=pjoin(self.out_dir, 'Source'))
+            proc_root = pjoin(self.out_dir, 'SubProcesses')
+            dirs = sorted(d for d in os.listdir(proc_root)
+                          if d.startswith('P') and
+                          os.path.isdir(pjoin(proc_root, d)))
+            self.assertTrue(dirs, 'no subprocess for %s' % output_format)
+            values = []
+            for d in dirs:
+                proc_dir = pjoin(proc_root, d)
+                # standalone uses 'make check' + ./check; standalone_mg7 ships a
+                # UMAMI check_sa.exe whose 'matrix' mode == the Fortran driver.
+                target = ['make', 'check'] if output_format == 'standalone' \
+                    else ['make']
+                subprocess.call(target, stdout=devnull, stderr=devnull,
+                                cwd=proc_dir)
+                log = pjoin(proc_dir, 'check.log')
+                subprocess.call('%s %s' % (check_exe, energy),
+                                stdout=open(log, 'w'), stderr=subprocess.STDOUT,
+                                cwd=proc_dir, shell=True)
+                found = me_re.findall(open(log).read())
+                self.assertTrue(found, '%s produced no matrix element (see %s)'
+                                % (output_format, log))
+                values.extend(float(v) for v in found)
+            return values
+
+        self.do('import model sm')
+        self.do('generate u u~ > j j QCD=0')
+        mg7 = get_values('standalone_mg7', './check_sa.exe')
+        standalone = get_values('standalone', './check', build_source=True)
+        self.assertTrue(any(v != 0.0 for v in standalone),
+                        'all matrix elements vanished for u u~ > j j')
+        self._assert_me_lists_close(mg7, standalone, atol=1e-7)
+
     def test_standalone_cpp(self):
         """test that standalone cpp is working"""
 
