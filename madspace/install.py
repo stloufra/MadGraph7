@@ -376,10 +376,12 @@ def main() -> None:
     else:
         print("Welcome to the MadSpace interactive installer")
         print()
-        default_is_bin = saved.get("mode", "bin") != "source"
-        from_source = not ask_yes_no(
-            "Install pre-compiled package? (recommended)", default=default_is_bin
-        )
+        # commented out the option to use the pre-compiled binaries
+        # TODO: add this again once we build release build
+        # default_is_bin = saved.get("mode", "bin") != "source"
+        # from_source = not ask_yes_no(
+        #     "Install pre-compiled package? (recommended)", default=default_is_bin
+        # )
 
     # PyPI installation
     if not from_source:
