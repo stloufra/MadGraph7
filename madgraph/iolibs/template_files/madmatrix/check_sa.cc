@@ -529,6 +529,12 @@ namespace
     timermap.start( "00 GpuInit" );
     GpuRuntime gpuRuntime( false );
 
+    PinnedHostBufferRndNumMomenta hstRndmom( nevt );
+    PinnedHostBufferMomenta hstMomenta( nevt );
+    PinnedHostBufferWeights hstWeights( nevt );
+    DeviceBufferRndNumMomenta devRndmom( nevt );
+    DeviceBufferMomenta devMomenta( nevt );
+    DeviceBufferWeights devWeights( nevt );
     DeviceBufferBase<double> devUmamiMomenta( (std::size_t)4 * CPPProcess::npar * nevt );
     DeviceBufferBase<double> devUmamiMEs( nevt );
     DeviceBufferBase<unsigned int> devFlv( nevt );
@@ -536,6 +542,9 @@ namespace
     std::vector<unsigned int> flvVec( nevt );
     std::vector<double> hstUmamiMEs( nevt );
 #else
+    HostBufferRndNumMomenta hstRndmom( nevt );
+    HostBufferMomenta hstMomenta( nevt );
+    HostBufferWeights hstWeights( nevt );
     std::vector<double> umamiMomenta( (std::size_t)4 * CPPProcess::npar * nevt );
     std::vector<double> umamiMEs( nevt );
     std::vector<unsigned int> flvVec( nevt );
@@ -552,21 +561,8 @@ namespace
     // classic standalone RAMBO so it matches the Fortran/C++ 'check' drivers.
     CPPProcess process;
     process.initProc( "../../Cards/param_card.dat" );
-    std::vector<double> masses( process.getMasses().begin(), process.getMasses().end() );
     double rambowgt = 0.;
-    std::vector<std::vector<double>> point =
-      classic_rambo::get_momenta( CPPProcess::npari, (double)kEnergy, masses, rambowgt );
 
-    // alpha_s from the param card so the couplings match the Fortran/C++
-    // 'check' drivers (UMAMI otherwise falls back to a hardcoded g_s).
-    SLHAReader slha( "../../Cards/param_card.dat", false );
-    const double alphaS = slha.get_block_entry( "sminputs", 3, 1.180000e-01 );
-    std::vector<double> alphasVec( nevt, alphaS );
-#ifdef MGONGPUCPP_GPUIMPL
-    DeviceBufferBase<double> devAlphaS( nevt );
-    gpuMemcpy( devAlphaS.data(), alphasVec.data(), nevt * sizeof( double ), gpuMemcpyHostToDevice );
-#endif
-    
     // Retrieve masses
     int npar_meta = 0;
     if( umami_get_meta( UMAMI_META_PARTICLE_COUNT, &npar_meta ) != UMAMI_SUCCESS || npar_meta != CPPProcess::npar )
@@ -583,6 +579,19 @@ namespace
       return 2;
     }
     const std::vector<fptype> masses( massesD.begin(), massesD.end() );
+
+    std::vector<std::vector<double>> point =
+      classic_rambo::get_momenta( CPPProcess::npari, (double)kEnergy, masses, rambowgt );
+
+    // alpha_s from the param card so the couplings match the Fortran/C++
+    // 'check' drivers (UMAMI otherwise falls back to a hardcoded g_s).
+    SLHAReader slha( "../../Cards/param_card.dat", false );
+    const double alphaS = slha.get_block_entry( "sminputs", 3, 1.180000e-01 );
+    std::vector<double> alphasVec( nevt, alphaS );
+#ifdef MGONGPUCPP_GPUIMPL
+    DeviceBufferBase<double> devAlphaS( nevt );
+    gpuMemcpy( devAlphaS.data(), alphasVec.data(), nevt * sizeof( double ), gpuMemcpyHostToDevice );
+#endif
 
     // Always massive RAMBO
     std::unique_ptr<SamplingKernelBase> prsk(
