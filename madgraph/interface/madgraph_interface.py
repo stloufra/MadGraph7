@@ -460,6 +460,9 @@ class HelpToCmd(cmd.HelpCmd):
         logger.info(" > --timings=N   Number of SMATRIX calls per flavor per run (enables timing mode)")
         logger.info(" > --nb_run=Y    Number of timing repetitions (default: 1)")
         logger.info(" > Prints a table with flavor index, average time and 1-sigma uncertainty.")
+        logger.info(" o Example: launch PROC_sm_1 --timings=100 --nb_run=0",'$MG:color:GREEN')
+        logger.info(" > --nb_run=0  Masking check: skip the timing table and instead")
+        logger.info("                print the matrix-element value per flavor after N SMATRIX calls.")
         logger.info("")
         logger.info("Launch on aMC@NLO output:",'$MG:BOLD')
         logger.info(" > launch <dir_path> <mode> <options>",'$MG:color:BLUE')
@@ -10621,7 +10624,7 @@ _launch_parser.add_option("-M", "--madspin", default=False, action='store_true',
 _launch_parser.add_option("", "--timings", default=0, type='int',
                             help="[standalone] Number of SMATRIX calls per flavor per run for timing analysis (0=disabled)")
 _launch_parser.add_option("", "--nb_run", default=1, type='int',
-                            help="[standalone] Number of timing repetitions for statistics (used with --timings)")
+                            help="[standalone] Number of timing repetitions for statistics (used with --timings); 0 = good-helicity check (print matrix-element values instead of a timing table)")
 
 #===============================================================================
 # Interface for customize question.
