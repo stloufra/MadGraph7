@@ -380,16 +380,16 @@ class SvgDiagramDrawer(draw.DiagramDrawer):
     API mirrors EpsDiagramDrawer so callers can swap one for the other.
     """
 
-    # SVG canvas size in pixels
+    # SVG canvas size in pixels (height ~70% of width to match EPS aspect ratio)
     canvas_width  = 360
-    canvas_height = 360
+    canvas_height = 252
 
     # Drawing area (in canvas pixels) – maps [0,1]^2 onto this rectangle.
     # y is flipped because SVG y-axis points down.
     draw_x_min = 30.0
     draw_x_max = 330.0
-    draw_y_min = 30.0    # corresponds to diagram y=1
-    draw_y_max = 330.0   # corresponds to diagram y=0
+    draw_y_min = 21.0    # corresponds to diagram y=1
+    draw_y_max = 231.0   # corresponds to diagram y=0
 
     blob_size = 1.5
     font_size = 17
@@ -701,15 +701,22 @@ class SvgDiagramDrawer(draw.DiagramDrawer):
 
 
 # ===========================================================================
-# MultiSVGDiagramDrawer  –  list of diagrams → folder of SVG files
+# MultiSVGDiagramDrawer  –  list of diagrams → diagrams.svg + diagrams.json
 # ===========================================================================
 
 class MultiSVGDiagramDrawer(SvgDiagramDrawer):
-    """Write a list of diagrams as individual SVG files inside a folder.
+    """Write a list of diagrams to two files whose paths share a common stem.
 
-    The output *filename* is treated as a directory path.  Each diagram is
-    written to ``<folder>/diagram_NNN.svg``.
+    Given *filename* (e.g. ``/path/to/diagrams``):
+      - ``diagrams.svg``  – composite SVG with all diagrams in a grid, each
+                            annotated with its diagram number and coupling orders.
+      - ``diagrams.json`` – JSON array; each entry has ``diagram_number``,
+                            ``orders``, and ``svg`` (the standalone SVG string
+                            for that diagram).
     """
+
+    nb_col = 3          # columns in the composite grid
+    label_height = 48   # pixels reserved below each cell for diagram labels
 
     def __init__(self, diagramlist=None, filename='diagrams', model=None,
                  amplitude=None, legend='', diagram_type=''):
@@ -718,7 +725,7 @@ class MultiSVGDiagramDrawer(SvgDiagramDrawer):
         self.legend = legend
         self.diagram_type = diagram_type
         self._block_nb = 0
-        self._metadata = []
+        self._diagrams = []   # list of dicts: {number, orders, inner, svg}
 
         diagramlist = [d for d in diagramlist
                        if not (isinstance(d, loop_objects.LoopUVCTDiagram) or
@@ -730,28 +737,23 @@ class MultiSVGDiagramDrawer(SvgDiagramDrawer):
     # ------------------------------------------------------------------
 
     def initialize(self):
-        """Create output directory (do not call super – no file to open)."""
-        os.makedirs(self.filename, exist_ok=True)
+        pass
 
     def conclude(self):
-        """Nothing to do – each diagram file is already closed."""
         pass
 
     def put_diagram_number(self, number=0):
-        """Suppress below-diagram text; metadata goes to JSON instead."""
+        """Suppress labels in per-diagram SVGs; composite adds them separately."""
         pass
 
     # ------------------------------------------------------------------
 
     def draw(self, diagramlist='', opt=None):
-        """Write each diagram in diagramlist to its own SVG file, then
-        write diagrams.json to the folder."""
+        """Draw all diagrams and write diagrams.svg + diagrams.json."""
         if diagramlist == '':
             diagramlist = self.diagramlist
         if diagramlist is None:
             return
-
-        self.initialize()
 
         for diagram in diagramlist:
             diagram = self.convert_diagram(diagram, self.model, self.amplitude,
@@ -760,33 +762,23 @@ class MultiSVGDiagramDrawer(SvgDiagramDrawer):
                 continue
             self._draw_one(diagram)
 
-        json_path = os.path.join(self.filename, 'diagrams.json')
-        with open(json_path, 'w') as fp:
-            json.dump(self._metadata, fp, indent=2)
+        self._write_json()
+        self._write_composite_svg()
 
     def _draw_one(self, diagram):
-        """Write a single diagram to its own SVG file."""
+        """Render one diagram into self._diagrams (no file I/O)."""
         n = self._block_nb
-        svg_path = os.path.join(self.filename, f'diagram_{n + 1:04d}.svg')
 
-        # Temporarily redirect output to the individual file
-        old_filename = self.filename
-        old_file     = self.file
-        old_text     = self.text
-
-        self.filename = svg_path
-        self.text = ''
-        self.file = True          # signal to base class that we write a file
-
-        # Write SVG header
-        super(MultiSVGDiagramDrawer, self).initialize()
-        # Draw the diagram
+        # Capture diagram markup in self.text without touching any file.
+        # self.file must be False so draw_diagram doesn't try to flush to it.
+        old_text, self.text = self.text, ''
+        old_file, self.file = self.file, False
         self.draw_diagram(diagram, n)
-        # Write footer & close file
-        super(MultiSVGDiagramDrawer, self).conclude()
+        inner = self.text
+        self.text = old_text
+        self.file = old_file
 
-        # Collect metadata before restoring state
-        svg_name = f'diagram_{n + 1:04d}.svg'
+        # Collect coupling orders
         orders = {}
         if hasattr(self, 'diagram') and self.diagram and \
                 hasattr(self.diagram, 'diagram'):
@@ -795,14 +787,83 @@ class MultiSVGDiagramDrawer(SvgDiagramDrawer):
                 orders = {k: v for k, v in raw.items() if k != 'WEIGHTED'}
             except Exception:
                 pass
-        self._metadata.append({
-            'file': svg_name,
-            'diagram_number': n + 1,
-            'orders': orders,
-        })
 
-        # Restore state
-        self.filename = old_filename
-        self.file     = old_file
-        self.text     = old_text
+        # Build standalone SVG string
+        w, h = self.canvas_width, self.canvas_height
+        svg = (f'<?xml version="1.0" encoding="UTF-8"?>\n'
+               f'<svg xmlns="http://www.w3.org/2000/svg"'
+               f' viewBox="0 0 {w} {h}" width="{w}" height="{h}">\n'
+               f'<g font-family="serif" font-size="{self.font_size}"'
+               f' font-style="italic">\n'
+               + inner +
+               '</g>\n</svg>\n')
+
+        self._diagrams.append({'number': n + 1, 'orders': orders,
+                               'inner': inner, 'svg': svg})
         self._block_nb += 1
+
+    # ------------------------------------------------------------------
+
+    def _write_json(self):
+        data = [{'diagram_number': d['number'], 'orders': d['orders'],
+                 'svg': d['svg']}
+                for d in self._diagrams]
+        with open(self.filename + '.json', 'w') as fp:
+            json.dump(data, fp, indent=2)
+
+    def _write_composite_svg(self):
+        nb_col   = self.nb_col
+        cell_w   = self.canvas_width
+        cell_h   = self.canvas_height + self.label_height
+        n_diags  = len(self._diagrams)
+        nb_row   = max(1, (n_diags + nb_col - 1) // nb_col)
+        total_w  = nb_col * cell_w
+        total_h  = nb_row * cell_h
+
+        lines = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            f'<svg xmlns="http://www.w3.org/2000/svg"'
+            f' viewBox="0 0 {total_w} {total_h}"'
+            f' width="{total_w}" height="{total_h}">',
+            f'<g font-family="serif" font-size="{self.font_size}"'
+            f' font-style="italic">',
+        ]
+
+        for i, d in enumerate(self._diagrams):
+            col = i % nb_col
+            row = i // nb_col
+            tx  = col * cell_w
+            ty  = row * cell_h
+            lines.append(f'<g transform="translate({tx},{ty})">')
+            lines.append(d['inner'])
+
+            # Diagram number label
+            lx = cell_w / 2
+            ly = self.canvas_height + self.font_size + 2
+            if hasattr(self, 'diagram_type') and self.diagram_type:
+                label = f'{self.diagram_type} diagram {d["number"]}'
+            else:
+                label = f'diagram {d["number"]}'
+            lines.append(
+                f'<text x="{lx:.1f}" y="{ly:.1f}" text-anchor="middle"'
+                f' font-style="normal" font-size="{self.font_size - 1}"'
+                f'>{label}</text>'
+            )
+
+            # Coupling orders label
+            orders_str = ', '.join(f'{k}={v}'
+                                   for k, v in sorted(d['orders'].items()))
+            if orders_str:
+                ly2 = ly + self.font_size
+                lines.append(
+                    f'<text x="{lx:.1f}" y="{ly2:.1f}" text-anchor="middle"'
+                    f' font-style="normal" font-size="{self.font_size - 3}"'
+                    f'>({orders_str})</text>'
+                )
+
+            lines.append('</g>')
+
+        lines += ['</g>', '</svg>']
+
+        with open(self.filename + '.svg', 'w') as fp:
+            fp.write('\n'.join(lines))
