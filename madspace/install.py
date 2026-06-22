@@ -382,6 +382,7 @@ def main() -> None:
         # from_source = not ask_yes_no(
         #     "Install pre-compiled package? (recommended)", default=default_is_bin
         # )
+        from_source = True
 
     # PyPI installation
     if not from_source:
