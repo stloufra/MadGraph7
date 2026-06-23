@@ -2306,7 +2306,7 @@ class TestCmdShell2(unittest.TestCase,
         ############################################################################
         
         text = f"""generate g g > t t~
-output {self.out_dir}_density0
+output madevent {self.out_dir}_density0
 launch
 reweight=density
 set run_card nevents 50000
@@ -2446,7 +2446,7 @@ set boost_choice [6, -6]
         ############################################################################
         import madgraph.various.Density_functions as dens
         text = f"""generate u u~ > w+ w-
-output {self.out_dir}_density2
+output madevent {self.out_dir}_density2
 launch
 set run_card nevents 1
 set use_syst False
@@ -2547,7 +2547,7 @@ set axis_referential [-1, -2]
         ############################################################################
         import madgraph.various.Density_functions as dens
         text = f"""generate g g > t t~, t > b w+
-output {self.out_dir}_density3
+output madevent {self.out_dir}_density3
 launch
 set run_card nevents 1
 set run_card use_syst False
@@ -2641,7 +2641,7 @@ set boost_choice [5, -6]
         import madgraph.various.Density_functions as dens
         #we generate just one event of the process  to create the process folder (it is fast enough)
         text = f"""generate g g > t t~, t > b w+
-output {self.out_dir}_density4
+output madevent {self.out_dir}_density4
 launch
 reweight=density
 set run_card nevents 1
@@ -2724,7 +2724,7 @@ set boost_choice [24, -6]
         import madgraph.various.Density_functions as dens
         #we generate just one event of the process  to create the process folder (it is fast enough)
         text = f"""generate p p > t t t~ t~
-output {self.out_dir}_density5
+output madevent {self.out_dir}_density5
 launch
 set run_card nevents 1
 set run_card use_syst False
