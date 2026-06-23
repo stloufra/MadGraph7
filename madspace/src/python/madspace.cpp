@@ -1150,6 +1150,8 @@ PYBIND11_MODULE(_madspace_py, m) {
         );
 
     py::classh<DifferentialCrossSection::CachedPdf>(m, "CachedPdf").def(py::init<>());
+    py::classh<DifferentialCrossSection::CachedScale>(m, "CachedScale")
+        .def(py::init<>());
     py::classh<DifferentialCrossSection, FunctionGenerator>(
         m, "DifferentialCrossSection"
     )
@@ -1157,8 +1159,11 @@ PYBIND11_MODULE(_madspace_py, m) {
             py::init<
                 const MatrixElement&,
                 double,
-                const RunningCoupling&,
-                const EnergyScale&,
+                const std::optional<RunningCoupling>&,
+                const std::variant<
+                    std::monostate,
+                    EnergyScale,
+                    DifferentialCrossSection::CachedScale>&,
                 const nested_vector2<me_int_t>&,
                 const std::variant<
                     std::monostate,
@@ -1195,6 +1200,7 @@ PYBIND11_MODULE(_madspace_py, m) {
                 const Integrand::AdaptiveDiscrete&,
                 const Integrand::AdaptiveDiscrete&,
                 const std::optional<PdfGrid>&,
+                const std::optional<RunningCoupling>&,
                 const std::optional<EnergyScale>&,
                 const std::optional<PropagatorChannelWeights>&,
                 const std::optional<SubchannelWeights>&,
@@ -1214,6 +1220,7 @@ PYBIND11_MODULE(_madspace_py, m) {
             py::arg("discrete_before") = std::monostate{},
             py::arg("discrete_after") = std::monostate{},
             py::arg("pdf_grid") = std::nullopt,
+            py::arg("running_coupling") = std::nullopt,
             py::arg("energy_scale") = std::nullopt,
             py::arg("prop_chan_weights") = std::nullopt,
             py::arg("subchan_weights") = std::nullopt,

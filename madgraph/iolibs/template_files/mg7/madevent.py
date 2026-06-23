@@ -1290,17 +1290,13 @@ class MadgraphSubprocess:
                 self.meta["diagram_count"],
                 True,
             )
-        pdf_grid = (
-            None
-            if len(flavors) > 1 or self.process.leptonic
-            else self.process.pdf_grid
-        )
+        pdf_grid = None if self.process.leptonic else self.process.pdf_grid
         pdf_arg = None if self.process.leptonic else ms.CachedPdf()
         cross_section = ms.DifferentialCrossSection(
             matrix_element=matrix_element,
             cm_energy=self.process.e_cm,
-            running_coupling=self.process.running_coupling,
-            energy_scale=self.scale,
+            running_coupling=None,
+            energy_scale=ms.CachedScale(),
             pid_options=flavors,
             pdf1=pdf_arg,
             pdf2=pdf_arg,
@@ -1316,7 +1312,8 @@ class MadgraphSubprocess:
                 channel.adaptive_mapping,
                 channel.discrete_before,
                 channel.discrete_after,
-                self.process.pdf_grid,
+                pdf_grid,
+                self.process.running_coupling,
                 self.scale,
                 phasespace.prop_chan_weights,
                 phasespace.subchan_weights,

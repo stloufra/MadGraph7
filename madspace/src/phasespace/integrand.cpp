@@ -15,6 +15,7 @@ Integrand::Integrand(
     const AdaptiveDiscrete& discrete_before,
     const AdaptiveDiscrete& discrete_after,
     const std::optional<PdfGrid>& pdf_grid,
+    const std::optional<RunningCoupling>& running_coupling,
     const std::optional<EnergyScale>& energy_scale,
     const std::optional<PropagatorChannelWeights>& prop_chan_weights,
     const std::optional<SubchannelWeights>& subchan_weights,
@@ -110,6 +111,7 @@ Integrand::Integrand(
     _adaptive_map(adaptive_map),
     _discrete_before(discrete_before),
     _discrete_after(discrete_after),
+    _running_coupling(running_coupling),
     _energy_scale(energy_scale),
     _prop_chan_weights(prop_chan_weights),
     _subchan_weights(subchan_weights),
@@ -447,12 +449,16 @@ NamedVector<Value> Integrand::build_channel_part(
             },
             _discrete_after
         );
-        for (auto& pdf : pdf_results) {
-            pdf = fb.gather(pdf, flavor_id);
+        for (auto [pdf, indices] : zip(pdf_results, _pdf_indices)) {
+            if (pdf) {
+                pdf = fb.gather(fb.gather_int(flavor_id, indices), pdf);
+            }
         }
     } else {
         for (auto& pdf : pdf_results) {
-            pdf = fb.squeeze(pdf);
+            if (pdf) {
+                pdf = fb.squeeze(pdf);
+            }
         }
     }
 
@@ -488,12 +494,8 @@ NamedVector<Value> Integrand::build_channel_part(
     // outputs after cuts
     out.push_back("indices_acc", indices_acc);
     out.push_back("momenta_acc", momenta_acc);
-    if (_diff_xs.has_pdf(0)) {
-        out.push_back("x1_acc", x_acc.at(0));
-    }
-    if (_diff_xs.has_pdf(1)) {
-        out.push_back("x2_acc", x_acc.at(1));
-    }
+    out.push_back("x1_acc", x_acc.at(0));
+    out.push_back("x2_acc", x_acc.at(1));
     out.push_back("flavor_id", flavor_id);
     out.push_back("weight_after_cuts", weight_after_cuts);
     if (_madnis_training && extra_weight_after_cuts) {
@@ -556,7 +558,7 @@ NamedVector<Value> Integrand::build_common_part(
 
     // Compute running coupling
     Value alpha_qcd_acc =
-        _diff_xs.running_coupling().build_function(fb, {args.at("ren_scale")}).at(0);
+        _running_coupling.value().build_function(fb, {args.at("ren_scale")}).at(0);
 
     // Evaluate differential cross section
     ValueVec xs_args{

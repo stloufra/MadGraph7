@@ -5,8 +5,8 @@ using namespace madspace;
 DifferentialCrossSection::DifferentialCrossSection(
     const MatrixElement& matrix_element,
     double cm_energy,
-    const RunningCoupling& running_coupling,
-    const EnergyScale& energy_scale,
+    const std::optional<RunningCoupling>& running_coupling,
+    const std::variant<std::monostate, EnergyScale, CachedScale>& energy_scale,
     const nested_vector2<me_int_t>& pid_options,
     const std::variant<std::monostate, PdfGrid, CachedPdf>& pdf1,
     const std::variant<std::monostate, PdfGrid, CachedPdf>& pdf2,
@@ -42,7 +42,13 @@ DifferentialCrossSection::DifferentialCrossSection(
             };
             add_pdf_args(pdf1, 0);
             add_pdf_args(pdf2, 1);
-            if (uses_cached_pdf) {
+            if (std::holds_alternative<CachedScale>(energy_scale)) {
+                if (std::holds_alternative<PdfGrid>(pdf1) ||
+                    std::holds_alternative<PdfGrid>(pdf2)) {
+                    throw std::invalid_argument(
+                        "PDFs cannot be computed in cached scale mode"
+                    );
+                }
                 arg_types.push_back("alpha_s", batch_float);
             }
             return arg_types;
@@ -105,9 +111,8 @@ NamedVector<Value> DifferentialCrossSection::build_function_impl(
     }
     // TODO: need to use mirror_id if we have two different PDFs
     NamedVector<Value> scales;
-    bool use_cached_pdf = _has_pdf.at(0) || _has_pdf.at(1);
-    if (!use_cached_pdf) {
-        scales = _energy_scale.build_function(fb, {momenta});
+    if (std::holds_alternative<EnergyScale>(_energy_scale)) {
+        scales = std::get<EnergyScale>(_energy_scale).build_function(fb, {momenta});
     }
 
     std::array<Value, 2> pdf_outputs{1., 1.};
@@ -126,8 +131,9 @@ NamedVector<Value> DifferentialCrossSection::build_function_impl(
     if (alpha_s_index != -1) {
         matrix_args.insert(
             matrix_args.begin() + alpha_s_index,
-            use_cached_pdf ? args.at(arg_index)
-                           : _running_coupling.build_function(fb, {scales.at(0)}).at(0)
+            std::holds_alternative<CachedScale>(_energy_scale)
+                ? args.at(arg_index)
+                : _running_coupling.value().build_function(fb, {scales.at(0)}).at(0)
         );
     }
 

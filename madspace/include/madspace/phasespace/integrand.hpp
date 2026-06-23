@@ -46,6 +46,7 @@ public:
         const AdaptiveDiscrete& discrete_before = std::monostate{},
         const AdaptiveDiscrete& discrete_after = std::monostate{},
         const std::optional<PdfGrid>& pdf_grid = std::nullopt,
+        const std::optional<RunningCoupling>& running_coupling = std::nullopt,
         const std::optional<EnergyScale>& energy_scale = std::nullopt,
         const std::optional<PropagatorChannelWeights>& prop_chan_weights = std::nullopt,
         const std::optional<SubchannelWeights>& subchan_weights = std::nullopt,
@@ -117,6 +118,7 @@ private:
     AdaptiveDiscrete _discrete_after;
     std::array<std::optional<PartonDensity>, 2> _pdfs;
     std::array<std::vector<me_int_t>, 2> _pdf_indices;
+    std::optional<RunningCoupling> _running_coupling;
     std::optional<EnergyScale> _energy_scale;
     std::optional<PropagatorChannelWeights> _prop_chan_weights;
     std::optional<SubchannelWeights> _subchan_weights;
