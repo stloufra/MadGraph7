@@ -1344,7 +1344,7 @@ class AskRunNLO(cmd.ControlSwitch):
             return False   
         
         if value.lower() in ['madspin', 'full']:
-            return 'full'
+            return value.lower()
         elif value.lower() in ['none']:
             return 'none'
             
@@ -1364,7 +1364,7 @@ class AskRunNLO(cmd.ControlSwitch):
         if value == 'onshell':
             return ["edit madspin_card --replace_line='set spinmode' --before_line='decay' set spinmode onshell"]
         elif value in ['full', 'madspin']:
-            return ["edit madspin_card --replace_line='set spinmode' --before_line='decay' set spinmode madspin"]
+            return ["edit madspin_card --replace_line='set spinmode' --before_line='decay' set spinmode %s" % value]
         elif value == 'none':
             return ["edit madspin_card --replace_line='set spinmode' --before_line='decay' set spinmode none"]
         else:
@@ -6132,4 +6132,3 @@ if '__main__' == __name__:
     except KeyboardInterrupt:
         print('quit on KeyboardInterrupt')
         pass
-

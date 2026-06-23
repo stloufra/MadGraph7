@@ -2067,7 +2067,7 @@ class decay_all_events(object):
                                           (self.all_ME,self.all_decay,self.width_estimator))                
         
         if not self.options["onlyhelicity"] and \
-            self.options['spinmode'] not in  ['PA', 'onshell', 'density'] and \
+            self.options['spinmode'] not in  ['PA', 'onshell'] and \
             self.options['ME_mode'] == 'decay_chain':
             
             resonances = self.width_estimator.resonances
@@ -4498,7 +4498,7 @@ class decay_all_events_density(decay_all_events_onshell):
         must be left as-is, otherwise MG5 receives an invalid process string
         of the form ``... > t* j* ;`` and "Skipping full ME calculation"."""
 
-        if self.options['density_pole_approximation']:
+        if self.options['spinmode'] in ['PA', 'onshell']:
              return line
 
         to_decay = set()
@@ -4537,7 +4537,7 @@ class decay_all_events_density(decay_all_events_onshell):
     
     def adapt_decay(self, line):
         '''If allowing offshell matrix element add * to the decaying particle.'''
-        if self.options['density_pole_approximation']:
+        if self.options['spinmode'] in ['PA', 'onshell']:
              return line
         
         out = []
