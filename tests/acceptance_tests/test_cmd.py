@@ -2316,18 +2316,15 @@ set boost_choice [6, -6]
 """
 
         #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
-        command_card = open('/tmp/mg5_cmd.txt','w')
+        command_card = open(pjoin(self.out_dir, '..', 'mg5_cmd.txt'),'w')
         command_card.write(text)
         command_card.close()
 
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '/tmp/mg5_cmd.txt'])
+                         pjoin(self.out_dir, '..', 'mg5_cmd.txt')])
 
-
-        
-
-        lhe_path = pjoin(self.out_dir + '_density0/Events/run_01/unweighted_events.lhe.gz')
-        rho_mean_path = pjoin(self.out_dir + '_density0/Events/run_01/Average_density_matrix_unweighted_events.txt')
+        lhe_path = pjoin(self.out_dir+'_density0','Events','run_01','unweighted_events.lhe.gz')
+        rho_mean_path = pjoin(self.out_dir+ '_density0','Events','run_01','Average_density_matrix_unweighted_events.txt')
         
         self.assertTrue(os.path.isfile(lhe_path), f"File not found {lhe_path}")
         self.assertTrue(os.path.isfile(rho_mean_path), f"File not found {rho_mean_path}")
@@ -2370,20 +2367,20 @@ set boost_choice [6, -6]
         import madgraph.various.Density_functions as dens
         #we generate just one event of the process  to create the process folder (it is fast enough)
         text = f"""generate g g > t t~
-output {self.out_dir}_density1
+output madevent {self.out_dir}_density1
 launch
 set run_card nevents 1
 set use_syst False
 """
 
         #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
-        command_card = open('/tmp/mg5_cmd.txt','w')
+        command_card = open(pjoin(self.out_dir, '..', 'mg5_cmd.txt'),'w')
         command_card.write(text)
         command_card.close()
 
         logfile = 'test_density_mode_ttbar1.log'
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '/tmp/mg5_cmd.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
+                         pjoin(self.out_dir, '..', 'mg5_cmd.txt')], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
 
 
         #Here we replace the lhe file by the reference lhe file (stored in the input_files).
