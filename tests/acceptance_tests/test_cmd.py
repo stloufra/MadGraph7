@@ -2316,7 +2316,7 @@ set boost_choice [6, -6]
 """
 
         #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
-        command_card = open(pjoin(self.out_dir+'_density0', '..', 'mg5_cmd.txt'),'w')
+        command_card = open(pjoin(self.tmpdir, 'mg5_cmd.txt'),'w')
         command_card.write(text)
         command_card.close()
 
@@ -2374,13 +2374,13 @@ set use_syst False
 """
 
         #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
-        command_card = open(pjoin(self.out_dir+'_density1', '..', 'mg5_cmd.txt'),'w')
+        command_card = open(pjoin(self.tmpdir, 'mg5_cmd.txt'),'w')
         command_card.write(text)
         command_card.close()
 
         logfile = 'test_density_mode_ttbar1.log'
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         pjoin(self.out_dir+'_density1', '..', 'mg5_cmd.txt')], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
+                         pjoin(self.tmpdir, 'mg5_cmd.txt')], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
 
 
         #Here we replace the lhe file by the reference lhe file (stored in the input_files).
