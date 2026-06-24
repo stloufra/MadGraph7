@@ -70,8 +70,12 @@ except ImportError:
     import internal.FO_analyse_card as FO_analyse_card 
     import internal.sum_html as sum_html
     from internal import InvalidCmd, MadGraph5Error
-    
-    MADEVENT=True    
+    try:
+        import internal.citation as citation
+    except ImportError:
+        citation = None
+
+    MADEVENT=True
 else:
     # import from madgraph directory
     import madgraph.interface.extended_cmd as cmd
@@ -86,8 +90,9 @@ else:
     import madgraph.madevent.gen_crossxhtml as gen_crossxhtml
     import models.check_param_card as param_card_mod
     import madgraph.madevent.sum_html as sum_html
+    import madgraph.various.citation as citation
 #    import madgraph.various.histograms as histograms # imported later to not slow down the loading of the code
-    
+
     from madgraph import InvalidCmd, MadGraph5Error, MG5DIR
     MADEVENT=False
 
@@ -1690,6 +1695,84 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                                                                      log=logger)
                     pass
 
+    def get_citation_dir(self):
+        """Directory where the per-process citation logs are written for the
+        current run (Events/<run_name>/citations)."""
+        if not self.run_name:
+            return None
+        return pjoin(self.me_dir, 'Events', self.run_name, 'citations')
+
+    def setup_citation_tracking(self):
+        """Point MG5_CITATION_DIR at the current run so that every piece of code
+        (this process and any executable it launches) records its references
+        there.  Safe no-op if citation tracking is unavailable."""
+        if citation is None:
+            return
+        citation_dir = self.get_citation_dir()
+        if not citation_dir:
+            return
+        try:
+            if not os.path.isdir(citation_dir):
+                os.makedirs(citation_dir)
+        except OSError:
+            return
+        os.environ[citation.ENV_VAR] = citation_dir
+        # seed the run with the citations recorded at generation time
+        # (framework, model, ALOHA/HELAS, UFO format) so they end up in the
+        # final bibliography even when nothing cites them again at run time.
+        gen_log = pjoin(self.me_dir, 'citations.log')
+        if os.path.exists(gen_log):
+            try:
+                files.cp(gen_log, pjoin(citation_dir, 'cite.generation.log'))
+            except Exception:
+                pass
+
+    def finalize_citation_tracking(self):
+        """Collect the run's citation logs and write the two user-facing
+        deliverables (citations.bib and citations.md) next to the events."""
+        if citation is None:
+            return
+        citation_dir = self.get_citation_dir()
+        if not citation_dir:
+            return
+        try:
+            result = citation.finalize(citation_dir,
+                                       output_dir=pjoin(self.me_dir, 'Events',
+                                                        self.run_name),
+                                       run_name=self.run_name)
+        except Exception as error:
+            logger.debug('citation finalization skipped: %s', error)
+            return
+        if result:
+            logger.info('References for this run written to %s',
+                        os.path.relpath(result[0], self.me_dir))
+
+    def cite_madloop_reduction(self):
+        """Cite the one-loop reduction tools selected in the MadLoop card.
+
+        The MadLoop parameter MLReductionLib lists the reduction libraries to
+        try (e.g. "6|7|1"); each library that the user asks for gets its
+        reference cited.  Only CutTools, Ninja and COLLIER are tracked here.
+        """
+        if citation is None:
+            return
+        card = pjoin(self.me_dir, 'Cards', 'MadLoopParams.dat')
+        if not os.path.exists(card):
+            return
+        try:
+            libs = str(banner_mod.MadLoopParam(card)['MLReductionLib'])
+        except Exception:
+            return
+        refs = {
+            '1': [('Ossola:2007ax', 'one-loop reduction with CutTools')],
+            '6': [('Peraro:2014cba', 'one-loop reduction with Ninja'),
+                  ('Hirschi:2016mdz', 'one-loop reduction with Ninja')],
+            '7': [('Denner:2016kdg', 'one-loop reduction with COLLIER')],
+        }
+        for lib in libs.split('|'):
+            for key, context in refs.get(lib.strip(), []):
+                citation.cite(key, context)
+
     def store_result(self):
         """Dummy routine, to be overwritten by daughter classes"""
 
@@ -2086,6 +2169,24 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         
         if '-from_cards' in line and not os.path.exists(pjoin(self.me_dir, 'Cards', 'reweight_card.dat')):
             return
+
+        # cite the reweighting paper only when reweighting is actually used: an
+        # explicit "reweight" command, or an active "launch" in the from_cards
+        # reweight_card (a default run always calls "reweight -from_cards" with a
+        # template card that has no active launch).
+        if citation is not None:
+            used = '-from_cards' not in line
+            rwgt_card = pjoin(self.me_dir, 'Cards', 'reweight_card.dat')
+            if not used and os.path.exists(rwgt_card):
+                try:
+                    with open(rwgt_card) as fsock:
+                        used = any(l.strip().startswith('launch') for l in fsock)
+                except (OSError, IOError):
+                    used = False
+            if used:
+                citation.cite('Mattelaer:2016gcx',
+                    'event reweighting (LO and NLO accuracy)')
+
         # option for multicore to avoid that all of them create the same directory
         if '--multicore=create' in line:
             multicore='create'
@@ -2970,6 +3071,9 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
 
         self.update_status('running rivet', level='rivet')
 
+        if citation is not None:
+            citation.cite('Bierlich:2019rhm', 'analysis with Rivet')
+
         rivet_config = banner_mod.RivetCard(pjoin(self.me_dir, 'Cards', 'rivet_card.dat'))
         if not no_default:
             rivet_config['run_rivet_later'] = False
@@ -3162,6 +3266,10 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
                 %banner_mod.MadAnalysis5Card._MG5aMC_escape_tag+
                 "in\n  '%s'."%pjoin(self.me_dir, 'Cards','madanalysis5_%s_card.dat'%mode))
             return
+
+        if citation is not None:
+            citation.cite('Conte:2012fm',
+                          '%s-level analysis (MadAnalysis5)' % mode)
 
         MA5_cmds_list = MA5_card.get_MA5_cmds(MA5_opts['inputs'],
                 pjoin(self.me_dir,'MA5_%s_ANALYSIS'%mode.upper()),
@@ -3407,6 +3515,10 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         if not delphes3 and not os.path.exists(pjoin(self.me_dir, 'Cards', 'delphes_trigger.dat')):
             files.cp(pjoin(self.me_dir, 'Cards', 'delphes_trigger_default.dat'),
                      pjoin(self.me_dir, 'Cards', 'delphes_trigger.dat'))
+
+        if citation is not None:
+            citation.cite('deFavereau:2013fsa', 'detector simulation (Delphes)')
+
         if not (no_default or self.force):
             if delphes3:
                 self.ask_edit_cards(['delphes_card.dat'], args)
@@ -4247,6 +4359,10 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
         files.mv(current_file, new_file)
         logger.info("The decayed event file has been moved to the following location: ")
         logger.info(new_file)
+
+        if citation is not None:
+            citation.cite('Artoisenet:2012st',
+                          'spin-correlated decays (MadSpin)')
 
         if hasattr(self, 'results'):
             current = self.results.current

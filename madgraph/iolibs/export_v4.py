@@ -3715,13 +3715,18 @@ class ProcessExporterFortranMW(ProcessExporterFortran):
                                    self.dir_path+'/bin/internal/banner.py')
         cp(_file_path+'/various/shower_card.py', 
                                    self.dir_path+'/bin/internal/shower_card.py')
-        cp(_file_path+'/various/cluster.py', 
-                                       self.dir_path+'/bin/internal/cluster.py') 
-        
+        cp(_file_path+'/various/cluster.py',
+                                       self.dir_path+'/bin/internal/cluster.py')
+        # citation tracking (module + bibliography database)
+        cp(_file_path+'/various/citation.py',
+                                      self.dir_path+'/bin/internal/citation.py')
+        cp(_file_path+'/various/citations.bib',
+                                     self.dir_path+'/bin/internal/citations.bib')
+
         # logging configuration
-        cp(_file_path+'/interface/.mg5_logging.conf', 
-                                 self.dir_path+'/bin/internal/me5_logging.conf') 
-        cp(_file_path+'/interface/coloring_logging.py', 
+        cp(_file_path+'/interface/.mg5_logging.conf',
+                                 self.dir_path+'/bin/internal/me5_logging.conf')
+        cp(_file_path+'/interface/coloring_logging.py',
                                  self.dir_path+'/bin/internal/coloring_logging.py')
 
 
@@ -4523,9 +4528,14 @@ class ProcessExporterFortranME(ProcessExporterFortran):
                                    self.dir_path+'/bin/internal/plot_djrs.py')
         cp(_file_path+'/various/systematics.py', self.dir_path+'/bin/internal/systematics.py')        
 
-        cp(_file_path+'/various/cluster.py', 
-                                       self.dir_path+'/bin/internal/cluster.py') 
-        cp(_file_path+'/madevent/combine_runs.py', 
+        cp(_file_path+'/various/cluster.py',
+                                       self.dir_path+'/bin/internal/cluster.py')
+        # citation tracking (module + bibliography database)
+        cp(_file_path+'/various/citation.py',
+                                      self.dir_path+'/bin/internal/citation.py')
+        cp(_file_path+'/various/citations.bib',
+                                     self.dir_path+'/bin/internal/citations.bib')
+        cp(_file_path+'/madevent/combine_runs.py',
                                        self.dir_path+'/bin/internal/combine_runs.py')
         # logging configuration
         cp(_file_path+'/interface/.mg5_logging.conf', 
