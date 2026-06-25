@@ -4964,6 +4964,8 @@ This implies that with decay chains:
         self._generate_info = ""
         # Reset polarization-citation marker (a new process definition starts)
         self._uses_polarization = False
+        self._uses_density_matrix = False
+        self._uses_quarkonia = False
         # Reset _done_export, since we have new process
         self._done_export = False
         # Also reset _export_format and _export_dir
@@ -9441,8 +9443,11 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
         nojpeg = '-nojpeg' in args
         if '--noeps=True' in args:
             nojpeg = True
+        # density-matrix standalone output
+        if '--density' in args:
+            self._uses_density_matrix = True
         flaglist = []
-                    
+
         if '--postpone_model' in args:
             flaglist.append('store_model')
         if '--hel_recycling=False' in args:
@@ -10124,7 +10129,7 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
         run) plus a ready-to-use citations.bib and a citations.md summary.
         """
         runnable = ['madevent', 'standalone', 'standalone_cpp', 'NLO',
-                    'madweight', 'matchbox', 'mg7']
+                    'madweight', 'matchbox', 'mg7', 'mg7_v5', 'standalone_mg7']
         if self._export_format not in runnable or not self._export_dir:
             return
         try:
@@ -10149,6 +10154,39 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
             gauge=str(self.options.get('gauge', 'unitary')),
             polarization=getattr(self, '_uses_polarization', False),
             taudecay=getattr(self, '_uses_taudecay', False))
+
+        # MadSpace + MadNIS: used by the mg7 / standalone_mg7 integration engine
+        if self._export_format in ('mg7', 'mg7_v5', 'standalone_mg7'):
+            pairs += [('Heimel:2026hgp',
+                       'phase-space integration with MadSpace'),
+                      ('Heimel:2023ngj',
+                       'normalising flows for integration (MadNIS)')]
+            if self._export_format == 'standalone_mg7':
+                pairs.append(('Hagebock:2025jyk',
+                               'data-parallel matrix-element evaluation (MadMatrix)'))
+
+        # running couplings (model-level RGE)
+        try:
+            if self._curr_model and self._curr_model.get('running_elements'):
+                pairs.append(('Aoude:2022aro',
+                               'running couplings (RGE effects on SMEFT model)'))
+        except Exception:
+            pass
+
+        # quarkonium / leptonium (NRQCD/NRQED) models: detect from model name
+        _quarkonia_kws = ('nrqcd', 'nrqed', 'quarkon', 'leptonium')
+        try:
+            _mn = (self._curr_model.get('name') or '').lower() if self._curr_model else ''
+        except Exception:
+            _mn = ''
+        if getattr(self, '_uses_quarkonia', False) or any(k in _mn for k in _quarkonia_kws):
+            pairs.append(('ColpaniSerri:2025vdz',
+                           'S-wave quarkonium/leptonium production (NRQCD/NRQED)'))
+
+        # spin-density matrix output
+        if getattr(self, '_uses_density_matrix', False):
+            pairs.append(('Durupt:2025wuk',
+                           'spin-density matrices and quantum observables'))
 
         try:
             gen_log = pjoin(self._export_dir, 'citations.log')

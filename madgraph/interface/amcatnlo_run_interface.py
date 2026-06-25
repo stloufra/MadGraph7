@@ -1796,6 +1796,10 @@ class aMCatNLOCmd(CmdExtended, HelpToCmd, CompleteForCmd, common_run.CommonRunCm
             common_run.citation.cite('Alwall:2014hca',
                 'core matrix-element generation (MadGraph5_aMC@NLO)')
             self.cite_nlo_run_options(mode)
+            try:
+                self.run_card.add_citation(common_run.citation.cite)
+            except Exception:
+                pass
 
         self.run_generate_events(mode, options, argss, switch)
 
@@ -1855,10 +1859,6 @@ class aMCatNLOCmd(CmdExtended, HelpToCmd, CompleteForCmd, common_run.CommonRunCm
         # on a [QCD] output that is not loop-induced
         if mode in ['NLO', 'aMC@NLO', 'noshower'] and not loop_induced:
             cite.cite('Frixione:1997np', 'NLO QCD computation (FKS subtraction)')
-
-        # one-loop reduction tools (MadLoop) are used by NLO and loop-induced runs
-        if mode in ['NLO', 'aMC@NLO', 'noshower'] or loop_induced:
-            self.cite_madloop_reduction()
 
         # the following only apply to showered NLO (aMC@NLO)
         if mode == 'aMC@NLO':
@@ -5320,6 +5320,9 @@ PYTHIA8LINKLIBS=%(pythia8_prefix)s/lib/libpythia8.a -lz -ldl"""%{'pythia8_prefix
         pdlabel is in the form epdf:setname
         """
         logger.info('Using eMELA for leptonic densities')
+        if common_run.citation is not None:
+            common_run.citation.cite('Bertone:2022ktl',
+                                     'leptonic PDFs at NLO-QED accuracy (eMELA)')
 
         epdflibdir = subprocess.Popen([self.options['eMELA'], '--libdir'],
                  stdout = subprocess.PIPE).stdout.read().decode().strip()
@@ -5388,6 +5391,9 @@ PYTHIA8LINKLIBS=%(pythia8_prefix)s/lib/libpythia8.a -lz -ldl"""%{'pythia8_prefix
         pdlabel is in the form epdf:setname
         """
         logger.info('Using eMELA for leptonic densities')
+        if common_run.citation is not None:
+            common_run.citation.cite('Bertone:2022ktl',
+                                     'leptonic PDFs at NLO-QED accuracy (eMELA)')
 
         epdflibdir = subprocess.Popen([self.options['eMELA'], '--libdir'],
                  stdout = subprocess.PIPE).stdout.read().decode().strip()

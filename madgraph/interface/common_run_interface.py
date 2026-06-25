@@ -1750,32 +1750,6 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
             logger.info('References for this run written to %s',
                         os.path.relpath(result[0], self.me_dir))
 
-    def cite_madloop_reduction(self):
-        """Cite the one-loop reduction tools selected in the MadLoop card.
-
-        The MadLoop parameter MLReductionLib lists the reduction libraries to
-        try (e.g. "6|7|1"); each library that the user asks for gets its
-        reference cited.  Only CutTools, Ninja and COLLIER are tracked here.
-        """
-        if citation is None:
-            return
-        card = pjoin(self.me_dir, 'Cards', 'MadLoopParams.dat')
-        if not os.path.exists(card):
-            return
-        try:
-            libs = str(banner_mod.MadLoopParam(card)['MLReductionLib'])
-        except Exception:
-            return
-        refs = {
-            '1': [('Ossola:2007ax', 'one-loop reduction with CutTools')],
-            '6': [('Peraro:2014cba', 'one-loop reduction with Ninja'),
-                  ('Hirschi:2016mdz', 'one-loop reduction with Ninja')],
-            '7': [('Denner:2016kdg', 'one-loop reduction with COLLIER')],
-        }
-        for lib in libs.split('|'):
-            for key, context in refs.get(lib.strip(), []):
-                citation.cite(key, context)
-
     def store_result(self):
         """Dummy routine, to be overwritten by daughter classes"""
 
@@ -2013,6 +1987,11 @@ class CommonRunCmd(HelpToCmd, CheckValidForCmd, cmd.Cmd):
             import internal.systematics as systematics
         else:
             import madgraph.various.systematics as systematics
+
+        # systematics.py always invokes LHAPDF for PDF variations
+        if citation is not None:
+            citation.cite('Buckley:2014ana',
+                          'LHAPDF6 PDF uncertainties (systematics)')
 
         #one core:
         if nb_submit in [0,1]:

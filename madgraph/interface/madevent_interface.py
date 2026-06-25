@@ -2438,13 +2438,15 @@ class MadEventCmd(CompleteForCmd, CmdExtended, HelpToCmd, common_run.CommonRunCm
                 'core matrix-element generation (MadGraph5_aMC@NLO)')
             if self.proc_characteristics['loop_induced']:
                 cite.cite('Hirschi:2015iia', 'loop-induced process generation')
-                # loop-induced uses MadLoop -> cite the selected reduction tools
-                self.cite_madloop_reduction()
             try:
                 if int(run_card['ickkw']) == 1:
                     cite.cite('Alwall:2007fs',
                         'MLM matrix-element/parton-shower merging')
             except (KeyError, ValueError, TypeError):
+                pass
+            try:
+                self.run_card.add_citation(cite.cite)
+            except Exception:
                 pass
 
         self.run_generate_events(switch_mode, args)
