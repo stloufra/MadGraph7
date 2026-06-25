@@ -2247,7 +2247,7 @@ class decay_all_events(object):
                                           (self.all_ME,self.all_decay,self.width_estimator))                
         
         if not self.options["onlyhelicity"] and \
-            self.options['spinmode'] not in  ['PA', 'onshell', 'density'] and \
+            self.options['spinmode'] not in  ['PA', 'onshell'] and \
             self.options['ME_mode'] == 'decay_chain':
             
             resonances = self.width_estimator.resonances
@@ -5319,7 +5319,7 @@ class decay_all_events_density(decay_all_events_onshell):
         must be left as-is, otherwise MG5 receives an invalid process string
         of the form ``... > t* j* ;`` and "Skipping full ME calculation"."""
 
-        if self.options['density_pole_approximation']:
+        if self.options['spinmode'] in ['PA', 'onshell']:
              return line
 
         to_decay = set()
@@ -5331,7 +5331,11 @@ class decay_all_events_density(decay_all_events_onshell):
         for oneline in input:
             if not oneline.strip():
                 continue
-            misc.sprint(oneline)
+            if '>' not in oneline:
+                # Non-process command (e.g. the NLO 'define pert_QCD = ...' line):
+                # nothing to mark off-shell, keep it verbatim.
+                out.append("%s;" % oneline.strip())
+                continue
             init, final = oneline.rsplit('>',maxsplit=1)
             end = len(final)
             if "[" in final:
@@ -5354,13 +5358,18 @@ class decay_all_events_density(decay_all_events_onshell):
     
     def adapt_decay(self, line):
         '''If allowing offshell matrix element add * to the decaying particle.'''
-        if self.options['density_pole_approximation']:
+        if self.options['spinmode'] in ['PA', 'onshell']:
              return line
         
         out = []
         input = line.split(';')
         for oneline in input:
             if not oneline.strip():
+                continue
+            if '>' not in oneline:
+                # Non-process command (e.g. the NLO 'define pert_QCD = ...' line):
+                # nothing to mark off-shell, keep it verbatim.
+                out.append("%s;" % oneline.strip())
                 continue
             init, final = oneline.split('>',maxsplit=1)
             end = len(init)

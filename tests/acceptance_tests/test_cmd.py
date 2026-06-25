@@ -1450,7 +1450,9 @@ class TestCmdShell2(unittest.TestCase,
         for match in all_matches:
             sol[(int(match[0]), int(match[1]), int(match[2]), int(match[3]))] = (float(match[4]), float(match[5]))
 
-        original_sol = {(-1, -1, 1, 1): (0.02827952274928987, 0.0), (-1, -1, 1, -1): (-0.0041892876162345, -0.0041923830983622255), (-1, 1, 1, 1): (0.000469685615962711, 0.0006142055733429721), (-1, 1, 1, -1): (-0.01784029173125566, -0.00794999696313525), (-1, -1, -1, -1): (0.02532739017396033, 0.0), (-1, 1, -1, 1): (-0.00028182588524174187, 0.0024162264334765746), (-1, 1, -1, -1): (-0.00048593945847553023, -0.0006039982074415239), (1, 1, 1, 1): (0.025301510150454294, 0.0), (1, 1, 1, -1): (0.004212401136919661, 0.0042167644618831875), (1, 1, -1, -1): (0.028322721746299958, 0.0)}
+        # We changed the value of the reference by a factor of 256, which is the inclusion of IDEN in get_inter in matrix.
+        # original_sol = {(-1, -1, 1, 1): (0.02827952274928987, 0.0), (-1, -1, 1, -1): (-0.0041892876162345, -0.0041923830983622255), (-1, 1, 1, 1): (0.000469685615962711, 0.0006142055733429721), (-1, 1, 1, -1): (-0.01784029173125566, -0.00794999696313525), (-1, -1, -1, -1): (0.02532739017396033, 0.0), (-1, 1, -1, 1): (-0.00028182588524174187, 0.0024162264334765746), (-1, 1, -1, -1): (-0.00048593945847553023, -0.0006039982074415239), (1, 1, 1, 1): (0.025301510150454294, 0.0), (1, 1, 1, -1): (0.004212401136919661, 0.0042167644618831875), (1, 1, -1, -1): (0.028322721746299958, 0.0)}
+        original_sol = {(-1, -1, 1, 1): (0.00011046688573941356, 0.0), (-1, -1, 1, -1): (-1.6364404750916015e-05, -1.6376496477977443e-05), (-1, 1, 1, 1): (1.83470943735434e-06, 2.3992405208709848e-06), (-1, 1, 1, -1): (-6.968863957521743e-05, -3.105467563724707e-05), (-1, -1, -1, -1): (9.893511786703254e-05, 0.0), (-1, 1, -1, 1): (-1.1008823642255542e-06, 9.43838450576787e-06), (-1, 1, -1, -1): (-1.89820100967004e-06, -2.359367997818453e-06), (1, 1, 1, 1): (9.883402402521209e-05, 0.0), (1, 1, 1, -1): (1.6454691941092424e-05, 1.64717361792312e-05), (1, 1, -1, -1): (0.00011063563182148421, 0.0)}
 
         for key in original_sol:
             self.assertIn(key, sol)
@@ -1504,7 +1506,10 @@ class TestCmdShell2(unittest.TestCase,
             self.assertIn(int(match[3]), [-1,1])
 
         self.assertEqual(len(sol), 10)
-        original_sol =  {(0, 0, 1, 1, -1, -1): (3.4001167694559294e-07, 0.0), (0, 0, 1, 1, -1, 1): (-3.1461674759236455e-07, 4.8545818497513406e-09), (0, 0, 1, -1, -1, -1): (-3.069602710730949e-07, 4.832171908212019e-09), (0, 0, 1, -1, -1, 1): (2.7270589345996334e-07, -2.0762612868036477e-08), (0, 0, 1, 1, 1, 1): (2.914827381801457e-07, 0.0), (0, 0, 1, -1, 1, -1): (2.8446952890247865e-07, -7.217171184019204e-11), (0, 0, 1, -1, 1, 1): (-2.5326248092821595e-07, 1.519703606636158e-08), (0, 0, -1, -1, -1, -1): (2.7764709546297174e-07, 0.0), (0, 0, -1, -1, -1, 1): (-2.4727978606009926e-07, 1.4752928639145769e-08), (0, 0, -1, -1, 1, 1): (2.2137890970427402e-07, 0.0)}
+
+        # We changed the value of the reference by a factor of 36, which is the inclusion of IDEN in get_inter in matrix.
+        # original_sol =  {(0, 0, 1, 1, -1, -1): (3.4001167694559294e-07, 0.0), (0, 0, 1, 1, -1, 1): (-3.1461674759236455e-07, 4.8545818497513406e-09), (0, 0, 1, -1, -1, -1): (-3.069602710730949e-07, 4.832171908212019e-09), (0, 0, 1, -1, -1, 1): (2.7270589345996334e-07, -2.0762612868036477e-08), (0, 0, 1, 1, 1, 1): (2.914827381801457e-07, 0.0), (0, 0, 1, -1, 1, -1): (2.8446952890247865e-07, -7.217171184019204e-11), (0, 0, 1, -1, 1, 1): (-2.5326248092821595e-07, 1.519703606636158e-08), (0, 0, -1, -1, -1, -1): (2.7764709546297174e-07, 0.0), (0, 0, -1, -1, -1, 1): (-2.4727978606009926e-07, 1.4752928639145769e-08), (0, 0, -1, -1, 1, 1): (2.2137890970427402e-07, 0.0)}
+        original_sol =  {(0, 0, 1, 1, -1, -1): (9.444768804044248e-09, 0.0), (0, 0, 1, 1, -1, 1): (-8.739354099787904e-09, 1.3484949582642612e-10), (0, 0, 1, -1, -1, -1): (-8.526674196474859e-09, 1.3422699745033388e-10), (0, 0, 1, -1, -1, 1): (7.575163707221203e-09, -5.767392463343466e-10), (0, 0, 1, 1, 1, 1): (8.09674272722627e-09, 0.0), (0, 0, 1, -1, 1, -1): (7.901931358402185e-09, -2.004769773338668e-12), (0, 0, 1, -1, 1, 1): (-7.035068914672666e-09, 4.2213989073226606e-10), (0, 0, -1, -1, -1, -1): (7.712419318415882e-09, 0.0), (0, 0, -1, -1, -1, 1): (-6.868882946113868e-09, 4.098035733096047e-10), (0, 0, -1, -1, 1, 1): (6.149414158452056e-09, 0.0)}
         for key in original_sol:
             
             self.assertIn(key, sol)
@@ -1553,9 +1558,11 @@ class TestCmdShell2(unittest.TestCase,
 
 
         self.assertEqual(len(sol), 6)
-        original_sol =  {(-1, -1): (520.1204099513759, 0.0), (-1, 0): (-217.2395066557355, 871.1782252029083), (-1, 1): (-939.258737149777, -499.49184104989456), (0, 0): (2136.628541206853, 0.0), (0, 1): (-534.1281427839928, 2141.9713873632077), (1, 1): (2431.7289542861076, 0.0)}
-        for key in original_sol:
-            
+
+        # We changed the value of the reference by a factor of 3, which is the inclusion of IDEN in get_inter in matrix.
+        # original_sol =  {(-1, -1): (520.1204099513759, 0.0), (-1, 0): (-217.2395066557355, 871.1782252029083), (-1, 1): (-939.258737149777, -499.49184104989456), (0, 0): (2136.628541206853, 0.0), (0, 1): (-534.1281427839928, 2141.9713873632077), (1, 1): (2431.7289542861076, 0.0)}
+        original_sol =  {(-1, -1): (173.37346998379198, 0.0), (-1, 0): (-72.41316888524517, 290.3927417343028), (-1, 1): (-313.0862457165923, -166.49728034996485), (0, 0): (712.2095137356176, 0.0), (0, 1): (-178.04271426133093, 713.9904624544025), (1, 1): (810.5763180953692, 0.0)}
+        for key in original_sol:    
             self.assertIn(key, sol)
             self.assertAlmostEqual(original_sol[key][0], sol[key][0])
             self.assertAlmostEqual(original_sol[key][1], sol[key][1])
@@ -1609,9 +1616,9 @@ class TestCmdShell2(unittest.TestCase,
 
 
         self.assertEqual(len(sol), 10)
+        # I am not sure why for this case I didn't have to introduce the nomalisation term
         original_sol = sol =  {(-1, -1, 1, 1): (-5.551115123125783e-17, 0.0), (-1, -1, 1, -1): (0.00926133766116009, 0.0), (-1, 1, 1, 1): (-0.009292545047075378, 0.0), (-1, 1, 1, -1): (0.09884700885130696, 0.0), (-1, -1, -1, -1): (-1.6479873021779667e-17, 0.0), (-1, 1, -1, 1): (5.415404411525035e-07, 0.0), (-1, 1, -1, -1): (-0.012877349160785171, 0.0), (1, 1, 1, 1): (-1.734723475976807e-17, 0.0), (1, 1, 1, -1): (0.012880402732054583, 0.0), (1, 1, -1, -1): (-4.85722573273506e-17, 0.0)}
         for key in original_sol:
-
             self.assertIn(key, sol)
             self.assertAlmostEqual(original_sol[key][0] if abs(original_sol[key][0]) > 1e-12 else 0, sol[key][0])
             self.assertAlmostEqual(original_sol[key][1] if abs(original_sol[key][1]) > 1e-12 else 0, sol[key][1])
@@ -2358,6 +2365,82 @@ set boost_choice [6, -6]
                 self.assertAlmostEqual(rho_avg[i][j].imag, rho_avg_ref[i][j].imag, places=3)
 
 
+    def test_density_mode_user_interface(self):
+        ############################################################################
+        # This test checks that the python interface of the density mode works properly ie.
+        # it creates a LHE file with a tag <density> which contains the density matrix with the correct number of elements.
+        # We also check that the average density matrix is stable.
+        # To check if the value of the density matrix itself is correct see the other test_density_mode_* tests.
+        ############################################################################
+        
+        text = f"""generate g g > t t~
+output {self.out_dir}_density0
+launch
+reweight=density
+set run_card nevents 50000
+set helicity_direction [6]
+set particle_in_density_matrix [6, -6]
+set boost_choice [6, -6]
+"""
+
+        #This bloc of code launches MadGraph with the commands written in mg5_cmd.txt
+        command_card = open('/tmp/mg5_cmd.txt','w')
+        command_card.write(text)
+        command_card.close()
+
+        
+        logfile = 'test_density_mode_ttbar.log'
+        subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
+                         '/tmp/mg5_cmd.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
+
+
+        
+
+        lhe_path = pjoin(self.out_dir + '_density0/Events/run_01/unweighted_events.lhe.gz')
+        rho_mean_path = pjoin(self.out_dir + '_density0/Events/run_01/Average_density_matrix_unweighted_events.txt')
+        
+        self.assertTrue(os.path.isfile(lhe_path), f"File not found {lhe_path}")
+        self.assertTrue(os.path.isfile(rho_mean_path), f"File not found {rho_mean_path}")
+
+
+        for event in lhe_parser.EventFile(lhe_path):
+            density_check = event.density
+            break #we only want the first one
+        
+        for elem in density_check:
+            self.assertIsInstance(elem, complex)
+        
+        self.assertEqual(len(density_check), 10, f"The density matrix is not the correct length: {density_check}")
+
+        rho_avg_ref =  [[(0.3670142422790588+0j), (1.7429098337870793e-07-3.933851109770078e-05j), (-1.742909833606001e-07+3.9338510968347334e-05j), (0.11514189584464168-0j)],
+                        [(1.7429098337870793e-07+3.933851109770078e-05j), (0.13298575772060628+0j), (0.06344292964491506-0j), (-1.7429098336059725e-07-3.933851096834704e-05j)],
+                        [(-1.742909833606001e-07-3.9338510968347334e-05j), (0.06344292964491506+0j), (0.13298575772060628+0j), (1.7429098337870735e-07+3.9338511097700886e-05j)],
+                        [(0.11514189584464168+0j), (-1.7429098336059725e-07+3.933851096834704e-05j), (1.7429098337870735e-07-3.9338511097700886e-05j), (0.36701424227905893+0j)]]
+
+        #now let's read the average density matrix
+        with open(rho_mean_path, 'r') as f:
+            data = f.readlines()[1:]
+            rho_avg = []
+            for i in range(len(data)):
+                aux = data[i].strip("\t\n[]").split(",")
+                try:
+                    rho_avg.append([complex(aux[i].strip(" ()")) for i in range(len(aux))])
+                except: #if the values are like "np.complex128(value)"
+                    print("aux", aux)
+                    aux2 = [aux[i].strip(" ()[]").strip("'").replace("np.complex128(","").strip(" ()") for i in range(len(aux))]
+                    try:
+                        rho_avg.append([complex(aux2[i]) for i in range(len(aux2))])
+                    except:
+                        print("aux2", aux2)
+                        raise ValueError
+            
+
+        for i in range(len(rho_avg)):
+            for j in range(len(rho_avg[0])):
+                self.assertAlmostEqual(rho_avg[i][j].real, rho_avg_ref[i][j].real, places=3) #we ask 3 digits because we only use 50k events
+                self.assertAlmostEqual(rho_avg[i][j].imag, rho_avg_ref[i][j].imag, places=3)
+
+
     def test_density_mode_ttbar(self):
         ############################################################################
         # Check working condition of the density mode
@@ -2558,7 +2641,7 @@ set run_card use_syst False
 
         logfile = 'test_density_mode_decay11.log'
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '/tmp/mg5_cmd.txt'])
+                         '/tmp/mg5_cmd.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
 
 
         #Here we replace the lhe file by the reference lhe file (stored in the input_files).
@@ -2652,7 +2735,7 @@ set run_card use_syst False
 
         logfile = 'test_density_mode_decay21.log'
         subprocess.call([sys.executable,pjoin(MG5DIR,'bin','mg5_aMC'), 
-                         '/tmp/mg5_cmd.txt'])
+                         '/tmp/mg5_cmd.txt'], stdout=open(logfile, 'w'), stderr=subprocess.STDOUT)
 
 
         #Here we replace the lhe file by the reference lhe file (stored in the input_files).
