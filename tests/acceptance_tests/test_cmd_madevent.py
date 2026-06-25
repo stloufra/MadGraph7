@@ -2694,8 +2694,6 @@ set draw_rivet_plots True
         cmd.run_cmd('generate w+ > all all')
         self.assertEqual(cmd.cmd.__name__, 'MadGraphCmd')
         cmd.run_cmd('output madevent %s -f' % self.run_dir)
-        cmd.run_cmd('output  %s -f' % self.run_dir)
-        cmd.run_cmd('output  %s -f' % self.run_dir)
         cmd.run_cmd('launch -f')
         data = self.load_result('run_01')
         self.assertNotEqual(data[0]['cross'], 0)
