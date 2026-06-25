@@ -3361,6 +3361,11 @@ class MadGraphCmd(HelpToCmd, CheckValidForCmd, CompleteForCmd, CmdExtended):
             # Rejoin line
             line = ' '.join(args[1:])
 
+            # the '{...}' syntax selects particle polarizations -> remember it so
+            # the polarization paper is cited at output time
+            if '{' in line:
+                self._uses_polarization = True
+
             # store the first process (for the perl script)
             if not self._generate_info:
                 self._generate_info = line
@@ -3490,8 +3495,12 @@ This implies that with decay chains:
                 
     def add_model(self, args):
         """merge two model"""
-        
+
         model_path = args[0]
+
+        # adding the taudecay library -> cite the TauDecay paper at output time
+        if 'taudecay' in os.path.basename(model_path.rstrip('/')).lower():
+            self._uses_taudecay = True
         recreate = ('--recreate' in args)
         if recreate:
             args.remove('--recreate')
@@ -4953,6 +4962,8 @@ This implies that with decay chains:
         # Reset Helas matrix elements
         self._curr_matrix_elements = helas_objects.HelasMultiProcess()
         self._generate_info = ""
+        # Reset polarization-citation marker (a new process definition starts)
+        self._uses_polarization = False
         # Reset _done_export, since we have new process
         self._done_export = False
         # Also reset _export_format and _export_dir
@@ -10091,6 +10102,12 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
                                     flaglist,
                                     **add_options)
 
+        # Record into the generated directory the references that are already
+        # known at generation time (framework, model, ALOHA/HELAS, UFO format).
+        # These are picked up by every run launched from this output and merged
+        # into its final citations.bib.
+        self.write_generation_citations()
+
         if self._export_format in ['madevent', 'standalone', 'standalone_cpp', 'matchbox', 'mg7']:
             logger.info('Output to directory ' + self._export_dir + ' done.')
 
@@ -10098,6 +10115,47 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
             logger.info('Type \"launch\" to generate events from this process, or see')
             logger.info(self._export_dir + '/README')
             logger.info('Run \"open index.html\" to see more information about this process.')
+
+    def write_generation_citations(self):
+        """Persist, into the generated directory, the references that are
+        already known at generation time: the MadGraph5_aMC@NLO framework, the
+        UFO model format (or HELAS for v4 models), the ALOHA/HELAS helicity
+        routines.  Writes citations.log (machine-readable, collected by every
+        run) plus a ready-to-use citations.bib and a citations.md summary.
+        """
+        runnable = ['madevent', 'standalone', 'standalone_cpp', 'NLO',
+                    'madweight', 'matchbox', 'mg7']
+        if self._export_format not in runnable or not self._export_dir:
+            return
+        try:
+            import madgraph.various.citation as citation
+        except ImportError:
+            return
+
+        try:
+            model_name = self._curr_model.get('name') if self._curr_model else ''
+        except Exception:
+            model_name = ''
+
+        # legacy v4 models are HELAS-based (no UFO/ALOHA); UFO otherwise
+        pairs = citation.generation_pairs(model_name,
+                                          is_ufo=not self._model_v4_path)
+        # TODO: if a UFO model ever exposes its own INSPIRE key (e.g. a
+        # __citation__ attribute), append it here so the physics-model paper is
+        # cited too.
+
+        # optional generation choices: gauge, polarization, TauDecay
+        pairs += citation.optional_generation_pairs(
+            gauge=str(self.options.get('gauge', 'unitary')),
+            polarization=getattr(self, '_uses_polarization', False),
+            taudecay=getattr(self, '_uses_taudecay', False))
+
+        try:
+            gen_log = pjoin(self._export_dir, 'citations.log')
+            citation.write_log(gen_log, pairs)
+            citation.render(citation.collect_file(gen_log), self._export_dir)
+        except Exception as error:
+            logger.debug('could not write generation citations: %s', error)
 
     def do_help(self, line):
         """ propose some usefull possible action """
@@ -10145,6 +10203,14 @@ in the MG5aMC option 'samurai' (instead of leaving it to its default 'auto')."""
 
 
         self.change_principal_cmd('MadGraph')
+
+        try:
+            import madgraph.various.citation as citation
+            citation.cite('Alwall:2014bza',
+                'automatic decay-width computation (MadWidth)')
+        except ImportError:
+            pass
+
         if '--nlo' not in line:
             warning_text = """Please note that the automatic computation of the width is
     only valid in narrow-width approximation and at tree-level."""

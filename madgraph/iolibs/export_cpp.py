@@ -2589,7 +2589,8 @@ class ProcessExporterCPP(VirtualExporter):
     oneprocessclass = OneProcessExporterCPP
     s= _file_path + 'iolibs/template_files/'
     dirs_to_create = ['src', 'lib', 'Cards', 'SubProcesses']
-    from_template = {'src': [s+'rambo.h', s+'rambo.cc', s+'read_slha.h', s+'read_slha.cc'],
+    from_template = {'src': [s+'rambo.h', s+'rambo.cc', s+'read_slha.h', s+'read_slha.cc',
+                             s+'mg5_citation.h', s+'mg5_citation.cc'],
                      'SubProcesses': []}
     to_link_in_P = ['Makefile']
     template_src_make = pjoin(_file_path, 'iolibs', 'template_files','Makefile_sa_cpp_src')
