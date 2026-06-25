@@ -473,7 +473,7 @@ C       ZTEMP = DCONJG(JAMP_2(I))
 
 
       SUBROUTINE  ML5_0_GET_DENSITY(P, POS, N_CHANGING, ALLOW_HEL,
-     $  N_COMB, FLAVOR, ALPHAS, INTER, SCALE2, INTER)
+     $  N_COMB, FLAVOR, ALPHAS, SCALE2, INTER)
 C     P momenta
 C     NHEL base of helicity that are not changing
 C     POS(N_CHNGING): position of the changing helicity
