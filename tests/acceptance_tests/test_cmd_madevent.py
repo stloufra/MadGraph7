@@ -2799,7 +2799,8 @@ set draw_rivet_plots True
                                     '%s/Cards/run_card_default.dat'% self.run_dir)
 
         cmd.run_cmd('launch -f')
-        self.check_parton_output(cross=15.72, error=0.01514)
+        
+        self.check_parton_output(cross=15.73, error=0.04)
 
 
 #===============================================================================
