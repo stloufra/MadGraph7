@@ -19,12 +19,11 @@
 # set spinmode XXXXX      # Use one of the madspin special modes
 #         allowed spinmode:
 #         - PA : Default: Pole approximation -- onshell matrix-element + reshuffling.
-#         - madspin: density method with offshell matrix-elements.
+#         - madspin/full: density method with offshell matrix-elements.
 #         - onshell : not breit-wigner reshuffling
 #         - none : no spin correlation and no finite width effect
 #         legacy modes:
 #         - madspin_v1 and onshell_v1
-#         - full : deprecated alias resolving to madspin_v1
  set max_weight_ps_point 400  # number of PS to estimate the maximum for each event
 
 # specify the decay for the final state particles

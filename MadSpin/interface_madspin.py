@@ -572,7 +572,7 @@ class MadSpinInterface(extended_cmd.Cmd):
                 raise self.InvalidCmd("spinmode can only take one of those values: full/madspin/onshell/none/PA/madspin_v1/onshell_v1")
 
         elif args[0] == "run_card":
-            if self.options['spinmode'] in ["full", "madspin_v1"]:
+            if self.options['spinmode'] in ["madspin_v1"]:
                 raise self.InvalidCmd("edition of the run_card is not allowed within spinmode=madspin_v1")
             if "=" in args:
                 args.remove("=")
@@ -630,7 +630,7 @@ class MadSpinInterface(extended_cmd.Cmd):
         print('        onshell: spin correlation but no offshell effects.')
         print('        PA: spin correlation and offshell effects with a pure Breit-Wigner.')
         print('        madspin: spin correlation and offshell effects with offshell matrix-elements.')
-        print('        full: deprecated alias, resolves to madspin_v1.')
+        print('        full: resolves to madspin.')
         print('        madspin_v1: legacy MadSpin implementation (different reshuffling and no density matrix)')
         print('        onshell_v1: legacy MadSpin implementation (no density matrix) --for debugging only--')
     
@@ -728,11 +728,10 @@ class MadSpinInterface(extended_cmd.Cmd):
 
         spinmode = self.options['spinmode']
         if spinmode == 'full':
-            logger.warning("spinmode=full is deprecated; this resolved to spinmode=madspin_v1")
-            spinmode = 'madspin_v1'
+            spinmode = 'madspin'
             self.options['spinmode'] = spinmode
 
-        misc.sprint("Running MadSpin in spinmode %s" % spinmode)
+        logger.info("Running MadSpin in spinmode %s" % spinmode)
 
         if spinmode in ["none"]:
             out = self.run_bridge(line)

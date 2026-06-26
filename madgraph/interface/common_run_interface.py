@@ -5474,7 +5474,7 @@ class AskforEditCard(cmd.OneLinePathCompletion):
             })
         
         self.special_shortcut_help.update({
-            'spinmode' : 'PA|madspin|onshell|none|full|madspin_v1|onshell_v1. Choose the MadSpin spinmode.\n   - PA: spin correlation and off-shell effects with a pure Breit-Wigner\n  - madspin: spin correlation and off-shell effects with off-shell matrix elements\n  - onshell: spin correlation without off-shell effects\n  - none: no spin correlation and no off-shell effects\n  - full: deprecated alias resolving to madspin_v1.',
+            'spinmode' : 'PA|madspin|onshell|none|full|madspin_v1|onshell_v1. Choose the MadSpin spinmode.\n   - PA: spin correlation and off-shell effects with a pure Breit-Wigner\n  - madspin: spin correlation and off-shell effects with off-shell matrix elements\n  - onshell: spin correlation without off-shell effects\n  - none: no spin correlation and no off-shell effects\n  - full: same as madspin',
             'nodecay': 'remove all decay previously defined in madspin',
             'no_madspin_options': 'remove all options previously defined in madspin',
              })

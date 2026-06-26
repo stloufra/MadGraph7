@@ -4270,9 +4270,9 @@ class decay_all_events_onshell(decay_all_events):
         if self.mode == "onshell" or (self.mode == "density" and self.options['density_debug']):
             commandline += self.get_full_matrix_command(processes)
             #misc.sprint(commandline)
-            logger.critical("Full ME calculation") 
+            logger.debug("Full ME calculation") 
         else:
-            logger.critical("Skipping full ME calculation")        
+            logger.debug("Skipping full ME calculation")        
 
         # 5. add the decay information to the all_topology object --------------                        
 #        for matrix_element in mgcmd._curr_matrix_elements.get_matrix_elements():
