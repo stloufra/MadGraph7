@@ -2067,8 +2067,7 @@ class decay_all_events(object):
                                           (self.all_ME,self.all_decay,self.width_estimator))                
         
         if not self.options["onlyhelicity"] and \
-            self.options['spinmode'] not in  ['PA', 'onshell'] and \
-            self.options['ME_mode'] == 'decay_chain':
+            self.options['spinmode'] in  ['madspin_v1']:
             
             resonances = self.width_estimator.resonances
             logger.debug('List of resonances: %s' % resonances)
