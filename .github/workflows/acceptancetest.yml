@@ -1267,7 +1267,7 @@ jobs:
 
   acceptancetest_density_decay2:
     # The type of runner that the job will run on
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
 
     # Steps represent a sequence of tasks that will be executed as part of the job
@@ -1285,7 +1285,7 @@ jobs:
 
   acceptancetest_density_tttbartbar:
     # The type of runner that the job will run on
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
 
     # Steps represent a sequence of tasks that will be executed as part of the job
@@ -1304,7 +1304,7 @@ jobs:
 
   acceptancetest_density_LI_standalone1:
     # The type of runner that the job will run on
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
 
     # Steps represent a sequence of tasks that will be executed as part of the job
@@ -1322,7 +1322,7 @@ jobs:
 
   acceptancetest_density_LI_standalone2:
     # The type of runner that the job will run on
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-44.04
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
 
     # Steps represent a sequence of tasks that will be executed as part of the job
@@ -1341,7 +1341,7 @@ jobs:
 
   acceptancetest_density_LI_standalone3:
     # The type of runner that the job will run on
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
 
     # Steps represent a sequence of tasks that will be executed as part of the job
@@ -1363,7 +1363,7 @@ jobs:
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
     strategy:
       matrix:
-        os: [ubuntu-22.04, ubuntu-24.04]
+        os: [ubuntu-24.04]
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
