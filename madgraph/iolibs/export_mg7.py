@@ -18,7 +18,7 @@ class OneProcessExporterMG7(export_cpp.OneProcessExporterCPP):
         )
         self.diagrams = self.amplitude.get("diagrams")
         self.helas_diagrams = self.matrix_element.get("diagrams")
-        self.all_flavors, self.all_flavors_sign = self.matrix_element.get_external_flavors_with_iden(return_sign=True)
+        self.all_flavors, self.all_flavors_pdgs = self.matrix_element.get_external_flavors_with_iden(return_pdgs=True)
         self.process = self.amplitude.get("process")
         self.legs = self.process.get("legs_with_decays")
         self.color_basis = self.matrix_element.get("color_basis")
@@ -45,7 +45,7 @@ class OneProcessExporterMG7(export_cpp.OneProcessExporterCPP):
     def set_flavor_indices(self):
         self.all_flavors_same_initial = []
         self.all_flavors_indices = []
-        for i, flavors in enumerate(self.all_flavors_sign):
+        for i, flavors in enumerate(self.all_flavors_pdgs):
             flv_dict = defaultdict(list)
             for flv in flavors:
                 flv_dict[(flv[0], flv[1])].append(flv)
