@@ -905,7 +905,7 @@ class TestCmdLoop(unittest.TestCase):
 
         text = f""" import model loop_sm
                     generate g g > w+ w- [noborn=QCD]
-                    output {self.out_dir}
+                    output madevent {self.out_dir}
                     launch
                     reweight=density
                     set run_card nevents 1
