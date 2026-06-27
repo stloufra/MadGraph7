@@ -2305,12 +2305,13 @@ class TestCmdShell2(unittest.TestCase,
                           1,-1,    1,0,    1,1]
             ncomb = 9 # why needed in f2py ?
             alphas = 0.118 # no impact for ZZ
+            scale2 = 0. # as passed by check_sa.f; no impact for ZZ
 
             # GET_DENSITY now takes a per-particle merged-flavor index array
             # (matches the SMATRIX/GET_AMP flavor-grouping plumbing).
             # Single-flavor processes use 1 for every particle.
             flavor = [1] * len(P[0])
-            f2py_dens = matrix2py.py_m0_get_density(P, pos, n_changing, allow_hel, ncomb, flavor, alphas)
+            f2py_dens = matrix2py.py_m0_get_density(P, pos, n_changing, allow_hel, ncomb, flavor, alphas, scale2)
             misc.sprint('fortran: ', fortran_dens)
             misc.sprint('f2py:    ', f2py_dens)
             for i in range(9*5):
