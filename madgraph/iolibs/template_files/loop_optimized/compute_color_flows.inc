@@ -671,8 +671,8 @@ ENDDO
 c Compute the Born ME from the Born color flow amplitudes (JAMP)
 DO I=1, NBORNFLOWS
   DO J=I, NBORNFLOWS
-    COLOR_COEF=DCMPLX(BornColorFlowMatrix(I,J)%%Num/DBLE(ABS(BornColorFlowMatrix(I,J)%%Denom)),0.0d0)
-    IF (BornColorFlowMatrix(I,J)%%Denom.LT.0) COLOR_COEF=COLOR_COEF*IMAG1
+    COLOR_COEF=DCMPLX(BornColorFlowMatrix(I,J)%Num/DBLE(ABS(BornColorFlowMatrix(I,J)%Denom)),0.0d0)
+    IF (BornColorFlowMatrix(I,J)%Denom.LT.0) COLOR_COEF=COLOR_COEF*IMAG1
     DO M=1,NBORNAMPSO
 C It may be that this AmpSO index does not receive contribution by the Born amps (because we put the loop and Born amplitude split orders in a common list)
       IF (ABS(JAMPB1(I,M)).eq.0.0d0.or.ABS(JAMPB2(I,M)).eq.0.0d0) CYCLE
@@ -706,8 +706,8 @@ DO I=1,NLOOPFLOWS
 ## } else {
   DO J=I,NLOOPFLOWS
 ## }
-    COLOR_COEF=DCMPLX(LoopColorFlowMatrix(I,J)%%Num/DBLE(ABS(LoopColorFlowMatrix(I,J)%%Denom)),0.0d0)
-    IF (LoopColorFlowMatrix(I,J)%%Denom.LT.0) COLOR_COEF=COLOR_COEF*IMAG1
+    COLOR_COEF=DCMPLX(LoopColorFlowMatrix(I,J)%Num/DBLE(ABS(LoopColorFlowMatrix(I,J)%Denom)),0.0d0)
+    IF (LoopColorFlowMatrix(I,J)%Denom.LT.0) COLOR_COEF=COLOR_COEF*IMAG1
     DO M=1,NLOOPAMPSO
 ## if(not LoopInduced){
 C It may be that this AmpSO index does not receive contribution by the Loop amps (because we put the loop and Born amplitude split orders in a common list)
