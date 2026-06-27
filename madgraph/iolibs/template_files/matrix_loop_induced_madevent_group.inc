@@ -334,8 +334,22 @@ c         Set right sign for ANS, based on sign of chosen helicity
     ENDIF
 
 C Amplitude(s) for diagram number %(n_tot_diags)d
-C This last line is a tag do not remove it. 
+C This last line is a tag do not remove it.
 	END
+
+
+      SUBROUTINE GET_FLAVOR%(proc_id)s(IFLAV, FLAVOR_OUT)
+C     Returns the flavor array for a given flavor index IFLAV
+C     (called by the flavor dispatcher in auto_dsig).
+      IMPLICIT NONE
+      include 'nexternal.inc'
+      INTEGER IFLAV, I
+      INTEGER FLAVOR_OUT(NEXTERNAL)
+      INTEGER FLAVOR(NEXTERNAL,%(max_flavor)s)
+      %(get_flavor_matrix)s
+      FLAVOR_OUT(:) = FLAVOR(:, IFLAV)
+      RETURN
+      END
 
 	SUBROUTINE PROCESS_MADLOOP_OUTPUT%(proc_id)s(P,time_before, me_answer, finite, OneEps, TwoEps, prec, return_code)
 c

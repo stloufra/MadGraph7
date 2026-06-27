@@ -3306,6 +3306,21 @@ class LoopInducedExporterME(LoopProcessOptimizedExporterFortranSA):
         n_tot_diags = len(matrix_element.get_loop_diagrams())
         replace_dict['n_tot_diags'] = n_tot_diags
 
+        # Flavor table for GET_FLAVOR<proc_id>, called by the flavor dispatcher
+        # in auto_dsig of the MadEvent output (otherwise auto_dsig fails to link
+        # with 'undefined reference to get_flavor<proc_id>_'). Loop-induced
+        # subprocesses carry only the trivial all-1 flavor (the loop ME exposes
+        # no merged-flavor position data), matching the FLAVOR /NEXTERNAL*1/
+        # convention used elsewhere in the loop matrix template.
+        nexternal, _ = matrix_element.get_nexternal_ninitial()
+        all_flav = matrix_element.get_external_flavors_with_iden()
+        replace_dict['max_flavor'] = len(all_flav)
+        get_flavor_matrix = ''
+        for i in range(len(all_flav)):
+            get_flavor_matrix += ' DATA (FLAVOR(i,  %d),i=  1, NEXTERNAL) /%s/\n' \
+                                 % (i+1, ', '.join(['1'] * nexternal))
+        replace_dict['get_flavor_matrix'] = get_flavor_matrix
+
         file = open(pjoin(_file_path, \
                           'iolibs/template_files/%s' % self.matrix_file)).read()
         file = misc.apply_template(file, replace_dict)
