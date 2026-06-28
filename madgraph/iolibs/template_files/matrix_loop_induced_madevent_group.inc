@@ -1,4 +1,4 @@
-SUBROUTINE SMATRIX%(proc_id)s(P,RHEL, RCOL, channel, proc_id, ANS, hel_selected, icol)
+SUBROUTINE SMATRIX%(proc_id)s(P, iflav, RHEL, RCOL, channel, ivec, ANS, hel_selected, icol)
 C  
 %(info_lines)s
 C 
@@ -14,7 +14,7 @@ C
     IMPLICIT NONE
     double precision RHEL
     double precision RCOL
-    integer channel, proc_id, hel_selected, icol, ivec
+    integer iflav, channel, hel_selected, icol, ivec
 C  
 C CONSTANTS
 C  
@@ -178,7 +178,8 @@ C     This is of course only necessary if the automatic TIR Cache clearing was t
 
 
     ANS = 0D0
-    IVEC= 1
+C   IVEC is now received as an argument (the call site passes the vector index,
+C   or 1 for the non-vectorised path); do not overwrite it here.
 
     DO I=1,NCOMB
        TS(I)=0d0

@@ -1,4 +1,4 @@
-SUBROUTINE SMATRIX%(proc_id)s(P, RHEL, RCOL, channel, proc_id, ANS, HEL_SELECTED, ICOL)
+SUBROUTINE SMATRIX%(proc_id)s(P, iflav, RHEL, RCOL, channel, ivec, ANS, HEL_SELECTED, ICOL)
 C  
 %(info_lines)s
 C 
@@ -13,7 +13,7 @@ C
     use DiscreteSampler
     IMPLICIT NONE
     double precision RHEL, RCOL
-    integer channel, proc_id, hel_selected, icol, ivec
+    integer iflav, channel, hel_selected, icol, ivec
 C  
 C CONSTANTS
 C  
@@ -172,7 +172,8 @@ C     This is of course only necessary if the automatic TIR Cache clearing was t
             JAMP2(I)=0D0
         ENDDO
     ANS = 0D0
-    ivec = 1
+C   ivec is now received as an argument (the call site passes the vector index,
+C   or 1 for the non-vectorised path); do not overwrite it here.
     WRITE(HEL_BUFF,'(20I5)') (0,I=1,NEXTERNAL)
 
     DO I=1,NCOMB
