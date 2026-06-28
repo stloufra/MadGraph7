@@ -1322,7 +1322,7 @@ jobs:
 
   acceptancetest_density_LI_standalone2:
     # The type of runner that the job will run on
-    runs-on: ubuntu-44.04
+    runs-on: ubuntu-24.04
     if: github.event_name == 'push' || github.event.pull_request.head.repo.fork == true
 
     # Steps represent a sequence of tasks that will be executed as part of the job
